@@ -1,0 +1,89 @@
+{
+  "version": 3,
+  "targets": {
+    "net8.0": {
+      "EMF.Common/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v8.0",
+        "compile": {
+          "bin/placeholder/EMF.Common.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/EMF.Common.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "EMF.Common/1.0.0": {
+      "type": "project",
+      "path": "../EMF.Common/EMF.Common.csproj",
+      "msbuildProject": "../EMF.Common/EMF.Common.csproj"
+    }
+  },
+  "projectFileDependencyGroups": {
+    "net8.0": [
+      "EMF.Common >= 1.0.0"
+    ]
+  },
+  "packageFolders": {
+    "/home/michael/.nuget/packages/": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "/home/michael/EMF_Project/src/EMF.Inventory/EMF.Inventory.csproj",
+      "projectName": "EMF.Inventory",
+      "projectPath": "/home/michael/EMF_Project/src/EMF.Inventory/EMF.Inventory.csproj",
+      "packagesPath": "/home/michael/.nuget/packages/",
+      "outputPath": "/home/michael/EMF_Project/src/EMF.Inventory/obj/",
+      "projectStyle": "PackageReference",
+      "configFilePaths": [
+        "/home/michael/.nuget/NuGet/NuGet.Config"
+      ],
+      "originalTargetFrameworks": [
+        "net8.0"
+      ],
+      "sources": {
+        "https://api.nuget.org/v3/index.json": {}
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "projectReferences": {
+            "/home/michael/EMF_Project/src/EMF.Common/EMF.Common.csproj": {
+              "projectPath": "/home/michael/EMF_Project/src/EMF.Common/EMF.Common.csproj"
+            }
+          }
+        }
+      },
+      "warningProperties": {
+        "warnAsError": [
+          "NU1605"
+        ]
+      }
+    },
+    "frameworks": {
+      "net8.0": {
+        "targetAlias": "net8.0",
+        "imports": [
+          "net461",
+          "net462",
+          "net47",
+          "net471",
+          "net472",
+          "net48",
+          "net481"
+        ],
+        "assetTargetFallback": true,
+        "warn": true,
+        "frameworkReferences": {
+          "Microsoft.NETCore.App": {
+            "privateAssets": "all"
+          }
+        },
+        "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/8.0.129/PortableRuntimeIdentifierGraph.json"
+      }
+    }
+  }
+}
