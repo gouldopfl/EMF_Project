@@ -6,6 +6,20 @@ namespace EMF.Inventory.Providers;
 
 public sealed class SqliteInventoryProvider : IInventoryProvider
 {
+    public bool CanHandle(string sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            return false;
+        }
+
+        var extension = Path.GetExtension(sourcePath);
+
+        return extension.Equals(".db", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".sqlite", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".sqlite3", StringComparison.OrdinalIgnoreCase);
+    }
+
     public async Task<DatabaseInventory> CreateInventoryAsync(
         string databasePath,
         CancellationToken cancellationToken = default)

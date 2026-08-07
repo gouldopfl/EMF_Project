@@ -7,29 +7,29 @@ namespace EMF.Orchestration.Services;
 
 public sealed class InventoryRoutingService : IInventoryRoutingService
 {
-    private readonly IInventoryProvider _sqliteProvider;
+    private readonly IReadOnlyList<IInventoryProvider> _providers;
 
     public InventoryRoutingService()
-        : this(new SqliteInventoryProvider())
+        : this(new IInventoryProvider[]
+        {
+            new SqliteInventoryProvider()
+        })
     {
     }
 
-    public InventoryRoutingService(IInventoryProvider sqliteProvider)
+    public InventoryRoutingService(
+        IEnumerable<IInventoryProvider> providers)
     {
-        ArgumentNullException.ThrowIfNull(sqliteProvider);
-        _sqliteProvider = sqliteProvider;
+        ArgumentNullException.ThrowIfNull(providers);
+
+        _providers = providers.ToList();
     }
 
     public IInventoryProvider? SelectProvider(DiscoveredItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        var extension = Path.GetExtension(item.SourcePath);
-
-        return extension.Equals(".db", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".sqlite", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".sqlite3", StringComparison.OrdinalIgnoreCase)
-                ? _sqliteProvider
-                : null;
+        return _providers.FirstOrDefault(
+            provider => provider.CanHandle(item.SourcePath));
     }
 }
