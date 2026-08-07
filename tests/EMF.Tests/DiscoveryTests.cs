@@ -81,4 +81,38 @@ public sealed class DiscoveryTests
 
 
 
+
+    [Fact]
+    public async Task DiscoverAsync_ByDefault_ExcludesHiddenFiles()
+    {
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-discovery-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(rootPath);
+
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(rootPath, "visible.txt"),
+                "visible");
+
+            File.WriteAllText(
+                Path.Combine(rootPath, ".hidden.txt"),
+                "hidden");
+
+            var service = new FileSystemDiscoveryService();
+
+            var statistics = await service.DiscoverAsync(
+                rootPath,
+                new DiscoveryOptions());
+
+            Assert.Equal(1, statistics.FilesDiscovered);
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
 }
