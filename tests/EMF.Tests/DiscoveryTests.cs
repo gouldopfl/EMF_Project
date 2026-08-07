@@ -40,4 +40,45 @@ public sealed class DiscoveryTests
             Directory.Delete(rootPath, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task DiscoverAsync_WhenRecursiveIsFalse_DoesNotDescendIntoChildDirectories()
+    {
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-discovery-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(rootPath);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(rootPath, "root.txt"), "root");
+
+            var childPath = Path.Combine(rootPath, "child");
+            Directory.CreateDirectory(childPath);
+
+            File.WriteAllText(
+                Path.Combine(childPath, "child.txt"),
+                "child");
+
+            var service = new FileSystemDiscoveryService();
+
+            var statistics = await service.DiscoverAsync(
+                rootPath,
+                new DiscoveryOptions
+                {
+                    Recursive = false
+                });
+
+            Assert.Equal(1, statistics.DirectoriesDiscovered);
+            Assert.Equal(1, statistics.FilesDiscovered);
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
+
+
 }
