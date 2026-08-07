@@ -1,5 +1,6 @@
 using EMF.Discovery.Models;
 using EMF.Discovery.Services;
+using EMF.Inventory.Providers;
 using EMF.Orchestration.Services;
 
 var sourcePath = args.Length > 0
@@ -14,7 +15,7 @@ Console.WriteLine($"Source   : {sourcePath}");
 Console.WriteLine();
 
 var discovery = new FileSystemDiscoveryService();
-var routing = new InventoryRoutingService();
+var routing = new InventoryRoutingService(new[] { new SqliteInventoryProvider() });
 
 await foreach (var item in discovery.DiscoverItemsAsync(
     sourcePath,

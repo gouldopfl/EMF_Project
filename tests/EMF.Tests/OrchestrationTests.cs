@@ -16,7 +16,8 @@ public sealed class OrchestrationTests
             SourceType = "file"
         };
 
-        var service = new InventoryRoutingService();
+        var service = new InventoryRoutingService(
+            new[] { new SqliteInventoryProvider() });
 
         var provider = service.SelectProvider(item);
 
@@ -33,7 +34,8 @@ public sealed class OrchestrationTests
             SourceType = "file"
         };
 
-        var service = new InventoryRoutingService();
+        var service = new InventoryRoutingService(
+            new[] { new SqliteInventoryProvider() });
 
         var provider = service.SelectProvider(item);
 
@@ -53,10 +55,11 @@ public sealed class OrchestrationTests
 
         try
         {
-            var connectionString = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
-            {
-                DataSource = databasePath
-            }.ToString();
+            var connectionString =
+                new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+                {
+                    DataSource = databasePath
+                }.ToString();
 
             await using (var connection =
                 new Microsoft.Data.Sqlite.SqliteConnection(connectionString))
@@ -64,6 +67,7 @@ public sealed class OrchestrationTests
                 await connection.OpenAsync();
 
                 await using var command = connection.CreateCommand();
+
                 command.CommandText =
                     """
                     CREATE TABLE evidence (
@@ -77,8 +81,11 @@ public sealed class OrchestrationTests
                 await command.ExecuteNonQueryAsync();
             }
 
-            var discovery = new EMF.Discovery.Services.FileSystemDiscoveryService();
-            var routing = new InventoryRoutingService();
+            var discovery =
+                new EMF.Discovery.Services.FileSystemDiscoveryService();
+
+            var routing = new InventoryRoutingService(
+                new[] { new SqliteInventoryProvider() });
 
             DiscoveredItem? discoveredDatabase = null;
 
@@ -111,8 +118,10 @@ public sealed class OrchestrationTests
         }
         finally
         {
-            Directory.Delete(rootPath, recursive: true);
+            if (Directory.Exists(rootPath))
+            {
+                Directory.Delete(rootPath, recursive: true);
+            }
         }
     }
-
 }
