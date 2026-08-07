@@ -1,9 +1,10 @@
+using EMF.Inventory.Contracts;
 using EMF.Inventory.Models;
 using Microsoft.Data.Sqlite;
 
 namespace EMF.Inventory.Providers;
 
-public sealed class SqliteInventoryProvider
+public sealed class SqliteInventoryProvider : IInventoryProvider
 {
     public async Task<DatabaseInventory> CreateInventoryAsync(
         string databasePath,
