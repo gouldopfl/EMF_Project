@@ -153,4 +153,20 @@ public sealed class DiscoveryTests
     }
 
 
+
+    [Fact]
+    public async Task DiscoverAsync_WhenSourceDoesNotExist_ThrowsDirectoryNotFoundException()
+    {
+        var sourcePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-missing-{Guid.NewGuid():N}");
+
+        var service = new FileSystemDiscoveryService();
+
+        await Assert.ThrowsAsync<DirectoryNotFoundException>(
+            () => service.DiscoverAsync(
+                sourcePath,
+                new DiscoveryOptions()));
+    }
+
 }
