@@ -353,4 +353,18 @@ public void ArtifactFactory_MapsDiscoveredItemToArtifactAndProvenance()
         1276899328L,
         result.Artifact.Metadata["sizeBytes"]);
 }
+
+
+[Fact]
+public void GuidArtifactIdGenerator_GeneratesUniqueIds()
+{
+    var generator = new GuidArtifactIdGenerator();
+
+    var first = generator.Generate();
+    var second = generator.Generate();
+
+    Assert.False(string.IsNullOrWhiteSpace(first.Value));
+    Assert.False(string.IsNullOrWhiteSpace(second.Value));
+    Assert.NotEqual(first, second);
+}
 }
