@@ -200,4 +200,45 @@ public sealed class DiscoveryTests
         }
     }
 
+
+    [Fact]
+    public async Task DiscoverItemsAsync_StreamsDiscoveredFiles()
+    {
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-discovery-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(rootPath);
+
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(rootPath, "file1.txt"),
+                "one");
+
+            File.WriteAllText(
+                Path.Combine(rootPath, "file2.txt"),
+                "two");
+
+            var service = new FileSystemDiscoveryService();
+            var items = new List<DiscoveredItem>();
+
+            await foreach (var item in service.DiscoverItemsAsync(
+                rootPath,
+                new DiscoveryOptions()))
+            {
+                items.Add(item);
+            }
+
+            Assert.Equal(2, items.Count);
+            Assert.Contains(items, item => item.Name == "file1.txt");
+            Assert.Contains(items, item => item.Name == "file2.txt");
+            Assert.All(items, item => Assert.Equal("file", item.SourceType));
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
 }
