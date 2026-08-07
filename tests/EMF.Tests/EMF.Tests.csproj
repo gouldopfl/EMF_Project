@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/EMF.Common/EMF.Common.csproj" />
     <ProjectReference Include="../../src/EMF.Inventory/EMF.Inventory.csproj" />
+    <ProjectReference Include="..\..\src\EMF.Discovery\EMF.Discovery.csproj" />
   </ItemGroup>
 
 </Project>
