@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using EMF.Core.Contracts;
 using EMF.Discovery.Contracts;
 using EMF.Discovery.Models;
 using EMF.Orchestration.Contracts;
@@ -12,6 +13,7 @@ public sealed class InventoryOrchestrationService : IInventoryOrchestrationServi
     private readonly IInventoryRoutingService _routing;
     private readonly IArtifactFactory _artifactFactory;
     private readonly IArtifactIdGenerator _artifactIdGenerator;
+private readonly IContentFingerprintService _fingerprintService;
 
     public InventoryOrchestrationStatistics Statistics { get; private set; }
         = new();
@@ -20,17 +22,20 @@ public sealed class InventoryOrchestrationService : IInventoryOrchestrationServi
         IStreamingDiscoveryService discovery,
         IInventoryRoutingService routing,
         IArtifactFactory artifactFactory,
-        IArtifactIdGenerator artifactIdGenerator)
+        IArtifactIdGenerator artifactIdGenerator,
+    IContentFingerprintService fingerprintService)
     {
         ArgumentNullException.ThrowIfNull(discovery);
         ArgumentNullException.ThrowIfNull(routing);
         ArgumentNullException.ThrowIfNull(artifactFactory);
         ArgumentNullException.ThrowIfNull(artifactIdGenerator);
+    ArgumentNullException.ThrowIfNull(fingerprintService);
 
         _discovery = discovery;
         _routing = routing;
         _artifactFactory = artifactFactory;
         _artifactIdGenerator = artifactIdGenerator;
+    _fingerprintService = fingerprintService;
     }
 
     public async IAsyncEnumerable<InventoryOrchestrationResult> ExecuteAsync(
@@ -65,9 +70,16 @@ public sealed class InventoryOrchestrationService : IInventoryOrchestrationServi
 
                 Statistics.ItemsHandled++;
 
-                var artifactResult = _artifactFactory.Create(
-                    item,
-                    _artifactIdGenerator.Generate());
+                var artifactId = _artifactIdGenerator.Generate();
+
+var fingerprint = await _fingerprintService.ComputeAsync(
+    item.SourcePath,
+    cancellationToken);
+
+var artifactResult = _artifactFactory.Create(
+    item,
+    artifactId,
+    fingerprint);
 
                 InventoryOrchestrationResult result;
 

@@ -1,5 +1,6 @@
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
+using EMF.Core.Models.Integrity;
 using EMF.Discovery.Models;
 using EMF.Orchestration.Contracts;
 using EMF.Orchestration.Models;
@@ -10,7 +11,8 @@ public sealed class ArtifactFactory : IArtifactFactory
 {
     public ArtifactCreationResult Create(
         DiscoveredItem item,
-        ArtifactId artifactId)
+        ArtifactId artifactId,
+ContentFingerprint? fingerprint)
     {
         ArgumentNullException.ThrowIfNull(item);
 
@@ -36,6 +38,7 @@ public sealed class ArtifactFactory : IArtifactFactory
             Id = artifactId,
             Name = item.Name,
             ArtifactType = item.SourceType,
+Fingerprint = fingerprint,
             CreatedUtc = item.CreatedUtc ?? DateTimeOffset.UtcNow,
             Metadata = metadata
         };

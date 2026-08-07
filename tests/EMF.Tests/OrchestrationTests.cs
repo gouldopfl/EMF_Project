@@ -3,6 +3,7 @@ using EMF.Orchestration.Models;
 using EMF.Discovery.Services;
 using EMF.Discovery.Models;
 using EMF.Inventory.Providers;
+using EMF.Integrity;
 using EMF.Orchestration.Services;
 
 namespace EMF.Tests;
@@ -163,7 +164,8 @@ public async Task InventoryOrchestrationService_ExecutesDiscoveryRoutingAndInven
             discovery,
             routing,
             new ArtifactFactory(),
-            new GuidArtifactIdGenerator());
+            new GuidArtifactIdGenerator(),
+        new Sha256ContentFingerprintService());
 
         var results = new List<InventoryOrchestrationResult>();
 
@@ -241,7 +243,8 @@ public async Task InventoryOrchestrationService_TracksStatistics()
             discovery,
             routing,
             new ArtifactFactory(),
-            new GuidArtifactIdGenerator());
+            new GuidArtifactIdGenerator(),
+        new Sha256ContentFingerprintService());
 
         await foreach (var _ in service.ExecuteAsync(
             rootPath,
@@ -298,7 +301,8 @@ public async Task InventoryOrchestrationService_TracksStatistics()
                 new InventoryRoutingService(
                     new[] { new SqliteInventoryProvider() }),
                 new ArtifactFactory(),
-                new GuidArtifactIdGenerator());
+                new GuidArtifactIdGenerator(),
+        new Sha256ContentFingerprintService());
 
             var results = new List<InventoryOrchestrationResult>();
 
@@ -347,8 +351,13 @@ public void ArtifactFactory_MapsDiscoveredItemToArtifactAndProvenance()
     var factory = new ArtifactFactory();
 
     var result = factory.Create(
-        item,
-        new ArtifactId("artifact-oscar-001"));
+item,
+new ArtifactId("artifact-oscar-001"),
+new EMF.Core.Models.Integrity.ContentFingerprint
+{
+    Algorithm = "SHA-256",
+    Value = "test"
+});
 
     Assert.Equal("artifact-oscar-001", result.Artifact.Id.Value);
     Assert.Equal("oscar.db", result.Artifact.Name);

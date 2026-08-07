@@ -1,5 +1,6 @@
 using EMF.Core.Contracts;
 using EMF.Core.Models.Identities;
+using EMF.Core.Models.Integrity;
 
 namespace EMF.Core.Models;
 
@@ -10,6 +11,8 @@ public sealed class Artifact : IArtifact
     public required string Name { get; init; }
 
     public required string ArtifactType { get; init; }
+
+public ContentFingerprint? Fingerprint { get; init; }
 
     public DateTimeOffset CreatedUtc { get; init; }
         = DateTimeOffset.UtcNow;
