@@ -2,12 +2,15 @@ using EMF.Discovery.Models;
 using EMF.Discovery.Services;
 using EMF.Orchestration.Services;
 
-const string sourcePath =
-    "/opt/emf-lab/datasets/LD-VET-001/extracted";
+var sourcePath = args.Length > 0
+    ? args[0]
+    : "/opt/emf-lab/datasets/LD-VET-001/extracted";
 
 Console.WriteLine("======================================");
 Console.WriteLine(" EMF Discovery + Inventory");
 Console.WriteLine("======================================");
+Console.WriteLine();
+Console.WriteLine($"Source   : {sourcePath}");
 Console.WriteLine();
 
 var discovery = new FileSystemDiscoveryService();
