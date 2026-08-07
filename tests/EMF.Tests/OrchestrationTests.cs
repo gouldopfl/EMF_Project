@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Orchestration.Models;
 using EMF.Discovery.Services;
 using EMF.Discovery.Models;
@@ -304,4 +305,52 @@ public async Task InventoryOrchestrationService_TracksStatistics()
         }
     }
 
+
+[Fact]
+public void ArtifactFactory_MapsDiscoveredItemToArtifactAndProvenance()
+{
+    var createdUtc = DateTimeOffset.UtcNow.AddMinutes(-10);
+    var modifiedUtc = DateTimeOffset.UtcNow.AddMinutes(-5);
+
+    var item = new DiscoveredItem
+    {
+        Name = "oscar.db",
+        SourcePath = "/opt/emf-lab/datasets/LD-VET-001/extracted/oscar.db",
+        SourceType = "file",
+        SizeBytes = 1276899328,
+        CreatedUtc = createdUtc,
+        ModifiedUtc = modifiedUtc,
+        Metadata = new Dictionary<string, object>
+        {
+            ["extension"] = ".db"
+        }
+    };
+
+    var factory = new ArtifactFactory();
+
+    var result = factory.Create(
+        item,
+        new ArtifactId("artifact-oscar-001"));
+
+    Assert.Equal("artifact-oscar-001", result.Artifact.Id.Value);
+    Assert.Equal("oscar.db", result.Artifact.Name);
+    Assert.Equal("file", result.Artifact.ArtifactType);
+    Assert.Equal(createdUtc, result.Artifact.CreatedUtc);
+
+    Assert.Equal(
+        "/opt/emf-lab/datasets/LD-VET-001/extracted/oscar.db",
+        result.Provenance.Source);
+
+    Assert.Equal(
+        result.Artifact.Id,
+        result.Provenance.ArtifactId);
+
+    Assert.Equal(
+        ".db",
+        result.Artifact.Metadata["extension"]);
+
+    Assert.Equal(
+        1276899328L,
+        result.Artifact.Metadata["sizeBytes"]);
+}
 }
