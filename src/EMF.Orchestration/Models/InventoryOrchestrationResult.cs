@@ -1,4 +1,5 @@
 using EMF.Core.Contracts;
+using EMF.Core.Models;
 using EMF.Discovery.Models;
 using EMF.Inventory.Models;
 
@@ -7,6 +8,10 @@ namespace EMF.Orchestration.Models;
 public sealed class InventoryOrchestrationResult : IOperationResult
 {
     public required DiscoveredItem DiscoveredItem { get; init; }
+
+    public required Artifact Artifact { get; init; }
+
+    public required Provenance Provenance { get; init; }
 
     public bool Success { get; init; }
 

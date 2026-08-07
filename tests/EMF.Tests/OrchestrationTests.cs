@@ -161,7 +161,9 @@ public async Task InventoryOrchestrationService_ExecutesDiscoveryRoutingAndInven
 
         var service = new InventoryOrchestrationService(
             discovery,
-            routing);
+            routing,
+            new ArtifactFactory(),
+            new GuidArtifactIdGenerator());
 
         var results = new List<InventoryOrchestrationResult>();
 
@@ -176,8 +178,20 @@ public async Task InventoryOrchestrationService_ExecutesDiscoveryRoutingAndInven
 
         Assert.True(result.Success);
         Assert.NotNull(result.Inventory);
+
         Assert.Equal(databasePath, result.DiscoveredItem.SourcePath);
         Assert.Equal(databasePath, result.Inventory.DatabasePath);
+
+        Assert.False(string.IsNullOrWhiteSpace(result.Artifact.Id.Value));
+        Assert.Equal("test.db", result.Artifact.Name);
+
+        Assert.Equal(
+            result.Artifact.Id,
+            result.Provenance.ArtifactId);
+
+        Assert.Equal(
+            databasePath,
+            result.Provenance.Source);
         Assert.Contains(
             result.Inventory.Tables,
             table => table.Name == "sample");
@@ -225,7 +239,9 @@ public async Task InventoryOrchestrationService_TracksStatistics()
 
         var service = new InventoryOrchestrationService(
             discovery,
-            routing);
+            routing,
+            new ArtifactFactory(),
+            new GuidArtifactIdGenerator());
 
         await foreach (var _ in service.ExecuteAsync(
             rootPath,
@@ -280,7 +296,9 @@ public async Task InventoryOrchestrationService_TracksStatistics()
             var service = new InventoryOrchestrationService(
                 new FileSystemDiscoveryService(),
                 new InventoryRoutingService(
-                    new[] { new SqliteInventoryProvider() }));
+                    new[] { new SqliteInventoryProvider() }),
+                new ArtifactFactory(),
+                new GuidArtifactIdGenerator());
 
             var results = new List<InventoryOrchestrationResult>();
 

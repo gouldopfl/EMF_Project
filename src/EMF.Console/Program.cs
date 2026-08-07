@@ -21,7 +21,9 @@ var routing = new InventoryRoutingService(
 
 var orchestration = new InventoryOrchestrationService(
     discovery,
-    routing);
+    routing,
+    new ArtifactFactory(),
+    new GuidArtifactIdGenerator());
 
 await foreach (var result in orchestration.ExecuteAsync(
     sourcePath,

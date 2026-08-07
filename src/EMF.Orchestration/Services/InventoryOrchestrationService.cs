@@ -10,19 +10,27 @@ public sealed class InventoryOrchestrationService : IInventoryOrchestrationServi
 {
     private readonly IStreamingDiscoveryService _discovery;
     private readonly IInventoryRoutingService _routing;
+    private readonly IArtifactFactory _artifactFactory;
+    private readonly IArtifactIdGenerator _artifactIdGenerator;
 
     public InventoryOrchestrationStatistics Statistics { get; private set; }
         = new();
 
     public InventoryOrchestrationService(
         IStreamingDiscoveryService discovery,
-        IInventoryRoutingService routing)
+        IInventoryRoutingService routing,
+        IArtifactFactory artifactFactory,
+        IArtifactIdGenerator artifactIdGenerator)
     {
         ArgumentNullException.ThrowIfNull(discovery);
         ArgumentNullException.ThrowIfNull(routing);
+        ArgumentNullException.ThrowIfNull(artifactFactory);
+        ArgumentNullException.ThrowIfNull(artifactIdGenerator);
 
         _discovery = discovery;
         _routing = routing;
+        _artifactFactory = artifactFactory;
+        _artifactIdGenerator = artifactIdGenerator;
     }
 
     public async IAsyncEnumerable<InventoryOrchestrationResult> ExecuteAsync(
@@ -57,6 +65,10 @@ public sealed class InventoryOrchestrationService : IInventoryOrchestrationServi
 
                 Statistics.ItemsHandled++;
 
+                var artifactResult = _artifactFactory.Create(
+                    item,
+                    _artifactIdGenerator.Generate());
+
                 InventoryOrchestrationResult result;
 
                 try
@@ -70,6 +82,8 @@ public sealed class InventoryOrchestrationService : IInventoryOrchestrationServi
                     result = new InventoryOrchestrationResult
                     {
                         DiscoveredItem = item,
+                        Artifact = artifactResult.Artifact,
+                        Provenance = artifactResult.Provenance,
                         Success = true,
                         Inventory = inventory
                     };
@@ -82,6 +96,8 @@ public sealed class InventoryOrchestrationService : IInventoryOrchestrationServi
                     result = new InventoryOrchestrationResult
                     {
                         DiscoveredItem = item,
+                        Artifact = artifactResult.Artifact,
+                        Provenance = artifactResult.Provenance,
                         Success = false,
                         Message = ex.Message,
                         Inventory = null
