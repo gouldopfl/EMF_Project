@@ -26,6 +26,7 @@
     <ProjectReference Include="../../src/EMF.Inventory/EMF.Inventory.csproj" />
     <ProjectReference Include="..\..\src\EMF.Discovery\EMF.Discovery.csproj" />
     <ProjectReference Include="..\..\src\EMF.Orchestration\EMF.Orchestration.csproj" />
+    <ProjectReference Include="..\..\src\EMF.Integrity\EMF.Integrity.csproj" />
   </ItemGroup>
 
 </Project>
