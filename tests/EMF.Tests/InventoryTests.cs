@@ -56,4 +56,57 @@ public sealed class InventoryTests
             }
         }
     }
+
+    [Fact]
+    public async Task CreateInventoryAsync_CountsTableRows()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-inventory-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var connectionString = new SqliteConnectionStringBuilder
+            {
+                DataSource = databasePath
+            }.ToString();
+
+            await using (var connection = new SqliteConnection(connectionString))
+            {
+                await connection.OpenAsync();
+
+                await using var command = connection.CreateCommand();
+                command.CommandText =
+                    """
+                    CREATE TABLE evidence (
+                        id INTEGER PRIMARY KEY,
+                        name TEXT NOT NULL
+                    );
+
+                    INSERT INTO evidence (name) VALUES ('one');
+                    INSERT INTO evidence (name) VALUES ('two');
+                    INSERT INTO evidence (name) VALUES ('three');
+                    """;
+
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var provider = new SqliteInventoryProvider();
+
+            var inventory = await provider.CreateInventoryAsync(databasePath);
+
+            var table = Assert.Single(inventory.Tables);
+
+            Assert.Equal("evidence", table.Name);
+            Assert.Equal(3, table.RowCount);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+            {
+                File.Delete(databasePath);
+            }
+        }
+    }
+
 }
