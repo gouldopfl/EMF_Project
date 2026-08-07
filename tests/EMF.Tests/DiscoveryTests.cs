@@ -169,4 +169,35 @@ public sealed class DiscoveryTests
                 new DiscoveryOptions()));
     }
 
+
+    [Fact]
+    public async Task DiscoverAsync_WhenCancelled_ThrowsOperationCanceledException()
+    {
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-discovery-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(rootPath);
+
+        try
+        {
+            using var cancellationTokenSource =
+                new CancellationTokenSource();
+
+            cancellationTokenSource.Cancel();
+
+            var service = new FileSystemDiscoveryService();
+
+            await Assert.ThrowsAsync<OperationCanceledException>(
+                () => service.DiscoverAsync(
+                    rootPath,
+                    new DiscoveryOptions(),
+                    cancellationTokenSource.Token));
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
 }
