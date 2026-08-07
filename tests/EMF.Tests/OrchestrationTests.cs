@@ -184,4 +184,62 @@ public async Task InventoryOrchestrationService_ExecutesDiscoveryRoutingAndInven
         Directory.Delete(rootPath, recursive: true);
     }
 }
+
+
+[Fact]
+public async Task InventoryOrchestrationService_TracksStatistics()
+{
+    var rootPath = Path.Combine(
+        Path.GetTempPath(),
+        $"emf-orchestration-stats-{Guid.NewGuid():N}");
+
+    Directory.CreateDirectory(rootPath);
+
+    var databasePath = Path.Combine(rootPath, "stats.db");
+    var ignoredPath = Path.Combine(rootPath, "notes.txt");
+
+    try
+    {
+        await File.WriteAllTextAsync(ignoredPath, "not a database");
+
+        await using (var connection =
+            new Microsoft.Data.Sqlite.SqliteConnection(
+                $"Data Source={databasePath}"))
+        {
+            await connection.OpenAsync();
+
+            var command = connection.CreateCommand();
+            command.CommandText =
+                "CREATE TABLE sample (id INTEGER PRIMARY KEY);";
+
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var discovery = new FileSystemDiscoveryService();
+
+        var routing = new InventoryRoutingService(
+            new[] { new SqliteInventoryProvider() });
+
+        var service = new InventoryOrchestrationService(
+            discovery,
+            routing);
+
+        await foreach (var _ in service.ExecuteAsync(
+            rootPath,
+            new DiscoveryOptions()))
+        {
+        }
+
+        Assert.Equal(2, service.Statistics.ItemsDiscovered);
+        Assert.Equal(1, service.Statistics.ItemsHandled);
+        Assert.Equal(1, service.Statistics.ItemsSkipped);
+        Assert.Equal(1, service.Statistics.InventoriesCompleted);
+        Assert.Equal(0, service.Statistics.ItemsFailed);
+        Assert.True(service.Statistics.Elapsed >= TimeSpan.Zero);
+    }
+    finally
+    {
+        Directory.Delete(rootPath, recursive: true);
+    }
+}
 }

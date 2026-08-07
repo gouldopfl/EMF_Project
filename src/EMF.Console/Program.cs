@@ -47,3 +47,13 @@ await foreach (var result in orchestration.ExecuteAsync(
 
     Console.WriteLine();
 }
+
+Console.WriteLine("======================================");
+Console.WriteLine(" Execution Summary");
+Console.WriteLine("======================================");
+Console.WriteLine($"Discovered : {orchestration.Statistics.ItemsDiscovered}");
+Console.WriteLine($"Handled    : {orchestration.Statistics.ItemsHandled}");
+Console.WriteLine($"Skipped    : {orchestration.Statistics.ItemsSkipped}");
+Console.WriteLine($"Completed  : {orchestration.Statistics.InventoriesCompleted}");
+Console.WriteLine($"Failed     : {orchestration.Statistics.ItemsFailed}");
+Console.WriteLine($"Elapsed    : {orchestration.Statistics.Elapsed}");

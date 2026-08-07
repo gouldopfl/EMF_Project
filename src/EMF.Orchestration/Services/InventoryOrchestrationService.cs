@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using EMF.Discovery.Contracts;
 using EMF.Discovery.Models;
 using EMF.Orchestration.Contracts;
@@ -9,6 +10,9 @@ public sealed class InventoryOrchestrationService : IInventoryOrchestrationServi
 {
     private readonly IStreamingDiscoveryService _discovery;
     private readonly IInventoryRoutingService _routing;
+
+    public InventoryOrchestrationStatistics Statistics { get; private set; }
+        = new();
 
     public InventoryOrchestrationService(
         IStreamingDiscoveryService discovery,
@@ -30,27 +34,66 @@ public sealed class InventoryOrchestrationService : IInventoryOrchestrationServi
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         ArgumentNullException.ThrowIfNull(options);
 
-        await foreach (var item in _discovery.DiscoverItemsAsync(
-            sourcePath,
-            options,
-            cancellationToken))
+        Statistics = new InventoryOrchestrationStatistics();
+
+        var stopwatch = Stopwatch.StartNew();
+
+        try
         {
-            var provider = _routing.SelectProvider(item);
-
-            if (provider is null)
+            await foreach (var item in _discovery.DiscoverItemsAsync(
+                sourcePath,
+                options,
+                cancellationToken))
             {
-                continue;
+                Statistics.ItemsDiscovered++;
+
+                var provider = _routing.SelectProvider(item);
+
+                if (provider is null)
+                {
+                    Statistics.ItemsSkipped++;
+                    continue;
+                }
+
+                Statistics.ItemsHandled++;
+
+                var inventory = await CreateInventoryAsync(
+                    provider,
+                    item.SourcePath,
+                    cancellationToken);
+
+                Statistics.InventoriesCompleted++;
+
+                yield return new InventoryOrchestrationResult
+                {
+                    DiscoveredItem = item,
+                    Inventory = inventory
+                };
             }
+        }
+        finally
+        {
+            stopwatch.Stop();
+            Statistics.Elapsed = stopwatch.Elapsed;
+        }
+    }
 
-            var inventory = await provider.CreateInventoryAsync(
-                item.SourcePath,
+
+    private async Task<EMF.Inventory.Models.DatabaseInventory> CreateInventoryAsync(
+        EMF.Inventory.Contracts.IInventoryProvider provider,
+        string sourcePath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await provider.CreateInventoryAsync(
+                sourcePath,
                 cancellationToken);
-
-            yield return new InventoryOrchestrationResult
-            {
-                DiscoveredItem = item,
-                Inventory = inventory
-            };
+        }
+        catch
+        {
+            Statistics.ItemsFailed++;
+            throw;
         }
     }
 }
