@@ -1,3 +1,5 @@
+using EMF.Orchestration.Models;
+using EMF.Discovery.Services;
 using EMF.Discovery.Models;
 using EMF.Inventory.Providers;
 using EMF.Orchestration.Services;
@@ -124,4 +126,62 @@ public sealed class OrchestrationTests
             }
         }
     }
+
+[Fact]
+public async Task InventoryOrchestrationService_ExecutesDiscoveryRoutingAndInventory()
+{
+    var rootPath = Path.Combine(
+        Path.GetTempPath(),
+        $"emf-orchestration-{Guid.NewGuid():N}");
+
+    Directory.CreateDirectory(rootPath);
+
+    var databasePath = Path.Combine(rootPath, "test.db");
+
+    try
+    {
+        await using (var connection =
+            new Microsoft.Data.Sqlite.SqliteConnection(
+                $"Data Source={databasePath}"))
+        {
+            await connection.OpenAsync();
+
+            var command = connection.CreateCommand();
+            command.CommandText =
+                "CREATE TABLE sample (id INTEGER PRIMARY KEY, name TEXT);";
+
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var discovery = new FileSystemDiscoveryService();
+
+        var routing = new InventoryRoutingService(
+            new[] { new SqliteInventoryProvider() });
+
+        var service = new InventoryOrchestrationService(
+            discovery,
+            routing);
+
+        var results = new List<InventoryOrchestrationResult>();
+
+        await foreach (var orchestrationResult in service.ExecuteAsync(
+            rootPath,
+            new DiscoveryOptions()))
+        {
+            results.Add(orchestrationResult);
+        }
+
+        var result = Assert.Single(results);
+
+        Assert.Equal(databasePath, result.DiscoveredItem.SourcePath);
+        Assert.Equal(databasePath, result.Inventory.DatabasePath);
+        Assert.Contains(
+            result.Inventory.Tables,
+            table => table.Name == "sample");
+    }
+    finally
+    {
+        Directory.Delete(rootPath, recursive: true);
+    }
+}
 }

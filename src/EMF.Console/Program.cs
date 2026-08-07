@@ -15,23 +15,22 @@ Console.WriteLine($"Source   : {sourcePath}");
 Console.WriteLine();
 
 var discovery = new FileSystemDiscoveryService();
-var routing = new InventoryRoutingService(new[] { new SqliteInventoryProvider() });
 
-await foreach (var item in discovery.DiscoverItemsAsync(
+var routing = new InventoryRoutingService(
+    new[] { new SqliteInventoryProvider() });
+
+var orchestration = new InventoryOrchestrationService(
+    discovery,
+    routing);
+
+await foreach (var result in orchestration.ExecuteAsync(
     sourcePath,
     new DiscoveryOptions()))
 {
-    var provider = routing.SelectProvider(item);
-
-    if (provider is null)
-    {
-        continue;
-    }
-
-    Console.WriteLine($"Discovered: {item.SourcePath}");
+    Console.WriteLine($"Discovered: {result.DiscoveredItem.SourcePath}");
     Console.WriteLine();
 
-    var inventory = await provider.CreateInventoryAsync(item.SourcePath);
+    var inventory = result.Inventory;
 
     Console.WriteLine($"Database : {inventory.DatabasePath}");
     Console.WriteLine($"Engine   : {inventory.DatabaseEngine}");
