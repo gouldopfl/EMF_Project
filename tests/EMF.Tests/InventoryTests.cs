@@ -175,4 +175,18 @@ public sealed class InventoryTests
         }
     }
 
+
+    [Fact]
+    public async Task CreateInventoryAsync_WhenDatabaseDoesNotExist_ThrowsFileNotFoundException()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-missing-{Guid.NewGuid():N}.db");
+
+        var provider = new SqliteInventoryProvider();
+
+        await Assert.ThrowsAsync<FileNotFoundException>(
+            () => provider.CreateInventoryAsync(databasePath));
+    }
+
 }
