@@ -173,6 +173,8 @@ public async Task InventoryOrchestrationService_ExecutesDiscoveryRoutingAndInven
 
         var result = Assert.Single(results);
 
+        Assert.True(result.Success);
+        Assert.NotNull(result.Inventory);
         Assert.Equal(databasePath, result.DiscoveredItem.SourcePath);
         Assert.Equal(databasePath, result.Inventory.DatabasePath);
         Assert.Contains(
@@ -242,4 +244,64 @@ public async Task InventoryOrchestrationService_TracksStatistics()
         Directory.Delete(rootPath, recursive: true);
     }
 }
+
+    [Fact]
+    public async Task InventoryOrchestrationService_ContinuesAfterProviderFailure()
+    {
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-failure-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(rootPath);
+
+        var badPath = Path.Combine(rootPath, "bad.db");
+        var goodPath = Path.Combine(rootPath, "good.db");
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                badPath,
+                "not a sqlite database");
+
+            await using (var connection =
+                new Microsoft.Data.Sqlite.SqliteConnection(
+                    $"Data Source={goodPath}"))
+            {
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText =
+                    "CREATE TABLE evidence (id INTEGER PRIMARY KEY);";
+
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var service = new InventoryOrchestrationService(
+                new FileSystemDiscoveryService(),
+                new InventoryRoutingService(
+                    new[] { new SqliteInventoryProvider() }));
+
+            var results = new List<InventoryOrchestrationResult>();
+
+            await foreach (var result in service.ExecuteAsync(
+                rootPath,
+                new DiscoveryOptions()))
+            {
+                results.Add(result);
+            }
+
+            Assert.Equal(2, results.Count);
+            Assert.Single(results, r => r.Success);
+            Assert.Single(results, r => !r.Success);
+
+            Assert.Equal(2, service.Statistics.ItemsHandled);
+            Assert.Equal(1, service.Statistics.InventoriesCompleted);
+            Assert.Equal(1, service.Statistics.ItemsFailed);
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
 }

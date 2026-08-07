@@ -30,6 +30,13 @@ await foreach (var result in orchestration.ExecuteAsync(
     Console.WriteLine($"Discovered: {result.DiscoveredItem.SourcePath}");
     Console.WriteLine();
 
+    if (!result.Success || result.Inventory is null)
+    {
+        Console.WriteLine($"Failed    : {result.Message}");
+        Console.WriteLine();
+        continue;
+    }
+
     var inventory = result.Inventory;
 
     Console.WriteLine($"Database : {inventory.DatabasePath}");

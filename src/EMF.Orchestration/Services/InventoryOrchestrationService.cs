@@ -57,43 +57,44 @@ public sealed class InventoryOrchestrationService : IInventoryOrchestrationServi
 
                 Statistics.ItemsHandled++;
 
-                var inventory = await CreateInventoryAsync(
-                    provider,
-                    item.SourcePath,
-                    cancellationToken);
+                InventoryOrchestrationResult result;
 
-                Statistics.InventoriesCompleted++;
-
-                yield return new InventoryOrchestrationResult
+                try
                 {
-                    DiscoveredItem = item,
-                    Inventory = inventory
-                };
+                    var inventory = await provider.CreateInventoryAsync(
+                        item.SourcePath,
+                        cancellationToken);
+
+                    Statistics.InventoriesCompleted++;
+
+                    result = new InventoryOrchestrationResult
+                    {
+                        DiscoveredItem = item,
+                        Success = true,
+                        Inventory = inventory
+                    };
+                }
+                catch (Exception ex) when (
+                    ex is not OperationCanceledException)
+                {
+                    Statistics.ItemsFailed++;
+
+                    result = new InventoryOrchestrationResult
+                    {
+                        DiscoveredItem = item,
+                        Success = false,
+                        Message = ex.Message,
+                        Inventory = null
+                    };
+                }
+
+                yield return result;
             }
         }
         finally
         {
             stopwatch.Stop();
             Statistics.Elapsed = stopwatch.Elapsed;
-        }
-    }
-
-
-    private async Task<EMF.Inventory.Models.DatabaseInventory> CreateInventoryAsync(
-        EMF.Inventory.Contracts.IInventoryProvider provider,
-        string sourcePath,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await provider.CreateInventoryAsync(
-                sourcePath,
-                cancellationToken);
-        }
-        catch
-        {
-            Statistics.ItemsFailed++;
-            throw;
         }
     }
 }
