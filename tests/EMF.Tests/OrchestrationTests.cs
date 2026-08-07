@@ -39,4 +39,80 @@ public sealed class OrchestrationTests
 
         Assert.Null(provider);
     }
+
+    [Fact]
+    public async Task DiscoveryToInventory_EndToEnd_ProcessesSqliteDatabase()
+    {
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-orchestration-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(rootPath);
+
+        var databasePath = Path.Combine(rootPath, "evidence.db");
+
+        try
+        {
+            var connectionString = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+            {
+                DataSource = databasePath
+            }.ToString();
+
+            await using (var connection =
+                new Microsoft.Data.Sqlite.SqliteConnection(connectionString))
+            {
+                await connection.OpenAsync();
+
+                await using var command = connection.CreateCommand();
+                command.CommandText =
+                    """
+                    CREATE TABLE evidence (
+                        id INTEGER PRIMARY KEY,
+                        name TEXT NOT NULL
+                    );
+
+                    INSERT INTO evidence (name) VALUES ('test');
+                    """;
+
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var discovery = new EMF.Discovery.Services.FileSystemDiscoveryService();
+            var routing = new InventoryRoutingService();
+
+            DiscoveredItem? discoveredDatabase = null;
+
+            await foreach (var item in discovery.DiscoverItemsAsync(
+                rootPath,
+                new EMF.Discovery.Models.DiscoveryOptions()))
+            {
+                if (item.SourcePath == databasePath)
+                {
+                    discoveredDatabase = item;
+                    break;
+                }
+            }
+
+            Assert.NotNull(discoveredDatabase);
+
+            var provider = routing.SelectProvider(discoveredDatabase);
+
+            Assert.NotNull(provider);
+
+            var inventory = await provider.CreateInventoryAsync(
+                discoveredDatabase.SourcePath);
+
+            Assert.Equal("SQLite", inventory.DatabaseEngine);
+
+            var table = Assert.Single(inventory.Tables);
+
+            Assert.Equal("evidence", table.Name);
+            Assert.Equal(1, table.RowCount);
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
 }
