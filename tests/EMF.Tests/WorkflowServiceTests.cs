@@ -61,6 +61,14 @@ public sealed class WorkflowServiceTests
             return Task.CompletedTask;
         }
 
+        public Task<IReadOnlyList<WorkflowCheckpoint>> GetCheckpointsAsync(
+            WorkflowId workflowId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<WorkflowCheckpoint>>(
+                Array.Empty<WorkflowCheckpoint>());
+        }
+
         public Task CompleteAsync(
             WorkflowId workflowId,
             CancellationToken cancellationToken = default)

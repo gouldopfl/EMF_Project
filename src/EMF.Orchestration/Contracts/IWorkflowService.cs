@@ -12,6 +12,10 @@ public interface IWorkflowService
         WorkflowCheckpoint checkpoint,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<WorkflowCheckpoint>> GetCheckpointsAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default);
+
     Task CompleteAsync(
         WorkflowId workflowId,
         CancellationToken cancellationToken = default);

@@ -44,6 +44,45 @@ public sealed class WorkflowRunnerTests
                 checkpoint.Status));
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_skips_completed_activities_when_resuming()
+    {
+        var workflowService = new FakeWorkflowService();
+        var runner = new WorkflowRunner(workflowService);
+        var executionOrder = new List<string>();
+
+        var workflowId = new WorkflowId("workflow-002");
+
+        workflowService.Checkpoints.Add(
+            new WorkflowCheckpoint
+            {
+                WorkflowId = workflowId,
+                Step = "First",
+                Status = WorkflowStatus.Completed,
+                RecordedUtc = DateTimeOffset.UtcNow
+            });
+
+        var context = new WorkflowExecutionContext
+        {
+            WorkflowId = workflowId,
+            StartedUtc = DateTimeOffset.UtcNow,
+            CurrentStep = "Start"
+        };
+
+        var activities = new[]
+        {
+            new FakeActivity("First", executionOrder),
+            new FakeActivity("Second", executionOrder)
+        };
+
+        await runner.ExecuteAsync(context, activities);
+
+        Assert.Equal(
+            new[] { "Second" },
+            executionOrder);
+    }
+
     private sealed class FakeActivity : IWorkflowActivity
     {
         private readonly IList<string> _executionOrder;
@@ -92,6 +131,13 @@ public sealed class WorkflowRunnerTests
         {
             Checkpoints.Add(checkpoint);
             return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<WorkflowCheckpoint>> GetCheckpointsAsync(
+            WorkflowId workflowId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<WorkflowCheckpoint>>(Checkpoints);
         }
 
         public Task CompleteAsync(

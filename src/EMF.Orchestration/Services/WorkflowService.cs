@@ -47,6 +47,15 @@ public sealed class WorkflowService : IWorkflowService
             cancellationToken);
     }
 
+    public Task<IReadOnlyList<WorkflowCheckpoint>> GetCheckpointsAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.GetCheckpointsAsync(
+            workflowId,
+            cancellationToken);
+    }
+
     public Task CompleteAsync(
         WorkflowId workflowId,
         CancellationToken cancellationToken = default)

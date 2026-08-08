@@ -11,6 +11,7 @@ public sealed class WorkflowRunner : IWorkflowRunner
     public WorkflowRunner(IWorkflowService workflowService)
     {
         ArgumentNullException.ThrowIfNull(workflowService);
+
         _workflowService = workflowService;
     }
 
@@ -22,8 +23,22 @@ public sealed class WorkflowRunner : IWorkflowRunner
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(activities);
 
+        var checkpoints = await _workflowService.GetCheckpointsAsync(
+            context.WorkflowId,
+            cancellationToken);
+
+        var completedActivities = checkpoints
+            .Where(x => x.Status == WorkflowStatus.Completed)
+            .Select(x => x.Step)
+            .ToHashSet(StringComparer.Ordinal);
+
         foreach (var activity in activities)
         {
+            if (completedActivities.Contains(activity.Name))
+            {
+                continue;
+            }
+
             var result = await activity.ExecuteAsync(
                 context,
                 cancellationToken);
