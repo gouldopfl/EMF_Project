@@ -40,4 +40,46 @@ public class IntegrityTests
             }
         }
     }
+    [Fact]
+    public async Task SameContentProducesSameFingerprint()
+    {
+        var a = Path.GetTempFileName();
+        var b = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(a, "same EMF content");
+            await File.WriteAllTextAsync(b, "same EMF content");
+            var service = new Sha256ContentFingerprintService();
+            var first = await service.ComputeAsync(a);
+            var second = await service.ComputeAsync(b);
+            Assert.Equal(first.Value, second.Value);
+        }
+        finally
+        {
+            File.Delete(a);
+            File.Delete(b);
+        }
+    }
+
+    [Fact]
+    public async Task DifferentContentProducesDifferentFingerprints()
+    {
+        var a = Path.GetTempFileName();
+        var b = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(a, "EMF content A");
+            await File.WriteAllTextAsync(b, "EMF content B");
+            var service = new Sha256ContentFingerprintService();
+            var first = await service.ComputeAsync(a);
+            var second = await service.ComputeAsync(b);
+            Assert.NotEqual(first.Value, second.Value);
+        }
+        finally
+        {
+            File.Delete(a);
+            File.Delete(b);
+        }
+    }
+
 }
