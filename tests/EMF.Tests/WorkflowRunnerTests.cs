@@ -44,11 +44,18 @@ public sealed class WorkflowRunnerTests
 
         public string Name { get; }
 
-        public Task ExecuteAsync(
+        public Task<WorkflowActivityResult> ExecuteAsync(
             WorkflowExecutionContext context,
             CancellationToken cancellationToken = default)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(
+                new WorkflowActivityResult
+                {
+                    ActivityName = Name,
+                    Succeeded = true,
+                    Message = "Completed",
+                    CompletedUtc = DateTimeOffset.UtcNow
+                });
         }
     }
 }

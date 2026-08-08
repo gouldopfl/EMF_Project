@@ -18,12 +18,18 @@ public sealed class WorkflowActivityTests
             CurrentStep = "Test"
         };
 
-        await activity.ExecuteAsync(context);
+        var result = await activity.ExecuteAsync(context);
 
         Assert.True(activity.Executed);
+
         Assert.Equal(
             "workflow-001",
             activity.Context!.WorkflowId.Value);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(
+            "Fake Activity",
+            result.ActivityName);
     }
 
 
@@ -35,14 +41,21 @@ public sealed class WorkflowActivityTests
 
         public WorkflowExecutionContext? Context { get; private set; }
 
-        public Task ExecuteAsync(
+        public Task<WorkflowActivityResult> ExecuteAsync(
             WorkflowExecutionContext context,
             CancellationToken cancellationToken = default)
         {
             Context = context;
             Executed = true;
 
-            return Task.CompletedTask;
+            return Task.FromResult(
+                new WorkflowActivityResult
+                {
+                    ActivityName = Name,
+                    Succeeded = true,
+                    Message = "Completed",
+                    CompletedUtc = DateTimeOffset.UtcNow
+                });
         }
     }
 }

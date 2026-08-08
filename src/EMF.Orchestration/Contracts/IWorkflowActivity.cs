@@ -6,7 +6,7 @@ public interface IWorkflowActivity
 {
     string Name { get; }
 
-    Task ExecuteAsync(
+    Task<WorkflowActivityResult> ExecuteAsync(
         WorkflowExecutionContext context,
         CancellationToken cancellationToken = default);
 }
