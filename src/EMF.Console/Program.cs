@@ -1,6 +1,7 @@
 using EMF.Discovery.Models;
 using EMF.Discovery.Services;
 using EMF.Inventory.Providers;
+using EMF.Integrity;
 using EMF.Orchestration.Services;
 
 var sourcePath = args.Length > 0
@@ -23,7 +24,8 @@ var orchestration = new InventoryOrchestrationService(
     discovery,
     routing,
     new ArtifactFactory(),
-    new GuidArtifactIdGenerator());
+    new GuidArtifactIdGenerator(),
+new Sha256ContentFingerprintService());
 
 await foreach (var result in orchestration.ExecuteAsync(
     sourcePath,
