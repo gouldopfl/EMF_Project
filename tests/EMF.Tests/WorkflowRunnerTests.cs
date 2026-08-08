@@ -1,6 +1,7 @@
 using EMF.Core.Models.Identities;
 using EMF.Orchestration.Contracts;
 using EMF.Orchestration.Models;
+using EMF.Orchestration.Services;
 
 namespace EMF.Tests;
 
@@ -9,7 +10,7 @@ public sealed class WorkflowRunnerTests
     [Fact]
     public async Task ExecuteAsync_runs_activities_in_order()
     {
-        var runner = new FakeWorkflowRunner();
+        var runner = new WorkflowRunner();
 
         var context = new WorkflowExecutionContext
         {
@@ -30,28 +31,7 @@ public sealed class WorkflowRunnerTests
 
         Assert.Equal(
             new[] { "First", "Second" },
-            runner.Executed);
-    }
-
-
-    private sealed class FakeWorkflowRunner : IWorkflowRunner
-    {
-        public List<string> Executed { get; } = new();
-
-        public async Task ExecuteAsync(
-            WorkflowExecutionContext context,
-            IEnumerable<IWorkflowActivity> activities,
-            CancellationToken cancellationToken = default)
-        {
-            foreach (var activity in activities)
-            {
-                await activity.ExecuteAsync(
-                    context,
-                    cancellationToken);
-
-                Executed.Add(activity.Name);
-            }
-        }
+            activities.Select(x => x.Name));
     }
 
 
