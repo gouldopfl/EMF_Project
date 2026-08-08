@@ -27,54 +27,84 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
     }
 
     public async Task InitializeAsync(
-        CancellationToken cancellationToken = default)
-    {
-        await using var connection = CreateConnection();
-        await connection.OpenAsync(cancellationToken);
+    CancellationToken cancellationToken = default)
+{
+    await using var connection = CreateConnection();
+    await connection.OpenAsync(cancellationToken);
 
-        await using var command = connection.CreateCommand();
+    await using var command = connection.CreateCommand();
 
-        command.CommandText =
-            """
-            CREATE TABLE IF NOT EXISTS Workflows (
-                Id TEXT PRIMARY KEY,
+    command.CommandText =
+        """
+        CREATE TABLE IF NOT EXISTS Workflows (
+            Id TEXT PRIMARY KEY,
             DefinitionId TEXT NOT NULL,
             DefinitionVersion TEXT NOT NULL,
-                CreatedUtc TEXT NOT NULL,
-                CurrentStatus TEXT NOT NULL
-            );
+            CreatedUtc TEXT NOT NULL,
+            CurrentStatus TEXT NOT NULL
+        );
 
-            CREATE TABLE IF NOT EXISTS WorkflowCheckpoints (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                WorkflowId TEXT NOT NULL,
-                Step TEXT NOT NULL,
+        CREATE TABLE IF NOT EXISTS WorkflowCheckpoints (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            WorkflowId TEXT NOT NULL,
+            Step TEXT NOT NULL,
             ActivityId TEXT NULL,
-                Status TEXT NOT NULL,
-                RecordedUtc TEXT NOT NULL,
-                Message TEXT NULL
-            );
-            """;
-
-        await command.ExecuteNonQueryAsync(cancellationToken);
-
-        command.CommandText = """
-        ALTER TABLE WorkflowCheckpoints
-        ADD COLUMN ActivityId TEXT NULL;
+            Status TEXT NOT NULL,
+            RecordedUtc TEXT NOT NULL,
+            Message TEXT NULL
+        );
         """;
 
-        try
-        {
-            await command.ExecuteNonQueryAsync(cancellationToken);
-        }
-        catch (SqliteException ex) when (
-            ex.SqliteErrorCode == 1 &&
-            ex.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase))
-        {
-        }
+    await command.ExecuteNonQueryAsync(cancellationToken);
+
+    await AddColumnIfMissingAsync(
+        connection,
+        "Workflows",
+        "DefinitionId",
+        "TEXT NOT NULL DEFAULT ''",
+        cancellationToken);
+
+    await AddColumnIfMissingAsync(
+        connection,
+        "Workflows",
+        "DefinitionVersion",
+        "TEXT NOT NULL DEFAULT ''",
+        cancellationToken);
+
+    await AddColumnIfMissingAsync(
+        connection,
+        "WorkflowCheckpoints",
+        "ActivityId",
+        "TEXT NULL",
+        cancellationToken);
+}
+
+private static async Task AddColumnIfMissingAsync(
+    SqliteConnection connection,
+    string tableName,
+    string columnName,
+    string columnDefinition,
+    CancellationToken cancellationToken)
+{
+    await using var command = connection.CreateCommand();
+
+    command.CommandText =
+        $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};";
+
+    try
+    {
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
+    catch (SqliteException ex) when (
+        ex.SqliteErrorCode == 1 &&
+        ex.Message.Contains(
+            "duplicate column name",
+            StringComparison.OrdinalIgnoreCase))
+    {
+    }
+}
 
-
-    public async Task CreateExecutionAsync(
+public async Task CreateExecutionAsync(
         WorkflowExecutionRecord execution,
         CancellationToken cancellationToken = default)
     {
