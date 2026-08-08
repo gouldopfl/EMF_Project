@@ -20,4 +20,12 @@ public interface IEvidenceRepository
     Task<IReadOnlyList<Relationship>> GetRelationshipsAsync(
         ArtifactId artifactId,
         CancellationToken cancellationToken = default);
+
+    Task AddProvenanceAsync(
+        Provenance provenance,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Provenance>> GetProvenanceAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default);
 }

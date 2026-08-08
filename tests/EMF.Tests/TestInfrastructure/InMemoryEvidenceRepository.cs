@@ -10,6 +10,8 @@ public sealed class InMemoryEvidenceRepository : IEvidenceRepository
 
     private readonly List<Relationship> _relationships = new();
 
+private readonly List<Provenance> _provenance = new();
+
     public Task AddArtifactAsync(
         Artifact artifact,
         CancellationToken cancellationToken = default)
@@ -51,4 +53,25 @@ public sealed class InMemoryEvidenceRepository : IEvidenceRepository
 
         return Task.FromResult<IReadOnlyList<Relationship>>(results);
     }
+
+
+public Task AddProvenanceAsync(
+    Provenance provenance,
+    CancellationToken cancellationToken = default)
+{
+    _provenance.Add(provenance);
+
+    return Task.CompletedTask;
+}
+
+public Task<IReadOnlyList<Provenance>> GetProvenanceAsync(
+    ArtifactId artifactId,
+    CancellationToken cancellationToken = default)
+{
+    var results = _provenance
+        .Where(x => x.ArtifactId == artifactId)
+        .ToList();
+
+    return Task.FromResult<IReadOnlyList<Provenance>>(results);
+}
 }

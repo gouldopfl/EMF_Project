@@ -35,7 +35,7 @@ public sealed class PersistenceTests
                 SELECT name
                 FROM sqlite_master
                 WHERE type = 'table'
-                  AND name IN ('Artifacts', 'Relationships');
+                  AND name IN ('Artifacts', 'Relationships', 'Provenance');
                 """;
 
             var tables = new List<string>();
@@ -49,6 +49,7 @@ public sealed class PersistenceTests
 
             Assert.Contains("Artifacts", tables);
             Assert.Contains("Relationships", tables);
+            Assert.Contains("Provenance", tables);
         }
         finally
         {
@@ -159,6 +160,51 @@ public sealed class PersistenceTests
             Assert.Equal(
                 RelationshipTypes.Contains,
                 result.RelationshipType);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+            {
+                File.Delete(databasePath);
+            }
+        }
+    }
+
+
+    [Fact]
+    public async Task SqliteEvidenceRepository_ProvenanceRoundTrip()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-persistence-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository = new SqliteEvidenceRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var provenance = new Provenance
+            {
+                ArtifactId = new ArtifactId("artifact-001"),
+                Source = "/data/oscar.db",
+                RecordedBy = "EMF.Discovery",
+                Properties = new Dictionary<string, object>
+                {
+                    ["sourceType"] = "file"
+                }
+            };
+
+            await repository.AddProvenanceAsync(provenance);
+
+            var results = await repository.GetProvenanceAsync(
+                provenance.ArtifactId);
+
+            var result = Assert.Single(results);
+
+            Assert.Equal(provenance.ArtifactId, result.ArtifactId);
+            Assert.Equal("/data/oscar.db", result.Source);
+            Assert.Equal("EMF.Discovery", result.RecordedBy);
         }
         finally
         {

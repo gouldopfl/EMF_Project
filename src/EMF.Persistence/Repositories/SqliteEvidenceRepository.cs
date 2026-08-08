@@ -54,6 +54,15 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
                 CreatedUtc TEXT NOT NULL,
                 PropertiesJson TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS Provenance (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ArtifactId TEXT NOT NULL,
+                Source TEXT NOT NULL,
+                RecordedUtc TEXT NOT NULL,
+                RecordedBy TEXT NOT NULL,
+                PropertiesJson TEXT NOT NULL
+            );
             """;
 
         await command.ExecuteNonQueryAsync(cancellationToken);
@@ -214,6 +223,61 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
         }
 
         return relationships;
+    }
+
+
+    public async Task AddProvenanceAsync(
+        Provenance provenance,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(provenance);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO Provenance (ArtifactId, Source, RecordedUtc, RecordedBy, PropertiesJson) VALUES ($artifactId, $source, $recordedUtc, $recordedBy, $propertiesJson);";
+
+        command.Parameters.AddWithValue("$artifactId", provenance.ArtifactId.Value);
+        command.Parameters.AddWithValue("$source", provenance.Source);
+        command.Parameters.AddWithValue("$recordedUtc", provenance.RecordedUtc.ToString("O"));
+        command.Parameters.AddWithValue("$recordedBy", provenance.RecordedBy);
+        command.Parameters.AddWithValue("$propertiesJson", JsonSerializer.Serialize(provenance.Properties));
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Provenance>> GetProvenanceAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT ArtifactId, Source, RecordedUtc, RecordedBy, PropertiesJson FROM Provenance WHERE ArtifactId = $artifactId ORDER BY Id;";
+        command.Parameters.AddWithValue("$artifactId", artifactId.Value);
+
+        var results = new List<Provenance>();
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var propertiesJson = reader.GetString(4);
+
+            results.Add(new Provenance
+            {
+                ArtifactId = new ArtifactId(reader.GetString(0)),
+                Source = reader.GetString(1),
+                RecordedUtc = DateTimeOffset.Parse(reader.GetString(2)),
+                RecordedBy = reader.GetString(3),
+                Properties = JsonSerializer.Deserialize<Dictionary<string, object>>(propertiesJson)
+                    ?? new Dictionary<string, object>()
+            });
+        }
+
+        return results;
     }
 
 }
