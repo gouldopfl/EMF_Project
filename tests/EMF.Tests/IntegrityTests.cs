@@ -1,4 +1,5 @@
 using EMF.Integrity;
+using EMF.Core.Models.Integrity;
 
 namespace EMF.Tests;
 
@@ -80,6 +81,24 @@ public class IntegrityTests
             File.Delete(a);
             File.Delete(b);
         }
+    }
+
+    [Fact]
+    public void ContentFingerprint_WithSameValues_HasValueEquality()
+    {
+        var first = new ContentFingerprint
+        {
+            Algorithm = "SHA-256",
+            Value = "ABC123"
+        };
+
+        var second = new ContentFingerprint
+        {
+            Algorithm = "SHA-256",
+            Value = "ABC123"
+        };
+
+        Assert.Equal(first, second);
     }
 
 }

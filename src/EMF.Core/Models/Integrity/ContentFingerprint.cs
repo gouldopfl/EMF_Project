@@ -1,6 +1,6 @@
 namespace EMF.Core.Models.Integrity;
 
-public sealed class ContentFingerprint
+public sealed record ContentFingerprint
 {
     public required string Algorithm { get; init; }
 
