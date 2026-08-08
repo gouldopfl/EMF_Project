@@ -6,6 +6,7 @@ namespace EMF.Orchestration.Contracts;
 public interface IWorkflowService
 {
     Task<WorkflowId> StartAsync(
+        WorkflowDefinition definition,
         CancellationToken cancellationToken = default);
 
     Task RecordCheckpointAsync(

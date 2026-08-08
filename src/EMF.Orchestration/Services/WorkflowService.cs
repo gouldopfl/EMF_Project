@@ -18,10 +18,27 @@ public sealed class WorkflowService : IWorkflowService
     }
 
     public async Task<WorkflowId> StartAsync(
+        WorkflowDefinition definition,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(definition);
+
         var workflowId =
             new WorkflowId(Guid.NewGuid().ToString());
+
+        var createdUtc =
+            DateTimeOffset.UtcNow;
+
+        await _repository.CreateExecutionAsync(
+            new WorkflowExecutionRecord
+            {
+                WorkflowId = workflowId,
+                DefinitionId = definition.Id,
+                DefinitionVersion = definition.Version,
+                CreatedUtc = createdUtc,
+                CurrentStatus = WorkflowStatus.Running
+            },
+            cancellationToken);
 
         await _repository.AddCheckpointAsync(
             new WorkflowCheckpoint
@@ -29,7 +46,7 @@ public sealed class WorkflowService : IWorkflowService
                 WorkflowId = workflowId,
                 Step = "Workflow Started",
                 Status = WorkflowStatus.Running,
-                RecordedUtc = DateTimeOffset.UtcNow
+                RecordedUtc = createdUtc
             },
             cancellationToken);
 

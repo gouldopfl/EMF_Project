@@ -12,7 +12,7 @@ public sealed class WorkflowServiceTests
         var service = new FakeWorkflowService();
 
         var workflowId =
-            await service.StartAsync();
+            await service.StartAsync(CreateDefinition());
 
         Assert.False(
             string.IsNullOrWhiteSpace(
@@ -25,7 +25,7 @@ public sealed class WorkflowServiceTests
         var service = new FakeWorkflowService();
 
         var workflowId =
-            await service.StartAsync();
+            await service.StartAsync(CreateDefinition());
 
         var checkpoint = new WorkflowCheckpoint
         {
@@ -40,14 +40,27 @@ public sealed class WorkflowServiceTests
         Assert.Single(service.Checkpoints);
     }
 
+    private static WorkflowDefinition CreateDefinition()
+    {
+        return new WorkflowDefinition
+        {
+            Id = "evidence-processing",
+            Name = "Evidence Processing",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+    }
 
     private sealed class FakeWorkflowService : IWorkflowService
     {
         public List<WorkflowCheckpoint> Checkpoints { get; } = new();
 
         public Task<WorkflowId> StartAsync(
+            WorkflowDefinition definition,
             CancellationToken cancellationToken = default)
         {
+            ArgumentNullException.ThrowIfNull(definition);
+
             return Task.FromResult(
                 new WorkflowId(Guid.NewGuid().ToString()));
         }
