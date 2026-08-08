@@ -187,6 +187,9 @@ public async Task InventoryOrchestrationService_ExecutesDiscoveryRoutingAndInven
         Assert.False(string.IsNullOrWhiteSpace(result.Artifact.Id.Value));
         Assert.Equal("test.db", result.Artifact.Name);
 
+        Assert.NotNull(result.Artifact.Fingerprint);
+        Assert.Equal("SHA-256", result.Artifact.Fingerprint.Algorithm);
+
         Assert.Equal(
             result.Artifact.Id,
             result.Provenance.ArtifactId);
