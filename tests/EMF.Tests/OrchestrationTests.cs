@@ -1,3 +1,4 @@
+using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Orchestration.Models;
 using EMF.Discovery.Services;
@@ -5,6 +6,7 @@ using EMF.Discovery.Models;
 using EMF.Inventory.Providers;
 using EMF.Integrity;
 using EMF.Orchestration.Services;
+using EMF.Tests.TestInfrastructure;
 
 namespace EMF.Tests;
 
@@ -397,4 +399,54 @@ public void GuidArtifactIdGenerator_GeneratesUniqueIds()
     Assert.False(string.IsNullOrWhiteSpace(second.Value));
     Assert.NotEqual(first, second);
 }
+
+    [Fact]
+    public async Task EvidencePersistenceService_PersistsArtifactAndProvenance()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidencePersistenceService(repository);
+
+        var artifactId = new ArtifactId("artifact-persist-001");
+
+        var result = new InventoryOrchestrationResult
+        {
+            DiscoveredItem = new DiscoveredItem
+            {
+                Name = "evidence.db",
+                SourcePath = "/data/evidence.db",
+                SourceType = "file"
+            },
+            Artifact = new Artifact
+            {
+                Id = artifactId,
+                Name = "evidence.db",
+                ArtifactType = "file"
+            },
+            Provenance = new Provenance
+            {
+                ArtifactId = artifactId,
+                Source = "/data/evidence.db",
+                RecordedBy = "EMF.Discovery"
+            },
+            Success = true
+        };
+
+        await service.PersistAsync(result);
+
+        var storedArtifact =
+            await repository.GetArtifactAsync(artifactId);
+
+        var storedProvenance =
+            await repository.GetProvenanceAsync(artifactId);
+
+        Assert.NotNull(storedArtifact);
+        Assert.Equal("evidence.db", storedArtifact!.Name);
+
+        var provenance = Assert.Single(storedProvenance);
+        Assert.Equal("/data/evidence.db", provenance.Source);
+        Assert.Equal("EMF.Discovery", provenance.RecordedBy);
+    }
+
+
+
 }
