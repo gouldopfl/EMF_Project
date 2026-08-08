@@ -55,6 +55,11 @@ public sealed class WorkflowRunner : IWorkflowRunner
                     Message = result.Message
                 },
                 cancellationToken);
+
+            if (!result.Succeeded)
+            {
+                break;
+            }
         }
     }
 }

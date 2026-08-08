@@ -83,16 +83,53 @@ public sealed class WorkflowRunnerTests
             executionOrder);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_stops_after_failed_activity()
+    {
+        var workflowService = new FakeWorkflowService();
+        var runner = new WorkflowRunner(workflowService);
+        var executionOrder = new List<string>();
+
+        var context = new WorkflowExecutionContext
+        {
+            WorkflowId = new WorkflowId("workflow-003"),
+            StartedUtc = DateTimeOffset.UtcNow,
+            CurrentStep = "Start"
+        };
+
+        var activities = new[]
+        {
+            new FakeActivity("First", executionOrder),
+            new FakeActivity("Second", executionOrder, succeeded: false),
+            new FakeActivity("Third", executionOrder)
+        };
+
+        await runner.ExecuteAsync(context, activities);
+
+        Assert.Equal(
+            new[] { "First", "Second" },
+            executionOrder);
+
+        Assert.Equal(2, workflowService.Checkpoints.Count);
+        Assert.Equal(
+            WorkflowStatus.Failed,
+            workflowService.Checkpoints[1].Status);
+    }
+
     private sealed class FakeActivity : IWorkflowActivity
     {
         private readonly IList<string> _executionOrder;
+        private readonly bool _succeeded;
 
         public FakeActivity(
             string name,
-            IList<string> executionOrder)
+            IList<string> executionOrder,
+            bool succeeded = true)
         {
             Name = name;
             _executionOrder = executionOrder;
+            _succeeded = succeeded;
         }
 
         public string Name { get; }
@@ -107,7 +144,7 @@ public sealed class WorkflowRunnerTests
                 new WorkflowActivityResult
                 {
                     ActivityName = Name,
-                    Succeeded = true,
+                    Succeeded = _succeeded,
                     Message = "Completed",
                     CompletedUtc = DateTimeOffset.UtcNow
                 });
