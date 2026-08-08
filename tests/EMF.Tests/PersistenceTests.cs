@@ -116,4 +116,57 @@ public sealed class PersistenceTests
         }
     }
 
+
+    [Fact]
+    public async Task SqliteEvidenceRepository_RelationshipRoundTrip()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-persistence-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository = new SqliteEvidenceRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var relationship = new Relationship
+            {
+                SourceArtifactId = new ArtifactId("artifact-a"),
+                TargetArtifactId = new ArtifactId("artifact-b"),
+                RelationshipType = RelationshipTypes.Contains,
+                Properties = new Dictionary<string, object>
+                {
+                    ["role"] = "child"
+                }
+            };
+
+            await repository.AddRelationshipAsync(relationship);
+
+            var results = await repository.GetRelationshipsAsync(
+                relationship.SourceArtifactId);
+
+            var result = Assert.Single(results);
+
+            Assert.Equal(
+                relationship.SourceArtifactId,
+                result.SourceArtifactId);
+
+            Assert.Equal(
+                relationship.TargetArtifactId,
+                result.TargetArtifactId);
+
+            Assert.Equal(
+                RelationshipTypes.Contains,
+                result.RelationshipType);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+            {
+                File.Delete(databasePath);
+            }
+        }
+    }
+
 }

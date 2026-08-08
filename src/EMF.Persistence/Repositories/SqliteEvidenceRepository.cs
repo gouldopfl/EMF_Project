@@ -91,10 +91,39 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public Task AddRelationshipAsync(
+    public async Task AddRelationshipAsync(
         Relationship relationship,
         CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    {
+        ArgumentNullException.ThrowIfNull(relationship);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            "INSERT INTO Relationships " +
+            "(SourceArtifactId, TargetArtifactId, RelationshipType, CreatedUtc, PropertiesJson) " +
+            "VALUES ($sourceArtifactId, $targetArtifactId, $relationshipType, $createdUtc, $propertiesJson);";
+
+        command.Parameters.AddWithValue(
+            "$sourceArtifactId",
+            relationship.SourceArtifactId.Value);
+        command.Parameters.AddWithValue(
+            "$targetArtifactId",
+            relationship.TargetArtifactId.Value);
+        command.Parameters.AddWithValue(
+            "$relationshipType",
+            relationship.RelationshipType);
+        command.Parameters.AddWithValue(
+            "$createdUtc",
+            relationship.CreatedUtc.ToString("O"));
+        command.Parameters.AddWithValue(
+            "$propertiesJson",
+            JsonSerializer.Serialize(relationship.Properties));
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
 
     public async Task<Artifact?> GetArtifactAsync(
         ArtifactId artifactId,
@@ -140,8 +169,51 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
         };
     }
 
-    public Task<IReadOnlyList<Relationship>> GetRelationshipsAsync(
+    public async Task<IReadOnlyList<Relationship>> GetRelationshipsAsync(
         ArtifactId artifactId,
         CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT SourceArtifactId, TargetArtifactId, RelationshipType, CreatedUtc, PropertiesJson " +
+            "FROM Relationships " +
+            "WHERE SourceArtifactId = $artifactId OR TargetArtifactId = $artifactId " +
+            "ORDER BY Id;";
+
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            artifactId.Value);
+
+        var relationships = new List<Relationship>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var propertiesJson = reader.GetString(4);
+
+            relationships.Add(new Relationship
+            {
+                SourceArtifactId =
+                    new ArtifactId(reader.GetString(0)),
+                TargetArtifactId =
+                    new ArtifactId(reader.GetString(1)),
+                RelationshipType =
+                    reader.GetString(2),
+                CreatedUtc =
+                    DateTimeOffset.Parse(reader.GetString(3)),
+                Properties =
+                    JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        propertiesJson)
+                    ?? new Dictionary<string, object>()
+            });
+        }
+
+        return relationships;
+    }
+
 }
