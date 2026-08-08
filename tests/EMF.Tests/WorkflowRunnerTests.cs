@@ -118,6 +118,34 @@ public sealed class WorkflowRunnerTests
             workflowService.Checkpoints[1].Status);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_rejects_duplicate_activity_ids()
+    {
+        var workflowService = new FakeWorkflowService();
+        var runner = new WorkflowRunner(workflowService);
+        var executionOrder = new List<string>();
+
+        var context = new WorkflowExecutionContext
+        {
+            WorkflowId = new WorkflowId("workflow-004"),
+            StartedUtc = DateTimeOffset.UtcNow,
+            CurrentStep = "Start"
+        };
+
+        var activities = new[]
+        {
+            new FakeActivity("First", executionOrder, id: "same-id"),
+            new FakeActivity("Second", executionOrder, id: "same-id")
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => runner.ExecuteAsync(context, activities));
+
+        Assert.Empty(executionOrder);
+        Assert.Empty(workflowService.Checkpoints);
+    }
+
     private sealed class FakeActivity : IWorkflowActivity
     {
         private readonly IList<string> _executionOrder;

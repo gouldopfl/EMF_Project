@@ -23,6 +23,22 @@ public sealed class WorkflowRunner : IWorkflowRunner
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(activities);
 
+        var activityList = activities.ToList();
+
+        if (activityList.Any(x => string.IsNullOrWhiteSpace(x.Id)))
+        {
+            throw new InvalidOperationException(
+                "Workflow activity IDs must not be blank.");
+        }
+
+        if (activityList
+            .GroupBy(x => x.Id, StringComparer.Ordinal)
+            .Any(group => group.Count() > 1))
+        {
+            throw new InvalidOperationException(
+                "Workflow activity IDs must be unique.");
+        }
+
         var checkpoints = await _workflowService.GetCheckpointsAsync(
             context.WorkflowId,
             cancellationToken);
@@ -33,7 +49,7 @@ public sealed class WorkflowRunner : IWorkflowRunner
             .Select(x => x.ActivityId!)
             .ToHashSet(StringComparer.Ordinal);
 
-        foreach (var activity in activities)
+        foreach (var activity in activityList)
         {
             if (completedActivities.Contains(activity.Id))
             {
