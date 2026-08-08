@@ -8,6 +8,8 @@ public sealed class WorkflowCheckpoint
 
     public required string Step { get; init; }
 
+    public string? ActivityId { get; init; }
+
     public required WorkflowStatus Status { get; init; }
 
     public required DateTimeOffset RecordedUtc { get; init; }

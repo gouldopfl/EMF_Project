@@ -29,12 +29,13 @@ public sealed class WorkflowRunner : IWorkflowRunner
 
         var completedActivities = checkpoints
             .Where(x => x.Status == WorkflowStatus.Completed)
-            .Select(x => x.Step)
+            .Where(x => x.ActivityId is not null)
+            .Select(x => x.ActivityId!)
             .ToHashSet(StringComparer.Ordinal);
 
         foreach (var activity in activities)
         {
-            if (completedActivities.Contains(activity.Name))
+            if (completedActivities.Contains(activity.Id))
             {
                 continue;
             }
@@ -48,6 +49,7 @@ public sealed class WorkflowRunner : IWorkflowRunner
                 {
                     WorkflowId = context.WorkflowId,
                     Step = result.ActivityName,
+                    ActivityId = activity.Id,
                     Status = result.Succeeded
                         ? WorkflowStatus.Completed
                         : WorkflowStatus.Failed,

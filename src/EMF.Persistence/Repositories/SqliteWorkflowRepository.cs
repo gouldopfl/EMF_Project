@@ -46,6 +46,7 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 WorkflowId TEXT NOT NULL,
                 Step TEXT NOT NULL,
+            ActivityId TEXT NULL,
                 Status TEXT NOT NULL,
                 RecordedUtc TEXT NOT NULL,
                 Message TEXT NULL
@@ -53,6 +54,21 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
             """;
 
         await command.ExecuteNonQueryAsync(cancellationToken);
+
+        command.CommandText = """
+        ALTER TABLE WorkflowCheckpoints
+        ADD COLUMN ActivityId TEXT NULL;
+        """;
+
+        try
+        {
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+        catch (SqliteException ex) when (
+            ex.SqliteErrorCode == 1 &&
+            ex.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase))
+        {
+        }
     }
 
     public async Task AddCheckpointAsync(
@@ -72,6 +88,7 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
             (
                 WorkflowId,
                 Step,
+                ActivityId,
                 Status,
                 RecordedUtc,
                 Message
@@ -80,6 +97,7 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
             (
                 $workflowId,
                 $step,
+                $activityId,
                 $status,
                 $recordedUtc,
                 $message
@@ -93,6 +111,10 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
         command.Parameters.AddWithValue(
             "$step",
             checkpoint.Step);
+
+        command.Parameters.AddWithValue(
+            "$activityId",
+            (object?)checkpoint.ActivityId ?? DBNull.Value);
 
         command.Parameters.AddWithValue(
             "$status",
@@ -120,7 +142,7 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
 
         command.CommandText =
             """
-            SELECT Step, Status, RecordedUtc, Message
+            SELECT Step, ActivityId, Status, RecordedUtc, Message
             FROM WorkflowCheckpoints
             WHERE WorkflowId = $workflowId
             ORDER BY Id;
@@ -142,13 +164,16 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
                 {
                     WorkflowId = workflowId,
                     Step = reader.GetString(0),
-                    Status = Enum.Parse<WorkflowStatus>(
-                        reader.GetString(1)),
-                    RecordedUtc =
-                        DateTimeOffset.Parse(reader.GetString(2)),
-                    Message = reader.IsDBNull(3)
+                    ActivityId = reader.IsDBNull(1)
                         ? null
-                        : reader.GetString(3)
+                        : reader.GetString(1),
+                    Status = Enum.Parse<WorkflowStatus>(
+                        reader.GetString(2)),
+                    RecordedUtc =
+                        DateTimeOffset.Parse(reader.GetString(3)),
+                    Message = reader.IsDBNull(4)
+                        ? null
+                        : reader.GetString(4)
                 });
         }
 

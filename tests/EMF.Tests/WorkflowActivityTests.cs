@@ -35,6 +35,8 @@ public sealed class WorkflowActivityTests
 
     private sealed class FakeActivity : IWorkflowActivity
     {
+        public string Id => "fake-activity";
+
         public string Name => "Fake Activity";
 
         public bool Executed { get; private set; }

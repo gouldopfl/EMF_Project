@@ -59,6 +59,7 @@ public sealed class WorkflowRunnerTests
             {
                 WorkflowId = workflowId,
                 Step = "First",
+                ActivityId = "First",
                 Status = WorkflowStatus.Completed,
                 RecordedUtc = DateTimeOffset.UtcNow
             });
@@ -125,12 +126,16 @@ public sealed class WorkflowRunnerTests
         public FakeActivity(
             string name,
             IList<string> executionOrder,
-            bool succeeded = true)
+            bool succeeded = true,
+            string? id = null)
         {
+            Id = id ?? name;
             Name = name;
             _executionOrder = executionOrder;
             _succeeded = succeeded;
         }
+
+        public string Id { get; }
 
         public string Name { get; }
 
