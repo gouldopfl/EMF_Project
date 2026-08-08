@@ -5,6 +5,15 @@ namespace EMF.Core.Contracts;
 
 public interface IWorkflowRepository
 {
+
+    Task CreateExecutionAsync(
+        WorkflowExecutionRecord execution,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkflowExecutionRecord?> GetExecutionAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default);
+
     Task AddCheckpointAsync(
         WorkflowCheckpoint checkpoint,
         CancellationToken cancellationToken = default);

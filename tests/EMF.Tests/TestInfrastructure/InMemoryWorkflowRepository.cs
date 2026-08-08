@@ -7,6 +7,27 @@ namespace EMF.Tests.TestInfrastructure;
 public sealed class InMemoryWorkflowRepository : IWorkflowRepository
 {
     private readonly List<WorkflowCheckpoint> _checkpoints = new();
+    private readonly Dictionary<WorkflowId, WorkflowExecutionRecord> _executions = new();
+
+
+    public Task CreateExecutionAsync(
+        WorkflowExecutionRecord execution,
+        CancellationToken cancellationToken = default)
+    {
+        _executions[execution.WorkflowId] = execution;
+        return Task.CompletedTask;
+    }
+
+    public Task<WorkflowExecutionRecord?> GetExecutionAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default)
+    {
+        _executions.TryGetValue(
+            workflowId,
+            out var execution);
+
+        return Task.FromResult(execution);
+    }
 
     public Task AddCheckpointAsync(
         WorkflowCheckpoint checkpoint,

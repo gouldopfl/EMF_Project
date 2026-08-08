@@ -38,6 +38,8 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
             """
             CREATE TABLE IF NOT EXISTS Workflows (
                 Id TEXT PRIMARY KEY,
+            DefinitionId TEXT NOT NULL,
+            DefinitionVersion TEXT NOT NULL,
                 CreatedUtc TEXT NOT NULL,
                 CurrentStatus TEXT NOT NULL
             );
@@ -69,6 +71,103 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
             ex.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase))
         {
         }
+    }
+
+
+    public async Task CreateExecutionAsync(
+        WorkflowExecutionRecord execution,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(execution);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            INSERT INTO Workflows
+            (
+                Id,
+                DefinitionId,
+                DefinitionVersion,
+                CreatedUtc,
+                CurrentStatus
+            )
+            VALUES
+            (
+                $id,
+                $definitionId,
+                $definitionVersion,
+                $createdUtc,
+                $currentStatus
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$id",
+            execution.WorkflowId.Value);
+
+        command.Parameters.AddWithValue(
+            "$definitionId",
+            execution.DefinitionId);
+
+        command.Parameters.AddWithValue(
+            "$definitionVersion",
+            execution.DefinitionVersion);
+
+        command.Parameters.AddWithValue(
+            "$createdUtc",
+            execution.CreatedUtc.ToString("O"));
+
+        command.Parameters.AddWithValue(
+            "$currentStatus",
+            execution.CurrentStatus.ToString());
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+
+
+
+    public async Task<WorkflowExecutionRecord?> GetExecutionAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT DefinitionId, DefinitionVersion, CreatedUtc, CurrentStatus
+            FROM Workflows
+            WHERE Id = $id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$id",
+            workflowId.Value);
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new WorkflowExecutionRecord
+        {
+            WorkflowId = workflowId,
+            DefinitionId = reader.GetString(0),
+            DefinitionVersion = reader.GetString(1),
+            CreatedUtc = DateTimeOffset.Parse(reader.GetString(2)),
+            CurrentStatus = Enum.Parse<WorkflowStatus>(
+                reader.GetString(3))
+        };
     }
 
     public async Task AddCheckpointAsync(

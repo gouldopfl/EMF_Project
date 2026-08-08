@@ -60,4 +60,31 @@ public class WorkflowRepositoryTests
         Assert.Single(results);
         Assert.Equal("Step A", results[0].Step);
     }
+
+    [Fact]
+    public async Task Repository_stores_workflow_execution_definition_version()
+    {
+        var repository = new InMemoryWorkflowRepository();
+
+        var workflowId = new WorkflowId("workflow-definition-test");
+
+        var execution = new WorkflowExecutionRecord
+        {
+            WorkflowId = workflowId,
+            DefinitionId = "evidence-processing",
+            DefinitionVersion = "1",
+            CreatedUtc = DateTimeOffset.UtcNow,
+            CurrentStatus = WorkflowStatus.Running
+        };
+
+        await repository.CreateExecutionAsync(execution);
+
+        var stored = await repository.GetExecutionAsync(workflowId);
+
+        Assert.NotNull(stored);
+        Assert.Equal("evidence-processing", stored!.DefinitionId);
+        Assert.Equal("1", stored.DefinitionVersion);
+        Assert.Equal(WorkflowStatus.Running, stored.CurrentStatus);
+    }
+
 }
