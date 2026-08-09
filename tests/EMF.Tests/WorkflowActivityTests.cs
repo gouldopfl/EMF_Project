@@ -14,8 +14,6 @@ public sealed class WorkflowActivityTests
         var context = new WorkflowExecutionContext
         {
             WorkflowId = new WorkflowId("workflow-001"),
-            StartedUtc = DateTimeOffset.UtcNow,
-            CurrentStep = "Test"
         };
 
         var result = await activity.ExecuteAsync(context);

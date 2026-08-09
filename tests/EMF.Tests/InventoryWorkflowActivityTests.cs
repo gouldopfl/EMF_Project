@@ -30,8 +30,6 @@ public sealed class InventoryWorkflowActivityTests
             new WorkflowExecutionContext
             {
                 WorkflowId = new WorkflowId("workflow-inventory"),
-                StartedUtc = DateTimeOffset.UtcNow,
-                CurrentStep = "Inventory"
             };
 
         var result =
@@ -62,8 +60,6 @@ public sealed class InventoryWorkflowActivityTests
             new WorkflowExecutionContext
             {
                 WorkflowId = new WorkflowId("workflow-inventory"),
-                StartedUtc = DateTimeOffset.UtcNow,
-                CurrentStep = "Inventory"
             };
 
         var result =

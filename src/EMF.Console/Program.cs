@@ -85,8 +85,6 @@ if (args.Length > 1)
         new WorkflowExecutionContext
         {
             WorkflowId = workflowId,
-            StartedUtc = execution.CreatedUtc,
-            CurrentStep = "Recovery"
         };
 
     var recoveryCoordinator =
@@ -115,8 +113,6 @@ else
         new WorkflowExecutionContext
         {
             WorkflowId = workflowId,
-            StartedUtc = DateTimeOffset.UtcNow,
-            CurrentStep = "Start"
         };
 
     await workflowRunner.ExecuteAsync(

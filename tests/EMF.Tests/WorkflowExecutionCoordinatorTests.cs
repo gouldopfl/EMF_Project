@@ -39,8 +39,6 @@ public sealed class WorkflowExecutionCoordinatorTests
             new WorkflowExecutionContext
             {
                 WorkflowId = workflowId,
-                StartedUtc = DateTimeOffset.UtcNow,
-                CurrentStep = "Start"
             };
 
         var activities =
@@ -89,8 +87,6 @@ public sealed class WorkflowExecutionCoordinatorTests
             new WorkflowExecutionContext
             {
                 WorkflowId = workflowId,
-                StartedUtc = DateTimeOffset.UtcNow,
-                CurrentStep = "Start"
             };
 
         await coordinator.ExecuteRecoveryAsync(
@@ -134,8 +130,6 @@ public sealed class WorkflowExecutionCoordinatorTests
             new WorkflowExecutionContext
             {
                 WorkflowId = workflowId,
-                StartedUtc = DateTimeOffset.UtcNow,
-                CurrentStep = "Start"
             };
 
         await coordinator.ExecuteRecoveryAsync(
@@ -181,8 +175,6 @@ public sealed class WorkflowExecutionCoordinatorTests
             new WorkflowExecutionContext
             {
                 WorkflowId = workflowId,
-                StartedUtc = DateTimeOffset.UtcNow,
-                CurrentStep = "Start"
             };
 
         await coordinator.ExecuteRecoveryAsync(
@@ -223,8 +215,6 @@ public sealed class WorkflowExecutionCoordinatorTests
             new WorkflowExecutionContext
             {
                 WorkflowId = new WorkflowId("workflow-context"),
-                StartedUtc = DateTimeOffset.UtcNow,
-                CurrentStep = "Start"
             };
 
         await Assert.ThrowsAsync<InvalidOperationException>(

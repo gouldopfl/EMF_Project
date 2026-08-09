@@ -18,8 +18,6 @@ public sealed class WorkflowRunnerTests
         var context = new WorkflowExecutionContext
         {
             WorkflowId = new WorkflowId("workflow-001"),
-            StartedUtc = DateTimeOffset.UtcNow,
-            CurrentStep = "Start"
         };
 
         var activities = new[]
@@ -71,8 +69,6 @@ public sealed class WorkflowRunnerTests
         var context = new WorkflowExecutionContext
         {
             WorkflowId = workflowId,
-            StartedUtc = DateTimeOffset.UtcNow,
-            CurrentStep = "Start"
         };
 
         var activities = new[]
@@ -98,8 +94,6 @@ public sealed class WorkflowRunnerTests
         var context = new WorkflowExecutionContext
         {
             WorkflowId = workflowId,
-            StartedUtc = DateTimeOffset.UtcNow,
-            CurrentStep = "Start"
         };
 
         var firstExecutionOrder = new List<string>();
@@ -148,8 +142,6 @@ public sealed class WorkflowRunnerTests
         var context = new WorkflowExecutionContext
         {
             WorkflowId = new WorkflowId("workflow-003"),
-            StartedUtc = DateTimeOffset.UtcNow,
-            CurrentStep = "Start"
         };
 
         var activities = new[]
@@ -185,8 +177,6 @@ public sealed class WorkflowRunnerTests
         var context = new WorkflowExecutionContext
         {
             WorkflowId = new WorkflowId("workflow-004"),
-            StartedUtc = DateTimeOffset.UtcNow,
-            CurrentStep = "Start"
         };
 
         var activities = new[]
