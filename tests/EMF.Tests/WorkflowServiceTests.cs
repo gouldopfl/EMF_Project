@@ -1,3 +1,5 @@
+using EMF.Orchestration.Services;
+using EMF.Core.Contracts;
 using EMF.Core.Models.Identities;
 using EMF.Core.Models.Workflow;
 using EMF.Orchestration.Contracts;
@@ -95,6 +97,76 @@ public sealed class WorkflowServiceTests
             CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
+        }
+    }
+}
+
+public sealed class WorkflowServicePersistenceTests
+{
+    [Fact]
+    public async Task StartAsync_persists_workflow_definition_identity()
+    {
+        var repository = new RecordingWorkflowRepository();
+        var service = new WorkflowService(repository);
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "evidence-processing",
+            Name = "Evidence Processing",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
+        var workflowId =
+            await service.StartAsync(definition);
+
+        Assert.NotNull(repository.Execution);
+        Assert.Equal(workflowId, repository.Execution!.WorkflowId);
+        Assert.Equal("evidence-processing", repository.Execution.DefinitionId);
+        Assert.Equal("1", repository.Execution.DefinitionVersion);
+        Assert.Equal(WorkflowStatus.Running, repository.Execution.CurrentStatus);
+    }
+
+    private sealed class RecordingWorkflowRepository : IWorkflowRepository
+    {
+        public WorkflowExecutionRecord? Execution { get; private set; }
+
+        public Task CreateExecutionAsync(
+            WorkflowExecutionRecord execution,
+            CancellationToken cancellationToken = default)
+        {
+            Execution = execution;
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateExecutionAsync(
+            WorkflowExecutionRecord execution,
+            CancellationToken cancellationToken = default)
+        {
+            Execution = execution;
+            return Task.CompletedTask;
+        }
+
+        public Task<WorkflowExecutionRecord?> GetExecutionAsync(
+            WorkflowId workflowId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Execution);
+        }
+
+        public Task AddCheckpointAsync(
+            WorkflowCheckpoint checkpoint,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<WorkflowCheckpoint>> GetCheckpointsAsync(
+            WorkflowId workflowId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<WorkflowCheckpoint>>(
+                Array.Empty<WorkflowCheckpoint>());
         }
     }
 }
