@@ -90,6 +90,55 @@ public sealed class WorkflowRunnerTests
 
 
     [Fact]
+    public async Task ExecuteAsync_does_not_repeat_completed_activities_after_runner_restart()
+    {
+        var workflowService = new FakeWorkflowService();
+        var workflowId = new WorkflowId("workflow-restart-001");
+
+        var context = new WorkflowExecutionContext
+        {
+            WorkflowId = workflowId,
+            StartedUtc = DateTimeOffset.UtcNow,
+            CurrentStep = "Start"
+        };
+
+        var firstExecutionOrder = new List<string>();
+
+        var firstRunner = new WorkflowRunner(workflowService);
+
+        var activities = new[]
+        {
+            new FakeActivity("First", firstExecutionOrder),
+            new FakeActivity("Second", firstExecutionOrder)
+        };
+
+        await firstRunner.ExecuteAsync(context, activities);
+
+        Assert.Equal(
+            new[] { "First", "Second" },
+            firstExecutionOrder);
+
+        Assert.Equal(2, workflowService.Checkpoints.Count);
+
+        var secondExecutionOrder = new List<string>();
+
+        var secondRunner = new WorkflowRunner(workflowService);
+
+        var restartedActivities = new[]
+        {
+            new FakeActivity("First", secondExecutionOrder),
+            new FakeActivity("Second", secondExecutionOrder)
+        };
+
+        await secondRunner.ExecuteAsync(
+            context,
+            restartedActivities);
+
+        Assert.Empty(secondExecutionOrder);
+    }
+
+
+    [Fact]
     public async Task ExecuteAsync_stops_after_failed_activity()
     {
         var workflowService = new FakeWorkflowService();
