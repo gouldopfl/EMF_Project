@@ -83,7 +83,6 @@ public sealed class WorkflowExecutionCoordinatorTests
         await coordinator.ExecuteRecoveryAsync(
             workflowId,
             definition,
-            context,
             activities);
 
         Assert.True(runner.WasCalled);
@@ -131,7 +130,6 @@ public sealed class WorkflowExecutionCoordinatorTests
         await coordinator.ExecuteRecoveryAsync(
             workflowId,
             definition,
-            context,
             Array.Empty<IWorkflowActivity>());
 
         Assert.False(runner.WasCalled);
@@ -177,7 +175,6 @@ public sealed class WorkflowExecutionCoordinatorTests
         await coordinator.ExecuteRecoveryAsync(
             workflowId,
             definition,
-            context,
             Array.Empty<IWorkflowActivity>());
 
         Assert.True(runner.WasCalled);
@@ -225,7 +222,6 @@ public sealed class WorkflowExecutionCoordinatorTests
         await coordinator.ExecuteRecoveryAsync(
             workflowId,
             definition,
-            context,
             Array.Empty<IWorkflowActivity>());
 
         Assert.False(runner.WasCalled);
@@ -233,7 +229,7 @@ public sealed class WorkflowExecutionCoordinatorTests
 
 
     [Fact]
-    public async Task Mismatched_workflow_ids_are_rejected()
+    public async Task Recovery_creates_context_with_requested_workflow_id()
     {
         var recoveryCoordinator = new FakeRecoveryCoordinator
         {
@@ -250,6 +246,9 @@ public sealed class WorkflowExecutionCoordinatorTests
                 recoveryCoordinator,
                 runner);
 
+        var workflowId =
+            new WorkflowId("workflow-request");
+
         var definition =
             new WorkflowDefinition
             {
@@ -259,23 +258,18 @@ public sealed class WorkflowExecutionCoordinatorTests
                 ActivityIds = Array.Empty<string>()
             };
 
-        var context =
-            new WorkflowExecutionContext
-            {
-                WorkflowId = new WorkflowId("workflow-context"),
-            };
+        await coordinator.ExecuteRecoveryAsync(
+            workflowId,
+            definition,
+            Array.Empty<IWorkflowActivity>());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => coordinator.ExecuteRecoveryAsync(
-                new WorkflowId("workflow-request"),
-                definition,
-                context,
-                Array.Empty<IWorkflowActivity>()));
-
-        Assert.False(runner.WasCalled);
+        Assert.True(runner.WasCalled);
+        Assert.Equal(
+            workflowId,
+            runner.WorkflowId!.Value);
     }
 
-    private sealed class FakeWorkflowService : IWorkflowService
+private sealed class FakeWorkflowService : IWorkflowService
 {
     public bool StartCalled { get; private set; }
 

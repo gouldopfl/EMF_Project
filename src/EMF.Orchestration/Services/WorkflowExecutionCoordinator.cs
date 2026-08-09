@@ -53,19 +53,11 @@ public sealed class WorkflowExecutionCoordinator
     public async Task ExecuteRecoveryAsync(
         WorkflowId workflowId,
         WorkflowDefinition definition,
-        WorkflowExecutionContext context,
         IEnumerable<IWorkflowActivity> activities,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(definition);
-        ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(activities);
-
-        if (context.WorkflowId != workflowId)
-        {
-            throw new InvalidOperationException(
-                "Workflow execution context does not match the requested workflow.");
-        }
 
         var decision =
             await _recoveryCoordinator.RecoverAsync(
@@ -78,6 +70,12 @@ public sealed class WorkflowExecutionCoordinator
         {
             return;
         }
+
+        var context =
+            new WorkflowExecutionContext
+            {
+                WorkflowId = workflowId
+            };
 
         await _runner.ExecuteAsync(
             context,
