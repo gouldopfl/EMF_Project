@@ -52,7 +52,6 @@ public sealed class InventoryWorkflowActivity : IWorkflowActivity
 
         return new WorkflowActivityResult
         {
-            ActivityName = Name,
             Succeeded = failed == 0,
             Message = $"Inventory processed {total} item(s); {failed} failed.",
             CompletedUtc = DateTimeOffset.UtcNow

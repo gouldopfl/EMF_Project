@@ -25,11 +25,7 @@ public sealed class WorkflowActivityTests
             activity.Context!.WorkflowId.Value);
 
         Assert.True(result.Succeeded);
-        Assert.Equal(
-            "Fake Activity",
-            result.ActivityName);
     }
-
 
     private sealed class FakeActivity : IWorkflowActivity
     {
@@ -51,7 +47,6 @@ public sealed class WorkflowActivityTests
             return Task.FromResult(
                 new WorkflowActivityResult
                 {
-                    ActivityName = Name,
                     Succeeded = true,
                     Message = "Completed",
                     CompletedUtc = DateTimeOffset.UtcNow

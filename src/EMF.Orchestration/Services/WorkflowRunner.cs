@@ -64,7 +64,7 @@ public sealed class WorkflowRunner : IWorkflowRunner
                 new WorkflowCheckpoint
                 {
                     WorkflowId = context.WorkflowId,
-                    Step = result.ActivityName,
+                    Step = activity.Name,
                     ActivityId = activity.Id,
                     Status = result.Succeeded
                         ? WorkflowStatus.Completed

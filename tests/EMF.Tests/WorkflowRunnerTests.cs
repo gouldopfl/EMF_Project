@@ -222,7 +222,6 @@ public sealed class WorkflowRunnerTests
             return Task.FromResult(
                 new WorkflowActivityResult
                 {
-                    ActivityName = Name,
                     Succeeded = _succeeded,
                     Message = "Completed",
                     CompletedUtc = DateTimeOffset.UtcNow
