@@ -130,7 +130,8 @@ public async Task CreateExecutionAsync(
                 DefinitionId,
                 DefinitionVersion,
                 CreatedUtc,
-                CurrentStatus
+                CurrentStatus,
+                RecoveryStatus
             )
             VALUES
             (
@@ -138,7 +139,8 @@ public async Task CreateExecutionAsync(
                 $definitionId,
                 $definitionVersion,
                 $createdUtc,
-                $currentStatus
+                $currentStatus,
+                $recoveryStatus
             );
             """;
 
@@ -161,6 +163,10 @@ public async Task CreateExecutionAsync(
         command.Parameters.AddWithValue(
             "$currentStatus",
             execution.CurrentStatus.ToString());
+
+        command.Parameters.AddWithValue(
+            "$recoveryStatus",
+            execution.RecoveryStatus.ToString());
 
         await command.ExecuteNonQueryAsync(cancellationToken);
     }

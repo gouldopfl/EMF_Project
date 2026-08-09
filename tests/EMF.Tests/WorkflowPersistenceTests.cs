@@ -150,7 +150,7 @@ public sealed class WorkflowExecutionPersistenceTests
                 DefinitionVersion = "1",
                 CreatedUtc = createdUtc,
                 CurrentStatus = WorkflowStatus.Running,
-                RecoveryStatus = WorkflowRecoveryStatus.None
+                RecoveryStatus = WorkflowRecoveryStatus.Recoverable
             };
 
             await repository.CreateExecutionAsync(execution);
@@ -164,6 +164,9 @@ public sealed class WorkflowExecutionPersistenceTests
             Assert.Equal("1", stored.DefinitionVersion);
             Assert.Equal(createdUtc, stored.CreatedUtc);
             Assert.Equal(WorkflowStatus.Running, stored.CurrentStatus);
+            Assert.Equal(
+                WorkflowRecoveryStatus.Recoverable,
+                stored.RecoveryStatus);
         }
         finally
         {
