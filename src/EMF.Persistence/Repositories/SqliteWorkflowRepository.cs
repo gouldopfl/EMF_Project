@@ -53,6 +53,16 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
             RecordedUtc TEXT NOT NULL,
             Message TEXT NULL
         );
+
+        
+        CREATE TABLE IF NOT EXISTS WorkflowStatusTransitions (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            WorkflowId TEXT NOT NULL,
+            FromStatus TEXT NOT NULL,
+            ToStatus TEXT NOT NULL,
+            RecordedUtc TEXT NOT NULL,
+            Message TEXT NULL
+        );
         """;
 
     await command.ExecuteNonQueryAsync(cancellationToken);
@@ -357,4 +367,107 @@ public async Task CreateExecutionAsync(
 
         return checkpoints;
     }
+
+    public async Task AddStatusTransitionAsync(
+        WorkflowStatusTransition transition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            INSERT INTO WorkflowStatusTransitions
+            (
+                WorkflowId,
+                FromStatus,
+                ToStatus,
+                RecordedUtc,
+                Message
+            )
+            VALUES
+            (
+                $workflowId,
+                $fromStatus,
+                $toStatus,
+                $recordedUtc,
+                $message
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$workflowId",
+            transition.WorkflowId.Value);
+
+        command.Parameters.AddWithValue(
+            "$fromStatus",
+            transition.FromStatus.ToString());
+
+        command.Parameters.AddWithValue(
+            "$toStatus",
+            transition.ToStatus.ToString());
+
+        command.Parameters.AddWithValue(
+            "$recordedUtc",
+            transition.RecordedUtc.ToString("O"));
+
+        command.Parameters.AddWithValue(
+            "$message",
+            (object?)transition.Message ?? DBNull.Value);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+
+    public async Task<IReadOnlyList<WorkflowStatusTransition>> GetStatusTransitionsAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT FromStatus, ToStatus, RecordedUtc, Message
+            FROM WorkflowStatusTransitions
+            WHERE WorkflowId = $workflowId
+            ORDER BY Id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$workflowId",
+            workflowId.Value);
+
+        var transitions = new List<WorkflowStatusTransition>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            transitions.Add(
+                new WorkflowStatusTransition
+                {
+                    WorkflowId = workflowId,
+                    FromStatus = Enum.Parse<WorkflowStatus>(
+                        reader.GetString(0)),
+                    ToStatus = Enum.Parse<WorkflowStatus>(
+                        reader.GetString(1)),
+                    RecordedUtc =
+                        DateTimeOffset.Parse(reader.GetString(2)),
+                    Message = reader.IsDBNull(3)
+                        ? null
+                        : reader.GetString(3)
+                });
+        }
+
+        return transitions;
+    }
+
 }

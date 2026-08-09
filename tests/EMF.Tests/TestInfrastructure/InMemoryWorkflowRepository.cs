@@ -7,6 +7,7 @@ namespace EMF.Tests.TestInfrastructure;
 public sealed class InMemoryWorkflowRepository : IWorkflowRepository
 {
     private readonly List<WorkflowCheckpoint> _checkpoints = new();
+private readonly List<WorkflowStatusTransition> _transitions = new();
     private readonly Dictionary<WorkflowId, WorkflowExecutionRecord> _executions = new();
 
 
@@ -60,4 +61,27 @@ public sealed class InMemoryWorkflowRepository : IWorkflowRepository
 
         return Task.FromResult<IReadOnlyList<WorkflowCheckpoint>>(results);
     }
+
+
+    public Task AddStatusTransitionAsync(
+        WorkflowStatusTransition transition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+
+        _transitions.Add(transition);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<WorkflowStatusTransition>> GetStatusTransitionsAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default)
+    {
+        var results = _transitions
+            .Where(x => x.WorkflowId == workflowId)
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<WorkflowStatusTransition>>(results);
+    }
+
 }

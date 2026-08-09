@@ -25,4 +25,14 @@ public interface IWorkflowRepository
     Task<IReadOnlyList<WorkflowCheckpoint>> GetCheckpointsAsync(
         WorkflowId workflowId,
         CancellationToken cancellationToken = default);
+
+
+    Task AddStatusTransitionAsync(
+        WorkflowStatusTransition transition,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<WorkflowStatusTransition>> GetStatusTransitionsAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default);
+
 }

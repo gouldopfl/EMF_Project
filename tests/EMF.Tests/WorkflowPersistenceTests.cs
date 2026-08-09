@@ -258,3 +258,148 @@ public sealed class WorkflowSchemaMigrationTests
         }
     }
 }
+
+public sealed class WorkflowStatusTransitionPersistenceTests
+{
+    [Fact]
+    public async Task SqliteWorkflowRepository_StatusTransitionRoundTrip()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-workflow-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new SqliteWorkflowRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var workflowId =
+                new WorkflowId("workflow-transition-001");
+
+            var recordedUtc =
+                DateTimeOffset.UtcNow;
+
+            var transition = new WorkflowStatusTransition
+            {
+                WorkflowId = workflowId,
+                FromStatus = WorkflowStatus.Pending,
+                ToStatus = WorkflowStatus.Running,
+                RecordedUtc = recordedUtc,
+                Message = "Workflow started"
+            };
+
+            await repository.AddStatusTransitionAsync(transition);
+
+            var results =
+                await repository.GetStatusTransitionsAsync(workflowId);
+
+            var result = Assert.Single(results);
+
+            Assert.Equal(workflowId, result.WorkflowId);
+            Assert.Equal(
+                WorkflowStatus.Pending,
+                result.FromStatus);
+            Assert.Equal(
+                WorkflowStatus.Running,
+                result.ToStatus);
+            Assert.Equal(
+                recordedUtc,
+                result.RecordedUtc);
+            Assert.Equal(
+                "Workflow started",
+                result.Message);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+            {
+                File.Delete(databasePath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task SqliteWorkflowRepository_StatusTransitionsPreserveInsertionOrder()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-workflow-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new SqliteWorkflowRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var workflowId =
+                new WorkflowId("workflow-transition-order");
+
+            await repository.AddStatusTransitionAsync(
+                new WorkflowStatusTransition
+                {
+                    WorkflowId = workflowId,
+                    FromStatus = WorkflowStatus.Pending,
+                    ToStatus = WorkflowStatus.Running,
+                    RecordedUtc = DateTimeOffset.UtcNow,
+                    Message = "Started"
+                });
+
+            await repository.AddStatusTransitionAsync(
+                new WorkflowStatusTransition
+                {
+                    WorkflowId = workflowId,
+                    FromStatus = WorkflowStatus.Running,
+                    ToStatus = WorkflowStatus.Paused,
+                    RecordedUtc = DateTimeOffset.UtcNow,
+                    Message = "Paused"
+                });
+
+            await repository.AddStatusTransitionAsync(
+                new WorkflowStatusTransition
+                {
+                    WorkflowId = workflowId,
+                    FromStatus = WorkflowStatus.Paused,
+                    ToStatus = WorkflowStatus.Running,
+                    RecordedUtc = DateTimeOffset.UtcNow,
+                    Message = "Resumed"
+                });
+
+            var results =
+                await repository.GetStatusTransitionsAsync(workflowId);
+
+            Assert.Equal(3, results.Count);
+
+            Assert.Equal(
+                WorkflowStatus.Pending,
+                results[0].FromStatus);
+            Assert.Equal(
+                WorkflowStatus.Running,
+                results[0].ToStatus);
+
+            Assert.Equal(
+                WorkflowStatus.Running,
+                results[1].FromStatus);
+            Assert.Equal(
+                WorkflowStatus.Paused,
+                results[1].ToStatus);
+
+            Assert.Equal(
+                WorkflowStatus.Paused,
+                results[2].FromStatus);
+            Assert.Equal(
+                WorkflowStatus.Running,
+                results[2].ToStatus);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+            {
+                File.Delete(databasePath);
+            }
+        }
+    }
+}
+

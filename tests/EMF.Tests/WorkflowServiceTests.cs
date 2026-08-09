@@ -265,5 +265,21 @@ private sealed class RecordingWorkflowRepository : IWorkflowRepository
             return Task.FromResult<IReadOnlyList<WorkflowCheckpoint>>(
                 Array.Empty<WorkflowCheckpoint>());
         }
-    }
+    
+
+        public Task AddStatusTransitionAsync(
+            WorkflowStatusTransition transition,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<WorkflowStatusTransition>> GetStatusTransitionsAsync(
+            WorkflowId workflowId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<WorkflowStatusTransition>>(
+                Array.Empty<WorkflowStatusTransition>());
+        }
+}
 }

@@ -88,4 +88,88 @@ public class WorkflowRepositoryTests
         Assert.Equal(WorkflowStatus.Running, stored.CurrentStatus);
     }
 
+
+    [Fact]
+    public async Task AddStatusTransitionAsync_stores_transition()
+    {
+        var repository = new InMemoryWorkflowRepository();
+
+        var workflowId = new WorkflowId("workflow-transition-001");
+
+        var transition = new WorkflowStatusTransition
+        {
+            WorkflowId = workflowId,
+            FromStatus = WorkflowStatus.Pending,
+            ToStatus = WorkflowStatus.Running,
+            RecordedUtc = DateTimeOffset.UtcNow,
+            Message = "Workflow started"
+        };
+
+        await repository.AddStatusTransitionAsync(transition);
+
+        var results =
+            await repository.GetStatusTransitionsAsync(workflowId);
+
+        Assert.Single(results);
+        Assert.Equal(WorkflowStatus.Pending, results[0].FromStatus);
+        Assert.Equal(WorkflowStatus.Running, results[0].ToStatus);
+        Assert.Equal("Workflow started", results[0].Message);
+    }
+
+    [Fact]
+    public async Task GetStatusTransitionsAsync_preserves_insertion_order()
+    {
+        var repository = new InMemoryWorkflowRepository();
+
+        var workflowId = new WorkflowId("workflow-transition-order");
+
+        await repository.AddStatusTransitionAsync(
+            new WorkflowStatusTransition
+            {
+                WorkflowId = workflowId,
+                FromStatus = WorkflowStatus.Pending,
+                ToStatus = WorkflowStatus.Running,
+                RecordedUtc = DateTimeOffset.UtcNow
+            });
+
+        await repository.AddStatusTransitionAsync(
+            new WorkflowStatusTransition
+            {
+                WorkflowId = workflowId,
+                FromStatus = WorkflowStatus.Running,
+                ToStatus = WorkflowStatus.Paused,
+                RecordedUtc = DateTimeOffset.UtcNow
+            });
+
+        await repository.AddStatusTransitionAsync(
+            new WorkflowStatusTransition
+            {
+                WorkflowId = workflowId,
+                FromStatus = WorkflowStatus.Paused,
+                ToStatus = WorkflowStatus.Running,
+                RecordedUtc = DateTimeOffset.UtcNow
+            });
+
+        var results =
+            await repository.GetStatusTransitionsAsync(workflowId);
+
+        Assert.Equal(3, results.Count);
+
+        Assert.Equal(
+            WorkflowStatus.Pending,
+            results[0].FromStatus);
+
+        Assert.Equal(
+            WorkflowStatus.Running,
+            results[0].ToStatus);
+
+        Assert.Equal(
+            WorkflowStatus.Paused,
+            results[1].ToStatus);
+
+        Assert.Equal(
+            WorkflowStatus.Running,
+            results[2].ToStatus);
+    }
+
 }
