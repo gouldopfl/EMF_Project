@@ -9,29 +9,31 @@ public sealed class WorkflowExecutionCoordinator
 {
     private readonly IWorkflowService _workflowService;
     private readonly IWorkflowRecoveryCoordinator _recoveryCoordinator;
+    private readonly IWorkflowActivityResolver _activityResolver;
     private readonly IWorkflowRunner _runner;
 
     public WorkflowExecutionCoordinator(
         IWorkflowService workflowService,
         IWorkflowRecoveryCoordinator recoveryCoordinator,
+        IWorkflowActivityResolver activityResolver,
         IWorkflowRunner runner)
     {
         ArgumentNullException.ThrowIfNull(workflowService);
         ArgumentNullException.ThrowIfNull(recoveryCoordinator);
+        ArgumentNullException.ThrowIfNull(activityResolver);
         ArgumentNullException.ThrowIfNull(runner);
 
         _workflowService = workflowService;
         _recoveryCoordinator = recoveryCoordinator;
+        _activityResolver = activityResolver;
         _runner = runner;
     }
 
     public async Task ExecuteAsync(
         WorkflowDefinition definition,
-        IEnumerable<IWorkflowActivity> activities,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(definition);
-        ArgumentNullException.ThrowIfNull(activities);
 
         var workflowId =
             await _workflowService.StartAsync(
@@ -44,6 +46,8 @@ public sealed class WorkflowExecutionCoordinator
                 WorkflowId = workflowId
             };
 
+        var activities = _activityResolver.Resolve(definition);
+
         await _runner.ExecuteAsync(
             context,
             activities,
@@ -53,11 +57,9 @@ public sealed class WorkflowExecutionCoordinator
     public async Task ExecuteRecoveryAsync(
         WorkflowId workflowId,
         WorkflowDefinition definition,
-        IEnumerable<IWorkflowActivity> activities,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(definition);
-        ArgumentNullException.ThrowIfNull(activities);
 
         var decision =
             await _recoveryCoordinator.RecoverAsync(
@@ -76,6 +78,8 @@ public sealed class WorkflowExecutionCoordinator
             {
                 WorkflowId = workflowId
             };
+
+        var activities = _activityResolver.Resolve(definition);
 
         await _runner.ExecuteAsync(
             context,

@@ -15,10 +15,14 @@ public sealed class WorkflowExecutionCoordinatorTests
         var recoveryCoordinator = new FakeRecoveryCoordinator();
         var runner = new FakeWorkflowRunner();
 
+        var activityResolver =
+            new FakeWorkflowActivityResolver();
+
         var coordinator =
             new WorkflowExecutionCoordinator(
                 workflowService,
                 recoveryCoordinator,
+                activityResolver,
                 runner);
 
         var definition =
@@ -31,8 +35,7 @@ public sealed class WorkflowExecutionCoordinatorTests
             };
 
         await coordinator.ExecuteAsync(
-            definition,
-            Array.Empty<IWorkflowActivity>());
+            definition);
 
         Assert.True(workflowService.StartCalled);
         Assert.True(runner.WasCalled);
@@ -53,10 +56,14 @@ public sealed class WorkflowExecutionCoordinatorTests
 
         var runner = new FakeWorkflowRunner();
 
+        var activityResolver =
+            new FakeWorkflowActivityResolver();
+
         var coordinator =
             new WorkflowExecutionCoordinator(
                 workflowService,
                 recoveryCoordinator,
+                activityResolver,
                 runner);
 
         var workflowId =
@@ -82,8 +89,7 @@ public sealed class WorkflowExecutionCoordinatorTests
 
         await coordinator.ExecuteRecoveryAsync(
             workflowId,
-            definition,
-            activities);
+            definition);
 
         Assert.True(runner.WasCalled);
         Assert.Equal(
@@ -103,10 +109,14 @@ public sealed class WorkflowExecutionCoordinatorTests
 
         var runner = new FakeWorkflowRunner();
 
+        var activityResolver =
+            new FakeWorkflowActivityResolver();
+
         var coordinator =
             new WorkflowExecutionCoordinator(
                 workflowService,
                 recoveryCoordinator,
+                activityResolver,
                 runner);
 
         var workflowId =
@@ -129,8 +139,7 @@ public sealed class WorkflowExecutionCoordinatorTests
 
         await coordinator.ExecuteRecoveryAsync(
             workflowId,
-            definition,
-            Array.Empty<IWorkflowActivity>());
+            definition);
 
         Assert.False(runner.WasCalled);
     }
@@ -148,10 +157,14 @@ public sealed class WorkflowExecutionCoordinatorTests
 
         var runner = new FakeWorkflowRunner();
 
+        var activityResolver =
+            new FakeWorkflowActivityResolver();
+
         var coordinator =
             new WorkflowExecutionCoordinator(
                 workflowService,
                 recoveryCoordinator,
+                activityResolver,
                 runner);
 
         var workflowId =
@@ -174,8 +187,7 @@ public sealed class WorkflowExecutionCoordinatorTests
 
         await coordinator.ExecuteRecoveryAsync(
             workflowId,
-            definition,
-            Array.Empty<IWorkflowActivity>());
+            definition);
 
         Assert.True(runner.WasCalled);
     }
@@ -195,10 +207,14 @@ public sealed class WorkflowExecutionCoordinatorTests
 
         var runner = new FakeWorkflowRunner();
 
+        var activityResolver =
+            new FakeWorkflowActivityResolver();
+
         var coordinator =
             new WorkflowExecutionCoordinator(
                 workflowService,
                 recoveryCoordinator,
+                activityResolver,
                 runner);
 
         var workflowId =
@@ -221,8 +237,7 @@ public sealed class WorkflowExecutionCoordinatorTests
 
         await coordinator.ExecuteRecoveryAsync(
             workflowId,
-            definition,
-            Array.Empty<IWorkflowActivity>());
+            definition);
 
         Assert.False(runner.WasCalled);
     }
@@ -240,10 +255,14 @@ public sealed class WorkflowExecutionCoordinatorTests
 
         var runner = new FakeWorkflowRunner();
 
+        var activityResolver =
+            new FakeWorkflowActivityResolver();
+
         var coordinator =
             new WorkflowExecutionCoordinator(
                 workflowService,
                 recoveryCoordinator,
+                activityResolver,
                 runner);
 
         var workflowId =
@@ -260,14 +279,22 @@ public sealed class WorkflowExecutionCoordinatorTests
 
         await coordinator.ExecuteRecoveryAsync(
             workflowId,
-            definition,
-            Array.Empty<IWorkflowActivity>());
+            definition);
 
         Assert.True(runner.WasCalled);
         Assert.Equal(
             workflowId,
             runner.WorkflowId!.Value);
     }
+
+private sealed class FakeWorkflowActivityResolver : IWorkflowActivityResolver
+{
+    public IReadOnlyList<IWorkflowActivity> Resolve(
+        WorkflowDefinition definition)
+    {
+        return Array.Empty<IWorkflowActivity>();
+    }
+}
 
 private sealed class FakeWorkflowService : IWorkflowService
 {
