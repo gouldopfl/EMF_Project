@@ -146,6 +146,16 @@ public sealed class WorkflowRecoveryCoordinatorTests
             return Task.FromResult<IReadOnlyList<WorkflowStatusTransition>>(
                 Array.Empty<WorkflowStatusTransition>());
         }
+
+
+        public Task ApplyStatusTransitionAsync(
+            WorkflowExecutionRecord execution,
+            WorkflowStatusTransition transition,
+            CancellationToken cancellationToken = default)
+        {
+            Execution = execution;
+            return Task.CompletedTask;
+        }
 }
 
     private sealed class FakeRecoveryPolicy : IWorkflowRecoveryPolicy
@@ -274,6 +284,16 @@ public sealed class WorkflowRecoveryCoordinatorStatusTests
         {
             return Task.FromResult<IReadOnlyList<WorkflowStatusTransition>>(
                 Array.Empty<WorkflowStatusTransition>());
+        }
+
+
+        public Task ApplyStatusTransitionAsync(
+            WorkflowExecutionRecord execution,
+            WorkflowStatusTransition transition,
+            CancellationToken cancellationToken = default)
+        {
+            Execution = execution;
+            return Task.CompletedTask;
         }
 }
 

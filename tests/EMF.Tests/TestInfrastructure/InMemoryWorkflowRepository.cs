@@ -84,4 +84,25 @@ private readonly List<WorkflowStatusTransition> _transitions = new();
         return Task.FromResult<IReadOnlyList<WorkflowStatusTransition>>(results);
     }
 
+
+    public Task ApplyStatusTransitionAsync(
+        WorkflowExecutionRecord execution,
+        WorkflowStatusTransition transition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(execution);
+        ArgumentNullException.ThrowIfNull(transition);
+
+        if (execution.WorkflowId != transition.WorkflowId)
+        {
+            throw new ArgumentException(
+                "Execution and transition must reference the same workflow.");
+        }
+
+        _executions[execution.WorkflowId] = execution;
+        _transitions.Add(transition);
+
+        return Task.CompletedTask;
+    }
+
 }

@@ -35,4 +35,10 @@ public interface IWorkflowRepository
         WorkflowId workflowId,
         CancellationToken cancellationToken = default);
 
+
+    Task ApplyStatusTransitionAsync(
+        WorkflowExecutionRecord execution,
+        WorkflowStatusTransition transition,
+        CancellationToken cancellationToken = default);
+
 }

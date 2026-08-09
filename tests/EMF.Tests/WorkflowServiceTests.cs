@@ -150,6 +150,17 @@ public sealed class WorkflowServicePersistenceTests
         Assert.Equal(
             WorkflowStatus.Completed,
             repository.Execution!.CurrentStatus);
+
+        Assert.NotNull(repository.LastTransition);
+        Assert.Equal(
+            workflowId,
+            repository.LastTransition!.WorkflowId);
+        Assert.Equal(
+            WorkflowStatus.Running,
+            repository.LastTransition.FromStatus);
+        Assert.Equal(
+            WorkflowStatus.Completed,
+            repository.LastTransition.ToStatus);
     }
 
     [Fact]
@@ -211,6 +222,20 @@ public sealed class WorkflowServicePersistenceTests
         Assert.Equal(
             WorkflowStatus.Failed,
             repository.Execution!.CurrentStatus);
+
+        Assert.NotNull(repository.LastTransition);
+        Assert.Equal(
+            workflowId,
+            repository.LastTransition!.WorkflowId);
+        Assert.Equal(
+            WorkflowStatus.Running,
+            repository.LastTransition.FromStatus);
+        Assert.Equal(
+            WorkflowStatus.Failed,
+            repository.LastTransition.ToStatus);
+        Assert.Equal(
+            "Activity failed.",
+            repository.LastTransition.Message);
     }
 
     private static WorkflowDefinition CreateDefinition()
@@ -227,6 +252,8 @@ public sealed class WorkflowServicePersistenceTests
 private sealed class RecordingWorkflowRepository : IWorkflowRepository
     {
         public WorkflowExecutionRecord? Execution { get; private set; }
+
+    public WorkflowStatusTransition? LastTransition { get; private set; }
 
         public Task CreateExecutionAsync(
             WorkflowExecutionRecord execution,
@@ -280,6 +307,17 @@ private sealed class RecordingWorkflowRepository : IWorkflowRepository
         {
             return Task.FromResult<IReadOnlyList<WorkflowStatusTransition>>(
                 Array.Empty<WorkflowStatusTransition>());
+        }
+
+
+        public Task ApplyStatusTransitionAsync(
+            WorkflowExecutionRecord execution,
+            WorkflowStatusTransition transition,
+            CancellationToken cancellationToken = default)
+        {
+            Execution = execution;
+            LastTransition = transition;
+            return Task.CompletedTask;
         }
 }
 }

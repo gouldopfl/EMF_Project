@@ -470,4 +470,110 @@ public async Task CreateExecutionAsync(
         return transitions;
     }
 
+
+    public async Task ApplyStatusTransitionAsync(
+        WorkflowExecutionRecord execution,
+        WorkflowStatusTransition transition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(execution);
+        ArgumentNullException.ThrowIfNull(transition);
+
+        if (execution.WorkflowId != transition.WorkflowId)
+        {
+            throw new ArgumentException(
+                "Execution and transition must reference the same workflow.");
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var transaction =
+            await connection.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            await using (var updateCommand = connection.CreateCommand())
+            {
+                updateCommand.Transaction = (Microsoft.Data.Sqlite.SqliteTransaction)transaction;
+
+                updateCommand.CommandText =
+                    """
+                    UPDATE Workflows
+                    SET CurrentStatus = $currentStatus,
+                        RecoveryStatus = $recoveryStatus
+                    WHERE Id = $id;
+                    """;
+
+                updateCommand.Parameters.AddWithValue(
+                    "$currentStatus",
+                    execution.CurrentStatus.ToString());
+
+                updateCommand.Parameters.AddWithValue(
+                    "$recoveryStatus",
+                    execution.RecoveryStatus.ToString());
+
+                updateCommand.Parameters.AddWithValue(
+                    "$id",
+                    execution.WorkflowId.Value);
+
+                await updateCommand.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await using (var transitionCommand = connection.CreateCommand())
+            {
+                transitionCommand.Transaction = (Microsoft.Data.Sqlite.SqliteTransaction)transaction;
+
+                transitionCommand.CommandText =
+                    """
+                    INSERT INTO WorkflowStatusTransitions
+                    (
+                        WorkflowId,
+                        FromStatus,
+                        ToStatus,
+                        RecordedUtc,
+                        Message
+                    )
+                    VALUES
+                    (
+                        $workflowId,
+                        $fromStatus,
+                        $toStatus,
+                        $recordedUtc,
+                        $message
+                    );
+                    """;
+
+                transitionCommand.Parameters.AddWithValue(
+                    "$workflowId",
+                    transition.WorkflowId.Value);
+
+                transitionCommand.Parameters.AddWithValue(
+                    "$fromStatus",
+                    transition.FromStatus.ToString());
+
+                transitionCommand.Parameters.AddWithValue(
+                    "$toStatus",
+                    transition.ToStatus.ToString());
+
+                transitionCommand.Parameters.AddWithValue(
+                    "$recordedUtc",
+                    transition.RecordedUtc.ToString("O"));
+
+                transitionCommand.Parameters.AddWithValue(
+                    "$message",
+                    (object?)transition.Message ?? DBNull.Value);
+
+                await transitionCommand.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
 }

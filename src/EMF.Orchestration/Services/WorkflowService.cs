@@ -93,17 +93,28 @@ public sealed class WorkflowService : IWorkflowService
             execution.CurrentStatus,
             WorkflowStatus.Completed);
 
-        await _repository.UpdateExecutionAsync(
-            new WorkflowExecutionRecord
-            {
-                WorkflowId = execution.WorkflowId,
-                DefinitionId = execution.DefinitionId,
-                DefinitionVersion = execution.DefinitionVersion,
-                CreatedUtc = execution.CreatedUtc,
-                CurrentStatus = WorkflowStatus.Completed,
-                RecoveryStatus = execution.RecoveryStatus
-            },
-            cancellationToken);
+        var completedUtc =
+        DateTimeOffset.UtcNow;
+
+    await _repository.ApplyStatusTransitionAsync(
+        new WorkflowExecutionRecord
+        {
+            WorkflowId = execution.WorkflowId,
+            DefinitionId = execution.DefinitionId,
+            DefinitionVersion = execution.DefinitionVersion,
+            CreatedUtc = execution.CreatedUtc,
+            CurrentStatus = WorkflowStatus.Completed,
+            RecoveryStatus = execution.RecoveryStatus
+        },
+        new WorkflowStatusTransition
+        {
+            WorkflowId = execution.WorkflowId,
+            FromStatus = execution.CurrentStatus,
+            ToStatus = WorkflowStatus.Completed,
+            RecordedUtc = completedUtc,
+            Message = "Workflow completed"
+        },
+        cancellationToken);
 
         await _repository.AddCheckpointAsync(
             new WorkflowCheckpoint
@@ -138,17 +149,28 @@ public sealed class WorkflowService : IWorkflowService
             execution.CurrentStatus,
             WorkflowStatus.Failed);
 
-        await _repository.UpdateExecutionAsync(
-            new WorkflowExecutionRecord
-            {
-                WorkflowId = execution.WorkflowId,
-                DefinitionId = execution.DefinitionId,
-                DefinitionVersion = execution.DefinitionVersion,
-                CreatedUtc = execution.CreatedUtc,
-                CurrentStatus = WorkflowStatus.Failed,
-                RecoveryStatus = execution.RecoveryStatus
-            },
-            cancellationToken);
+        var failedUtc =
+        DateTimeOffset.UtcNow;
+
+    await _repository.ApplyStatusTransitionAsync(
+        new WorkflowExecutionRecord
+        {
+            WorkflowId = execution.WorkflowId,
+            DefinitionId = execution.DefinitionId,
+            DefinitionVersion = execution.DefinitionVersion,
+            CreatedUtc = execution.CreatedUtc,
+            CurrentStatus = WorkflowStatus.Failed,
+            RecoveryStatus = execution.RecoveryStatus
+        },
+        new WorkflowStatusTransition
+        {
+            WorkflowId = execution.WorkflowId,
+            FromStatus = execution.CurrentStatus,
+            ToStatus = WorkflowStatus.Failed,
+            RecordedUtc = failedUtc,
+            Message = message
+        },
+        cancellationToken);
 
         await _repository.AddCheckpointAsync(
             new WorkflowCheckpoint
