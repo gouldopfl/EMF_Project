@@ -43,6 +43,16 @@ var workflowRepository =
 
 await workflowRepository.InitializeAsync();
 
+var workflowDefinitionRepository =
+    new SqliteWorkflowDefinitionRepository(
+        workflowDatabasePath);
+
+await workflowDefinitionRepository.InitializeAsync();
+
+var workflowDefinitionService =
+    new WorkflowDefinitionService(
+        workflowDefinitionRepository);
+
 var workflowService =
     new WorkflowService(
         workflowRepository);
@@ -73,7 +83,7 @@ recoveryCoordinator,
 activityResolver,
 workflowRunner);
 
-var workflowDefinition =
+var currentDefinition =
     new WorkflowDefinition
     {
         Id = "inventory-processing",
@@ -82,6 +92,27 @@ var workflowDefinition =
         ActivityIds = new[] { "inventory" }
     };
 
+var storedCurrentDefinition =
+    await workflowDefinitionService.ResolveAsync(
+        currentDefinition.Id,
+        currentDefinition.Version);
+
+if (storedCurrentDefinition is null)
+{
+    await workflowDefinitionService.RegisterAsync(
+        currentDefinition);
+
+    storedCurrentDefinition =
+        await workflowDefinitionService.ResolveAsync(
+            currentDefinition.Id,
+            currentDefinition.Version);
+}
+
+if (storedCurrentDefinition is null)
+{
+    throw new InvalidOperationException(
+        $"Workflow definition '{currentDefinition.Id}' version '{currentDefinition.Version}' could not be resolved.");
+}
 
 if (args.Length > 1)
 {
@@ -98,15 +129,25 @@ if (args.Length > 1)
             $"Workflow execution '{workflowId}' was not found.");
     }
 
+    var recoveryDefinition =
+        await workflowDefinitionService.ResolveAsync(
+            execution.DefinitionId,
+            execution.DefinitionVersion);
 
-await executionCoordinator.ExecuteRecoveryAsync(
-workflowId,
-workflowDefinition);
+    if (recoveryDefinition is null)
+    {
+        throw new InvalidOperationException(
+            $"Workflow definition '{execution.DefinitionId}' version '{execution.DefinitionVersion}' was not found.");
+    }
+
+    await executionCoordinator.ExecuteRecoveryAsync(
+        workflowId,
+        recoveryDefinition);
 }
 else
 {
-await executionCoordinator.ExecuteAsync(
-workflowDefinition);
+    await executionCoordinator.ExecuteAsync(
+        storedCurrentDefinition);
 }
 
 Console.WriteLine("======================================");
