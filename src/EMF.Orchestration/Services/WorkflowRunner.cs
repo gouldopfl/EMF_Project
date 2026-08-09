@@ -76,8 +76,17 @@ public sealed class WorkflowRunner : IWorkflowRunner
 
             if (!result.Succeeded)
             {
-                break;
+                await _workflowService.FailAsync(
+                    context.WorkflowId,
+                    result.Message ?? "Workflow activity failed.",
+                    cancellationToken);
+
+                return;
             }
         }
+
+        await _workflowService.CompleteAsync(
+            context.WorkflowId,
+            cancellationToken);
     }
 }

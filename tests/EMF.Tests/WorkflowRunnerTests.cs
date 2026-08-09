@@ -42,6 +42,10 @@ public sealed class WorkflowRunnerTests
             checkpoint => Assert.Equal(
                 WorkflowStatus.Completed,
                 checkpoint.Status));
+
+        Assert.True(workflowService.CompleteCalled);
+        Assert.False(workflowService.FailCalled);
+        Assert.Equal(context.WorkflowId, workflowService.CompletedWorkflowId);
     }
 
 
@@ -116,6 +120,9 @@ public sealed class WorkflowRunnerTests
         Assert.Equal(
             WorkflowStatus.Failed,
             workflowService.Checkpoints[1].Status);
+
+        Assert.False(workflowService.CompleteCalled);
+        Assert.True(workflowService.FailCalled);
     }
 
 
@@ -188,6 +195,12 @@ public sealed class WorkflowRunnerTests
     {
         public List<WorkflowCheckpoint> Checkpoints { get; } = new();
 
+        public bool CompleteCalled { get; private set; }
+
+        public bool FailCalled { get; private set; }
+
+        public WorkflowId? CompletedWorkflowId { get; private set; }
+
         public Task<WorkflowId> StartAsync(
             WorkflowDefinition definition,
             CancellationToken cancellationToken = default)
@@ -215,6 +228,8 @@ public sealed class WorkflowRunnerTests
             WorkflowId workflowId,
             CancellationToken cancellationToken = default)
         {
+            CompleteCalled = true;
+            CompletedWorkflowId = workflowId;
             return Task.CompletedTask;
         }
 
@@ -223,6 +238,7 @@ public sealed class WorkflowRunnerTests
             string message,
             CancellationToken cancellationToken = default)
         {
+            FailCalled = true;
             return Task.CompletedTask;
         }
     }
