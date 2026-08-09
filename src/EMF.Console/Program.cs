@@ -56,11 +56,22 @@ var recoveryCoordinator =
         workflowRepository,
         new WorkflowRecoveryPolicy());
 
+var inventoryActivity =
+new InventoryWorkflowActivity(
+orchestration,
+sourcePath,
+new DiscoveryOptions());
+
+var activityResolver =
+new WorkflowActivityResolver(
+new[] { inventoryActivity });
+
 var executionCoordinator =
-    new WorkflowExecutionCoordinator(
-        workflowService,
-        recoveryCoordinator,
-        workflowRunner);
+new WorkflowExecutionCoordinator(
+workflowService,
+recoveryCoordinator,
+activityResolver,
+workflowRunner);
 
 var workflowDefinition =
     new WorkflowDefinition
@@ -71,11 +82,6 @@ var workflowDefinition =
         ActivityIds = new[] { "inventory" }
     };
 
-var inventoryActivity =
-    new InventoryWorkflowActivity(
-        orchestration,
-        sourcePath,
-        new DiscoveryOptions());
 
 if (args.Length > 1)
 {
@@ -92,23 +98,15 @@ if (args.Length > 1)
             $"Workflow execution '{workflowId}' was not found.");
     }
 
-    var workflowContext =
-        new WorkflowExecutionContext
-        {
-            WorkflowId = workflowId,
-        };
 
-    await executionCoordinator.ExecuteRecoveryAsync(
-        workflowId,
-        workflowDefinition,
-        workflowContext,
-        new[] { inventoryActivity });
+await executionCoordinator.ExecuteRecoveryAsync(
+workflowId,
+workflowDefinition);
 }
 else
 {
-    await executionCoordinator.ExecuteAsync(
-        workflowDefinition,
-        new[] { inventoryActivity });
+await executionCoordinator.ExecuteAsync(
+workflowDefinition);
 }
 
 Console.WriteLine("======================================");
