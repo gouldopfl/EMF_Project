@@ -1,8 +1,11 @@
+using EMF.Core.Models.Workflow;
 using EMF.Discovery.Models;
 using EMF.Discovery.Services;
 using EMF.Inventory.Providers;
 using EMF.Integrity;
+using EMF.Orchestration.Models;
 using EMF.Orchestration.Services;
+using EMF.Persistence.Repositories;
 
 var sourcePath = args.Length > 0
     ? args[0]
@@ -27,37 +30,56 @@ var orchestration = new InventoryOrchestrationService(
     new GuidArtifactIdGenerator(),
 new Sha256ContentFingerprintService());
 
-await foreach (var result in orchestration.ExecuteAsync(
-    sourcePath,
-    new DiscoveryOptions()))
-{
-    Console.WriteLine($"Discovered: {result.DiscoveredItem.SourcePath}");
-    Console.WriteLine();
 
-    if (!result.Success || result.Inventory is null)
+var workflowDatabasePath =
+    Path.Combine(
+        AppContext.BaseDirectory,
+        "emf-workflows.db");
+
+var workflowRepository =
+    new SqliteWorkflowRepository(
+        workflowDatabasePath);
+
+await workflowRepository.InitializeAsync();
+
+var workflowService =
+    new WorkflowService(
+        workflowRepository);
+
+var workflowRunner =
+    new WorkflowRunner(
+        workflowService);
+
+var workflowDefinition =
+    new WorkflowDefinition
     {
-        Console.WriteLine($"Failed    : {result.Message}");
-        Console.WriteLine();
-        continue;
-    }
+        Id = "inventory-processing",
+        Name = "Inventory Processing",
+        Version = "1",
+        ActivityIds = new[] { "inventory" }
+    };
 
-    var inventory = result.Inventory;
+var workflowId =
+    await workflowService.StartAsync(
+        workflowDefinition);
 
-    Console.WriteLine($"Database : {inventory.DatabasePath}");
-    Console.WriteLine($"Engine   : {inventory.DatabaseEngine}");
-    Console.WriteLine($"Version  : {inventory.DatabaseVersion}");
-    Console.WriteLine();
-    Console.WriteLine($"Tables discovered: {inventory.Tables.Count}");
-    Console.WriteLine();
-
-    foreach (var table in inventory.Tables.OrderBy(t => t.Name))
+var workflowContext =
+    new WorkflowExecutionContext
     {
-        Console.WriteLine(
-            $"{table.Name,-30} {table.RowCount,12:N0} rows");
-    }
+        WorkflowId = workflowId,
+        StartedUtc = DateTimeOffset.UtcNow,
+        CurrentStep = "Start"
+    };
 
-    Console.WriteLine();
-}
+var inventoryActivity =
+    new InventoryWorkflowActivity(
+        orchestration,
+        sourcePath,
+        new DiscoveryOptions());
+
+await workflowRunner.ExecuteAsync(
+    workflowContext,
+    new[] { inventoryActivity });
 
 Console.WriteLine("======================================");
 Console.WriteLine(" Execution Summary");
