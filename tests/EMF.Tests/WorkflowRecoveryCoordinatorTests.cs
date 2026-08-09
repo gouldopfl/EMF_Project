@@ -19,9 +19,18 @@ public sealed class WorkflowRecoveryCoordinatorTests
                 repository,
                 policy);
 
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "Test Workflow",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
         var result =
             await coordinator.RecoverAsync(
-                new WorkflowId("missing"));
+                new WorkflowId("missing"),
+                definition);
 
         Assert.Equal(
             RecoveryDecision.Failed,
@@ -54,9 +63,18 @@ public sealed class WorkflowRecoveryCoordinatorTests
                 repository,
                 policy);
 
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "Test Workflow",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
         var result =
             await coordinator.RecoverAsync(
-                repository.Execution.WorkflowId);
+                repository.Execution.WorkflowId,
+                definition);
 
         Assert.Equal(
             RecoveryDecision.Resume,
@@ -117,6 +135,7 @@ public sealed class WorkflowRecoveryCoordinatorTests
 
         public Task<RecoveryDecision> EvaluateAsync(
             WorkflowExecutionRecord execution,
+            WorkflowDefinition definition,
             IReadOnlyList<WorkflowCheckpoint> checkpoints,
             CancellationToken cancellationToken = default)
         {

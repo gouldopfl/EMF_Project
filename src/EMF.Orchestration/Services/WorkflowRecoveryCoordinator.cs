@@ -23,8 +23,10 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
 
     public async Task<RecoveryDecision> RecoverAsync(
         WorkflowId workflowId,
+        WorkflowDefinition definition,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(definition);
         var execution =
             await _repository.GetExecutionAsync(
                 workflowId,
@@ -42,6 +44,7 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
 
         return await _policy.EvaluateAsync(
             execution,
+            definition,
             checkpoints,
             cancellationToken);
     }

@@ -6,6 +6,7 @@ public interface IWorkflowRecoveryPolicy
 {
     Task<RecoveryDecision> EvaluateAsync(
         WorkflowExecutionRecord execution,
+        WorkflowDefinition definition,
         IReadOnlyList<WorkflowCheckpoint> checkpoints,
         CancellationToken cancellationToken = default);
 }

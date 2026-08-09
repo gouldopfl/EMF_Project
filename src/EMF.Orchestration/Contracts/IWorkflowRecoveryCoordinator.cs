@@ -7,5 +7,6 @@ public interface IWorkflowRecoveryCoordinator
 {
     Task<RecoveryDecision> RecoverAsync(
         WorkflowId workflowId,
+        WorkflowDefinition definition,
         CancellationToken cancellationToken = default);
 }

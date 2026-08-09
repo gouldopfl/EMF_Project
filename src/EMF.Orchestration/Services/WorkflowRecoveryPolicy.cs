@@ -7,11 +7,26 @@ public sealed class WorkflowRecoveryPolicy : IWorkflowRecoveryPolicy
 {
     public Task<RecoveryDecision> EvaluateAsync(
         WorkflowExecutionRecord execution,
+        WorkflowDefinition definition,
         IReadOnlyList<WorkflowCheckpoint> checkpoints,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(execution);
+        ArgumentNullException.ThrowIfNull(definition);
         ArgumentNullException.ThrowIfNull(checkpoints);
+
+        if (!string.Equals(
+                execution.DefinitionId,
+                definition.Id,
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                execution.DefinitionVersion,
+                definition.Version,
+                StringComparison.Ordinal))
+        {
+            return Task.FromResult(
+                RecoveryDecision.RequireReview);
+        }
 
         var decision =
             execution.CurrentStatus switch
