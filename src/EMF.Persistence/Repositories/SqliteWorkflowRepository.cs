@@ -168,6 +168,40 @@ public async Task CreateExecutionAsync(
 
 
 
+    public async Task UpdateExecutionAsync(
+        WorkflowExecutionRecord execution,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(execution);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            UPDATE Workflows
+            SET CurrentStatus = $currentStatus,
+                RecoveryStatus = $recoveryStatus
+            WHERE Id = $id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$currentStatus",
+            execution.CurrentStatus.ToString());
+
+        command.Parameters.AddWithValue(
+            "$recoveryStatus",
+            execution.RecoveryStatus.ToString());
+
+        command.Parameters.AddWithValue(
+            "$id",
+            execution.WorkflowId.Value);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task<WorkflowExecutionRecord?> GetExecutionAsync(
         WorkflowId workflowId,
         CancellationToken cancellationToken = default)

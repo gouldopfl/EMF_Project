@@ -91,6 +91,15 @@ public sealed class WorkflowRecoveryCoordinatorTests
 
             return Task.CompletedTask;
         }
+        public Task UpdateExecutionAsync(
+            WorkflowExecutionRecord execution,
+            CancellationToken cancellationToken = default)
+        {
+            Execution = execution;
+
+            return Task.CompletedTask;
+        }
+
 
         public Task AddCheckpointAsync(
             WorkflowCheckpoint checkpoint,

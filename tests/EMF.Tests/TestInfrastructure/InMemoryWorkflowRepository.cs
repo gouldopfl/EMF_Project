@@ -14,6 +14,18 @@ public sealed class InMemoryWorkflowRepository : IWorkflowRepository
         WorkflowExecutionRecord execution,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(execution);
+
+        _executions[execution.WorkflowId] = execution;
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateExecutionAsync(
+        WorkflowExecutionRecord execution,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(execution);
+
         _executions[execution.WorkflowId] = execution;
         return Task.CompletedTask;
     }

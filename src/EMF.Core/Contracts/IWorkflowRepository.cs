@@ -9,6 +9,10 @@ public interface IWorkflowRepository
     Task CreateExecutionAsync(
         WorkflowExecutionRecord execution,
         CancellationToken cancellationToken = default);
+    Task UpdateExecutionAsync(
+        WorkflowExecutionRecord execution,
+        CancellationToken cancellationToken = default);
+
 
     Task<WorkflowExecutionRecord?> GetExecutionAsync(
         WorkflowId workflowId,
