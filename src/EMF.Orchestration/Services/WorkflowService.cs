@@ -89,6 +89,10 @@ public sealed class WorkflowService : IWorkflowService
                 $"Workflow execution '{workflowId}' was not found.");
         }
 
+        EnsureTransition(
+            execution.CurrentStatus,
+            WorkflowStatus.Completed);
+
         await _repository.UpdateExecutionAsync(
             new WorkflowExecutionRecord
             {
@@ -130,6 +134,10 @@ public sealed class WorkflowService : IWorkflowService
                 $"Workflow execution '{workflowId}' was not found.");
         }
 
+        EnsureTransition(
+            execution.CurrentStatus,
+            WorkflowStatus.Failed);
+
         await _repository.UpdateExecutionAsync(
             new WorkflowExecutionRecord
             {
@@ -152,5 +160,16 @@ public sealed class WorkflowService : IWorkflowService
                 Message = message
             },
             cancellationToken);
+    }
+
+    private static void EnsureTransition(
+        WorkflowStatus current,
+        WorkflowStatus next)
+    {
+        if (!WorkflowLifecycle.CanTransition(current, next))
+        {
+            throw new InvalidOperationException(
+                $"Invalid workflow transition: {current} -> {next}.");
+        }
     }
 }

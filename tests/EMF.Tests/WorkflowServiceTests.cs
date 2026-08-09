@@ -153,6 +153,40 @@ public sealed class WorkflowServicePersistenceTests
     }
 
     [Fact]
+    public async Task CompleteAsync_rejects_already_completed_workflow()
+    {
+        var repository = new RecordingWorkflowRepository();
+        var service = new WorkflowService(repository);
+
+        var definition = CreateDefinition();
+        var workflowId = await service.StartAsync(definition);
+
+        await service.CompleteAsync(workflowId);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.CompleteAsync(workflowId));
+    }
+
+    [Fact]
+    public async Task FailAsync_rejects_already_failed_workflow()
+    {
+        var repository = new RecordingWorkflowRepository();
+        var service = new WorkflowService(repository);
+
+        var definition = CreateDefinition();
+        var workflowId = await service.StartAsync(definition);
+
+        await service.FailAsync(
+            workflowId,
+            "Activity failed.");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.FailAsync(
+                workflowId,
+                "Activity failed again."));
+    }
+
+    [Fact]
     public async Task FailAsync_updates_execution_status()
     {
         var repository = new RecordingWorkflowRepository();
@@ -179,7 +213,18 @@ public sealed class WorkflowServicePersistenceTests
             repository.Execution!.CurrentStatus);
     }
 
-    private sealed class RecordingWorkflowRepository : IWorkflowRepository
+    private static WorkflowDefinition CreateDefinition()
+{
+    return new WorkflowDefinition
+    {
+        Id = "evidence-processing",
+        Name = "Evidence Processing",
+        Version = "1",
+        ActivityIds = Array.Empty<string>()
+    };
+}
+
+private sealed class RecordingWorkflowRepository : IWorkflowRepository
     {
         public WorkflowExecutionRecord? Execution { get; private set; }
 
