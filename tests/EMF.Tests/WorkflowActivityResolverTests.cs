@@ -74,6 +74,25 @@ public sealed class WorkflowActivityResolverTests
             () => resolver.Resolve(definition));
     }
 
+
+    [Fact]
+    public void Constructor_rejects_null_activities()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => new WorkflowActivityResolver(null!));
+    }
+
+    [Fact]
+    public void Constructor_rejects_duplicate_registered_activity_ids()
+    {
+        var first = new FakeActivity("duplicate");
+        var second = new FakeActivity("duplicate");
+
+        Assert.Throws<ArgumentException>(
+            () => new WorkflowActivityResolver(
+                new IWorkflowActivity[] { first, second }));
+    }
+
     private sealed class FakeActivity : IWorkflowActivity
     {
         public FakeActivity(string id)
