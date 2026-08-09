@@ -37,6 +37,18 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
             return RecoveryDecision.Failed;
         }
 
+        if (!string.Equals(
+                execution.DefinitionId,
+                definition.Id,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                execution.DefinitionVersion,
+                definition.Version,
+                StringComparison.Ordinal))
+        {
+            return RecoveryDecision.Failed;
+        }
+
         var checkpoints =
             await _repository.GetCheckpointsAsync(
                 workflowId,

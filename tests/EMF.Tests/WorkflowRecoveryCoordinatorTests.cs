@@ -88,6 +88,99 @@ public sealed class WorkflowRecoveryCoordinatorTests
             repository.Execution!.RecoveryStatus);
     }
 
+
+    [Fact]
+    public async Task Definition_id_mismatch_returns_failed_without_policy_evaluation()
+    {
+        var repository = new FakeWorkflowRepository
+        {
+            Execution = new WorkflowExecutionRecord
+            {
+                WorkflowId = new WorkflowId("workflow-id-mismatch"),
+                DefinitionId = "original",
+                DefinitionVersion = "1",
+                CreatedUtc = DateTimeOffset.UtcNow,
+                CurrentStatus = WorkflowStatus.Interrupted,
+                RecoveryStatus = WorkflowRecoveryStatus.None
+            }
+        };
+
+        var policy = new FakeRecoveryPolicy
+        {
+            Decision = RecoveryDecision.Resume
+        };
+
+        var coordinator =
+            new WorkflowRecoveryCoordinator(
+                repository,
+                policy);
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "different",
+            Name = "Test Workflow",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
+        var result =
+            await coordinator.RecoverAsync(
+                repository.Execution.WorkflowId,
+                definition);
+
+        Assert.Equal(
+            RecoveryDecision.Failed,
+            result);
+
+        Assert.False(policy.WasCalled);
+    }
+
+    [Fact]
+    public async Task Definition_version_mismatch_returns_failed_without_policy_evaluation()
+    {
+        var repository = new FakeWorkflowRepository
+        {
+            Execution = new WorkflowExecutionRecord
+            {
+                WorkflowId = new WorkflowId("workflow-version-mismatch"),
+                DefinitionId = "test",
+                DefinitionVersion = "1",
+                CreatedUtc = DateTimeOffset.UtcNow,
+                CurrentStatus = WorkflowStatus.Interrupted,
+                RecoveryStatus = WorkflowRecoveryStatus.None
+            }
+        };
+
+        var policy = new FakeRecoveryPolicy
+        {
+            Decision = RecoveryDecision.Resume
+        };
+
+        var coordinator =
+            new WorkflowRecoveryCoordinator(
+                repository,
+                policy);
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "Test Workflow",
+            Version = "2",
+            ActivityIds = Array.Empty<string>()
+        };
+
+        var result =
+            await coordinator.RecoverAsync(
+                repository.Execution.WorkflowId,
+                definition);
+
+        Assert.Equal(
+            RecoveryDecision.Failed,
+            result);
+
+        Assert.False(policy.WasCalled);
+    }
+
     private sealed class FakeWorkflowRepository : IWorkflowRepository
     {
         public WorkflowExecutionRecord? Execution { get; set; }
