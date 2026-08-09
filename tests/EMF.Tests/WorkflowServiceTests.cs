@@ -127,6 +127,58 @@ public sealed class WorkflowServicePersistenceTests
         Assert.Equal(WorkflowStatus.Running, repository.Execution.CurrentStatus);
     }
 
+    [Fact]
+    public async Task CompleteAsync_updates_execution_status()
+    {
+        var repository = new RecordingWorkflowRepository();
+        var service = new WorkflowService(repository);
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "evidence-processing",
+            Name = "Evidence Processing",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
+        var workflowId =
+            await service.StartAsync(definition);
+
+        await service.CompleteAsync(workflowId);
+
+        Assert.NotNull(repository.Execution);
+        Assert.Equal(
+            WorkflowStatus.Completed,
+            repository.Execution!.CurrentStatus);
+    }
+
+    [Fact]
+    public async Task FailAsync_updates_execution_status()
+    {
+        var repository = new RecordingWorkflowRepository();
+        var service = new WorkflowService(repository);
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "evidence-processing",
+            Name = "Evidence Processing",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
+        var workflowId =
+            await service.StartAsync(definition);
+
+        await service.FailAsync(
+            workflowId,
+            "Activity failed.");
+
+        Assert.NotNull(repository.Execution);
+        Assert.Equal(
+            WorkflowStatus.Failed,
+            repository.Execution!.CurrentStatus);
+    }
+
     private sealed class RecordingWorkflowRepository : IWorkflowRepository
     {
         public WorkflowExecutionRecord? Execution { get; private set; }

@@ -74,11 +74,34 @@ public sealed class WorkflowService : IWorkflowService
             cancellationToken);
     }
 
-    public Task CompleteAsync(
+    public async Task CompleteAsync(
         WorkflowId workflowId,
         CancellationToken cancellationToken = default)
     {
-        return _repository.AddCheckpointAsync(
+        var execution =
+            await _repository.GetExecutionAsync(
+                workflowId,
+                cancellationToken);
+
+        if (execution is null)
+        {
+            throw new InvalidOperationException(
+                $"Workflow execution '{workflowId}' was not found.");
+        }
+
+        await _repository.UpdateExecutionAsync(
+            new WorkflowExecutionRecord
+            {
+                WorkflowId = execution.WorkflowId,
+                DefinitionId = execution.DefinitionId,
+                DefinitionVersion = execution.DefinitionVersion,
+                CreatedUtc = execution.CreatedUtc,
+                CurrentStatus = WorkflowStatus.Completed,
+                RecoveryStatus = execution.RecoveryStatus
+            },
+            cancellationToken);
+
+        await _repository.AddCheckpointAsync(
             new WorkflowCheckpoint
             {
                 WorkflowId = workflowId,
@@ -89,14 +112,37 @@ public sealed class WorkflowService : IWorkflowService
             cancellationToken);
     }
 
-    public Task FailAsync(
+    public async Task FailAsync(
         WorkflowId workflowId,
         string message,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
-        return _repository.AddCheckpointAsync(
+        var execution =
+            await _repository.GetExecutionAsync(
+                workflowId,
+                cancellationToken);
+
+        if (execution is null)
+        {
+            throw new InvalidOperationException(
+                $"Workflow execution '{workflowId}' was not found.");
+        }
+
+        await _repository.UpdateExecutionAsync(
+            new WorkflowExecutionRecord
+            {
+                WorkflowId = execution.WorkflowId,
+                DefinitionId = execution.DefinitionId,
+                DefinitionVersion = execution.DefinitionVersion,
+                CreatedUtc = execution.CreatedUtc,
+                CurrentStatus = WorkflowStatus.Failed,
+                RecoveryStatus = execution.RecoveryStatus
+            },
+            cancellationToken);
+
+        await _repository.AddCheckpointAsync(
             new WorkflowCheckpoint
             {
                 WorkflowId = workflowId,
