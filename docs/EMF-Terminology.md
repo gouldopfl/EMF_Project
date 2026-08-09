@@ -86,7 +86,7 @@ The execution component responsible for executing the Activities of a Workflow i
 
 ### Workflow Recovery Coordinator
 
-The orchestration component responsible for coordinating recovery of an existing Workflow execution by evaluating its persisted execution state and applying the decision produced by the Workflow Recovery Policy.
+The orchestration component responsible for coordinating recovery evaluation for an existing Workflow execution, obtaining the decision produced by the Workflow Recovery Policy, and recording the resulting recovery state.
 
 ---
 
@@ -96,7 +96,7 @@ A policy that determines how EMF should respond to an interrupted or failed Work
 
 **Architectural relationship:**
 
-> Recovery Policy decides. Recovery Coordinator applies. Workflow Runner executes.
+> Recovery Policy decides. Recovery Coordinator records recovery state. Execution Coordinator directs execution. Workflow Runner executes.
 
 ---
 
@@ -242,21 +242,10 @@ The orchestration boundary responsible for initiating and coordinating the execu
 
 The execution component responsible for executing the Activities of a Workflow in their defined order, using persisted checkpoints to determine execution state and record progress.
 
----
-
-### Workflow Recovery Coordinator
-
-The orchestration component responsible for coordinating recovery of an existing Workflow execution by evaluating its persisted execution state and applying the decision produced by the Workflow Recovery Policy.
-
----
-
-### Workflow Recovery Policy
-
-A policy that determines how EMF should respond to an interrupted or failed Workflow execution.
 
 **Architectural relationship:**
 
-> Recovery Policy decides. Recovery Coordinator applies. Workflow Runner executes.
+> Recovery Policy decides. Recovery Coordinator records recovery state. Execution Coordinator directs execution. Workflow Runner executes.
 
 ---
 
