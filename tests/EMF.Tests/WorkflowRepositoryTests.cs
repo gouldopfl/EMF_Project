@@ -74,7 +74,8 @@ public class WorkflowRepositoryTests
             DefinitionId = "evidence-processing",
             DefinitionVersion = "1",
             CreatedUtc = DateTimeOffset.UtcNow,
-            CurrentStatus = WorkflowStatus.Running
+            CurrentStatus = WorkflowStatus.Running,
+            RecoveryStatus = WorkflowRecoveryStatus.None
         };
 
         await repository.CreateExecutionAsync(execution);

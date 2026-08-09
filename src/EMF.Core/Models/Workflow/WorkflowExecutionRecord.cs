@@ -13,4 +13,6 @@ public sealed class WorkflowExecutionRecord
     public required DateTimeOffset CreatedUtc { get; init; }
 
     public required WorkflowStatus CurrentStatus { get; init; }
+
+    public required WorkflowRecoveryStatus RecoveryStatus { get; init; }
 }

@@ -36,7 +36,8 @@ public sealed class WorkflowService : IWorkflowService
                 DefinitionId = definition.Id,
                 DefinitionVersion = definition.Version,
                 CreatedUtc = createdUtc,
-                CurrentStatus = WorkflowStatus.Running
+                CurrentStatus = WorkflowStatus.Running,
+                RecoveryStatus = WorkflowRecoveryStatus.None
             },
             cancellationToken);
 

@@ -189,6 +189,7 @@ public sealed class WorkflowRunnerTests
         public List<WorkflowCheckpoint> Checkpoints { get; } = new();
 
         public Task<WorkflowId> StartAsync(
+            WorkflowDefinition definition,
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult(

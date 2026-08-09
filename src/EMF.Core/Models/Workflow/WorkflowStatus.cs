@@ -5,6 +5,7 @@ public enum WorkflowStatus
     Pending,
     Running,
     Paused,
+    Interrupted,
     Completed,
     Failed
 }

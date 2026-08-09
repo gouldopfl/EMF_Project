@@ -73,6 +73,13 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
 
     await AddColumnIfMissingAsync(
         connection,
+        "Workflows",
+        "RecoveryStatus",
+        "TEXT NOT NULL DEFAULT 'None'",
+        cancellationToken);
+
+    await AddColumnIfMissingAsync(
+        connection,
         "WorkflowCheckpoints",
         "ActivityId",
         "TEXT NULL",
@@ -172,7 +179,7 @@ public async Task CreateExecutionAsync(
 
         command.CommandText =
             """
-            SELECT DefinitionId, DefinitionVersion, CreatedUtc, CurrentStatus
+            SELECT DefinitionId, DefinitionVersion, CreatedUtc, CurrentStatus, RecoveryStatus
             FROM Workflows
             WHERE Id = $id;
             """;
@@ -196,7 +203,9 @@ public async Task CreateExecutionAsync(
             DefinitionVersion = reader.GetString(1),
             CreatedUtc = DateTimeOffset.Parse(reader.GetString(2)),
             CurrentStatus = Enum.Parse<WorkflowStatus>(
-                reader.GetString(3))
+                reader.GetString(3)),
+        RecoveryStatus = Enum.Parse<WorkflowRecoveryStatus>(
+            reader.GetString(4))
         };
     }
 

@@ -149,7 +149,8 @@ public sealed class WorkflowExecutionPersistenceTests
                 DefinitionId = "evidence-processing",
                 DefinitionVersion = "1",
                 CreatedUtc = createdUtc,
-                CurrentStatus = WorkflowStatus.Running
+                CurrentStatus = WorkflowStatus.Running,
+                RecoveryStatus = WorkflowRecoveryStatus.None
             };
 
             await repository.CreateExecutionAsync(execution);
