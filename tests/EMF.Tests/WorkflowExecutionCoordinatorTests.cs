@@ -9,6 +9,39 @@ namespace EMF.Tests;
 public sealed class WorkflowExecutionCoordinatorTests
 {
     [Fact]
+    public async Task Execute_starts_workflow_and_delegates_to_runner()
+    {
+        var workflowService = new FakeWorkflowService();
+        var recoveryCoordinator = new FakeRecoveryCoordinator();
+        var runner = new FakeWorkflowRunner();
+
+        var coordinator =
+            new WorkflowExecutionCoordinator(
+                workflowService,
+                recoveryCoordinator,
+                runner);
+
+        var definition =
+            new WorkflowDefinition
+            {
+                Id = "test",
+                Name = "Test Workflow",
+                Version = "1",
+                ActivityIds = Array.Empty<string>()
+            };
+
+        await coordinator.ExecuteAsync(
+            definition,
+            Array.Empty<IWorkflowActivity>());
+
+        Assert.True(workflowService.StartCalled);
+        Assert.True(runner.WasCalled);
+        Assert.Equal(
+            new WorkflowId("workflow-started"),
+            runner.WorkflowId!.Value);
+    }
+
+    [Fact]
     public async Task Resume_decision_delegates_to_runner()
     {
         var recoveryCoordinator = new FakeRecoveryCoordinator
@@ -16,10 +49,13 @@ public sealed class WorkflowExecutionCoordinatorTests
             Decision = RecoveryDecision.Resume
         };
 
+        var workflowService = new FakeWorkflowService();
+
         var runner = new FakeWorkflowRunner();
 
         var coordinator =
             new WorkflowExecutionCoordinator(
+                workflowService,
                 recoveryCoordinator,
                 runner);
 
@@ -64,10 +100,13 @@ public sealed class WorkflowExecutionCoordinatorTests
             Decision = RecoveryDecision.RequireReview
         };
 
+        var workflowService = new FakeWorkflowService();
+
         var runner = new FakeWorkflowRunner();
 
         var coordinator =
             new WorkflowExecutionCoordinator(
+                workflowService,
                 recoveryCoordinator,
                 runner);
 
@@ -107,10 +146,13 @@ public sealed class WorkflowExecutionCoordinatorTests
             Decision = RecoveryDecision.Retry
         };
 
+        var workflowService = new FakeWorkflowService();
+
         var runner = new FakeWorkflowRunner();
 
         var coordinator =
             new WorkflowExecutionCoordinator(
+                workflowService,
                 recoveryCoordinator,
                 runner);
 
@@ -152,10 +194,13 @@ public sealed class WorkflowExecutionCoordinatorTests
             Decision = decision
         };
 
+        var workflowService = new FakeWorkflowService();
+
         var runner = new FakeWorkflowRunner();
 
         var coordinator =
             new WorkflowExecutionCoordinator(
+                workflowService,
                 recoveryCoordinator,
                 runner);
 
@@ -195,10 +240,13 @@ public sealed class WorkflowExecutionCoordinatorTests
             Decision = RecoveryDecision.Resume
         };
 
+        var workflowService = new FakeWorkflowService();
+
         var runner = new FakeWorkflowRunner();
 
         var coordinator =
             new WorkflowExecutionCoordinator(
+                workflowService,
                 recoveryCoordinator,
                 runner);
 
@@ -227,7 +275,42 @@ public sealed class WorkflowExecutionCoordinatorTests
         Assert.False(runner.WasCalled);
     }
 
-    private sealed class FakeRecoveryCoordinator :
+    private sealed class FakeWorkflowService : IWorkflowService
+{
+    public bool StartCalled { get; private set; }
+
+    public Task<WorkflowId> StartAsync(
+        WorkflowDefinition definition,
+        CancellationToken cancellationToken = default)
+    {
+        StartCalled = true;
+        return Task.FromResult(new WorkflowId("workflow-started"));
+    }
+
+    public Task RecordCheckpointAsync(
+        WorkflowCheckpoint checkpoint,
+        CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task<IReadOnlyList<WorkflowCheckpoint>> GetCheckpointsAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<WorkflowCheckpoint>>(
+            Array.Empty<WorkflowCheckpoint>());
+
+    public Task CompleteAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task FailAsync(
+        WorkflowId workflowId,
+        string message,
+        CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+}
+
+private sealed class FakeRecoveryCoordinator :
         IWorkflowRecoveryCoordinator
     {
         public RecoveryDecision Decision { get; set; }

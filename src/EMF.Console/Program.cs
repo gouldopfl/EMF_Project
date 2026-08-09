@@ -51,6 +51,17 @@ var workflowRunner =
     new WorkflowRunner(
         workflowService);
 
+var recoveryCoordinator =
+    new WorkflowRecoveryCoordinator(
+        workflowRepository,
+        new WorkflowRecoveryPolicy());
+
+var executionCoordinator =
+    new WorkflowExecutionCoordinator(
+        workflowService,
+        recoveryCoordinator,
+        workflowRunner);
+
 var workflowDefinition =
     new WorkflowDefinition
     {
@@ -87,16 +98,6 @@ if (args.Length > 1)
             WorkflowId = workflowId,
         };
 
-    var recoveryCoordinator =
-        new WorkflowRecoveryCoordinator(
-            workflowRepository,
-            new WorkflowRecoveryPolicy());
-
-    var executionCoordinator =
-        new WorkflowExecutionCoordinator(
-            recoveryCoordinator,
-            workflowRunner);
-
     await executionCoordinator.ExecuteRecoveryAsync(
         workflowId,
         workflowDefinition,
@@ -105,18 +106,8 @@ if (args.Length > 1)
 }
 else
 {
-    var workflowId =
-        await workflowService.StartAsync(
-            workflowDefinition);
-
-    var workflowContext =
-        new WorkflowExecutionContext
-        {
-            WorkflowId = workflowId,
-        };
-
-    await workflowRunner.ExecuteAsync(
-        workflowContext,
+    await executionCoordinator.ExecuteAsync(
+        workflowDefinition,
         new[] { inventoryActivity });
 }
 
