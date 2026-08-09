@@ -91,6 +91,7 @@ public sealed class WorkflowExecutionCoordinatorTests
             workflowId,
             definition);
 
+        Assert.True(activityResolver.WasCalled);
         Assert.True(runner.WasCalled);
         Assert.Equal(
             workflowId,
@@ -141,6 +142,8 @@ public sealed class WorkflowExecutionCoordinatorTests
             workflowId,
             definition);
 
+        Assert.False(activityResolver.WasCalled);
+        Assert.False(activityResolver.WasCalled);
         Assert.False(runner.WasCalled);
     }
 
@@ -189,6 +192,7 @@ public sealed class WorkflowExecutionCoordinatorTests
             workflowId,
             definition);
 
+        Assert.True(activityResolver.WasCalled);
         Assert.True(runner.WasCalled);
     }
 
@@ -289,9 +293,12 @@ public sealed class WorkflowExecutionCoordinatorTests
 
 private sealed class FakeWorkflowActivityResolver : IWorkflowActivityResolver
 {
+    public bool WasCalled { get; private set; }
+
     public IReadOnlyList<IWorkflowActivity> Resolve(
         WorkflowDefinition definition)
     {
+        WasCalled = true;
         return Array.Empty<IWorkflowActivity>();
     }
 }
