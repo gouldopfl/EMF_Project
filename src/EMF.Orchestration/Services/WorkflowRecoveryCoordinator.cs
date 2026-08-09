@@ -42,10 +42,40 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
                 workflowId,
                 cancellationToken);
 
-        return await _policy.EvaluateAsync(
-            execution,
-            definition,
-            checkpoints,
-            cancellationToken);
+        var decision =
+            await _policy.EvaluateAsync(
+                execution,
+                definition,
+                checkpoints,
+                cancellationToken);
+
+        var recoveryStatus =
+            decision switch
+            {
+                RecoveryDecision.Resume or RecoveryDecision.Retry
+                    => WorkflowRecoveryStatus.Recoverable,
+
+                RecoveryDecision.RequireReview
+                    => WorkflowRecoveryStatus.NeedsReview,
+
+                _ => execution.RecoveryStatus
+            };
+
+        if (recoveryStatus != execution.RecoveryStatus)
+        {
+            await _repository.UpdateExecutionAsync(
+                new WorkflowExecutionRecord
+                {
+                    WorkflowId = execution.WorkflowId,
+                    DefinitionId = execution.DefinitionId,
+                    DefinitionVersion = execution.DefinitionVersion,
+                    CreatedUtc = execution.CreatedUtc,
+                    CurrentStatus = execution.CurrentStatus,
+                    RecoveryStatus = recoveryStatus
+                },
+                cancellationToken);
+        }
+
+        return decision;
     }
 }
