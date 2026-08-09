@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Core.Models.Workflow;
 using EMF.Discovery.Models;
 using EMF.Discovery.Services;
@@ -59,27 +60,69 @@ var workflowDefinition =
         ActivityIds = new[] { "inventory" }
     };
 
-var workflowId =
-    await workflowService.StartAsync(
-        workflowDefinition);
-
-var workflowContext =
-    new WorkflowExecutionContext
-    {
-        WorkflowId = workflowId,
-        StartedUtc = DateTimeOffset.UtcNow,
-        CurrentStep = "Start"
-    };
-
 var inventoryActivity =
     new InventoryWorkflowActivity(
         orchestration,
         sourcePath,
         new DiscoveryOptions());
 
-await workflowRunner.ExecuteAsync(
-    workflowContext,
-    new[] { inventoryActivity });
+if (args.Length > 1)
+{
+    var workflowId =
+        new WorkflowId(args[1]);
+
+    var execution =
+        await workflowRepository.GetExecutionAsync(
+            workflowId);
+
+    if (execution is null)
+    {
+        throw new InvalidOperationException(
+            $"Workflow execution '{workflowId}' was not found.");
+    }
+
+    var workflowContext =
+        new WorkflowExecutionContext
+        {
+            WorkflowId = workflowId,
+            StartedUtc = execution.CreatedUtc,
+            CurrentStep = "Recovery"
+        };
+
+    var recoveryCoordinator =
+        new WorkflowRecoveryCoordinator(
+            workflowRepository,
+            new WorkflowRecoveryPolicy());
+
+    var executionCoordinator =
+        new WorkflowExecutionCoordinator(
+            recoveryCoordinator,
+            workflowRunner);
+
+    await executionCoordinator.ExecuteRecoveryAsync(
+        workflowId,
+        workflowDefinition,
+        workflowContext,
+        new[] { inventoryActivity });
+}
+else
+{
+    var workflowId =
+        await workflowService.StartAsync(
+            workflowDefinition);
+
+    var workflowContext =
+        new WorkflowExecutionContext
+        {
+            WorkflowId = workflowId,
+            StartedUtc = DateTimeOffset.UtcNow,
+            CurrentStep = "Start"
+        };
+
+    await workflowRunner.ExecuteAsync(
+        workflowContext,
+        new[] { inventoryActivity });
+}
 
 Console.WriteLine("======================================");
 Console.WriteLine(" Execution Summary");
