@@ -73,4 +73,20 @@ public sealed class VeteransClaimsModelTests
             SubmissionTypes.InitialClaim,
             submission.SubmissionType);
     }
+
+    [Fact]
+    public void SubmissionClaimIssue_PreservesAssociation()
+    {
+        var submissionId = new SubmissionId("submission-001");
+        var claimIssueId = new ClaimIssueId("claim-issue-001");
+
+        var association = new SubmissionClaimIssue
+        {
+            SubmissionId = submissionId,
+            ClaimIssueId = claimIssueId
+        };
+
+        Assert.Equal(submissionId, association.SubmissionId);
+        Assert.Equal(claimIssueId, association.ClaimIssueId);
+    }
 }
