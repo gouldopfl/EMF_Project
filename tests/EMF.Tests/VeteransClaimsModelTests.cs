@@ -43,11 +43,15 @@ public sealed class VeteransClaimsModelTests
         var issue = new ClaimIssue
         {
             Id = issueId,
-            ClaimId = claimId
+            ClaimId = claimId,
+            ClaimIssueType = ClaimIssueTypes.ServiceConnection
         };
 
         Assert.Equal(issueId, issue.Id);
         Assert.Equal(claimId, issue.ClaimId);
+        Assert.Equal(
+            ClaimIssueTypes.ServiceConnection,
+            issue.ClaimIssueType);
     }
 
     [Fact]
@@ -59,10 +63,14 @@ public sealed class VeteransClaimsModelTests
         var submission = new Submission
         {
             Id = submissionId,
-            ClaimId = claimId
+            ClaimId = claimId,
+            SubmissionType = SubmissionTypes.InitialClaim
         };
 
         Assert.Equal(submissionId, submission.Id);
         Assert.Equal(claimId, submission.ClaimId);
+        Assert.Equal(
+            SubmissionTypes.InitialClaim,
+            submission.SubmissionType);
     }
 }

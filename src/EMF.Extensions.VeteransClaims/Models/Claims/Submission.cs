@@ -7,4 +7,6 @@ public sealed class Submission
     public required SubmissionId Id { get; init; }
 
     public required ClaimId ClaimId { get; init; }
+
+    public required string SubmissionType { get; init; }
 }

@@ -7,4 +7,6 @@ public sealed class ClaimIssue
     public required ClaimIssueId Id { get; init; }
 
     public required ClaimId ClaimId { get; init; }
+
+    public required string ClaimIssueType { get; init; }
 }
