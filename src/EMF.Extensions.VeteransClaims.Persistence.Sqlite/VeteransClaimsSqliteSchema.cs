@@ -126,6 +126,30 @@ public sealed class VeteransClaimsSqliteSchema
             ON VeteransClaims_IssueDecisionSubmissions (
                 SubmissionId
             );
+
+            CREATE TABLE IF NOT EXISTS
+                VeteransClaims_DisabilityEvaluations (
+                    Id TEXT PRIMARY KEY,
+                    IssueDecisionId TEXT NOT NULL,
+                    Evaluation TEXT NOT NULL,
+                    FOREIGN KEY (IssueDecisionId)
+                        REFERENCES VeteransClaims_IssueDecisions (Id)
+                );
+
+            CREATE INDEX IF NOT EXISTS
+                IX_VeteransClaims_DisabilityEvaluations_IssueDecision
+            ON VeteransClaims_DisabilityEvaluations (
+                IssueDecisionId
+            );
+
+            CREATE TABLE IF NOT EXISTS
+                VeteransClaims_EffectiveDates (
+                    Id TEXT PRIMARY KEY,
+                    DisabilityEvaluationId TEXT NOT NULL UNIQUE,
+                    EffectiveDate TEXT NOT NULL,
+                    FOREIGN KEY (DisabilityEvaluationId)
+                        REFERENCES VeteransClaims_DisabilityEvaluations (Id)
+                );
             """;
 
         await command.ExecuteNonQueryAsync(cancellationToken);
