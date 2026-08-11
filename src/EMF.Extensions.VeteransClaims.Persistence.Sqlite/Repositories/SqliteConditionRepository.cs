@@ -231,4 +231,114 @@ public sealed class SqliteConditionRepository
         };
     }
 
+    public async Task AddVeteranMedicalConditionAsync(
+        VeteranMedicalCondition association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO
+                VeteransClaims_VeteranMedicalConditions (
+                    VeteranId,
+                    MedicalConditionId
+                )
+            VALUES (
+                $veteranId,
+                $medicalConditionId
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$veteranId",
+            association.VeteranId.Value);
+
+        command.Parameters.AddWithValue(
+            "$medicalConditionId",
+            association.MedicalConditionId.Value);
+
+        await command.ExecuteNonQueryAsync(
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MedicalConditionId>>
+        GetMedicalConditionIdsAsync(
+            VeteranId veteranId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT MedicalConditionId
+            FROM VeteransClaims_VeteranMedicalConditions
+            WHERE VeteranId = $veteranId
+            ORDER BY MedicalConditionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$veteranId",
+            veteranId.Value);
+
+        var medicalConditionIds =
+            new List<MedicalConditionId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            medicalConditionIds.Add(
+                new MedicalConditionId(
+                    reader.GetString(0)));
+        }
+
+        return medicalConditionIds;
+    }
+
+    public async Task<IReadOnlyList<VeteranId>>
+        GetVeteranIdsAsync(
+            MedicalConditionId medicalConditionId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT VeteranId
+            FROM VeteransClaims_VeteranMedicalConditions
+            WHERE MedicalConditionId = $medicalConditionId
+            ORDER BY VeteranId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$medicalConditionId",
+            medicalConditionId.Value);
+
+        var veteranIds = new List<VeteranId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            veteranIds.Add(
+                new VeteranId(
+                    reader.GetString(0)));
+        }
+
+        return veteranIds;
+    }
+
 }
