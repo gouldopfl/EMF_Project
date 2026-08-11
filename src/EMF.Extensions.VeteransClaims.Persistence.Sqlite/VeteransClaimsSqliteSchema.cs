@@ -82,6 +82,50 @@ public sealed class VeteransClaimsSqliteSchema
             ON VeteransClaims_SubmissionClaimIssues (
                 ClaimIssueId
             );
+
+            CREATE TABLE IF NOT EXISTS VeteransClaims_VaDecisions (
+                Id TEXT PRIMARY KEY,
+                DecisionDate TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS VeteransClaims_IssueDecisions (
+                Id TEXT PRIMARY KEY,
+                VaDecisionId TEXT NOT NULL,
+                ClaimIssueId TEXT NOT NULL,
+                Outcome TEXT NOT NULL,
+                FOREIGN KEY (VaDecisionId)
+                    REFERENCES VeteransClaims_VaDecisions (Id),
+                FOREIGN KEY (ClaimIssueId)
+                    REFERENCES VeteransClaims_ClaimIssues (Id)
+            );
+
+            CREATE INDEX IF NOT EXISTS
+                IX_VeteransClaims_IssueDecisions_VaDecisionId
+            ON VeteransClaims_IssueDecisions (VaDecisionId);
+
+            CREATE INDEX IF NOT EXISTS
+                IX_VeteransClaims_IssueDecisions_ClaimIssueId
+            ON VeteransClaims_IssueDecisions (ClaimIssueId);
+
+            CREATE TABLE IF NOT EXISTS
+                VeteransClaims_IssueDecisionSubmissions (
+                    IssueDecisionId TEXT NOT NULL,
+                    SubmissionId TEXT NOT NULL,
+                    PRIMARY KEY (
+                        IssueDecisionId,
+                        SubmissionId
+                    ),
+                    FOREIGN KEY (IssueDecisionId)
+                        REFERENCES VeteransClaims_IssueDecisions (Id),
+                    FOREIGN KEY (SubmissionId)
+                        REFERENCES VeteransClaims_Submissions (Id)
+                );
+
+            CREATE INDEX IF NOT EXISTS
+                IX_VeteransClaims_IssueDecisionSubmissions_Submission
+            ON VeteransClaims_IssueDecisionSubmissions (
+                SubmissionId
+            );
             """;
 
         await command.ExecuteNonQueryAsync(cancellationToken);
