@@ -129,4 +129,43 @@ public sealed class VeteransClaimsSqliteConditionRepositoryTests
         }
     }
 
+    [Fact]
+    public async Task Repository_RoundTripsMedicalCondition()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteConditionRepository(
+                    databasePath);
+
+            await repository.InitializeAsync();
+
+            var condition = new MedicalCondition
+            {
+                Id =
+                    new MedicalConditionId(
+                        "medical-condition-001"),
+                Name = "Obstructive sleep apnea"
+            };
+
+            await repository.AddMedicalConditionAsync(
+                condition);
+
+            var stored =
+                await repository
+                    .GetMedicalConditionAsync(
+                        condition.Id);
+
+            Assert.NotNull(stored);
+            Assert.Equal(condition.Id, stored!.Id);
+            Assert.Equal(condition.Name, stored.Name);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
 }

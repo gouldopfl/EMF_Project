@@ -158,4 +158,77 @@ public sealed class SqliteConditionRepository
         return conditions;
     }
 
+    public async Task AddMedicalConditionAsync(
+        MedicalCondition medicalCondition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(
+            medicalCondition);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_MedicalConditions (
+                Id,
+                Name
+            )
+            VALUES (
+                $id,
+                $name
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$id",
+            medicalCondition.Id.Value);
+
+        command.Parameters.AddWithValue(
+            "$name",
+            medicalCondition.Name);
+
+        await command.ExecuteNonQueryAsync(
+            cancellationToken);
+    }
+
+    public async Task<MedicalCondition?>
+        GetMedicalConditionAsync(
+            MedicalConditionId medicalConditionId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT Id, Name
+            FROM VeteransClaims_MedicalConditions
+            WHERE Id = $id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$id",
+            medicalConditionId.Value);
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new MedicalCondition
+        {
+            Id =
+                new MedicalConditionId(
+                    reader.GetString(0)),
+            Name = reader.GetString(1)
+        };
+    }
+
 }
