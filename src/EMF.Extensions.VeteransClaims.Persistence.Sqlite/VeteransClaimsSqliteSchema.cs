@@ -18,7 +18,8 @@ public sealed class VeteransClaimsSqliteSchema
     {
         var builder = new SqliteConnectionStringBuilder
         {
-            DataSource = _databasePath
+            DataSource = _databasePath,
+            ForeignKeys = true
         };
 
         await using var connection =
@@ -32,6 +33,17 @@ public sealed class VeteransClaimsSqliteSchema
             CREATE TABLE IF NOT EXISTS VeteransClaims_Veterans (
                 Id TEXT PRIMARY KEY
             );
+
+            CREATE TABLE IF NOT EXISTS VeteransClaims_Claims (
+                Id TEXT PRIMARY KEY,
+                VeteranId TEXT NOT NULL,
+                FOREIGN KEY (VeteranId)
+                    REFERENCES VeteransClaims_Veterans (Id)
+            );
+
+            CREATE INDEX IF NOT EXISTS
+                IX_VeteransClaims_Claims_VeteranId
+            ON VeteransClaims_Claims (VeteranId);
             """;
 
         await command.ExecuteNonQueryAsync(cancellationToken);
