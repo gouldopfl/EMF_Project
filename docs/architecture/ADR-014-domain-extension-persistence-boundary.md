@@ -1,6 +1,6 @@
 # ADR-014: Domain Extension Persistence Boundary
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-08-11
 
 ## Context
