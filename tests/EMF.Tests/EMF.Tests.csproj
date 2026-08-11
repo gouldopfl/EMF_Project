@@ -29,6 +29,7 @@
     <ProjectReference Include="..\..\src\EMF.Integrity\EMF.Integrity.csproj" />
     <ProjectReference Include="..\..\src\EMF.Persistence\EMF.Persistence.csproj" />
     <ProjectReference Include="..\..\src\EMF.Extensions.VeteransClaims\EMF.Extensions.VeteransClaims.csproj" />
+    <ProjectReference Include="..\..\src\EMF.Extensions.VeteransClaims.Persistence.Sqlite\EMF.Extensions.VeteransClaims.Persistence.Sqlite.csproj" />
   </ItemGroup>
 
 </Project>

@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMF.Persistence", "src\EMF.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMF.Extensions.VeteransClaims", "src\EMF.Extensions.VeteransClaims\EMF.Extensions.VeteransClaims.csproj", "{3DBB0500-31AF-4629-A136-A3F684205C4A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMF.Extensions.VeteransClaims.Persistence.Sqlite", "src\EMF.Extensions.VeteransClaims.Persistence.Sqlite\EMF.Extensions.VeteransClaims.Persistence.Sqlite.csproj", "{66DB68A2-2E0F-4A04-BE6E-BAFE6288A83B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -82,6 +84,10 @@ Global
 		{3DBB0500-31AF-4629-A136-A3F684205C4A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3DBB0500-31AF-4629-A136-A3F684205C4A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3DBB0500-31AF-4629-A136-A3F684205C4A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66DB68A2-2E0F-4A04-BE6E-BAFE6288A83B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66DB68A2-2E0F-4A04-BE6E-BAFE6288A83B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66DB68A2-2E0F-4A04-BE6E-BAFE6288A83B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66DB68A2-2E0F-4A04-BE6E-BAFE6288A83B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{72E85E5F-72EE-441A-B22E-1EB77EE0A378} = {717C25BE-9B77-47FF-994F-E4F8714318A1}
@@ -95,5 +101,6 @@ Global
 		{F2BD0DE5-D6FE-4943-AAD5-83A2B757D977} = {717C25BE-9B77-47FF-994F-E4F8714318A1}
 		{2C34B14D-B3D1-4750-9658-28D9B38E6340} = {717C25BE-9B77-47FF-994F-E4F8714318A1}
 		{3DBB0500-31AF-4629-A136-A3F684205C4A} = {717C25BE-9B77-47FF-994F-E4F8714318A1}
+		{66DB68A2-2E0F-4A04-BE6E-BAFE6288A83B} = {717C25BE-9B77-47FF-994F-E4F8714318A1}
 	EndGlobalSection
 EndGlobal
