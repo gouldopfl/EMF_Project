@@ -34,6 +34,28 @@ public sealed class VeteransClaimsSqliteMigrationTests
 
             await connection.OpenAsync();
 
+            await using (
+                var tableCommand =
+                    connection.CreateCommand())
+            {
+                tableCommand.CommandText =
+                    """
+                    SELECT COUNT(*)
+                    FROM sqlite_master
+                    WHERE type = 'table'
+                      AND name IN (
+                          'VeteransClaims_ClaimedConditions',
+                          'VeteransClaims_MedicalConditions'
+                      );
+                    """;
+
+                Assert.Equal(
+                    2,
+                    Convert.ToInt32(
+                        await tableCommand
+                            .ExecuteScalarAsync()));
+            }
+
             await using var command =
                 connection.CreateCommand();
 
@@ -64,6 +86,18 @@ public sealed class VeteransClaimsSqliteMigrationTests
 
             Assert.Equal(
                 "AddServiceEventsAndExposures",
+                reader.GetString(1));
+
+            Assert.True(
+                DateTimeOffset.TryParse(
+                    reader.GetString(2),
+                    out _));
+
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(3, reader.GetInt32(0));
+
+            Assert.Equal(
+                "AddClaimedAndMedicalConditions",
                 reader.GetString(1));
 
             Assert.True(
