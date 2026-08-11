@@ -1,6 +1,6 @@
 # ADR-016: Provider-Owned Versioned Schema Migrations
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-08-11
 
 ## Context
