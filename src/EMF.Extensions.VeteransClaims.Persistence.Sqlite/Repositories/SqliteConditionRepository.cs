@@ -1,10 +1,12 @@
+using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Conditions;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using Microsoft.Data.Sqlite;
 
 namespace EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
 
-public sealed class SqliteConditionRepository
+public sealed class SqliteConditionRepository :
+    IConditionRepository
 {
     private readonly string _databasePath;
 
@@ -339,6 +341,120 @@ public sealed class SqliteConditionRepository
         }
 
         return veteranIds;
+    }
+
+    public async Task
+        AddClaimedConditionMedicalConditionAsync(
+            ClaimedConditionMedicalCondition association,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO
+                VeteransClaims_ClaimedConditionMedicalConditions (
+                    ClaimedConditionId,
+                    MedicalConditionId
+                )
+            VALUES (
+                $claimedConditionId,
+                $medicalConditionId
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$claimedConditionId",
+            association.ClaimedConditionId.Value);
+
+        command.Parameters.AddWithValue(
+            "$medicalConditionId",
+            association.MedicalConditionId.Value);
+
+        await command.ExecuteNonQueryAsync(
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MedicalConditionId>>
+        GetMedicalConditionIdsAsync(
+            ClaimedConditionId claimedConditionId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT MedicalConditionId
+            FROM
+                VeteransClaims_ClaimedConditionMedicalConditions
+            WHERE ClaimedConditionId = $claimedConditionId
+            ORDER BY MedicalConditionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$claimedConditionId",
+            claimedConditionId.Value);
+
+        var medicalConditionIds =
+            new List<MedicalConditionId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            medicalConditionIds.Add(
+                new MedicalConditionId(
+                    reader.GetString(0)));
+        }
+
+        return medicalConditionIds;
+    }
+
+    public async Task<IReadOnlyList<ClaimedConditionId>>
+        GetClaimedConditionIdsAsync(
+            MedicalConditionId medicalConditionId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ClaimedConditionId
+            FROM
+                VeteransClaims_ClaimedConditionMedicalConditions
+            WHERE MedicalConditionId = $medicalConditionId
+            ORDER BY ClaimedConditionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$medicalConditionId",
+            medicalConditionId.Value);
+
+        var claimedConditionIds =
+            new List<ClaimedConditionId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            claimedConditionIds.Add(
+                new ClaimedConditionId(
+                    reader.GetString(0)));
+        }
+
+        return claimedConditionIds;
     }
 
 }

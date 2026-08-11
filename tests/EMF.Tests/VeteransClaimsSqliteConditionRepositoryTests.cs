@@ -87,6 +87,47 @@ public sealed class VeteransClaimsSqliteConditionRepositoryTests
             Assert.Equal(
                 condition.Id,
                 Assert.Single(issueConditions).Id);
+
+            var medicalCondition = new MedicalCondition
+            {
+                Id =
+                    new MedicalConditionId(
+                        "medical-condition-001"),
+                Name = "Obstructive sleep apnea"
+            };
+
+            await repository.AddMedicalConditionAsync(
+                medicalCondition);
+
+            await repository
+                .AddClaimedConditionMedicalConditionAsync(
+                    new ClaimedConditionMedicalCondition
+                    {
+                        ClaimedConditionId =
+                            condition.Id,
+                        MedicalConditionId =
+                            medicalCondition.Id
+                    });
+
+            var claimedMedicalConditionIds =
+                await repository
+                    .GetMedicalConditionIdsAsync(
+                        condition.Id);
+
+            var relatedClaimedConditionIds =
+                await repository
+                    .GetClaimedConditionIdsAsync(
+                        medicalCondition.Id);
+
+            Assert.Equal(
+                medicalCondition.Id,
+                Assert.Single(
+                    claimedMedicalConditionIds));
+
+            Assert.Equal(
+                condition.Id,
+                Assert.Single(
+                    relatedClaimedConditionIds));
         }
         finally
         {
