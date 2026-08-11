@@ -26,21 +26,13 @@ public sealed class SqliteVeteranRepository : IVeteranRepository
         return new SqliteConnection(builder.ToString());
     }
 
-    public async Task InitializeAsync(
+    public Task InitializeAsync(
         CancellationToken cancellationToken = default)
     {
-        await using var connection = CreateConnection();
-        await connection.OpenAsync(cancellationToken);
+        var schema =
+            new VeteransClaimsSqliteSchema(_databasePath);
 
-        await using var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            CREATE TABLE IF NOT EXISTS VeteransClaims_Veterans (
-                Id TEXT PRIMARY KEY
-            );
-            """;
-
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        return schema.InitializeAsync(cancellationToken);
     }
 
     public async Task AddVeteranAsync(
