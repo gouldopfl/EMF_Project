@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 
 namespace EMF.Extensions.VeteransClaims.Persistence.Sqlite;
 
@@ -16,14 +15,9 @@ public sealed class VeteransClaimsSqliteSchema
     public async Task InitializeAsync(
         CancellationToken cancellationToken = default)
     {
-        var builder = new SqliteConnectionStringBuilder
-        {
-            DataSource = _databasePath,
-            ForeignKeys = true
-        };
-
         await using var connection =
-            new SqliteConnection(builder.ToString());
+            VeteransClaimsSqliteConnectionFactory
+                .Create(_databasePath);
 
         await connection.OpenAsync(cancellationToken);
 

@@ -18,13 +18,8 @@ public sealed class SqliteClaimRepository : IClaimRepository
 
     private SqliteConnection CreateConnection()
     {
-        var builder = new SqliteConnectionStringBuilder
-        {
-            DataSource = _databasePath,
-            ForeignKeys = true
-        };
-
-        return new SqliteConnection(builder.ToString());
+        return VeteransClaimsSqliteConnectionFactory
+            .Create(_databasePath);
     }
 
     public Task InitializeAsync(

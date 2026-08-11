@@ -18,12 +18,8 @@ public sealed class SqliteVeteranRepository : IVeteranRepository
 
     private SqliteConnection CreateConnection()
     {
-        var builder = new SqliteConnectionStringBuilder
-        {
-            DataSource = _databasePath
-        };
-
-        return new SqliteConnection(builder.ToString());
+        return VeteransClaimsSqliteConnectionFactory
+            .Create(_databasePath);
     }
 
     public Task InitializeAsync(
