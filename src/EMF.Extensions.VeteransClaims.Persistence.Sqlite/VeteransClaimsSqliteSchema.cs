@@ -44,6 +44,18 @@ public sealed class VeteransClaimsSqliteSchema
             CREATE INDEX IF NOT EXISTS
                 IX_VeteransClaims_Claims_VeteranId
             ON VeteransClaims_Claims (VeteranId);
+
+            CREATE TABLE IF NOT EXISTS VeteransClaims_ClaimIssues (
+                Id TEXT PRIMARY KEY,
+                ClaimId TEXT NOT NULL,
+                ClaimIssueType TEXT NOT NULL,
+                FOREIGN KEY (ClaimId)
+                    REFERENCES VeteransClaims_Claims (Id)
+            );
+
+            CREATE INDEX IF NOT EXISTS
+                IX_VeteransClaims_ClaimIssues_ClaimId
+            ON VeteransClaims_ClaimIssues (ClaimId);
             """;
 
         await command.ExecuteNonQueryAsync(cancellationToken);
