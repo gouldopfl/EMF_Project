@@ -207,6 +207,30 @@ internal static class VeteransClaimsSqliteMigrations
                     Id TEXT PRIMARY KEY,
                     Name TEXT NOT NULL
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                4,
+                "AddVeteranMedicalConditions",
+                """
+                CREATE TABLE
+                    VeteransClaims_VeteranMedicalConditions (
+                        VeteranId TEXT NOT NULL,
+                        MedicalConditionId TEXT NOT NULL,
+                        PRIMARY KEY (
+                            VeteranId,
+                            MedicalConditionId
+                        ),
+                        FOREIGN KEY (VeteranId)
+                            REFERENCES VeteransClaims_Veterans (Id),
+                        FOREIGN KEY (MedicalConditionId)
+                            REFERENCES VeteransClaims_MedicalConditions (Id)
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_VeteranMedicalConditions_Condition
+                ON VeteransClaims_VeteranMedicalConditions (
+                    MedicalConditionId
+                );
                 """)
         };
 }
