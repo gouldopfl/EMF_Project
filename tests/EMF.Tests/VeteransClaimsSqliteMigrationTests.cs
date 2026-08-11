@@ -6,7 +6,7 @@ namespace EMF.Tests;
 public sealed class VeteransClaimsSqliteMigrationTests
 {
     [Fact]
-    public async Task InitializeAsync_RecordsInitialMigrationOnce()
+    public async Task InitializeAsync_RecordsCurrentMigrationsOnce()
     {
         var databasePath =
             Path.Combine(
@@ -52,6 +52,18 @@ public sealed class VeteransClaimsSqliteMigrationTests
 
             Assert.Equal(
                 "InitialVeteransClaimsSchema",
+                reader.GetString(1));
+
+            Assert.True(
+                DateTimeOffset.TryParse(
+                    reader.GetString(2),
+                    out _));
+
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(2, reader.GetInt32(0));
+
+            Assert.Equal(
+                "AddServiceEventsAndExposures",
                 reader.GetString(1));
 
             Assert.True(

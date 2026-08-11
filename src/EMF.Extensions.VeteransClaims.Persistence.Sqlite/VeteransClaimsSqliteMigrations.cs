@@ -136,6 +136,54 @@ internal static class VeteransClaimsSqliteMigrations
                     FOREIGN KEY (DisabilityEvaluationId)
                         REFERENCES VeteransClaims_DisabilityEvaluations (Id)
                 );
-            """)
+            """),
+            new VeteransClaimsSqliteMigration(
+                2,
+                "AddServiceEventsAndExposures",
+                """
+                CREATE TABLE VeteransClaims_ServiceEvents (
+                    Id TEXT PRIMARY KEY,
+                    VeteranId TEXT NOT NULL,
+                    Description TEXT NOT NULL,
+                    FOREIGN KEY (VeteranId)
+                        REFERENCES VeteransClaims_Veterans (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ServiceEvents_VeteranId
+                ON VeteransClaims_ServiceEvents (VeteranId);
+
+                CREATE TABLE VeteransClaims_Exposures (
+                    Id TEXT PRIMARY KEY,
+                    VeteranId TEXT NOT NULL,
+                    ExposureType TEXT NOT NULL,
+                    FOREIGN KEY (VeteranId)
+                        REFERENCES VeteransClaims_Veterans (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_Exposures_VeteranId
+                ON VeteransClaims_Exposures (VeteranId);
+
+                CREATE TABLE
+                    VeteransClaims_ServiceEventExposures (
+                        ServiceEventId TEXT NOT NULL,
+                        ExposureId TEXT NOT NULL,
+                        PRIMARY KEY (
+                            ServiceEventId,
+                            ExposureId
+                        ),
+                        FOREIGN KEY (ServiceEventId)
+                            REFERENCES VeteransClaims_ServiceEvents (Id),
+                        FOREIGN KEY (ExposureId)
+                            REFERENCES VeteransClaims_Exposures (Id)
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ServiceEventExposures_Exposure
+                ON VeteransClaims_ServiceEventExposures (
+                    ExposureId
+                );
+                """)
         };
 }

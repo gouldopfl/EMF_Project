@@ -10,6 +10,8 @@ public interface IVeteransClaimsPersistence
 
     IClaimIssueRepository ClaimIssues { get; }
 
+    IServiceHistoryRepository ServiceHistory { get; }
+
     ISubmissionRepository Submissions { get; }
 
     IVaDecisionRepository Decisions { get; }

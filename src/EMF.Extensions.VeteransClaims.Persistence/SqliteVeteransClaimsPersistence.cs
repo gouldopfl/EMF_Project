@@ -24,6 +24,9 @@ internal sealed class SqliteVeteransClaimsPersistence :
         Claims =
             new SqliteClaimRepository(databasePath);
 
+        ServiceHistory =
+            new SqliteServiceHistoryRepository(databasePath);
+
         ClaimIssues =
             new SqliteClaimIssueRepository(databasePath);
 
@@ -43,6 +46,8 @@ internal sealed class SqliteVeteransClaimsPersistence :
     public IClaimRepository Claims { get; }
 
     public IClaimIssueRepository ClaimIssues { get; }
+
+public IServiceHistoryRepository ServiceHistory { get; }
 
     public ISubmissionRepository Submissions { get; }
 
