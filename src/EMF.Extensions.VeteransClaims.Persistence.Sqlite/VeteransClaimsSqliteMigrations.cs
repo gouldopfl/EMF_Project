@@ -255,6 +255,59 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_ClaimedConditionMedicalConditions (
                     MedicalConditionId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                6,
+                "AddServiceConnectionTheoriesAndBases",
+                """
+                CREATE TABLE
+                    VeteransClaims_ServiceConnectionTheories (
+                        Id TEXT PRIMARY KEY,
+                        ClaimIssueId TEXT NOT NULL,
+                        TheoryType TEXT NOT NULL,
+                        UNIQUE (
+                            Id,
+                            ClaimIssueId
+                        ),
+                        FOREIGN KEY (ClaimIssueId)
+                            REFERENCES VeteransClaims_ClaimIssues (Id)
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ServiceConnectionTheories_Issue
+                ON VeteransClaims_ServiceConnectionTheories (
+                    ClaimIssueId
+                );
+
+                CREATE TABLE
+                    VeteransClaims_ServiceConnectionBases (
+                        Id TEXT PRIMARY KEY,
+                        ClaimIssueId TEXT NOT NULL,
+                        ServiceConnectionTheoryId TEXT NOT NULL,
+                        FOREIGN KEY (ClaimIssueId)
+                            REFERENCES VeteransClaims_ClaimIssues (Id),
+                        FOREIGN KEY (
+                            ServiceConnectionTheoryId,
+                            ClaimIssueId
+                        )
+                            REFERENCES
+                                VeteransClaims_ServiceConnectionTheories (
+                                    Id,
+                                    ClaimIssueId
+                                )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ServiceConnectionBases_Issue
+                ON VeteransClaims_ServiceConnectionBases (
+                    ClaimIssueId
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ServiceConnectionBases_Theory
+                ON VeteransClaims_ServiceConnectionBases (
+                    ServiceConnectionTheoryId
+                );
                 """)
         };
 }
