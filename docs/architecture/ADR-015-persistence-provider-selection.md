@@ -1,6 +1,6 @@
 # ADR-015: Persistence Provider Selection and Composition
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-08-11
 
 ## Context
