@@ -35,7 +35,8 @@ public sealed class VeteransClaimsPersistenceFactoryTests
 
             await persistence.InitializeAsync();
 
-        Assert.NotNull(persistence.ServiceHistory);
+            Assert.NotNull(persistence.ServiceHistory);
+            Assert.NotNull(persistence.Conditions);
 
             var veteran = new Veteran
             {
