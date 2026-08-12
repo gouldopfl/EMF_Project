@@ -65,4 +65,18 @@ public interface IServiceConnectionRepository
             ServiceEventId serviceEventId,
             CancellationToken cancellationToken = default);
 
+    Task AddBasisExposureAsync(
+        ServiceConnectionBasisExposure association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ExposureId>>
+        GetExposureIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetServiceConnectionBasisIdsAsync(
+            ExposureId exposureId,
+            CancellationToken cancellationToken = default);
+
 }

@@ -675,4 +675,171 @@ public sealed class SqliteServiceConnectionRepository :
         return basisIds;
     }
 
+
+    public async Task AddBasisExposureAsync(
+        ServiceConnectionBasisExposure association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var transaction =
+            (SqliteTransaction)
+            await connection.BeginTransactionAsync(
+                cancellationToken);
+
+        await using var validationCommand =
+            connection.CreateCommand();
+
+        validationCommand.Transaction = transaction;
+        validationCommand.CommandText =
+            """
+            SELECT COUNT(*)
+            FROM VeteransClaims_ServiceConnectionBases
+                AS basis
+            INNER JOIN VeteransClaims_ClaimIssues
+                AS issue
+                ON issue.Id = basis.ClaimIssueId
+            INNER JOIN VeteransClaims_Claims
+                AS claim
+                ON claim.Id = issue.ClaimId
+            INNER JOIN VeteransClaims_Exposures
+                AS exposure
+                ON exposure.VeteranId =
+                    claim.VeteranId
+            WHERE basis.Id = $basisId
+              AND exposure.Id = $exposureId;
+            """;
+
+        validationCommand.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        validationCommand.Parameters.AddWithValue(
+            "$exposureId",
+            association.ExposureId.Value);
+
+        var matchingCount =
+            Convert.ToInt32(
+                await validationCommand
+                    .ExecuteScalarAsync(
+                        cancellationToken));
+
+        if (matchingCount != 1)
+        {
+            throw new InvalidOperationException(
+                "A service connection basis and exposure " +
+                "must exist and belong to the same veteran.");
+        }
+
+        await using var insertCommand =
+            connection.CreateCommand();
+
+        insertCommand.Transaction = transaction;
+        insertCommand.CommandText =
+            """
+            INSERT INTO
+                VeteransClaims_BasisExposures (
+                    ServiceConnectionBasisId,
+                    ExposureId
+                )
+            VALUES (
+                $basisId,
+                $exposureId
+            );
+            """;
+
+        insertCommand.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        insertCommand.Parameters.AddWithValue(
+            "$exposureId",
+            association.ExposureId.Value);
+
+        await insertCommand.ExecuteNonQueryAsync(
+            cancellationToken);
+
+        await transaction.CommitAsync(
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ExposureId>>
+        GetExposureIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ExposureId
+            FROM VeteransClaims_BasisExposures
+            WHERE ServiceConnectionBasisId = $basisId
+            ORDER BY ExposureId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$basisId",
+            basisId.Value);
+
+        var exposureIds =
+            new List<ExposureId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            exposureIds.Add(
+                new ExposureId(
+                    reader.GetString(0)));
+        }
+
+        return exposureIds;
+    }
+
+    public async Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetServiceConnectionBasisIdsAsync(
+            ExposureId exposureId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ServiceConnectionBasisId
+            FROM VeteransClaims_BasisExposures
+            WHERE ExposureId = $exposureId
+            ORDER BY ServiceConnectionBasisId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$exposureId",
+            exposureId.Value);
+
+        var basisIds =
+            new List<ServiceConnectionBasisId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            basisIds.Add(
+                new ServiceConnectionBasisId(
+                    reader.GetString(0)));
+        }
+
+        return basisIds;
+    }
+
 }

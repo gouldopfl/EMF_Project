@@ -231,6 +231,52 @@ public sealed class
                 basis.Id,
                 Assert.Single(
                     serviceEventBasisIds));
+
+
+            var exposure =
+                new Exposure
+                {
+                    Id =
+                        new ExposureId(
+                            "exposure-001"),
+                    VeteranId = veteran.Id,
+                    ExposureType =
+                        "Environmental"
+                };
+
+            await new SqliteServiceHistoryRepository(
+                databasePath)
+                .AddExposureAsync(exposure);
+
+            await repository
+                .AddBasisExposureAsync(
+                    new ServiceConnectionBasisExposure
+                    {
+                        ServiceConnectionBasisId =
+                            basis.Id,
+                        ExposureId =
+                            exposure.Id
+                    });
+
+            var basisExposureIds =
+                await repository
+                    .GetExposureIdsAsync(
+                        basis.Id);
+
+            var exposureBasisIds =
+                await repository
+                    .GetServiceConnectionBasisIdsAsync(
+                        exposure.Id);
+
+            Assert.Equal(
+                exposure.Id,
+                Assert.Single(
+                    basisExposureIds));
+
+            Assert.Equal(
+                basis.Id,
+                Assert.Single(
+                    exposureBasisIds));
         }
         finally
         {
@@ -463,6 +509,43 @@ public sealed class
             Assert.Contains(
                 "belong to the same veteran",
                 serviceEventException.Message);
+
+
+            var otherVeteranExposure =
+                new Exposure
+                {
+                    Id =
+                        new ExposureId(
+                            "exposure-002"),
+                    VeteranId = secondVeteran.Id,
+                    ExposureType =
+                        "Environmental"
+                };
+
+            await new SqliteServiceHistoryRepository(
+                databasePath)
+                .AddExposureAsync(
+                    otherVeteranExposure);
+
+            var exposureAssociation =
+                new ServiceConnectionBasisExposure
+                {
+                    ServiceConnectionBasisId =
+                        validBasis.Id,
+                    ExposureId =
+                        otherVeteranExposure.Id
+                };
+
+            var exposureException =
+                await Assert.ThrowsAsync<
+                    InvalidOperationException>(
+                        () => repository
+                            .AddBasisExposureAsync(
+                                exposureAssociation));
+
+            Assert.Contains(
+                "belong to the same veteran",
+                exposureException.Message);
         }
         finally
         {
