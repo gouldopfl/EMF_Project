@@ -33,6 +33,9 @@ internal sealed class SqliteVeteransClaimsPersistence :
         Conditions =
             new SqliteConditionRepository(databasePath);
 
+        Regulatory =
+            new SqliteRegulatoryRepository(databasePath);
+
         ServiceConnections =
             new SqliteServiceConnectionRepository(
                 databasePath);
@@ -56,8 +59,11 @@ internal sealed class SqliteVeteransClaimsPersistence :
 
     public IConditionRepository Conditions { get; }
 
+    public IRegulatoryRepository Regulatory { get; }
+
     public IServiceConnectionRepository
-        ServiceConnections { get; }
+        ServiceConnections
+    { get; }
 
     public IServiceHistoryRepository ServiceHistory { get; }
 
@@ -66,7 +72,8 @@ internal sealed class SqliteVeteransClaimsPersistence :
     public IVaDecisionRepository Decisions { get; }
 
     public IDisabilityEvaluationRepository
-        DisabilityEvaluations { get; }
+        DisabilityEvaluations
+    { get; }
 
     public Task InitializeAsync(
         CancellationToken cancellationToken = default)

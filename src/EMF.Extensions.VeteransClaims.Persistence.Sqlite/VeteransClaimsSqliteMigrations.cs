@@ -457,6 +457,55 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_BasisPreexistingConditions (
                     PreexistingConditionId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                12,
+                "AddRegulatoryFoundation",
+                """
+                CREATE TABLE
+                    VeteransClaims_RegulatoryAuthorities (
+                        Id TEXT PRIMARY KEY,
+                        AuthorityType TEXT NOT NULL,
+                        Citation TEXT NOT NULL,
+                        Title TEXT NOT NULL
+                    );
+
+                CREATE TABLE
+                    VeteransClaims_RegulatoryProvisions (
+                        Id TEXT PRIMARY KEY,
+                        RegulatoryAuthorityId TEXT NOT NULL,
+                        ProvisionType TEXT NOT NULL,
+                        Citation TEXT NOT NULL,
+                        FOREIGN KEY (RegulatoryAuthorityId)
+                            REFERENCES
+                                VeteransClaims_RegulatoryAuthorities (
+                                    Id
+                                )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_RegulatoryProvisions_Authority
+                ON VeteransClaims_RegulatoryProvisions (
+                    RegulatoryAuthorityId
+                );
+
+                CREATE TABLE
+                    VeteransClaims_Requirements (
+                        Id TEXT PRIMARY KEY,
+                        RegulatoryProvisionId TEXT NOT NULL,
+                        Description TEXT NOT NULL,
+                        FOREIGN KEY (RegulatoryProvisionId)
+                            REFERENCES
+                                VeteransClaims_RegulatoryProvisions (
+                                    Id
+                                )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_Requirements_Provision
+                ON VeteransClaims_Requirements (
+                    RegulatoryProvisionId
+                );
                 """)
         };
 }

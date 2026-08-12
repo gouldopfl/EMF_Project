@@ -12,6 +12,8 @@ public interface IVeteransClaimsPersistence
 
     IConditionRepository Conditions { get; }
 
+    IRegulatoryRepository Regulatory { get; }
+
     IServiceConnectionRepository ServiceConnections
     {
         get;
@@ -24,7 +26,8 @@ public interface IVeteransClaimsPersistence
     IVaDecisionRepository Decisions { get; }
 
     IDisabilityEvaluationRepository
-        DisabilityEvaluations { get; }
+        DisabilityEvaluations
+    { get; }
 
     Task InitializeAsync(
         CancellationToken cancellationToken = default);
