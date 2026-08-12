@@ -427,6 +427,36 @@ internal static class VeteransClaimsSqliteMigrations
                     VeteransClaims_BasisServiceConnectedConditions (
                         ServiceConnectedConditionId
                     );
+                """),
+            new VeteransClaimsSqliteMigration(
+                11,
+                "AddBasisPreexistingConditions",
+                """
+                CREATE TABLE
+                    VeteransClaims_BasisPreexistingConditions (
+                        ServiceConnectionBasisId TEXT NOT NULL,
+                        PreexistingConditionId TEXT NOT NULL,
+                        PRIMARY KEY (
+                            ServiceConnectionBasisId,
+                            PreexistingConditionId
+                        ),
+                        FOREIGN KEY (ServiceConnectionBasisId)
+                            REFERENCES
+                                VeteransClaims_ServiceConnectionBases (
+                                    Id
+                                ),
+                        FOREIGN KEY (PreexistingConditionId)
+                            REFERENCES
+                                VeteransClaims_MedicalConditions (
+                                    Id
+                                )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_BasisPreexistingConditions_Condition
+                ON VeteransClaims_BasisPreexistingConditions (
+                    PreexistingConditionId
+                );
                 """)
         };
 }

@@ -965,7 +965,7 @@ public sealed class SqliteServiceConnectionRepository :
     }
 
     public async Task<IReadOnlyList<ServiceConnectionBasisId>>
-        GetServiceConnectionBasisIdsAsync(
+        GetServiceConnectedConditionBasisIdsAsync(
             MedicalConditionId serviceConnectedConditionId,
             CancellationToken cancellationToken = default)
     {
@@ -985,6 +985,167 @@ public sealed class SqliteServiceConnectionRepository :
         command.Parameters.AddWithValue(
             "$serviceConnectedConditionId",
             serviceConnectedConditionId.Value);
+
+        var basisIds =
+            new List<ServiceConnectionBasisId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            basisIds.Add(
+                new ServiceConnectionBasisId(
+                    reader.GetString(0)));
+        }
+
+        return basisIds;
+    }
+
+    public async Task AddBasisPreexistingConditionAsync(
+        ServiceConnectionBasisPreexistingCondition association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var transaction =
+            (SqliteTransaction)
+            await connection.BeginTransactionAsync(
+                cancellationToken);
+
+        await using var validationCommand =
+            connection.CreateCommand();
+
+        validationCommand.Transaction = transaction;
+        validationCommand.CommandText =
+            """
+            SELECT COUNT(*)
+            FROM VeteransClaims_ServiceConnectionBases AS basis
+            INNER JOIN VeteransClaims_ClaimIssues AS issue
+                ON issue.Id = basis.ClaimIssueId
+            INNER JOIN VeteransClaims_Claims AS claim
+                ON claim.Id = issue.ClaimId
+            INNER JOIN VeteransClaims_VeteranMedicalConditions
+                AS condition
+                ON condition.VeteranId = claim.VeteranId
+            WHERE basis.Id = $basisId
+              AND condition.MedicalConditionId =
+                  $preexistingConditionId;
+            """;
+
+        validationCommand.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        validationCommand.Parameters.AddWithValue(
+            "$preexistingConditionId",
+            association.PreexistingConditionId.Value);
+
+        var matchingCount =
+            Convert.ToInt32(
+                await validationCommand.ExecuteScalarAsync(
+                    cancellationToken));
+
+        if (matchingCount != 1)
+        {
+            throw new InvalidOperationException(
+                "A service connection basis and service-" +
+                "connected condition must exist and belong " +
+                "to the same veteran.");
+        }
+
+        await using var insertCommand =
+            connection.CreateCommand();
+
+        insertCommand.Transaction = transaction;
+        insertCommand.CommandText =
+            """
+            INSERT INTO
+                VeteransClaims_BasisPreexistingConditions (
+                    ServiceConnectionBasisId,
+                    PreexistingConditionId
+                )
+            VALUES ($basisId, $preexistingConditionId);
+            """;
+
+        insertCommand.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        insertCommand.Parameters.AddWithValue(
+            "$preexistingConditionId",
+            association.PreexistingConditionId.Value);
+
+        await insertCommand.ExecuteNonQueryAsync(
+            cancellationToken);
+
+        await transaction.CommitAsync(
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MedicalConditionId>>
+        GetPreexistingConditionIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT PreexistingConditionId
+            FROM VeteransClaims_BasisPreexistingConditions
+            WHERE ServiceConnectionBasisId = $basisId
+            ORDER BY PreexistingConditionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$basisId",
+            basisId.Value);
+
+        var conditionIds =
+            new List<MedicalConditionId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            conditionIds.Add(
+                new MedicalConditionId(
+                    reader.GetString(0)));
+        }
+
+        return conditionIds;
+    }
+
+    public async Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetPreexistingConditionBasisIdsAsync(
+            MedicalConditionId preexistingConditionId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ServiceConnectionBasisId
+            FROM VeteransClaims_BasisPreexistingConditions
+            WHERE PreexistingConditionId =
+                $preexistingConditionId
+            ORDER BY ServiceConnectionBasisId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$preexistingConditionId",
+            preexistingConditionId.Value);
 
         var basisIds =
             new List<ServiceConnectionBasisId>();

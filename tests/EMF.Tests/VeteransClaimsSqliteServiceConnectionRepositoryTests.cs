@@ -321,7 +321,7 @@ public sealed class
 
             var conditionBasisIds =
                 await repository
-                    .GetServiceConnectionBasisIdsAsync(
+                    .GetServiceConnectedConditionBasisIdsAsync(
                         serviceConnectedCondition.Id);
 
             Assert.Equal(
@@ -333,6 +333,62 @@ public sealed class
                 basis.Id,
                 Assert.Single(
                     conditionBasisIds));
+
+            var preexistingConditionRepository =
+                new SqliteConditionRepository(
+                    databasePath);
+
+            var preexistingCondition =
+                new MedicalCondition
+                {
+                    Id =
+                        new MedicalConditionId(
+                            "medical-condition-003"),
+                    Name = "Preexisting knee condition"
+                };
+
+            await preexistingConditionRepository
+                .AddMedicalConditionAsync(
+                    preexistingCondition);
+
+            await preexistingConditionRepository
+                .AddVeteranMedicalConditionAsync(
+                    new VeteranMedicalCondition
+                    {
+                        VeteranId = veteran.Id,
+                        MedicalConditionId =
+                            preexistingCondition.Id
+                    });
+
+            await repository
+                .AddBasisPreexistingConditionAsync(
+                    new ServiceConnectionBasisPreexistingCondition
+                    {
+                        ServiceConnectionBasisId =
+                            basis.Id,
+                        PreexistingConditionId =
+                            preexistingCondition.Id
+                    });
+
+            var basisPreexistingConditionIds =
+                await repository
+                    .GetPreexistingConditionIdsAsync(
+                        basis.Id);
+
+            var preexistingConditionBasisIds =
+                await repository
+                    .GetPreexistingConditionBasisIdsAsync(
+                        preexistingCondition.Id);
+
+            Assert.Equal(
+                preexistingCondition.Id,
+                Assert.Single(
+                    basisPreexistingConditionIds));
+
+            Assert.Equal(
+                basis.Id,
+                Assert.Single(
+                    preexistingConditionBasisIds));
         }
         finally
         {
@@ -648,6 +704,52 @@ public sealed class
             Assert.Contains(
                 "belong to the same veteran",
                 conditionException.Message);
+
+            var otherPreexistingConditionRepository =
+                new SqliteConditionRepository(
+                    databasePath);
+
+            var otherVeteranPreexistingCondition =
+                new MedicalCondition
+                {
+                    Id =
+                        new MedicalConditionId(
+                            "medical-condition-004"),
+                    Name = "Other veteran preexisting condition"
+                };
+
+            await otherPreexistingConditionRepository
+                .AddMedicalConditionAsync(
+                    otherVeteranPreexistingCondition);
+
+            await otherPreexistingConditionRepository
+                .AddVeteranMedicalConditionAsync(
+                    new VeteranMedicalCondition
+                    {
+                        VeteranId = secondVeteran.Id,
+                        MedicalConditionId =
+                            otherVeteranPreexistingCondition.Id
+                    });
+
+            var preexistingConditionAssociation =
+                new ServiceConnectionBasisPreexistingCondition
+                {
+                    ServiceConnectionBasisId =
+                        validBasis.Id,
+                    PreexistingConditionId =
+                        otherVeteranPreexistingCondition.Id
+                };
+
+            var preexistingConditionException =
+                await Assert.ThrowsAsync<
+                    InvalidOperationException>(
+                        () => repository
+                            .AddBasisPreexistingConditionAsync(
+                                preexistingConditionAssociation));
+
+            Assert.Contains(
+                "belong to the same veteran",
+                preexistingConditionException.Message);
         }
         finally
         {

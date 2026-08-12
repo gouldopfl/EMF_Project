@@ -89,8 +89,22 @@ public interface IServiceConnectionRepository
             CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ServiceConnectionBasisId>>
-        GetServiceConnectionBasisIdsAsync(
+        GetServiceConnectedConditionBasisIdsAsync(
             MedicalConditionId serviceConnectedConditionId,
+            CancellationToken cancellationToken = default);
+
+    Task AddBasisPreexistingConditionAsync(
+        ServiceConnectionBasisPreexistingCondition association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<MedicalConditionId>>
+        GetPreexistingConditionIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetPreexistingConditionBasisIdsAsync(
+            MedicalConditionId preexistingConditionId,
             CancellationToken cancellationToken = default);
 
 }
