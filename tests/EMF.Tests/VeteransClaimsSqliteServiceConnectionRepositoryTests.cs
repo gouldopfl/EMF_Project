@@ -1,4 +1,5 @@
 using EMF.Extensions.VeteransClaims.Models.Claims;
+using EMF.Extensions.VeteransClaims.Models.Conditions;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Service;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite;
@@ -140,6 +141,51 @@ public sealed class
             Assert.Equal(
                 basis.Id,
                 Assert.Single(theoryBases).Id);
+
+            var claimedCondition =
+                new ClaimedCondition
+                {
+                    Id =
+                        new ClaimedConditionId(
+                            "claimed-condition-001"),
+                    ClaimIssueId = claimIssue.Id,
+                    Name = "Sleep apnea"
+                };
+
+            await new SqliteConditionRepository(
+                databasePath)
+                .AddClaimedConditionAsync(
+                    claimedCondition);
+
+            await repository
+                .AddBasisClaimedConditionAsync(
+                    new ServiceConnectionBasisClaimedCondition
+                    {
+                        ServiceConnectionBasisId =
+                            basis.Id,
+                        ClaimedConditionId =
+                            claimedCondition.Id
+                    });
+
+            var basisClaimedConditionIds =
+                await repository
+                    .GetClaimedConditionIdsAsync(
+                        basis.Id);
+
+            var claimedConditionBasisIds =
+                await repository
+                    .GetServiceConnectionBasisIdsAsync(
+                        claimedCondition.Id);
+
+            Assert.Equal(
+                claimedCondition.Id,
+                Assert.Single(
+                    basisClaimedConditionIds));
+
+            Assert.Equal(
+                basis.Id,
+                Assert.Single(
+                    claimedConditionBasisIds));
         }
         finally
         {
@@ -274,6 +320,55 @@ public sealed class
                 () => repository
                     .AddServiceConnectionBasisAsync(
                         basis));
+
+            var validBasis = new ServiceConnectionBasis
+            {
+                Id =
+                    new ServiceConnectionBasisId(
+                        "basis-002"),
+                ClaimIssueId = firstIssue.Id,
+                ServiceConnectionTheoryId =
+                    theory.Id
+            };
+
+            await repository
+                .AddServiceConnectionBasisAsync(
+                    validBasis);
+
+            var claimedCondition =
+                new ClaimedCondition
+                {
+                    Id =
+                        new ClaimedConditionId(
+                            "claimed-condition-001"),
+                    ClaimIssueId = secondIssue.Id,
+                    Name = "Different issue condition"
+                };
+
+            await new SqliteConditionRepository(
+                databasePath)
+                .AddClaimedConditionAsync(
+                    claimedCondition);
+
+            var association =
+                new ServiceConnectionBasisClaimedCondition
+                {
+                    ServiceConnectionBasisId =
+                        validBasis.Id,
+                    ClaimedConditionId =
+                        claimedCondition.Id
+                };
+
+            var exception =
+                await Assert.ThrowsAsync<
+                    InvalidOperationException>(
+                        () => repository
+                            .AddBasisClaimedConditionAsync(
+                                association));
+
+            Assert.Contains(
+                "belong to the same claim issue",
+                exception.Message);
         }
         finally
         {

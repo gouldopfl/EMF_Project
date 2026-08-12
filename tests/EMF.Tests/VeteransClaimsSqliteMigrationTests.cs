@@ -49,12 +49,13 @@ public sealed class VeteransClaimsSqliteMigrationTests
                           'VeteransClaims_VeteranMedicalConditions',
                           'VeteransClaims_ClaimedConditionMedicalConditions',
                           'VeteransClaims_ServiceConnectionTheories',
-                          'VeteransClaims_ServiceConnectionBases'
+                          'VeteransClaims_ServiceConnectionBases',
+                          'VeteransClaims_BasisClaimedConditions'
                       );
                     """;
 
                 Assert.Equal(
-                    6,
+                    7,
                     Convert.ToInt32(
                         await tableCommand
                             .ExecuteScalarAsync()));
@@ -138,6 +139,18 @@ public sealed class VeteransClaimsSqliteMigrationTests
 
             Assert.Equal(
                 "AddServiceConnectionTheoriesAndBases",
+                reader.GetString(1));
+
+            Assert.True(
+                DateTimeOffset.TryParse(
+                    reader.GetString(2),
+                    out _));
+
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(7, reader.GetInt32(0));
+
+            Assert.Equal(
+                "AddBasisClaimedConditions",
                 reader.GetString(1));
 
             Assert.True(

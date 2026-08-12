@@ -347,4 +347,165 @@ public sealed class SqliteServiceConnectionRepository :
         return bases;
     }
 
+    public async Task AddBasisClaimedConditionAsync(
+        ServiceConnectionBasisClaimedCondition association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var transaction =
+            (SqliteTransaction)
+            await connection.BeginTransactionAsync(
+                cancellationToken);
+
+        await using var validationCommand =
+            connection.CreateCommand();
+
+        validationCommand.Transaction = transaction;
+        validationCommand.CommandText =
+            """
+            SELECT COUNT(*)
+            FROM VeteransClaims_ServiceConnectionBases
+                AS basis
+            INNER JOIN VeteransClaims_ClaimedConditions
+                AS condition
+                ON condition.ClaimIssueId =
+                    basis.ClaimIssueId
+            WHERE basis.Id = $basisId
+              AND condition.Id = $claimedConditionId;
+            """;
+
+        validationCommand.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        validationCommand.Parameters.AddWithValue(
+            "$claimedConditionId",
+            association.ClaimedConditionId.Value);
+
+        var matchingCount =
+            Convert.ToInt32(
+                await validationCommand
+                    .ExecuteScalarAsync(
+                        cancellationToken));
+
+        if (matchingCount != 1)
+        {
+            throw new InvalidOperationException(
+                "A service connection basis and claimed " +
+                "condition must exist and belong to the " +
+                "same claim issue.");
+        }
+
+        await using var insertCommand =
+            connection.CreateCommand();
+
+        insertCommand.Transaction = transaction;
+        insertCommand.CommandText =
+            """
+            INSERT INTO
+                VeteransClaims_BasisClaimedConditions (
+                    ServiceConnectionBasisId,
+                    ClaimedConditionId
+                )
+            VALUES (
+                $basisId,
+                $claimedConditionId
+            );
+            """;
+
+        insertCommand.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        insertCommand.Parameters.AddWithValue(
+            "$claimedConditionId",
+            association.ClaimedConditionId.Value);
+
+        await insertCommand.ExecuteNonQueryAsync(
+            cancellationToken);
+
+        await transaction.CommitAsync(
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ClaimedConditionId>>
+        GetClaimedConditionIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ClaimedConditionId
+            FROM VeteransClaims_BasisClaimedConditions
+            WHERE ServiceConnectionBasisId = $basisId
+            ORDER BY ClaimedConditionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$basisId",
+            basisId.Value);
+
+        var claimedConditionIds =
+            new List<ClaimedConditionId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            claimedConditionIds.Add(
+                new ClaimedConditionId(
+                    reader.GetString(0)));
+        }
+
+        return claimedConditionIds;
+    }
+
+    public async Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetServiceConnectionBasisIdsAsync(
+            ClaimedConditionId claimedConditionId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ServiceConnectionBasisId
+            FROM VeteransClaims_BasisClaimedConditions
+            WHERE ClaimedConditionId = $claimedConditionId
+            ORDER BY ServiceConnectionBasisId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$claimedConditionId",
+            claimedConditionId.Value);
+
+        var basisIds =
+            new List<ServiceConnectionBasisId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            basisIds.Add(
+                new ServiceConnectionBasisId(
+                    reader.GetString(0)));
+        }
+
+        return basisIds;
+    }
+
 }

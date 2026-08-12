@@ -37,4 +37,18 @@ public interface IServiceConnectionRepository
             ServiceConnectionTheoryId theoryId,
             CancellationToken cancellationToken = default);
 
+    Task AddBasisClaimedConditionAsync(
+        ServiceConnectionBasisClaimedCondition association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ClaimedConditionId>>
+        GetClaimedConditionIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetServiceConnectionBasisIdsAsync(
+            ClaimedConditionId claimedConditionId,
+            CancellationToken cancellationToken = default);
+
 }
