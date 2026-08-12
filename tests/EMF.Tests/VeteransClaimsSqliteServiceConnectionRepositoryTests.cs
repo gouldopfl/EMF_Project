@@ -277,6 +277,62 @@ public sealed class
                 basis.Id,
                 Assert.Single(
                     exposureBasisIds));
+
+            var conditionRepository =
+                new SqliteConditionRepository(
+                    databasePath);
+
+            var serviceConnectedCondition =
+                new MedicalCondition
+                {
+                    Id =
+                        new MedicalConditionId(
+                            "medical-condition-001"),
+                    Name = "Posttraumatic stress disorder"
+                };
+
+            await conditionRepository
+                .AddMedicalConditionAsync(
+                    serviceConnectedCondition);
+
+            await conditionRepository
+                .AddVeteranMedicalConditionAsync(
+                    new VeteranMedicalCondition
+                    {
+                        VeteranId = veteran.Id,
+                        MedicalConditionId =
+                            serviceConnectedCondition.Id
+                    });
+
+            await repository
+                .AddBasisServiceConnectedConditionAsync(
+                    new ServiceConnectionBasisServiceConnectedCondition
+                    {
+                        ServiceConnectionBasisId =
+                            basis.Id,
+                        ServiceConnectedConditionId =
+                            serviceConnectedCondition.Id
+                    });
+
+            var basisConditionIds =
+                await repository
+                    .GetServiceConnectedConditionIdsAsync(
+                        basis.Id);
+
+            var conditionBasisIds =
+                await repository
+                    .GetServiceConnectionBasisIdsAsync(
+                        serviceConnectedCondition.Id);
+
+            Assert.Equal(
+                serviceConnectedCondition.Id,
+                Assert.Single(
+                    basisConditionIds));
+
+            Assert.Equal(
+                basis.Id,
+                Assert.Single(
+                    conditionBasisIds));
         }
         finally
         {
@@ -546,6 +602,52 @@ public sealed class
             Assert.Contains(
                 "belong to the same veteran",
                 exposureException.Message);
+
+            var otherConditionRepository =
+                new SqliteConditionRepository(
+                    databasePath);
+
+            var otherVeteranCondition =
+                new MedicalCondition
+                {
+                    Id =
+                        new MedicalConditionId(
+                            "medical-condition-002"),
+                    Name = "Other veteran condition"
+                };
+
+            await otherConditionRepository
+                .AddMedicalConditionAsync(
+                    otherVeteranCondition);
+
+            await otherConditionRepository
+                .AddVeteranMedicalConditionAsync(
+                    new VeteranMedicalCondition
+                    {
+                        VeteranId = secondVeteran.Id,
+                        MedicalConditionId =
+                            otherVeteranCondition.Id
+                    });
+
+            var conditionAssociation =
+                new ServiceConnectionBasisServiceConnectedCondition
+                {
+                    ServiceConnectionBasisId =
+                        validBasis.Id,
+                    ServiceConnectedConditionId =
+                        otherVeteranCondition.Id
+                };
+
+            var conditionException =
+                await Assert.ThrowsAsync<
+                    InvalidOperationException>(
+                        () => repository
+                            .AddBasisServiceConnectedConditionAsync(
+                                conditionAssociation));
+
+            Assert.Contains(
+                "belong to the same veteran",
+                conditionException.Message);
         }
         finally
         {

@@ -3,7 +3,8 @@ namespace EMF.Extensions.VeteransClaims.Persistence.Sqlite;
 internal static class VeteransClaimsSqliteMigrations
 {
     public static IReadOnlyList<
-        VeteransClaimsSqliteMigration> All { get; } =
+        VeteransClaimsSqliteMigration> All
+    { get; } =
         new[]
         {
             new VeteransClaimsSqliteMigration(
@@ -395,6 +396,37 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_BasisExposures (
                     ExposureId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                10,
+                "AddBasisServiceConnectedConditions",
+                """
+                CREATE TABLE
+                    VeteransClaims_BasisServiceConnectedConditions (
+                        ServiceConnectionBasisId TEXT NOT NULL,
+                        ServiceConnectedConditionId TEXT NOT NULL,
+                        PRIMARY KEY (
+                            ServiceConnectionBasisId,
+                            ServiceConnectedConditionId
+                        ),
+                        FOREIGN KEY (ServiceConnectionBasisId)
+                            REFERENCES
+                                VeteransClaims_ServiceConnectionBases (
+                                    Id
+                                ),
+                        FOREIGN KEY (ServiceConnectedConditionId)
+                            REFERENCES
+                                VeteransClaims_MedicalConditions (
+                                    Id
+                                )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_BasisServiceConnectedConditions_Condition
+                ON
+                    VeteransClaims_BasisServiceConnectedConditions (
+                        ServiceConnectedConditionId
+                    );
                 """)
         };
 }

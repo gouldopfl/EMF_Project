@@ -79,4 +79,18 @@ public interface IServiceConnectionRepository
             ExposureId exposureId,
             CancellationToken cancellationToken = default);
 
+    Task AddBasisServiceConnectedConditionAsync(
+        ServiceConnectionBasisServiceConnectedCondition association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<MedicalConditionId>>
+        GetServiceConnectedConditionIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetServiceConnectionBasisIdsAsync(
+            MedicalConditionId serviceConnectedConditionId,
+            CancellationToken cancellationToken = default);
+
 }

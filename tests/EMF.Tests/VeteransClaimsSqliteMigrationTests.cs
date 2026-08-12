@@ -52,12 +52,13 @@ public sealed class VeteransClaimsSqliteMigrationTests
                           'VeteransClaims_ServiceConnectionBases',
                           'VeteransClaims_BasisClaimedConditions',
                           'VeteransClaims_BasisServiceEvents',
-                          'VeteransClaims_BasisExposures'
+                          'VeteransClaims_BasisExposures',
+                          'VeteransClaims_BasisServiceConnectedConditions'
                       );
                     """;
 
                 Assert.Equal(
-                    9,
+                    10,
                     Convert.ToInt32(
                         await tableCommand
                             .ExecuteScalarAsync()));
@@ -177,6 +178,18 @@ public sealed class VeteransClaimsSqliteMigrationTests
 
             Assert.Equal(
                 "AddBasisExposures",
+                reader.GetString(1));
+
+            Assert.True(
+                DateTimeOffset.TryParse(
+                    reader.GetString(2),
+                    out _));
+
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(10, reader.GetInt32(0));
+
+            Assert.Equal(
+                "AddBasisServiceConnectedConditions",
                 reader.GetString(1));
 
             Assert.True(
