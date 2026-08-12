@@ -508,4 +508,171 @@ public sealed class SqliteServiceConnectionRepository :
         return basisIds;
     }
 
+    public async Task AddBasisServiceEventAsync(
+        ServiceConnectionBasisServiceEvent association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var transaction =
+            (SqliteTransaction)
+            await connection.BeginTransactionAsync(
+                cancellationToken);
+
+        await using var validationCommand =
+            connection.CreateCommand();
+
+        validationCommand.Transaction = transaction;
+        validationCommand.CommandText =
+            """
+            SELECT COUNT(*)
+            FROM VeteransClaims_ServiceConnectionBases
+                AS basis
+            INNER JOIN VeteransClaims_ClaimIssues
+                AS issue
+                ON issue.Id = basis.ClaimIssueId
+            INNER JOIN VeteransClaims_Claims
+                AS claim
+                ON claim.Id = issue.ClaimId
+            INNER JOIN VeteransClaims_ServiceEvents
+                AS serviceEvent
+                ON serviceEvent.VeteranId =
+                    claim.VeteranId
+            WHERE basis.Id = $basisId
+              AND serviceEvent.Id = $serviceEventId;
+            """;
+
+        validationCommand.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        validationCommand.Parameters.AddWithValue(
+            "$serviceEventId",
+            association.ServiceEventId.Value);
+
+        var matchingCount =
+            Convert.ToInt32(
+                await validationCommand
+                    .ExecuteScalarAsync(
+                        cancellationToken));
+
+        if (matchingCount != 1)
+        {
+            throw new InvalidOperationException(
+                "A service connection basis and service " +
+                "event must exist and belong to the same " +
+                "veteran.");
+        }
+
+        await using var insertCommand =
+            connection.CreateCommand();
+
+        insertCommand.Transaction = transaction;
+        insertCommand.CommandText =
+            """
+            INSERT INTO
+                VeteransClaims_BasisServiceEvents (
+                    ServiceConnectionBasisId,
+                    ServiceEventId
+                )
+            VALUES (
+                $basisId,
+                $serviceEventId
+            );
+            """;
+
+        insertCommand.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        insertCommand.Parameters.AddWithValue(
+            "$serviceEventId",
+            association.ServiceEventId.Value);
+
+        await insertCommand.ExecuteNonQueryAsync(
+            cancellationToken);
+
+        await transaction.CommitAsync(
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ServiceEventId>>
+        GetServiceEventIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ServiceEventId
+            FROM VeteransClaims_BasisServiceEvents
+            WHERE ServiceConnectionBasisId = $basisId
+            ORDER BY ServiceEventId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$basisId",
+            basisId.Value);
+
+        var serviceEventIds =
+            new List<ServiceEventId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            serviceEventIds.Add(
+                new ServiceEventId(
+                    reader.GetString(0)));
+        }
+
+        return serviceEventIds;
+    }
+
+    public async Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetServiceConnectionBasisIdsAsync(
+            ServiceEventId serviceEventId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ServiceConnectionBasisId
+            FROM VeteransClaims_BasisServiceEvents
+            WHERE ServiceEventId = $serviceEventId
+            ORDER BY ServiceConnectionBasisId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$serviceEventId",
+            serviceEventId.Value);
+
+        var basisIds =
+            new List<ServiceConnectionBasisId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            basisIds.Add(
+                new ServiceConnectionBasisId(
+                    reader.GetString(0)));
+        }
+
+        return basisIds;
+    }
+
 }

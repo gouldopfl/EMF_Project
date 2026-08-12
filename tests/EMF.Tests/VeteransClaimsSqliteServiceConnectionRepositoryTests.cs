@@ -186,6 +186,51 @@ public sealed class
                 basis.Id,
                 Assert.Single(
                     claimedConditionBasisIds));
+
+            var serviceEvent =
+                new ServiceEvent
+                {
+                    Id =
+                        new ServiceEventId(
+                            "service-event-001"),
+                    VeteranId = veteran.Id,
+                    Description =
+                        "Documented duty event"
+                };
+
+            await new SqliteServiceHistoryRepository(
+                databasePath)
+                .AddServiceEventAsync(serviceEvent);
+
+            await repository
+                .AddBasisServiceEventAsync(
+                    new ServiceConnectionBasisServiceEvent
+                    {
+                        ServiceConnectionBasisId =
+                            basis.Id,
+                        ServiceEventId =
+                            serviceEvent.Id
+                    });
+
+            var basisServiceEventIds =
+                await repository
+                    .GetServiceEventIdsAsync(
+                        basis.Id);
+
+            var serviceEventBasisIds =
+                await repository
+                    .GetServiceConnectionBasisIdsAsync(
+                        serviceEvent.Id);
+
+            Assert.Equal(
+                serviceEvent.Id,
+                Assert.Single(
+                    basisServiceEventIds));
+
+            Assert.Equal(
+                basis.Id,
+                Assert.Single(
+                    serviceEventBasisIds));
         }
         finally
         {
@@ -369,6 +414,55 @@ public sealed class
             Assert.Contains(
                 "belong to the same claim issue",
                 exception.Message);
+
+
+            var secondVeteran =
+                new Veteran
+                {
+                    Id =
+                        new VeteranId(
+                            "veteran-002")
+                };
+
+            await new SqliteVeteranRepository(
+                databasePath)
+                .AddVeteranAsync(secondVeteran);
+
+            var otherVeteranServiceEvent =
+                new ServiceEvent
+                {
+                    Id =
+                        new ServiceEventId(
+                            "service-event-002"),
+                    VeteranId = secondVeteran.Id,
+                    Description =
+                        "Event belonging to another veteran"
+                };
+
+            await new SqliteServiceHistoryRepository(
+                databasePath)
+                .AddServiceEventAsync(
+                    otherVeteranServiceEvent);
+
+            var serviceEventAssociation =
+                new ServiceConnectionBasisServiceEvent
+                {
+                    ServiceConnectionBasisId =
+                        validBasis.Id,
+                    ServiceEventId =
+                        otherVeteranServiceEvent.Id
+                };
+
+            var serviceEventException =
+                await Assert.ThrowsAsync<
+                    InvalidOperationException>(
+                        () => repository
+                            .AddBasisServiceEventAsync(
+                                serviceEventAssociation));
+
+            Assert.Contains(
+                "belong to the same veteran",
+                serviceEventException.Message);
         }
         finally
         {

@@ -51,4 +51,18 @@ public interface IServiceConnectionRepository
             ClaimedConditionId claimedConditionId,
             CancellationToken cancellationToken = default);
 
+    Task AddBasisServiceEventAsync(
+        ServiceConnectionBasisServiceEvent association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ServiceEventId>>
+        GetServiceEventIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetServiceConnectionBasisIdsAsync(
+            ServiceEventId serviceEventId,
+            CancellationToken cancellationToken = default);
+
 }

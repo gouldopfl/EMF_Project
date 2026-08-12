@@ -337,6 +337,35 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_BasisClaimedConditions (
                     ClaimedConditionId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                8,
+                "AddBasisServiceEvents",
+                """
+                CREATE TABLE
+                    VeteransClaims_BasisServiceEvents (
+                        ServiceConnectionBasisId TEXT NOT NULL,
+                        ServiceEventId TEXT NOT NULL,
+                        PRIMARY KEY (
+                            ServiceConnectionBasisId,
+                            ServiceEventId
+                        ),
+                        FOREIGN KEY (ServiceConnectionBasisId)
+                            REFERENCES
+                                VeteransClaims_ServiceConnectionBases (
+                                    Id
+                                ),
+                        FOREIGN KEY (ServiceEventId)
+                            REFERENCES VeteransClaims_ServiceEvents (
+                                Id
+                            )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_BasisServiceEvents_Event
+                ON VeteransClaims_BasisServiceEvents (
+                    ServiceEventId
+                );
                 """)
         };
 }
