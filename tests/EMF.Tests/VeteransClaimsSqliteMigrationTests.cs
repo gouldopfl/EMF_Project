@@ -60,12 +60,13 @@ public sealed class VeteransClaimsSqliteMigrationTests
                           'VeteransClaims_Requirements',
                           'VeteransClaims_IssueDecisionRegulatoryProvisions',
                           'VeteransClaims_DisabilityEvaluationRegulatoryProvisions',
-                          'VeteransClaims_EffectiveDateRegulatoryProvisions'
+                          'VeteransClaims_EffectiveDateRegulatoryProvisions',
+                          'VeteransClaims_ExposureRegulatoryProvisions'
                       );
                     """;
 
                 Assert.Equal(
-                    17,
+                    18,
                     Convert.ToInt32(
                         await tableCommand
                             .ExecuteScalarAsync()));
@@ -257,6 +258,18 @@ public sealed class VeteransClaimsSqliteMigrationTests
 
             Assert.Equal(
                 "AddEffectiveDateRegulatoryProvisions",
+                reader.GetString(1));
+
+            Assert.True(
+                DateTimeOffset.TryParse(
+                    reader.GetString(2),
+                    out _));
+
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(16, reader.GetInt32(0));
+
+            Assert.Equal(
+                "AddExposureRegulatoryProvisions",
                 reader.GetString(1));
 
             Assert.True(
