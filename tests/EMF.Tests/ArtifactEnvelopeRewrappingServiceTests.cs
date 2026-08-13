@@ -193,6 +193,65 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
 
     [Fact]
 
+    public async Task RewrapAsync_MissingArtifactReturnsNotFound()
+    {
+        var artifactId = new ArtifactId("artifact-missing");
+        var service = new ArtifactEnvelopeRewrappingService(
+            new MissingContentStore(),
+            new TestRewrappingService(),
+            new AllowPolicy());
+
+        var result = await service.RewrapAsync(
+            CreateRequest(artifactId));
+
+        Assert.Equal(
+            ArtifactEnvelopeRewrappingOutcome.NotFound,
+            result.Outcome);
+        Assert.Equal(artifactId, result.ArtifactId);
+        Assert.Null(result.PreviousKeyEncryptionKeyId);
+        Assert.Null(result.CurrentKeyEncryptionKeyId);
+    }
+
+    [Fact]
+
+    public async Task RewrapAsync_CurrentEnvelopeSkipsReplacement()
+    {
+        var artifactId = new ArtifactId("artifact-current");
+        var original = new EncryptedEnvelope
+        {
+            Ciphertext = [1, 2, 3],
+            Nonce = [4, 5, 6],
+            AuthenticationTag = [7, 8, 9],
+            WrappedDataEncryptionKey = [10],
+            KeyEncryptionKeyId = "key/v2",
+            Algorithm = "AES-256-GCM"
+        };
+
+        var originalBytes =
+            JsonSerializer.SerializeToUtf8Bytes(original);
+        var contentStore =
+            new FailingReplacementContentStore(originalBytes);
+        var service = new ArtifactEnvelopeRewrappingService(
+            contentStore,
+            new AlreadyCurrentRewrappingService(),
+            new AllowPolicy());
+
+        var result = await service.RewrapAsync(
+            CreateRequest(artifactId));
+
+        Assert.Equal(
+            ArtifactEnvelopeRewrappingOutcome.AlreadyCurrent,
+            result.Outcome);
+        Assert.Equal("key/v2",
+            result.PreviousKeyEncryptionKeyId);
+        Assert.Equal("key/v2",
+            result.CurrentKeyEncryptionKeyId);
+        Assert.Equal(originalBytes,
+            await contentStore.ReadAsync(artifactId));
+    }
+
+    [Fact]
+
     public async Task RewrapAsync_DeniedRequestDoesNotProceed()
     {
         var service =
@@ -252,6 +311,33 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
                 AuthorizationDecision.Allow);
         }
     }
+
+    private sealed class MissingContentStore :
+        IArtifactContentStore
+    {
+        public Task WriteAsync(ArtifactId artifactId,
+            ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException();
+
+        public Task<byte[]?> ReadAsync(ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<byte[]?>(null);
+
+        public Task DeleteAsync(ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException();
+    }
+
+    private sealed class AlreadyCurrentRewrappingService :
+        IEnvelopeKeyRewrappingService
+    {
+        public Task<EncryptedEnvelope> RewrapAsync(
+            EncryptedEnvelope envelope,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(envelope);
+    }
+
 
     private sealed class FailingReplacementContentStore :
         IArtifactContentStore
