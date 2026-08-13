@@ -252,6 +252,50 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
 
     [Fact]
 
+    public async Task RewrapAsync_CorruptEnvelopeIsNotReplaced()
+    {
+        var artifactId = new ArtifactId("artifact-corrupt");
+        byte[] corruptContent = [0xFF, 0x00, 0x7F];
+        var contentStore =
+            new FailingReplacementContentStore(corruptContent);
+        var service = new ArtifactEnvelopeRewrappingService(
+            contentStore,
+            new TestRewrappingService(),
+            new AllowPolicy());
+
+        await Assert.ThrowsAnyAsync<JsonException>(
+            () => service.RewrapAsync(
+                CreateRequest(artifactId)));
+
+        Assert.Equal(corruptContent,
+            await contentStore.ReadAsync(artifactId));
+    }
+
+    [Fact]
+
+    public async Task RewrapAsync_CancellationIsNotReportedAsSuccess()
+    {
+        var policy = new AllowPolicy();
+        var service = new ArtifactEnvelopeRewrappingService(
+            new MissingContentStore(),
+            new TestRewrappingService(),
+            policy);
+
+        using var cancellation =
+            new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => service.RewrapAsync(
+                CreateRequest(
+                    new ArtifactId("artifact-cancelled")),
+                cancellation.Token));
+
+        Assert.Null(policy.LastRequest);
+    }
+
+    [Fact]
+
     public async Task RewrapAsync_DeniedRequestDoesNotProceed()
     {
         var service =
