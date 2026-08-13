@@ -22,11 +22,8 @@ public sealed class EvidencePersistenceService : IEvidencePersistenceService
     {
         ArgumentNullException.ThrowIfNull(result);
 
-        await _repository.AddArtifactAsync(
+        await _repository.AddArtifactWithProvenanceAsync(
             result.Artifact,
-            cancellationToken);
-
-        await _repository.AddProvenanceAsync(
             result.Provenance,
             cancellationToken);
     }

@@ -9,6 +9,75 @@ namespace EMF.Tests;
 
 public sealed class PersistenceTests
 {
+
+    [Fact]
+    public async Task SqliteEvidenceRepository_AddArtifactWithProvenanceAsync_RollsBackOnFailure()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-evidence-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository = new SqliteEvidenceRepository(databasePath);
+            await repository.InitializeAsync();
+
+            await using (var connection =
+                new Microsoft.Data.Sqlite.SqliteConnection(
+                    $"Data Source={databasePath}"))
+            {
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText =
+                    """
+                    CREATE TRIGGER fail_provenance
+                    BEFORE INSERT ON Provenance
+                    BEGIN
+                        SELECT RAISE(ABORT, 'forced provenance failure');
+                    END;
+                    """;
+
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var artifactId =
+                new ArtifactId("artifact-rollback-001");
+
+            var artifact =
+                new Artifact
+                {
+                    Id = artifactId,
+                    Name = "rollback.db",
+                    ArtifactType = "file"
+                };
+
+            var provenance =
+                new Provenance
+                {
+                    ArtifactId = artifactId,
+                    Source = "/data/rollback.db",
+                    RecordedBy = "EMF.Tests"
+                };
+
+            await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(
+                () => repository.AddArtifactWithProvenanceAsync(
+                    artifact,
+                    provenance));
+
+            var stored =
+                await repository.GetArtifactAsync(artifactId);
+
+            Assert.Null(stored);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+                File.Delete(databasePath);
+        }
+    }
+
+
     [Fact]
     public async Task SqliteEvidenceRepository_InitializeAsync_CreatesSchema()
     {

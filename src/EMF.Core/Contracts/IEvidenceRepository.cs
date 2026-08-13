@@ -25,6 +25,11 @@ public interface IEvidenceRepository
         Provenance provenance,
         CancellationToken cancellationToken = default);
 
+    Task AddArtifactWithProvenanceAsync(
+        Artifact artifact,
+        Provenance provenance,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<Provenance>> GetProvenanceAsync(
         ArtifactId artifactId,
         CancellationToken cancellationToken = default);

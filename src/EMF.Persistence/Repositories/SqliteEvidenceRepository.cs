@@ -247,6 +247,84 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+
+    public async Task AddArtifactWithProvenanceAsync(
+        Artifact artifact,
+        Provenance provenance,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(artifact);
+        ArgumentNullException.ThrowIfNull(provenance);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var transaction =
+            await connection.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            await using (var artifactCommand = connection.CreateCommand())
+            {
+                artifactCommand.Transaction = (SqliteTransaction)transaction;
+                artifactCommand.CommandText =
+                    "INSERT OR REPLACE INTO Artifacts " +
+                    "(Id, Name, ArtifactType, CreatedUtc, FingerprintAlgorithm, FingerprintValue, MetadataJson) " +
+                    "VALUES ($id, $name, $artifactType, $createdUtc, $fingerprintAlgorithm, $fingerprintValue, $metadataJson);";
+
+                artifactCommand.Parameters.AddWithValue("$id", artifact.Id.Value);
+                artifactCommand.Parameters.AddWithValue("$name", artifact.Name);
+                artifactCommand.Parameters.AddWithValue("$artifactType", artifact.ArtifactType);
+                artifactCommand.Parameters.AddWithValue("$createdUtc", artifact.CreatedUtc.ToString("O"));
+                artifactCommand.Parameters.AddWithValue(
+                    "$fingerprintAlgorithm",
+                    (object?)artifact.Fingerprint?.Algorithm ?? DBNull.Value);
+                artifactCommand.Parameters.AddWithValue(
+                    "$fingerprintValue",
+                    (object?)artifact.Fingerprint?.Value ?? DBNull.Value);
+                artifactCommand.Parameters.AddWithValue(
+                    "$metadataJson",
+                    JsonSerializer.Serialize(artifact.Metadata));
+
+                await artifactCommand.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await using (var provenanceCommand = connection.CreateCommand())
+            {
+                provenanceCommand.Transaction = (SqliteTransaction)transaction;
+                provenanceCommand.CommandText =
+                    "INSERT INTO Provenance " +
+                    "(ArtifactId, Source, RecordedUtc, RecordedBy, PropertiesJson) " +
+                    "VALUES ($artifactId, $source, $recordedUtc, $recordedBy, $propertiesJson);";
+
+                provenanceCommand.Parameters.AddWithValue(
+                    "$artifactId",
+                    provenance.ArtifactId.Value);
+                provenanceCommand.Parameters.AddWithValue(
+                    "$source",
+                    provenance.Source);
+                provenanceCommand.Parameters.AddWithValue(
+                    "$recordedUtc",
+                    provenance.RecordedUtc.ToString("O"));
+                provenanceCommand.Parameters.AddWithValue(
+                    "$recordedBy",
+                    provenance.RecordedBy);
+                provenanceCommand.Parameters.AddWithValue(
+                    "$propertiesJson",
+                    JsonSerializer.Serialize(provenance.Properties));
+
+                await provenanceCommand.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
     public async Task<IReadOnlyList<Provenance>> GetProvenanceAsync(
         ArtifactId artifactId,
         CancellationToken cancellationToken = default)
