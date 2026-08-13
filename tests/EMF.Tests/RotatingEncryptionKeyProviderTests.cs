@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using EMF.Security.Encryption;
 using EMF.Security.Encryption.Models;
+using EMF.Security.Encryption.Providers.Services;
 using EMF.Security.Encryption.Services;
 
 namespace EMF.Tests;
@@ -32,8 +33,13 @@ public sealed class RotatingEncryptionKeyProviderTests
                 keyA,
                 keyB);
 
+        var cryptographyProvider =
+            new DevelopmentContentCryptographyProvider(
+                provider);
+
         var service =
-            new DevelopmentEncryptionService(provider);
+            new DevelopmentEncryptionService(
+                cryptographyProvider);
 
         var plaintextA =
             Encoding.UTF8.GetBytes("Encrypted with key A.");

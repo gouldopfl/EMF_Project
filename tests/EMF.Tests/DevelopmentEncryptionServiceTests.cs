@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using EMF.Security.Encryption;
 using EMF.Security.Encryption.Models;
+using EMF.Security.Encryption.Providers.Services;
 using EMF.Security.Encryption.Services;
 
 namespace EMF.Tests;
@@ -21,12 +22,17 @@ public sealed class DevelopmentEncryptionServiceTests
                     RandomNumberGenerator.GetBytes(32)
             };
 
-        var provider =
+        var keyProvider =
             new InMemoryEncryptionKeyProvider(
                 new[] { key });
 
+        var cryptographyProvider =
+            new DevelopmentContentCryptographyProvider(
+                keyProvider);
+
         return (
-            new DevelopmentEncryptionService(provider),
+            new DevelopmentEncryptionService(
+                cryptographyProvider),
             key);
     }
 

@@ -1,0 +1,88 @@
+using System.Security.Cryptography;
+using System.Text;
+using EMF.Security.Encryption.Models;
+using EMF.Security.Encryption.Providers.Models;
+using EMF.Security.Encryption.Providers.Services;
+using EMF.Security.Encryption.Services;
+
+namespace EMF.Tests;
+
+public sealed class DevelopmentContentCryptographyProviderTests
+{
+    [Fact]
+    public async Task EncryptThenDecrypt_ReturnsOriginalPlaintext()
+    {
+        var key =
+            new EncryptionKey
+            {
+                KeyId = "key-001",
+                KeyMaterial =
+                    RandomNumberGenerator.GetBytes(32)
+            };
+
+        var keyProvider =
+            new InMemoryEncryptionKeyProvider(
+                new[] { key });
+
+        var provider =
+            new DevelopmentContentCryptographyProvider(
+                keyProvider);
+
+        var plaintext =
+            Encoding.UTF8.GetBytes(
+                "Protected EMF evidence.");
+
+        var encrypted =
+            await provider.EncryptAsync(plaintext);
+
+        var decrypted =
+            await provider.DecryptAsync(
+                new ContentDecryptionRequest
+                {
+                    Ciphertext = encrypted.Ciphertext,
+                    Nonce = encrypted.Nonce,
+                    AuthenticationTag = encrypted.AuthenticationTag,
+                    KeyId = encrypted.KeyId
+                });
+
+        Assert.Equal("key-001", encrypted.KeyId);
+        Assert.Equal(plaintext, decrypted);
+    }
+
+    [Fact]
+    public async Task TamperedCiphertext_IsRejected()
+    {
+        var key =
+            new EncryptionKey
+            {
+                KeyId = "key-001",
+                KeyMaterial =
+                    RandomNumberGenerator.GetBytes(32)
+            };
+
+        var keyProvider =
+            new InMemoryEncryptionKeyProvider(
+                new[] { key });
+
+        var provider =
+            new DevelopmentContentCryptographyProvider(
+                keyProvider);
+
+        var encrypted =
+            await provider.EncryptAsync(
+                Encoding.UTF8.GetBytes(
+                    "Protected EMF evidence."));
+
+        encrypted.Ciphertext[0] ^= 0x01;
+
+        await Assert.ThrowsAsync<AuthenticationTagMismatchException>(
+            () => provider.DecryptAsync(
+                new ContentDecryptionRequest
+                {
+                    Ciphertext = encrypted.Ciphertext,
+                    Nonce = encrypted.Nonce,
+                    AuthenticationTag = encrypted.AuthenticationTag,
+                    KeyId = encrypted.KeyId
+                }));
+    }
+}
