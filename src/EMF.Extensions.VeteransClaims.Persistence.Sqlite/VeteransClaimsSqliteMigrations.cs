@@ -630,6 +630,37 @@ internal static class VeteransClaimsSqliteMigrations
                     VeteransClaims_ExposureRegulatoryProvisions (
                         RegulatoryProvisionId
                     );
+                """),
+            new VeteransClaimsSqliteMigration(
+                17,
+                "AddExposureRequirements",
+                """
+                CREATE TABLE
+                    VeteransClaims_ExposureRequirements (
+                        ExposureId TEXT NOT NULL,
+                        RequirementId TEXT NOT NULL,
+                        PRIMARY KEY (
+                            ExposureId,
+                            RequirementId
+                        ),
+                        FOREIGN KEY (ExposureId)
+                            REFERENCES
+                                VeteransClaims_Exposures (
+                                    Id
+                                ),
+                        FOREIGN KEY (RequirementId)
+                            REFERENCES
+                                VeteransClaims_Requirements (
+                                    Id
+                                )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ExposureRequirements_Requirement
+                ON
+                    VeteransClaims_ExposureRequirements (
+                        RequirementId
+                    );
                 """)
         };
 }
