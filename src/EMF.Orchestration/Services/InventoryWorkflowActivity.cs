@@ -70,6 +70,30 @@ public sealed class InventoryWorkflowActivity : IWorkflowActivity
                 {
                     if (_contentStore is not null)
                     {
+                        var existingContent =
+                            await _contentStore.ReadAsync(
+                                existing.Id,
+                                cancellationToken);
+
+                        if (existingContent is null)
+                        {
+                            var newContent =
+                                await _contentStore.ReadAsync(
+                                    result.Artifact.Id,
+                                    cancellationToken);
+
+                            if (newContent is null)
+                            {
+                                throw new InvalidOperationException(
+                                    "Duplicate artifact content is missing.");
+                            }
+
+                            await _contentStore.WriteAsync(
+                                existing.Id,
+                                newContent,
+                                cancellationToken);
+                        }
+
                         await _contentStore.DeleteAsync(
                             result.Artifact.Id,
                             cancellationToken);

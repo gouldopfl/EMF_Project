@@ -62,6 +62,14 @@ public sealed class InventoryWorkflowActivityTests
 
         var contentStore = new FakeArtifactContentStore();
 
+        contentStore.Stored[existingId] =
+            System.Text.Encoding.UTF8.GetBytes(
+                "existing artifact content");
+
+        contentStore.Stored[newId] =
+            System.Text.Encoding.UTF8.GetBytes(
+                "new duplicate content");
+
         var activity =
             new InventoryWorkflowActivity(
                 service,
@@ -85,6 +93,85 @@ public sealed class InventoryWorkflowActivityTests
     }
 
 
+
+
+    [Fact]
+    public async Task ExecuteAsync_FailsWhenDuplicateContentCannotBeRecovered()
+    {
+        var existingId = new ArtifactId("artifact-existing");
+        var newId = new ArtifactId("artifact-new");
+
+        var fingerprint = new ContentFingerprint
+        {
+            Algorithm = "SHA-256",
+            Value = "ABC123"
+        };
+
+        var service = new FakeInventoryOrchestrationService
+        {
+            Results =
+            {
+                new InventoryOrchestrationResult
+                {
+                    DiscoveredItem = null!,
+                    Artifact = new EMF.Core.Models.Artifact
+                    {
+                        Id = newId,
+                        Name = "evidence.db",
+                        ArtifactType = "file",
+                        Fingerprint = fingerprint
+                    },
+                    Provenance = new EMF.Core.Models.Provenance
+                    {
+                        ArtifactId = newId,
+                        Source = "/data/evidence.db",
+                        RecordedBy = "EMF.Tests"
+                    },
+                    Success = true,
+                    Inventory = null
+                }
+            }
+        };
+
+        var persistence = new FakeEvidencePersistenceService
+        {
+            ExistingArtifact = new EMF.Core.Models.Artifact
+            {
+                Id = existingId,
+                Name = "evidence.db",
+                ArtifactType = "file",
+                Fingerprint = fingerprint
+            }
+        };
+
+        var contentStore = new FakeArtifactContentStore();
+
+        var activity =
+            new InventoryWorkflowActivity(
+                service,
+                persistence,
+                contentStore,
+                "/tmp/source",
+                new DiscoveryOptions());
+
+        var context =
+            new WorkflowExecutionContext
+            {
+                WorkflowId = new WorkflowId("workflow-inventory")
+            };
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => activity.ExecuteAsync(context));
+
+        Assert.Equal(
+            "Duplicate artifact content is missing.",
+            exception.Message);
+
+        Assert.Empty(persistence.Persisted);
+        Assert.Empty(contentStore.Deleted);
+        Assert.Empty(contentStore.Written);
+    }
 
     [Fact]
     public async Task ExecuteAsync_AggregatesPersistenceAndCleanupFailures()
@@ -224,6 +311,95 @@ public sealed class InventoryWorkflowActivityTests
         Assert.Equal(2, persistence.Persisted.Count);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_RestoresMissingContentForExistingArtifact()
+    {
+        var existingId = new ArtifactId("artifact-existing");
+        var newId = new ArtifactId("artifact-new");
+
+        var fingerprint = new ContentFingerprint
+        {
+            Algorithm = "SHA-256",
+            Value = "ABC123"
+        };
+
+        var sourcePath = "/data/evidence.txt";
+
+        var content =
+            System.Text.Encoding.UTF8.GetBytes(
+                "restored artifact content");
+
+        {
+            var service = new FakeInventoryOrchestrationService
+            {
+                Results =
+                {
+                    new InventoryOrchestrationResult
+                    {
+                        DiscoveredItem = null!,
+                        Artifact = new EMF.Core.Models.Artifact
+                        {
+                            Id = newId,
+                            Name = "evidence.txt",
+                            ArtifactType = "file",
+                            Fingerprint = fingerprint
+                        },
+                        Provenance = new EMF.Core.Models.Provenance
+                        {
+                            ArtifactId = newId,
+                            Source = sourcePath,
+                            RecordedBy = "EMF.Tests"
+                        },
+                        Success = true,
+                        Inventory = null
+                    }
+                }
+            };
+
+            var persistence = new FakeEvidencePersistenceService
+            {
+                ExistingArtifact = new EMF.Core.Models.Artifact
+                {
+                    Id = existingId,
+                    Name = "evidence.txt",
+                    ArtifactType = "file",
+                    Fingerprint = fingerprint
+                }
+            };
+
+            var contentStore = new FakeArtifactContentStore();
+            contentStore.Stored[newId] = content;
+
+            var activity =
+                new InventoryWorkflowActivity(
+                    service,
+                    persistence,
+                    contentStore,
+                    "/tmp/source",
+                    new DiscoveryOptions());
+
+            var context =
+                new WorkflowExecutionContext
+                {
+                    WorkflowId = new WorkflowId("workflow-inventory")
+                };
+
+            var result = await activity.ExecuteAsync(context);
+
+            Assert.True(result.Succeeded);
+            Assert.Empty(persistence.Persisted);
+            Assert.Single(contentStore.Deleted);
+            Assert.Equal(newId, contentStore.Deleted[0]);
+            Assert.Single(contentStore.Written);
+
+            Assert.Equal(existingId, contentStore.Written[0].ArtifactId);
+            Assert.Equal(
+                content,
+                contentStore.Written[0].Content);
+        }
+    }
+
     [Fact]
     public async Task ExecuteAsync_fails_when_any_inventory_result_fails()
     {
@@ -312,16 +488,30 @@ public sealed class InventoryWorkflowActivityTests
     {
         public List<ArtifactId> Deleted { get; } = [];
 
+        public List<(ArtifactId ArtifactId, byte[] Content)> Written { get; } = [];
+
+        public Dictionary<ArtifactId, byte[]> Stored { get; } = [];
+
         public Task WriteAsync(
             ArtifactId artifactId,
             ReadOnlyMemory<byte> content,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+            CancellationToken cancellationToken = default)
+        {
+            var bytes = content.ToArray();
+
+            Written.Add((artifactId, bytes));
+            Stored[artifactId] = bytes;
+
+            return Task.CompletedTask;
+        }
 
         public Task<byte[]?> ReadAsync(
             ArtifactId artifactId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<byte[]?>(null);
+            CancellationToken cancellationToken = default)
+        {
+            Stored.TryGetValue(artifactId, out var content);
+            return Task.FromResult<byte[]?>(content);
+        }
 
         public Task DeleteAsync(
             ArtifactId artifactId,
