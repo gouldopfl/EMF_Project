@@ -14,6 +14,8 @@ public interface IVeteransClaimsPersistence
 
     IRegulatoryRepository Regulatory { get; }
 
+    IMedicalOpinionRepository MedicalOpinions { get; }
+
     IServiceConnectionRepository ServiceConnections
     {
         get;
