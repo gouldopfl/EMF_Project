@@ -1,3 +1,7 @@
+using EMF.Security.Azure.Configuration;
+using EMF.Security.Azure.Cryptography;
+using EMF.Security.Azure.Encryption;
+using EMF.Security.Azure.Keys;
 using EMF.Core.Models.Identities;
 using EMF.Core.Models.Workflow;
 using EMF.Discovery.Models;
@@ -18,6 +22,27 @@ Console.WriteLine("======================================");
 Console.WriteLine();
 Console.WriteLine($"Source   : {sourcePath}");
 Console.WriteLine();
+
+var vaultUri = Environment.GetEnvironmentVariable("EMF_AZURE_KEY_VAULT_URI");
+var keyName = Environment.GetEnvironmentVariable("EMF_AZURE_KEY_NAME");
+var keyVersion = Environment.GetEnvironmentVariable("EMF_AZURE_KEY_VERSION");
+
+AzureEnvelopeEncryptionService? encryptionService = null;
+
+if (!string.IsNullOrWhiteSpace(vaultUri) &&
+    !string.IsNullOrWhiteSpace(keyName))
+{
+    var options = new AzureKeyVaultOptions
+    {
+        VaultUri = vaultUri,
+        KeyName = keyName,
+        KeyVersion = keyVersion
+    };
+
+    encryptionService = new AzureEnvelopeEncryptionService(
+        new ConfiguredAzureKeyReferenceProvider(options),
+        new AzureKeyCryptographyFactory(options));
+}
 
 var discovery = new FileSystemDiscoveryService();
 
