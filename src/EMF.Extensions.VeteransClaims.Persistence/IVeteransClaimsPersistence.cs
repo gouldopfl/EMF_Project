@@ -22,6 +22,10 @@ public interface IVeteransClaimsPersistence
 
     IEvidenceGapRepository EvidenceGaps { get; }
 
+    IEvidenceDevelopmentPlanRepository
+        EvidenceDevelopmentPlans
+    { get; }
+
     IServiceConnectionRepository ServiceConnections
     {
         get;
