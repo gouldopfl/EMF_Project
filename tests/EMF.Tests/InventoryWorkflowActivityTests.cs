@@ -1,3 +1,4 @@
+using EMF.Core.Contracts.Storage;
 using EMF.Core.Models.Identities;
 using EMF.Discovery.Models;
 using EMF.Orchestration.Contracts;
@@ -8,6 +9,56 @@ namespace EMF.Tests;
 
 public sealed class InventoryWorkflowActivityTests
 {
+
+    [Fact]
+    public async Task ExecuteAsync_DeletesContentWhenPersistenceFails()
+    {
+        var artifactId = new ArtifactId("artifact-cleanup-001");
+
+        var service = new FakeInventoryOrchestrationService
+        {
+            Results =
+            {
+                new InventoryOrchestrationResult
+                {
+                    DiscoveredItem = null!,
+                    Artifact = new EMF.Core.Models.Artifact
+                    {
+                        Id = artifactId,
+                        Name = "evidence.db",
+                        ArtifactType = "file"
+                    },
+                    Provenance = null!,
+                    Success = true,
+                    Inventory = null
+                }
+            }
+        };
+
+        var contentStore = new FakeArtifactContentStore();
+
+        var activity =
+            new InventoryWorkflowActivity(
+                service,
+                new FailingEvidencePersistenceService(),
+                contentStore,
+                "/tmp/source",
+                new DiscoveryOptions());
+
+        var context =
+            new WorkflowExecutionContext
+            {
+                WorkflowId = new WorkflowId("workflow-inventory")
+            };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => activity.ExecuteAsync(context));
+
+        Assert.Single(contentStore.Deleted);
+        Assert.Equal(artifactId, contentStore.Deleted[0]);
+    }
+
+
     [Fact]
     public async Task ExecuteAsync_succeeds_when_all_inventory_results_succeed()
     {
@@ -26,6 +77,7 @@ public sealed class InventoryWorkflowActivityTests
             new InventoryWorkflowActivity(
                 service,
                 persistence,
+                null,
                 "/tmp/source",
                 new DiscoveryOptions());
 
@@ -60,6 +112,7 @@ public sealed class InventoryWorkflowActivityTests
             new InventoryWorkflowActivity(
                 service,
                 persistence,
+                null,
                 "/tmp/source",
                 new DiscoveryOptions());
 
@@ -89,6 +142,43 @@ public sealed class InventoryWorkflowActivityTests
         };
     }
 
+
+
+    private sealed class FailingEvidencePersistenceService :
+        IEvidencePersistenceService
+    {
+        public Task PersistAsync(
+            InventoryOrchestrationResult result,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("forced persistence failure");
+        }
+    }
+
+    private sealed class FakeArtifactContentStore :
+        IArtifactContentStore
+    {
+        public List<ArtifactId> Deleted { get; } = [];
+
+        public Task WriteAsync(
+            ArtifactId artifactId,
+            ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<byte[]?> ReadAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<byte[]?>(null);
+
+        public Task DeleteAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+        {
+            Deleted.Add(artifactId);
+            return Task.CompletedTask;
+        }
+    }
 
     private sealed class FakeEvidencePersistenceService :
         IEvidencePersistenceService

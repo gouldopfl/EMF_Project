@@ -1,3 +1,4 @@
+using EMF.Core.Contracts.Storage;
 using EMF.Discovery.Models;
 using EMF.Orchestration.Contracts;
 using EMF.Orchestration.Models;
@@ -8,12 +9,14 @@ public sealed class InventoryWorkflowActivity : IWorkflowActivity
 {
     private readonly IInventoryOrchestrationService _service;
     private readonly IEvidencePersistenceService _persistence;
+    private readonly IArtifactContentStore? _contentStore;
     private readonly string _sourcePath;
     private readonly DiscoveryOptions _options;
 
     public InventoryWorkflowActivity(
         IInventoryOrchestrationService service,
         IEvidencePersistenceService persistence,
+        IArtifactContentStore? contentStore,
         string sourcePath,
         DiscoveryOptions options)
     {
@@ -24,6 +27,7 @@ public sealed class InventoryWorkflowActivity : IWorkflowActivity
 
         _service = service;
         _persistence = persistence;
+        _contentStore = contentStore;
         _sourcePath = sourcePath;
         _options = options;
     }
@@ -54,9 +58,20 @@ public sealed class InventoryWorkflowActivity : IWorkflowActivity
                 continue;
             }
 
-            await _persistence.PersistAsync(
-                result,
-                cancellationToken);
+            try
+            {
+                await _persistence.PersistAsync(
+                    result,
+                    cancellationToken);
+            }
+            catch when (_contentStore is not null)
+            {
+                await _contentStore.DeleteAsync(
+                    result.Artifact.Id,
+                    cancellationToken);
+
+                throw;
+            }
         }
 
         return new WorkflowActivityResult

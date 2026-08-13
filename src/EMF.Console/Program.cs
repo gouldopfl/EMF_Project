@@ -126,6 +126,7 @@ var inventoryActivity =
     new InventoryWorkflowActivity(
         orchestration,
         new EvidencePersistenceService(evidenceRepository),
+        contentStore,
         sourcePath,
         new DiscoveryOptions());
 
