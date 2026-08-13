@@ -78,12 +78,13 @@ public sealed class VeteransClaimsSqliteMigrationTests
                           'VeteransClaims_EvidenceClassificationFindings',
                           'VeteransClaims_FindingRegulatoryProvisions',
                           'VeteransClaims_FindingArtifacts',
-                          'VeteransClaims_EvidenceGaps'
+                          'VeteransClaims_EvidenceGaps',
+                          'VeteransClaims_EvidenceDevelopmentPlans'
                       );
                     """;
 
                 Assert.Equal(
-                    35,
+                    36,
                     Convert.ToInt32(
                         await tableCommand
                             .ExecuteScalarAsync()));
@@ -491,6 +492,18 @@ public sealed class VeteransClaimsSqliteMigrationTests
 
             Assert.Equal(
                 "AddEvidenceGaps",
+                reader.GetString(1));
+
+            Assert.True(
+                DateTimeOffset.TryParse(
+                    reader.GetString(2),
+                    out _));
+
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(34, reader.GetInt32(0));
+
+            Assert.Equal(
+                "AddEvidenceDevelopmentPlans",
                 reader.GetString(1));
 
             Assert.True(
