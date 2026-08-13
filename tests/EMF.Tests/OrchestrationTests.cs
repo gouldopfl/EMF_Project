@@ -6,12 +6,88 @@ using EMF.Discovery.Models;
 using EMF.Inventory.Providers;
 using EMF.Integrity;
 using EMF.Orchestration.Services;
+using EMF.Persistence.Storage;
 using EMF.Tests.TestInfrastructure;
 
 namespace EMF.Tests;
 
 public sealed class OrchestrationTests
 {
+
+    [Fact]
+    public async Task InventoryOrchestrationService_WritesArtifactContentToStore()
+    {
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-orchestration-{Guid.NewGuid():N}");
+
+        var contentPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-content-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(rootPath);
+
+        var databasePath = Path.Combine(rootPath, "evidence.db");
+
+        try
+        {
+            await using (var connection =
+                new Microsoft.Data.Sqlite.SqliteConnection(
+                    $"Data Source={databasePath}"))
+            {
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText =
+                    "CREATE TABLE evidence (id INTEGER PRIMARY KEY);";
+
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var contentStore =
+                new FileSystemArtifactContentStore(contentPath);
+
+            var service =
+                new InventoryOrchestrationService(
+                    new FileSystemDiscoveryService(),
+                    new InventoryRoutingService(
+                        new[] { new SqliteInventoryProvider() }),
+                    new ArtifactFactory(),
+                    new GuidArtifactIdGenerator(),
+                    new Sha256ContentFingerprintService(),
+                    contentStore);
+
+            InventoryOrchestrationResult? result = null;
+
+            await foreach (var item in service.ExecuteAsync(
+                rootPath,
+                new DiscoveryOptions()))
+            {
+                result = item;
+            }
+
+            Assert.NotNull(result);
+
+            var stored =
+                await contentStore.ReadAsync(
+                    result.Artifact.Id);
+
+            var source =
+                await File.ReadAllBytesAsync(databasePath);
+
+            Assert.Equal(source, stored);
+        }
+        finally
+        {
+            if (Directory.Exists(rootPath))
+                Directory.Delete(rootPath, true);
+
+            if (Directory.Exists(contentPath))
+                Directory.Delete(contentPath, true);
+        }
+    }
+
+
     [Fact]
     public void SelectProvider_ForSqliteDatabase_ReturnsSqliteProvider()
     {

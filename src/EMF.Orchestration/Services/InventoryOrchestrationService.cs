@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using EMF.Core.Contracts;
+using EMF.Core.Contracts.Storage;
 using EMF.Discovery.Contracts;
 using EMF.Discovery.Models;
 using EMF.Orchestration.Contracts;
@@ -14,6 +15,7 @@ public sealed class InventoryOrchestrationService : IInventoryOrchestrationServi
     private readonly IArtifactFactory _artifactFactory;
     private readonly IArtifactIdGenerator _artifactIdGenerator;
 private readonly IContentFingerprintService _fingerprintService;
+    private readonly IArtifactContentStore? _contentStore;
 
     public InventoryOrchestrationStatistics Statistics { get; private set; }
         = new();
@@ -24,6 +26,23 @@ private readonly IContentFingerprintService _fingerprintService;
         IArtifactFactory artifactFactory,
         IArtifactIdGenerator artifactIdGenerator,
     IContentFingerprintService fingerprintService)
+        : this(
+            discovery,
+            routing,
+            artifactFactory,
+            artifactIdGenerator,
+            fingerprintService,
+            null)
+    {
+    }
+
+    public InventoryOrchestrationService(
+        IStreamingDiscoveryService discovery,
+        IInventoryRoutingService routing,
+        IArtifactFactory artifactFactory,
+        IArtifactIdGenerator artifactIdGenerator,
+        IContentFingerprintService fingerprintService,
+        IArtifactContentStore? contentStore)
     {
         ArgumentNullException.ThrowIfNull(discovery);
         ArgumentNullException.ThrowIfNull(routing);
@@ -36,6 +55,7 @@ private readonly IContentFingerprintService _fingerprintService;
         _artifactFactory = artifactFactory;
         _artifactIdGenerator = artifactIdGenerator;
     _fingerprintService = fingerprintService;
+        _contentStore = contentStore;
     }
 
     public async IAsyncEnumerable<InventoryOrchestrationResult> ExecuteAsync(
@@ -80,6 +100,19 @@ var artifactResult = _artifactFactory.Create(
     item,
     artifactId,
     fingerprint);
+
+                if (_contentStore is not null)
+                {
+                    var content =
+                        await File.ReadAllBytesAsync(
+                            item.SourcePath,
+                            cancellationToken);
+
+                    await _contentStore.WriteAsync(
+                        artifactId,
+                        content,
+                        cancellationToken);
+                }
 
                 InventoryOrchestrationResult result;
 
