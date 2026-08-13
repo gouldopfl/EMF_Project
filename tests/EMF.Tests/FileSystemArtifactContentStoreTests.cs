@@ -36,6 +36,39 @@ public sealed class FileSystemArtifactContentStoreTests
 
 
     [Fact]
+    public async Task WriteAsync_ReplacesExistingContent()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        try
+        {
+            var store = new FileSystemArtifactContentStore(root);
+            var id = new ArtifactId("artifact-replace");
+
+            var first =
+                Encoding.UTF8.GetBytes("first content");
+
+            var second =
+                Encoding.UTF8.GetBytes("second content");
+
+            await store.WriteAsync(id, first);
+            await store.WriteAsync(id, second);
+
+            var result = await store.ReadAsync(id);
+
+            Assert.Equal(second, result);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+        }
+    }
+
+
+    [Fact]
     public async Task WriteThenRead_RoundTripsContent()
     {
         var root = Path.Combine(

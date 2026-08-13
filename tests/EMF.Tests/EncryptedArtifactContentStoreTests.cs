@@ -52,6 +52,51 @@ public sealed class EncryptedArtifactContentStoreTests
 
 
     [Fact]
+    public async Task WriteAsync_ReplacesExistingContent()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        try
+        {
+            var key = new EncryptionKey
+            {
+                KeyId = "test-key",
+                KeyMaterial = new byte[32]
+            };
+
+            var store =
+                new EncryptedArtifactContentStore(
+                    new FileSystemArtifactContentStore(root),
+                    new DevelopmentEnvelopeEncryptionService(
+                        new InMemoryEncryptionKeyProvider(
+                            new[] { key })));
+
+            var id = new ArtifactId("artifact-replace");
+
+            var first =
+                Encoding.UTF8.GetBytes("first protected content");
+
+            var second =
+                Encoding.UTF8.GetBytes("second protected content");
+
+            await store.WriteAsync(id, first);
+            await store.WriteAsync(id, second);
+
+            var result = await store.ReadAsync(id);
+
+            Assert.Equal(second, result);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+        }
+    }
+
+
+    [Fact]
     public async Task WriteThenRead_RoundTripsContent()
     {
         var root = Path.Combine(
