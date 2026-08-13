@@ -7,19 +7,23 @@ namespace EMF.Orchestration.Services;
 public sealed class InventoryWorkflowActivity : IWorkflowActivity
 {
     private readonly IInventoryOrchestrationService _service;
+    private readonly IEvidencePersistenceService _persistence;
     private readonly string _sourcePath;
     private readonly DiscoveryOptions _options;
 
     public InventoryWorkflowActivity(
         IInventoryOrchestrationService service,
+        IEvidencePersistenceService persistence,
         string sourcePath,
         DiscoveryOptions options)
     {
         ArgumentNullException.ThrowIfNull(service);
+        ArgumentNullException.ThrowIfNull(persistence);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         ArgumentNullException.ThrowIfNull(options);
 
         _service = service;
+        _persistence = persistence;
         _sourcePath = sourcePath;
         _options = options;
     }
@@ -47,7 +51,12 @@ public sealed class InventoryWorkflowActivity : IWorkflowActivity
             if (!result.Success)
             {
                 failed++;
+                continue;
             }
+
+            await _persistence.PersistAsync(
+                result,
+                cancellationToken);
         }
 
         return new WorkflowActivityResult

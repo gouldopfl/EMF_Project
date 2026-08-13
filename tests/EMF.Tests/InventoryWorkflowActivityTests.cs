@@ -20,9 +20,12 @@ public sealed class InventoryWorkflowActivityTests
             }
         };
 
+        var persistence = new FakeEvidencePersistenceService();
+
         var activity =
             new InventoryWorkflowActivity(
                 service,
+                persistence,
                 "/tmp/source",
                 new DiscoveryOptions());
 
@@ -36,6 +39,7 @@ public sealed class InventoryWorkflowActivityTests
             await activity.ExecuteAsync(context);
 
         Assert.True(result.Succeeded);
+        Assert.Equal(2, persistence.Persisted.Count);
     }
 
     [Fact]
@@ -50,9 +54,12 @@ public sealed class InventoryWorkflowActivityTests
             }
         };
 
+        var persistence = new FakeEvidencePersistenceService();
+
         var activity =
             new InventoryWorkflowActivity(
                 service,
+                persistence,
                 "/tmp/source",
                 new DiscoveryOptions());
 
@@ -66,6 +73,7 @@ public sealed class InventoryWorkflowActivityTests
             await activity.ExecuteAsync(context);
 
         Assert.False(result.Succeeded);
+        Assert.Single(persistence.Persisted);
     }
 
     private static InventoryOrchestrationResult CreateResult(
@@ -79,6 +87,21 @@ public sealed class InventoryWorkflowActivityTests
             Success = success,
             Inventory = null
         };
+    }
+
+
+    private sealed class FakeEvidencePersistenceService :
+        IEvidencePersistenceService
+    {
+        public List<InventoryOrchestrationResult> Persisted { get; } = [];
+
+        public Task PersistAsync(
+            InventoryOrchestrationResult result,
+            CancellationToken cancellationToken = default)
+        {
+            Persisted.Add(result);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeInventoryOrchestrationService :

@@ -116,11 +116,18 @@ var recoveryCoordinator =
         workflowRepository,
         new WorkflowRecoveryPolicy());
 
+var evidenceRepository =
+    new SqliteEvidenceRepository(
+        workflowDatabasePath);
+
+await evidenceRepository.InitializeAsync();
+
 var inventoryActivity =
-new InventoryWorkflowActivity(
-orchestration,
-sourcePath,
-new DiscoveryOptions());
+    new InventoryWorkflowActivity(
+        orchestration,
+        new EvidencePersistenceService(evidenceRepository),
+        sourcePath,
+        new DiscoveryOptions());
 
 var activityResolver =
 new WorkflowActivityResolver(
