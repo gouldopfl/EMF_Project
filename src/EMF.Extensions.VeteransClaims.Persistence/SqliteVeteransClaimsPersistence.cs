@@ -39,6 +39,10 @@ internal sealed class SqliteVeteransClaimsPersistence :
         MedicalOpinions =
             new SqliteMedicalOpinionRepository(databasePath);
 
+        EvidenceClassifications =
+            new SqliteEvidenceClassificationRepository(
+                databasePath);
+
         ServiceConnections =
             new SqliteServiceConnectionRepository(
                 databasePath);
@@ -65,6 +69,10 @@ internal sealed class SqliteVeteransClaimsPersistence :
     public IRegulatoryRepository Regulatory { get; }
 
     public IMedicalOpinionRepository MedicalOpinions { get; }
+
+    public IEvidenceClassificationRepository
+        EvidenceClassifications
+    { get; }
 
     public IServiceConnectionRepository
         ServiceConnections
