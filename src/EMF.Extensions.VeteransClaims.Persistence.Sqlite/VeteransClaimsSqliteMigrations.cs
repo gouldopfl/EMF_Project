@@ -1166,6 +1166,35 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_EvidenceDevelopmentPlans (
                     ClaimIssueId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                35,
+                "AddEvidenceDevelopmentPlanEvidenceGaps",
+                """
+                CREATE TABLE
+                    VeteransClaims_EvidenceDevelopmentPlanEvidenceGaps (
+                        EvidenceDevelopmentPlanId TEXT NOT NULL,
+                        EvidenceGapId TEXT NOT NULL,
+                        PRIMARY KEY (
+                            EvidenceDevelopmentPlanId,
+                            EvidenceGapId
+                        ),
+                        FOREIGN KEY (EvidenceDevelopmentPlanId)
+                            REFERENCES
+                                VeteransClaims_EvidenceDevelopmentPlans (
+                                    Id
+                                ),
+                        FOREIGN KEY (EvidenceGapId)
+                            REFERENCES VeteransClaims_EvidenceGaps (
+                                Id
+                            )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_EvidenceDevelopmentPlanEvidenceGaps_Gap
+                ON VeteransClaims_EvidenceDevelopmentPlanEvidenceGaps (
+                    EvidenceGapId
+                );
                 """)
         };
 }
