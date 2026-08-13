@@ -1,4 +1,4 @@
-# ADR-015: Security Key Management Boundary
+# ADR-018: Security Key Management Boundary
 
 ## Status
 

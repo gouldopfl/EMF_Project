@@ -1,4 +1,4 @@
-# ADR-017: Azure Key Management Adapter Boundary
+# ADR-020: Azure Key Management Adapter Boundary
 
 ## Status
 
