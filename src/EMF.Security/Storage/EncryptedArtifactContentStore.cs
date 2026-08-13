@@ -62,6 +62,15 @@ public sealed class EncryptedArtifactContentStore :
             cancellationToken);
     }
 
+    public Task DeleteAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default)
+    {
+        return _inner.DeleteAsync(
+            artifactId,
+            cancellationToken);
+    }
+
     private async Task<byte[]?> ReadEncryptedAsync(
         ArtifactId artifactId,
         CancellationToken cancellationToken)

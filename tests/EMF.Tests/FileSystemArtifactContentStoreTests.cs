@@ -6,6 +6,35 @@ namespace EMF.Tests;
 
 public sealed class FileSystemArtifactContentStoreTests
 {
+
+    [Fact]
+    public async Task DeleteAsync_RemovesStoredContent()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        try
+        {
+            var store = new FileSystemArtifactContentStore(root);
+            var id = new ArtifactId("artifact-delete");
+            var content = Encoding.UTF8.GetBytes("delete me");
+
+            await store.WriteAsync(id, content);
+            await store.DeleteAsync(id);
+
+            var result = await store.ReadAsync(id);
+
+            Assert.Null(result);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+        }
+    }
+
+
     [Fact]
     public async Task WriteThenRead_RoundTripsContent()
     {

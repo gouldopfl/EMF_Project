@@ -10,6 +10,47 @@ namespace EMF.Tests;
 
 public sealed class EncryptedArtifactContentStoreTests
 {
+
+    [Fact]
+    public async Task DeleteAsync_RemovesEncryptedContent()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        try
+        {
+            var key = new EncryptionKey
+            {
+                KeyId = "test-key",
+                KeyMaterial = new byte[32]
+            };
+
+            var store =
+                new EncryptedArtifactContentStore(
+                    new FileSystemArtifactContentStore(root),
+                    new DevelopmentEnvelopeEncryptionService(
+                        new InMemoryEncryptionKeyProvider(
+                            new[] { key })));
+
+            var id = new ArtifactId("artifact-delete");
+            var content = Encoding.UTF8.GetBytes("protected delete");
+
+            await store.WriteAsync(id, content);
+            await store.DeleteAsync(id);
+
+            var result = await store.ReadAsync(id);
+
+            Assert.Null(result);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+        }
+    }
+
+
     [Fact]
     public async Task WriteThenRead_RoundTripsContent()
     {

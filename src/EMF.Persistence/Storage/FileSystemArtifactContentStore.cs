@@ -47,6 +47,20 @@ public sealed class FileSystemArtifactContentStore :
             cancellationToken);
     }
 
+    public Task DeleteAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var path = GetPath(artifactId);
+
+        if (File.Exists(path))
+            File.Delete(path);
+
+        return Task.CompletedTask;
+    }
+
     private string GetPath(ArtifactId artifactId) =>
         Path.Combine(_rootPath, artifactId.Value);
 }

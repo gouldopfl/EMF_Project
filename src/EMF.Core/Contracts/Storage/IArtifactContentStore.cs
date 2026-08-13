@@ -12,4 +12,8 @@ public interface IArtifactContentStore
     Task<byte[]?> ReadAsync(
         ArtifactId artifactId,
         CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default);
 }
