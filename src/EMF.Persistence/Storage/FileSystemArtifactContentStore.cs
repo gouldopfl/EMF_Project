@@ -26,11 +26,28 @@ public sealed class FileSystemArtifactContentStore :
         Directory.CreateDirectory(_rootPath);
 
         var path = GetPath(artifactId);
+        var temporaryPath =
+            $"{path}.{Guid.NewGuid():N}.tmp";
 
-        await File.WriteAllBytesAsync(
-            path,
-            content.ToArray(),
-            cancellationToken);
+        try
+        {
+            await File.WriteAllBytesAsync(
+                temporaryPath,
+                content.ToArray(),
+                cancellationToken);
+
+            File.Move(
+                temporaryPath,
+                path,
+                overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
     }
 
     public async Task<byte[]?> ReadAsync(

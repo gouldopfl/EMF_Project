@@ -132,4 +132,53 @@ public sealed class FileSystemArtifactContentStoreTests
                 Directory.Delete(root, true);
         }
     }
+
+    [Fact]
+    public async Task WriteAsync_CancellationPreservesExistingContent()
+    {
+        var root =
+            Path.Combine(
+                Path.GetTempPath(),
+                Guid.NewGuid().ToString());
+
+        try
+        {
+            var store =
+                new FileSystemArtifactContentStore(root);
+
+            var id =
+                new ArtifactId("artifact-cancel");
+
+            var original =
+                Encoding.UTF8.GetBytes("original");
+
+            await store.WriteAsync(id, original);
+
+            using var cancellation =
+                new CancellationTokenSource();
+
+            cancellation.Cancel();
+
+            await Assert.ThrowsAnyAsync<
+                OperationCanceledException>(
+                    () => store.WriteAsync(
+                        id,
+                        Encoding.UTF8.GetBytes("replacement"),
+                        cancellation.Token));
+
+            Assert.Equal(
+                original,
+                await store.ReadAsync(id));
+
+            Assert.Single(
+                Directory.GetFiles(root));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
 }
