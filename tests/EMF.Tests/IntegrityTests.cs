@@ -84,6 +84,63 @@ public class IntegrityTests
     }
 
     [Fact]
+    public async Task ByteContentProducesFingerprint()
+    {
+        var content =
+            System.Text.Encoding.UTF8.GetBytes(
+                "EMF byte integrity test");
+
+        var service = new Sha256ContentFingerprintService();
+
+        var fingerprint =
+            await service.ComputeAsync(content);
+
+        Assert.Equal(
+            "SHA-256",
+            fingerprint.Algorithm);
+
+        Assert.Equal(
+            64,
+            fingerprint.Value.Length);
+    }
+
+    [Fact]
+    public async Task FileAndByteContentProduceSameFingerprint()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-integrity-{Guid.NewGuid():N}.txt");
+
+        var content =
+            System.Text.Encoding.UTF8.GetBytes(
+                "EMF shared integrity content");
+
+        try
+        {
+            await File.WriteAllBytesAsync(path, content);
+
+            var service = new Sha256ContentFingerprintService();
+
+            var fromFile =
+                await service.ComputeAsync(path);
+
+            var fromBytes =
+                await service.ComputeAsync(content);
+
+            Assert.Equal(
+                fromFile,
+                fromBytes);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
     public void ContentFingerprint_WithSameValues_HasValueEquality()
     {
         var first = new ContentFingerprint

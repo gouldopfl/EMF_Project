@@ -23,4 +23,20 @@ public sealed class Sha256ContentFingerprintService
             Value = Convert.ToHexString(hash)
         };
     }
+
+    public Task<ContentFingerprint> ComputeAsync(
+        ReadOnlyMemory<byte> content,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var hash = SHA256.HashData(content.Span);
+
+        return Task.FromResult(
+            new ContentFingerprint
+            {
+                Algorithm = "SHA-256",
+                Value = Convert.ToHexString(hash)
+            });
+    }
 }
