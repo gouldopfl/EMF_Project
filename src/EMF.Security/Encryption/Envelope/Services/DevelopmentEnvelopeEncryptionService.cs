@@ -53,7 +53,7 @@ public sealed class DevelopmentEnvelopeEncryptionService :
         }
 
         var wrappedDek =
-            WrapKey(key.KeyMaterial, dek);
+            DevelopmentDataEncryptionKeyWrapper.Wrap(key.KeyMaterial, dek);
 
         CryptographicOperations.ZeroMemory(dek);
 
@@ -83,7 +83,7 @@ public sealed class DevelopmentEnvelopeEncryptionService :
             throw new CryptographicException("Invalid encryption key.");
 
         var dek =
-            UnwrapKey(
+            DevelopmentDataEncryptionKeyWrapper.Unwrap(
                 key.KeyMaterial,
                 envelope.WrappedDataEncryptionKey);
 
@@ -109,61 +109,4 @@ public sealed class DevelopmentEnvelopeEncryptionService :
         }
     }
 
-    private static byte[] WrapKey(
-        byte[] kek,
-        byte[] dek)
-    {
-        var nonce = RandomNumberGenerator.GetBytes(NonceSize);
-        var ciphertext = new byte[dek.Length];
-        var tag = new byte[TagSize];
-
-        using var aes = new AesGcm(kek, TagSize);
-
-        aes.Encrypt(
-            nonce,
-            dek,
-            ciphertext,
-            tag);
-
-        var result =
-            new byte[
-                NonceSize +
-                TagSize +
-                ciphertext.Length];
-
-        Buffer.BlockCopy(nonce, 0, result, 0, NonceSize);
-        Buffer.BlockCopy(tag, 0, result, NonceSize, TagSize);
-        Buffer.BlockCopy(
-            ciphertext,
-            0,
-            result,
-            NonceSize + TagSize,
-            ciphertext.Length);
-
-        return result;
-    }
-
-    private static byte[] UnwrapKey(
-        byte[] kek,
-        byte[] wrapped)
-    {
-        if (wrapped.Length < NonceSize + TagSize)
-            throw new CryptographicException(
-                "Invalid wrapped data-encryption key.");
-
-        var nonce = wrapped[..NonceSize];
-        var tag = wrapped[NonceSize..(NonceSize + TagSize)];
-        var ciphertext = wrapped[(NonceSize + TagSize)..];
-        var dek = new byte[ciphertext.Length];
-
-        using var aes = new AesGcm(kek, TagSize);
-
-        aes.Decrypt(
-            nonce,
-            ciphertext,
-            tag,
-            dek);
-
-        return dek;
-    }
 }
