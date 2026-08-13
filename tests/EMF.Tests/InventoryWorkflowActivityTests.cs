@@ -5,6 +5,7 @@ using EMF.Discovery.Models;
 using EMF.Orchestration.Contracts;
 using EMF.Orchestration.Models;
 using EMF.Orchestration.Services;
+using EMF.Integrity;
 
 namespace EMF.Tests;
 
@@ -17,11 +18,16 @@ public sealed class InventoryWorkflowActivityTests
         var existingId = new ArtifactId("artifact-existing");
         var newId = new ArtifactId("artifact-new");
 
-        var fingerprint = new ContentFingerprint
-        {
-            Algorithm = "SHA-256",
-            Value = "ABC123"
-        };
+        var existingContent =
+            System.Text.Encoding.UTF8.GetBytes(
+                "existing artifact content");
+
+        var fingerprintService =
+            new Sha256ContentFingerprintService();
+
+        var fingerprint =
+            await fingerprintService.ComputeAsync(
+                existingContent);
 
         var service = new FakeInventoryOrchestrationService
         {
@@ -62,9 +68,7 @@ public sealed class InventoryWorkflowActivityTests
 
         var contentStore = new FakeArtifactContentStore();
 
-        contentStore.Stored[existingId] =
-            System.Text.Encoding.UTF8.GetBytes(
-                "existing artifact content");
+        contentStore.Stored[existingId] = existingContent;
 
         contentStore.Stored[newId] =
             System.Text.Encoding.UTF8.GetBytes(
@@ -74,6 +78,7 @@ public sealed class InventoryWorkflowActivityTests
             new InventoryWorkflowActivity(
                 service,
                 persistence,
+                new Sha256ContentFingerprintService(),
                 contentStore,
                 "/tmp/source",
                 new DiscoveryOptions());
@@ -150,6 +155,7 @@ public sealed class InventoryWorkflowActivityTests
             new InventoryWorkflowActivity(
                 service,
                 persistence,
+                new Sha256ContentFingerprintService(),
                 contentStore,
                 "/tmp/source",
                 new DiscoveryOptions());
@@ -171,6 +177,91 @@ public sealed class InventoryWorkflowActivityTests
         Assert.Empty(persistence.Persisted);
         Assert.Empty(contentStore.Deleted);
         Assert.Empty(contentStore.Written);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DoesNotReuseExistingContentWhenFingerprintDoesNotMatch()
+    {
+        var existingId = new ArtifactId("artifact-existing");
+        var newId = new ArtifactId("artifact-new");
+
+        var fingerprint = new ContentFingerprint
+        {
+            Algorithm = "SHA-256",
+            Value = "ABC123"
+        };
+
+        var service = new FakeInventoryOrchestrationService
+        {
+            Results =
+            {
+                new InventoryOrchestrationResult
+                {
+                    DiscoveredItem = null!,
+                    Artifact = new EMF.Core.Models.Artifact
+                    {
+                        Id = newId,
+                        Name = "evidence.db",
+                        ArtifactType = "file",
+                        Fingerprint = fingerprint
+                    },
+                    Provenance = new EMF.Core.Models.Provenance
+                    {
+                        ArtifactId = newId,
+                        Source = "/data/evidence.db",
+                        RecordedBy = "EMF.Tests"
+                    },
+                    Success = true,
+                    Inventory = null
+                }
+            }
+        };
+
+        var persistence = new FakeEvidencePersistenceService
+        {
+            ExistingArtifact = new EMF.Core.Models.Artifact
+            {
+                Id = existingId,
+                Name = "evidence.db",
+                ArtifactType = "file",
+                Fingerprint = fingerprint
+            }
+        };
+
+        var contentStore = new FakeArtifactContentStore();
+
+        contentStore.Stored[existingId] =
+            System.Text.Encoding.UTF8.GetBytes(
+                "tampered existing content");
+
+        contentStore.Stored[newId] =
+            System.Text.Encoding.UTF8.GetBytes(
+                "new duplicate content");
+
+        var activity =
+            new InventoryWorkflowActivity(
+                service,
+                persistence,
+                new Sha256ContentFingerprintService(),
+                contentStore,
+                "/tmp/source",
+                new DiscoveryOptions());
+
+        var context =
+            new WorkflowExecutionContext
+            {
+                WorkflowId = new WorkflowId("workflow-integrity")
+            };
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => activity.ExecuteAsync(context));
+
+        Assert.Equal(
+            "Existing artifact content failed fingerprint validation.",
+            exception.Message);
+
+        Assert.Empty(persistence.Persisted);
     }
 
     [Fact]
@@ -202,6 +293,7 @@ public sealed class InventoryWorkflowActivityTests
             new InventoryWorkflowActivity(
                 service,
                 new FailingEvidencePersistenceService(),
+                new Sha256ContentFingerprintService(),
                 new FailingArtifactContentStore(),
                 "/tmp/source",
                 new DiscoveryOptions());
@@ -258,6 +350,7 @@ public sealed class InventoryWorkflowActivityTests
             new InventoryWorkflowActivity(
                 service,
                 new FailingEvidencePersistenceService(),
+                new Sha256ContentFingerprintService(),
                 contentStore,
                 "/tmp/source",
                 new DiscoveryOptions());
@@ -294,6 +387,7 @@ public sealed class InventoryWorkflowActivityTests
             new InventoryWorkflowActivity(
                 service,
                 persistence,
+                new Sha256ContentFingerprintService(),
                 null,
                 "/tmp/source",
                 new DiscoveryOptions());
@@ -318,17 +412,19 @@ public sealed class InventoryWorkflowActivityTests
         var existingId = new ArtifactId("artifact-existing");
         var newId = new ArtifactId("artifact-new");
 
-        var fingerprint = new ContentFingerprint
-        {
-            Algorithm = "SHA-256",
-            Value = "ABC123"
-        };
-
-        var sourcePath = "/data/evidence.txt";
-
         var content =
             System.Text.Encoding.UTF8.GetBytes(
                 "restored artifact content");
+
+        var fingerprintService =
+            new Sha256ContentFingerprintService();
+
+        var fingerprint =
+            await fingerprintService.ComputeAsync(
+                content);
+
+        var sourcePath = "/data/evidence.txt";
+
 
         {
             var service = new FakeInventoryOrchestrationService
@@ -375,6 +471,7 @@ public sealed class InventoryWorkflowActivityTests
                 new InventoryWorkflowActivity(
                     service,
                     persistence,
+                    new Sha256ContentFingerprintService(),
                     contentStore,
                     "/tmp/source",
                     new DiscoveryOptions());
@@ -418,6 +515,7 @@ public sealed class InventoryWorkflowActivityTests
             new InventoryWorkflowActivity(
                 service,
                 persistence,
+                new Sha256ContentFingerprintService(),
                 null,
                 "/tmp/source",
                 new DiscoveryOptions());

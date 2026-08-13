@@ -1,3 +1,4 @@
+using EMF.Core.Contracts;
 using EMF.Core.Contracts.Storage;
 using EMF.Discovery.Models;
 using EMF.Orchestration.Contracts;
@@ -9,6 +10,7 @@ public sealed class InventoryWorkflowActivity : IWorkflowActivity
 {
     private readonly IInventoryOrchestrationService _service;
     private readonly IEvidencePersistenceService _persistence;
+    private readonly IContentFingerprintService _fingerprintService;
     private readonly IArtifactContentStore? _contentStore;
     private readonly string _sourcePath;
     private readonly DiscoveryOptions _options;
@@ -16,17 +18,20 @@ public sealed class InventoryWorkflowActivity : IWorkflowActivity
     public InventoryWorkflowActivity(
         IInventoryOrchestrationService service,
         IEvidencePersistenceService persistence,
+        IContentFingerprintService fingerprintService,
         IArtifactContentStore? contentStore,
         string sourcePath,
         DiscoveryOptions options)
     {
         ArgumentNullException.ThrowIfNull(service);
         ArgumentNullException.ThrowIfNull(persistence);
+        ArgumentNullException.ThrowIfNull(fingerprintService);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         ArgumentNullException.ThrowIfNull(options);
 
         _service = service;
         _persistence = persistence;
+        _fingerprintService = fingerprintService;
         _contentStore = contentStore;
         _sourcePath = sourcePath;
         _options = options;
@@ -92,6 +97,20 @@ public sealed class InventoryWorkflowActivity : IWorkflowActivity
                                 existing.Id,
                                 newContent,
                                 cancellationToken);
+
+                            existingContent = newContent;
+                        }
+
+                        var existingFingerprint =
+                            await _fingerprintService.ComputeAsync(
+                                existingContent,
+                                cancellationToken);
+
+                        if (existing.Fingerprint is null ||
+                            existingFingerprint != existing.Fingerprint)
+                        {
+                            throw new InvalidOperationException(
+                                "Existing artifact content failed fingerprint validation.");
                         }
 
                         await _contentStore.DeleteAsync(
