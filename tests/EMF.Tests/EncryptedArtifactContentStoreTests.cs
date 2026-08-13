@@ -97,6 +97,52 @@ public sealed class EncryptedArtifactContentStoreTests
 
 
     [Fact]
+    public async Task ReadAsync_RejectsCorruptedEncryptedContent()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        try
+        {
+            var key = new EncryptionKey
+            {
+                KeyId = "test-key",
+                KeyMaterial = new byte[32]
+            };
+
+            var inner =
+                new FileSystemArtifactContentStore(root);
+
+            var store =
+                new EncryptedArtifactContentStore(
+                    inner,
+                    new DevelopmentEnvelopeEncryptionService(
+                        new InMemoryEncryptionKeyProvider(
+                            new[] { key })));
+
+            var id = new ArtifactId("artifact-corrupt");
+
+            await store.WriteAsync(
+                id,
+                Encoding.UTF8.GetBytes("protected content"));
+
+            await inner.WriteAsync(
+                id,
+                Encoding.UTF8.GetBytes("corrupted envelope"));
+
+            await Assert.ThrowsAnyAsync<Exception>(
+                () => store.ReadAsync(id));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+        }
+    }
+
+
+    [Fact]
     public async Task WriteThenRead_RoundTripsContent()
     {
         var root = Path.Combine(
