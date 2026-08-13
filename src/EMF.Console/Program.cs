@@ -73,12 +73,15 @@ var discovery = new FileSystemDiscoveryService();
 var routing = new InventoryRoutingService(
     new[] { new SqliteInventoryProvider() });
 
+var fingerprintService =
+    new Sha256ContentFingerprintService();
+
 var orchestration = new InventoryOrchestrationService(
     discovery,
     routing,
     new ArtifactFactory(),
     new GuidArtifactIdGenerator(),
-    new Sha256ContentFingerprintService(),
+    fingerprintService,
     contentStore);
 
 
@@ -126,6 +129,7 @@ var inventoryActivity =
     new InventoryWorkflowActivity(
         orchestration,
         new EvidencePersistenceService(evidenceRepository),
+        fingerprintService,
         contentStore,
         sourcePath,
         new DiscoveryOptions());
