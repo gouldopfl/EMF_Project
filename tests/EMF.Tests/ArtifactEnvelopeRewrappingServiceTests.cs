@@ -193,6 +193,39 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
 
     [Fact]
 
+    public async Task RewrapAsync_WrappingFailurePreservesEnvelope()
+    {
+        var artifactId =
+            new ArtifactId("artifact-wrapping-failure");
+        var original = new EncryptedEnvelope
+        {
+            Ciphertext = [1, 2, 3],
+            Nonce = [4, 5, 6],
+            AuthenticationTag = [7, 8, 9],
+            WrappedDataEncryptionKey = [10],
+            KeyEncryptionKeyId = "key/v1",
+            Algorithm = "AES-256-GCM"
+        };
+
+        var originalBytes =
+            JsonSerializer.SerializeToUtf8Bytes(original);
+        var contentStore =
+            new FailingReplacementContentStore(originalBytes);
+        var service = new ArtifactEnvelopeRewrappingService(
+            contentStore,
+            new FailingRewrappingService(),
+            new AllowPolicy());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.RewrapAsync(
+                CreateRequest(artifactId)));
+
+        Assert.Equal(originalBytes,
+            await contentStore.ReadAsync(artifactId));
+    }
+
+    [Fact]
+
     public async Task RewrapAsync_MissingArtifactReturnsNotFound()
     {
         var artifactId = new ArtifactId("artifact-missing");
@@ -413,6 +446,19 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
             CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
+        }
+    }
+
+
+    private sealed class FailingRewrappingService :
+        IEnvelopeKeyRewrappingService
+    {
+        public Task<EncryptedEnvelope> RewrapAsync(
+            EncryptedEnvelope envelope,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException(
+                "Key wrapping failed.");
         }
     }
 
