@@ -11,6 +11,60 @@ public sealed class InventoryWorkflowActivityTests
 {
 
     [Fact]
+    public async Task ExecuteAsync_AggregatesPersistenceAndCleanupFailures()
+    {
+        var artifactId = new ArtifactId("artifact-cleanup-failure");
+
+        var service = new FakeInventoryOrchestrationService
+        {
+            Results =
+            {
+                new InventoryOrchestrationResult
+                {
+                    DiscoveredItem = null!,
+                    Artifact = new EMF.Core.Models.Artifact
+                    {
+                        Id = artifactId,
+                        Name = "evidence.db",
+                        ArtifactType = "file"
+                    },
+                    Provenance = null!,
+                    Success = true,
+                    Inventory = null
+                }
+            }
+        };
+
+        var activity =
+            new InventoryWorkflowActivity(
+                service,
+                new FailingEvidencePersistenceService(),
+                new FailingArtifactContentStore(),
+                "/tmp/source",
+                new DiscoveryOptions());
+
+        var context =
+            new WorkflowExecutionContext
+            {
+                WorkflowId = new WorkflowId("workflow-inventory")
+            };
+
+        var exception =
+            await Assert.ThrowsAsync<AggregateException>(
+                () => activity.ExecuteAsync(context));
+
+        Assert.Equal(2, exception.InnerExceptions.Count);
+        Assert.Contains(
+            exception.InnerExceptions,
+            ex => ex.Message == "forced persistence failure");
+        Assert.Contains(
+            exception.InnerExceptions,
+            ex => ex.Message == "forced cleanup failure");
+    }
+
+
+
+    [Fact]
     public async Task ExecuteAsync_DeletesContentWhenPersistenceFails()
     {
         var artifactId = new ArtifactId("artifact-cleanup-001");
@@ -177,6 +231,30 @@ public sealed class InventoryWorkflowActivityTests
         {
             Deleted.Add(artifactId);
             return Task.CompletedTask;
+        }
+    }
+
+
+    private sealed class FailingArtifactContentStore :
+        IArtifactContentStore
+    {
+        public Task WriteAsync(
+            ArtifactId artifactId,
+            ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<byte[]?> ReadAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<byte[]?>(null);
+
+        public Task DeleteAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException(
+                "forced cleanup failure");
         }
     }
 

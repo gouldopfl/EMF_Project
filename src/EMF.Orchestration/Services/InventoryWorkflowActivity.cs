@@ -64,11 +64,24 @@ public sealed class InventoryWorkflowActivity : IWorkflowActivity
                     result,
                     cancellationToken);
             }
-            catch when (_contentStore is not null)
+            catch (Exception persistenceException)
+                when (_contentStore is not null &&
+                      persistenceException is not OperationCanceledException)
             {
-                await _contentStore.DeleteAsync(
-                    result.Artifact.Id,
-                    cancellationToken);
+                try
+                {
+                    await _contentStore.DeleteAsync(
+                        result.Artifact.Id,
+                        cancellationToken);
+                }
+                catch (Exception cleanupException)
+                    when (cleanupException is not OperationCanceledException)
+                {
+                    throw new AggregateException(
+                        "Evidence persistence failed and artifact content cleanup also failed.",
+                        persistenceException,
+                        cleanupException);
+                }
 
                 throw;
             }
