@@ -58,6 +58,27 @@ public sealed class InventoryWorkflowActivity : IWorkflowActivity
                 continue;
             }
 
+            if (result.Artifact.Fingerprint is not null)
+            {
+                var existing =
+                    await _persistence.FindArtifactAsync(
+                        result.Provenance.Source,
+                        result.Artifact.Fingerprint,
+                        cancellationToken);
+
+                if (existing is not null)
+                {
+                    if (_contentStore is not null)
+                    {
+                        await _contentStore.DeleteAsync(
+                            result.Artifact.Id,
+                            cancellationToken);
+                    }
+
+                    continue;
+                }
+            }
+
             try
             {
                 await _persistence.PersistAsync(

@@ -1,5 +1,6 @@
 using EMF.Core.Contracts.Storage;
 using EMF.Core.Models.Identities;
+using EMF.Core.Models.Integrity;
 using EMF.Discovery.Models;
 using EMF.Orchestration.Contracts;
 using EMF.Orchestration.Models;
@@ -9,6 +10,81 @@ namespace EMF.Tests;
 
 public sealed class InventoryWorkflowActivityTests
 {
+
+    [Fact]
+    public async Task ExecuteAsync_SkipsDuplicateSourceAndFingerprint()
+    {
+        var existingId = new ArtifactId("artifact-existing");
+        var newId = new ArtifactId("artifact-new");
+
+        var fingerprint = new ContentFingerprint
+        {
+            Algorithm = "SHA-256",
+            Value = "ABC123"
+        };
+
+        var service = new FakeInventoryOrchestrationService
+        {
+            Results =
+            {
+                new InventoryOrchestrationResult
+                {
+                    DiscoveredItem = null!,
+                    Artifact = new EMF.Core.Models.Artifact
+                    {
+                        Id = newId,
+                        Name = "evidence.db",
+                        ArtifactType = "file",
+                        Fingerprint = fingerprint
+                    },
+                    Provenance = new EMF.Core.Models.Provenance
+                    {
+                        ArtifactId = newId,
+                        Source = "/data/evidence.db",
+                        RecordedBy = "EMF.Tests"
+                    },
+                    Success = true,
+                    Inventory = null
+                }
+            }
+        };
+
+        var persistence = new FakeEvidencePersistenceService
+        {
+            ExistingArtifact = new EMF.Core.Models.Artifact
+            {
+                Id = existingId,
+                Name = "evidence.db",
+                ArtifactType = "file",
+                Fingerprint = fingerprint
+            }
+        };
+
+        var contentStore = new FakeArtifactContentStore();
+
+        var activity =
+            new InventoryWorkflowActivity(
+                service,
+                persistence,
+                contentStore,
+                "/tmp/source",
+                new DiscoveryOptions());
+
+        var context =
+            new WorkflowExecutionContext
+            {
+                WorkflowId = new WorkflowId("workflow-inventory")
+            };
+
+        var result = await activity.ExecuteAsync(context);
+
+        Assert.True(result.Succeeded);
+        Assert.Empty(persistence.Persisted);
+        Assert.Single(contentStore.Deleted);
+        Assert.Equal(newId, contentStore.Deleted[0]);
+    }
+
+
 
     [Fact]
     public async Task ExecuteAsync_AggregatesPersistenceAndCleanupFailures()
@@ -186,11 +262,24 @@ public sealed class InventoryWorkflowActivityTests
     private static InventoryOrchestrationResult CreateResult(
         bool success)
     {
+        var artifactId =
+            new ArtifactId(Guid.NewGuid().ToString("N"));
+
         return new InventoryOrchestrationResult
         {
             DiscoveredItem = null!,
-            Artifact = null!,
-            Provenance = null!,
+            Artifact = new EMF.Core.Models.Artifact
+            {
+                Id = artifactId,
+                Name = "test.db",
+                ArtifactType = "file"
+            },
+            Provenance = new EMF.Core.Models.Provenance
+            {
+                ArtifactId = artifactId,
+                Source = "/tmp/test.db",
+                RecordedBy = "EMF.Tests"
+            },
             Success = success,
             Inventory = null
         };
@@ -201,6 +290,15 @@ public sealed class InventoryWorkflowActivityTests
     private sealed class FailingEvidencePersistenceService :
         IEvidencePersistenceService
     {
+
+        public Task<EMF.Core.Models.Artifact?> FindArtifactAsync(
+            string source,
+            EMF.Core.Models.Integrity.ContentFingerprint fingerprint,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<EMF.Core.Models.Artifact?>(null);
+        }
+
         public Task PersistAsync(
             InventoryOrchestrationResult result,
             CancellationToken cancellationToken = default)
@@ -261,7 +359,18 @@ public sealed class InventoryWorkflowActivityTests
     private sealed class FakeEvidencePersistenceService :
         IEvidencePersistenceService
     {
+        public EMF.Core.Models.Artifact? ExistingArtifact { get; init; }
+
         public List<InventoryOrchestrationResult> Persisted { get; } = [];
+
+
+        public Task<EMF.Core.Models.Artifact?> FindArtifactAsync(
+            string source,
+            EMF.Core.Models.Integrity.ContentFingerprint fingerprint,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(ExistingArtifact);
+        }
 
         public Task PersistAsync(
             InventoryOrchestrationResult result,

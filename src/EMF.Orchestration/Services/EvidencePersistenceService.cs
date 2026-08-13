@@ -1,4 +1,6 @@
 using EMF.Core.Contracts;
+using EMF.Core.Models;
+using EMF.Core.Models.Integrity;
 using EMF.Orchestration.Contracts;
 using EMF.Orchestration.Models;
 
@@ -14,6 +16,18 @@ public sealed class EvidencePersistenceService : IEvidencePersistenceService
         ArgumentNullException.ThrowIfNull(repository);
 
         _repository = repository;
+    }
+
+
+    public Task<Artifact?> FindArtifactAsync(
+        string source,
+        ContentFingerprint fingerprint,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.FindArtifactAsync(
+            source,
+            fingerprint,
+            cancellationToken);
     }
 
     public async Task PersistAsync(
