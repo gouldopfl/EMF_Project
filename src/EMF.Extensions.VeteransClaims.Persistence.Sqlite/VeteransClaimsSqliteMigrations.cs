@@ -908,6 +908,35 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_EvidenceClassificationMedicalConditions (
                     MedicalConditionId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                26,
+                "AddEvidenceClassificationMedicalOpinions",
+                """
+                CREATE TABLE
+                    VeteransClaims_EvidenceClassificationMedicalOpinions (
+                        EvidenceClassificationId TEXT NOT NULL,
+                        MedicalOpinionId TEXT NOT NULL,
+                        PRIMARY KEY (
+                            EvidenceClassificationId,
+                            MedicalOpinionId
+                        ),
+                        FOREIGN KEY (EvidenceClassificationId)
+                            REFERENCES
+                                VeteransClaims_EvidenceClassifications (
+                                    Id
+                                ),
+                        FOREIGN KEY (MedicalOpinionId)
+                            REFERENCES VeteransClaims_MedicalOpinions (
+                                Id
+                            )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_EvidenceClassificationMedicalOpinions_Opinion
+                ON VeteransClaims_EvidenceClassificationMedicalOpinions (
+                    MedicalOpinionId
+                );
                 """)
         };
 }
