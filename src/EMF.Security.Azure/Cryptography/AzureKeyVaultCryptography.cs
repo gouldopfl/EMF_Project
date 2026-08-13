@@ -5,10 +5,10 @@ namespace EMF.Security.Azure.Cryptography;
 public sealed class AzureKeyVaultCryptography :
     IAzureKeyCryptography
 {
-    private readonly CryptographyClient _client;
+    private readonly IAzureCryptographyClient _client;
 
     public AzureKeyVaultCryptography(
-        CryptographyClient client)
+        IAzureCryptographyClient client)
     {
         ArgumentNullException.ThrowIfNull(client);
 
@@ -23,13 +23,10 @@ public sealed class AzureKeyVaultCryptography :
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var result =
-            await _client.WrapKeyAsync(
-                KeyWrapAlgorithm.RsaOaep256,
-                key,
-                cancellationToken);
-
-        return result.EncryptedKey;
+        return await _client.WrapKeyAsync(
+            KeyWrapAlgorithm.RsaOaep256,
+            key,
+            cancellationToken);
     }
 
     public async Task<byte[]> UnwrapKeyAsync(
@@ -40,12 +37,9 @@ public sealed class AzureKeyVaultCryptography :
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var result =
-            await _client.UnwrapKeyAsync(
-                KeyWrapAlgorithm.RsaOaep256,
-                wrappedKey,
-                cancellationToken);
-
-        return result.Key;
+        return await _client.UnwrapKeyAsync(
+            KeyWrapAlgorithm.RsaOaep256,
+            wrappedKey,
+            cancellationToken);
     }
 }
