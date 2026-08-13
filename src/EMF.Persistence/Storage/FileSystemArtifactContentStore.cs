@@ -15,7 +15,7 @@ public sealed class FileSystemArtifactContentStore :
                 "Root path is required.",
                 nameof(rootPath));
 
-        _rootPath = rootPath;
+        _rootPath = Path.GetFullPath(rootPath);
     }
 
     public async Task WriteAsync(
@@ -61,6 +61,26 @@ public sealed class FileSystemArtifactContentStore :
         return Task.CompletedTask;
     }
 
-    private string GetPath(ArtifactId artifactId) =>
-        Path.Combine(_rootPath, artifactId.Value);
+    private string GetPath(ArtifactId artifactId)
+    {
+        var path =
+            Path.GetFullPath(
+                Path.Combine(_rootPath, artifactId.Value));
+
+        var rootWithSeparator =
+            _rootPath.EndsWith(
+                Path.DirectorySeparatorChar)
+                ? _rootPath
+                : _rootPath + Path.DirectorySeparatorChar;
+
+        if (!path.StartsWith(
+                rootWithSeparator,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Artifact ID resolves outside the content store root.");
+        }
+
+        return path;
+    }
 }

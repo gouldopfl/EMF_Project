@@ -69,6 +69,45 @@ public sealed class FileSystemArtifactContentStoreTests
 
 
     [Fact]
+    public async Task WriteAsync_DoesNotEscapeRootPath()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        var outside =
+            Path.Combine(
+                Path.GetDirectoryName(root)!,
+                "artifact-escape");
+
+        try
+        {
+            var store =
+                new FileSystemArtifactContentStore(root);
+
+            var id =
+                new ArtifactId("../artifact-escape");
+
+            var content =
+                Encoding.UTF8.GetBytes("must stay inside root");
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => store.WriteAsync(id, content));
+
+            Assert.False(File.Exists(outside));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+
+            if (File.Exists(outside))
+                File.Delete(outside);
+        }
+    }
+
+
+    [Fact]
     public async Task WriteThenRead_RoundTripsContent()
     {
         var root = Path.Combine(
