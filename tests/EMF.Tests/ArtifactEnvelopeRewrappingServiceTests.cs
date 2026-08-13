@@ -1,3 +1,4 @@
+using EMF.Core.Contracts.Storage;
 using System.Text.Json;
 using EMF.Core.Models.Identities;
 using EMF.Persistence.Storage;
@@ -155,6 +156,43 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
 
     [Fact]
 
+    public async Task RewrapAsync_ReplacementFailurePreservesEnvelope()
+    {
+        var artifactId =
+            new ArtifactId("artifact-replacement-failure");
+
+        var original = new EncryptedEnvelope
+        {
+            Ciphertext = [1, 2, 3],
+            Nonce = [4, 5, 6],
+            AuthenticationTag = [7, 8, 9],
+            WrappedDataEncryptionKey = [10],
+            KeyEncryptionKeyId = "key/v1",
+            Algorithm = "AES-256-GCM"
+        };
+
+        var originalBytes =
+            JsonSerializer.SerializeToUtf8Bytes(original);
+
+        var contentStore =
+            new FailingReplacementContentStore(originalBytes);
+
+        var service = new ArtifactEnvelopeRewrappingService(
+            contentStore,
+            new TestRewrappingService(),
+            new AllowPolicy());
+
+        await Assert.ThrowsAsync<IOException>(
+            () => service.RewrapAsync(
+                CreateRequest(artifactId)));
+
+        Assert.Equal(
+            originalBytes,
+            await contentStore.ReadAsync(artifactId));
+    }
+
+    [Fact]
+
     public async Task RewrapAsync_DeniedRequestDoesNotProceed()
     {
         var service =
@@ -214,6 +252,40 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
                 AuthorizationDecision.Allow);
         }
     }
+
+    private sealed class FailingReplacementContentStore :
+        IArtifactContentStore
+    {
+        private readonly byte[] _content;
+
+        public FailingReplacementContentStore(byte[] content)
+        {
+            _content = content.ToArray();
+        }
+
+        public Task WriteAsync(
+            ArtifactId artifactId,
+            ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken = default)
+        {
+            throw new IOException("Replacement failed.");
+        }
+
+        public Task<byte[]?> ReadAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<byte[]?>(_content.ToArray());
+        }
+
+        public Task DeleteAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
 
     private sealed class TamperingRewrappingService :
         IEnvelopeKeyRewrappingService
