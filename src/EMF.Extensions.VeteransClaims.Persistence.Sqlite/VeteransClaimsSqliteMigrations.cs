@@ -691,6 +691,29 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_BasisPresumptions (
                     PresumptionProvisionId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                19,
+                "AddMedicalOpinions",
+                """
+                CREATE TABLE
+                    VeteransClaims_MedicalOpinions (
+                        Id TEXT PRIMARY KEY,
+                        ClaimIssueId TEXT NOT NULL,
+                        Question TEXT NOT NULL,
+                        Opinion TEXT NOT NULL,
+                        FOREIGN KEY (ClaimIssueId)
+                            REFERENCES
+                                VeteransClaims_ClaimIssues (
+                                    Id
+                                )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicalOpinions_ClaimIssue
+                ON VeteransClaims_MedicalOpinions (
+                    ClaimIssueId
+                );
                 """)
         };
 }
