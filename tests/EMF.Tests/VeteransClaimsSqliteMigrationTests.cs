@@ -83,12 +83,13 @@ public sealed class VeteransClaimsSqliteMigrationTests
                           'VeteransClaims_EvidenceDevelopmentPlanEvidenceGaps',
                           'VeteransClaims_EvidenceDevelopmentPlanRequirements',
                           'VeteransClaims_EvidenceDevelopmentPlanArtifacts',
-                          'VeteransClaims_EvidencePackages'
+                          'VeteransClaims_EvidencePackages',
+                          'VeteransClaims_EvidencePackageArtifacts'
                       );
                     """;
 
                 Assert.Equal(
-                    40,
+                    41,
                     Convert.ToInt32(
                         await tableCommand
                             .ExecuteScalarAsync()));
@@ -556,6 +557,18 @@ public sealed class VeteransClaimsSqliteMigrationTests
 
             Assert.Equal(
                 "AddEvidencePackages",
+                reader.GetString(1));
+
+            Assert.True(
+                DateTimeOffset.TryParse(
+                    reader.GetString(2),
+                    out _));
+
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(39, reader.GetInt32(0));
+
+            Assert.Equal(
+                "AddEvidencePackageArtifacts",
                 reader.GetString(1));
 
             Assert.True(
