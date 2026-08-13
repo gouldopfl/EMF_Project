@@ -1,18 +1,39 @@
 using System.Security.Cryptography;
 using System.Text;
+using EMF.Security.Encryption;
+using EMF.Security.Encryption.Models;
 using EMF.Security.Encryption.Services;
 
 namespace EMF.Tests;
 
 public sealed class DevelopmentEncryptionServiceTests
 {
+    private static (
+        DevelopmentEncryptionService Service,
+        EncryptionKey Key)
+        CreateService()
+    {
+        var key =
+            new EncryptionKey
+            {
+                KeyId = "development-key-001",
+                KeyMaterial =
+                    RandomNumberGenerator.GetBytes(32)
+            };
+
+        var provider =
+            new InMemoryEncryptionKeyProvider(
+                new[] { key });
+
+        return (
+            new DevelopmentEncryptionService(provider),
+            key);
+    }
+
     [Fact]
     public async Task EncryptThenDecrypt_ReturnsOriginalPlaintext()
     {
-        var service =
-            new DevelopmentEncryptionService(
-                RandomNumberGenerator.GetBytes(32),
-                "development-key-001");
+        var (service, _) = CreateService();
 
         var plaintext =
             Encoding.UTF8.GetBytes(
@@ -30,10 +51,7 @@ public sealed class DevelopmentEncryptionServiceTests
     [Fact]
     public async Task TamperedCiphertext_IsRejected()
     {
-        var service =
-            new DevelopmentEncryptionService(
-                RandomNumberGenerator.GetBytes(32),
-                "development-key-001");
+        var (service, _) = CreateService();
 
         var plaintext =
             Encoding.UTF8.GetBytes(
@@ -51,10 +69,7 @@ public sealed class DevelopmentEncryptionServiceTests
     [Fact]
     public async Task WrongKeyId_IsRejected()
     {
-        var service =
-            new DevelopmentEncryptionService(
-                RandomNumberGenerator.GetBytes(32),
-                "development-key-001");
+        var (service, _) = CreateService();
 
         var plaintext =
             Encoding.UTF8.GetBytes(
@@ -64,7 +79,7 @@ public sealed class DevelopmentEncryptionServiceTests
             await service.EncryptAsync(plaintext);
 
         var wrongKeyContent =
-            new EMF.Security.Encryption.EncryptedContent
+            new EncryptedContent
             {
                 Ciphertext = encrypted.Ciphertext,
                 Nonce = encrypted.Nonce,
