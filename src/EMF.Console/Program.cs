@@ -2,6 +2,9 @@ using EMF.Security.Azure.Configuration;
 using EMF.Security.Azure.Cryptography;
 using EMF.Security.Azure.Encryption;
 using EMF.Security.Azure.Keys;
+using EMF.Security.Storage;
+using EMF.Persistence.Storage;
+using EMF.Core.Contracts.Storage;
 using EMF.Core.Models.Identities;
 using EMF.Core.Models.Workflow;
 using EMF.Discovery.Models;
@@ -44,6 +47,27 @@ if (!string.IsNullOrWhiteSpace(vaultUri) &&
         new AzureKeyCryptographyFactory(options));
 }
 
+IArtifactContentStore? contentStore = null;
+
+if (encryptionService is not null)
+{
+    var contentPath =
+        Environment.GetEnvironmentVariable("EMF_ARTIFACT_CONTENT_PATH");
+
+    if (string.IsNullOrWhiteSpace(contentPath))
+    {
+        contentPath =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "artifact-content");
+    }
+
+    contentStore =
+        new EncryptedArtifactContentStore(
+            new FileSystemArtifactContentStore(contentPath),
+            encryptionService);
+}
+
 var discovery = new FileSystemDiscoveryService();
 
 var routing = new InventoryRoutingService(
@@ -54,7 +78,8 @@ var orchestration = new InventoryOrchestrationService(
     routing,
     new ArtifactFactory(),
     new GuidArtifactIdGenerator(),
-new Sha256ContentFingerprintService());
+    new Sha256ContentFingerprintService(),
+    contentStore);
 
 
 var workflowDatabasePath =

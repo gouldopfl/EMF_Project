@@ -8,6 +8,7 @@
     <ProjectReference Include="..\EMF.Integrity\EMF.Integrity.csproj" />
     <ProjectReference Include="..\EMF.Persistence\EMF.Persistence.csproj" />
     <ProjectReference Include="..\EMF.Security.Azure\EMF.Security.Azure.csproj" />
+    <ProjectReference Include="..\EMF.Security\EMF.Security.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
