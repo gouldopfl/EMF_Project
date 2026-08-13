@@ -1,5 +1,6 @@
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
+using EMF.Core.Models.Integrity;
 
 namespace EMF.Core.Contracts;
 
@@ -15,6 +16,11 @@ public interface IEvidenceRepository
 
     Task<Artifact?> GetArtifactAsync(
         ArtifactId artifactId,
+        CancellationToken cancellationToken = default);
+
+    Task<Artifact?> FindArtifactAsync(
+        string source,
+        ContentFingerprint fingerprint,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<Relationship>> GetRelationshipsAsync(

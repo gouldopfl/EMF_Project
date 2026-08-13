@@ -1,6 +1,7 @@
 using EMF.Core.Contracts;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
+using EMF.Core.Models.Integrity;
 using Microsoft.Data.Sqlite;
 using System.Text.Json;
 
@@ -174,6 +175,55 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
             Metadata =
                 JsonSerializer.Deserialize<Dictionary<string, object>>(
                     metadataJson)
+                ?? new Dictionary<string, object>()
+        };
+    }
+
+    public async Task<Artifact?> FindArtifactAsync(
+        string source,
+        ContentFingerprint fingerprint,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT a.Id, a.Name, a.ArtifactType, a.CreatedUtc,
+                   a.FingerprintAlgorithm, a.FingerprintValue, a.MetadataJson
+            FROM Artifacts a
+            INNER JOIN Provenance p ON p.ArtifactId = a.Id
+            WHERE p.Source = $source
+              AND a.FingerprintAlgorithm = $algorithm
+              AND a.FingerprintValue = $value
+            LIMIT 1;
+            """;
+
+        command.Parameters.AddWithValue("$source", source);
+        command.Parameters.AddWithValue("$algorithm", fingerprint.Algorithm);
+        command.Parameters.AddWithValue("$value", fingerprint.Value);
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+            return null;
+
+        return new Artifact
+        {
+            Id = new ArtifactId(reader.GetString(0)),
+            Name = reader.GetString(1),
+            ArtifactType = reader.GetString(2),
+            CreatedUtc = DateTimeOffset.Parse(reader.GetString(3)),
+            Fingerprint = new ContentFingerprint
+            {
+                Algorithm = reader.GetString(4),
+                Value = reader.GetString(5)
+            },
+            Metadata =
+                JsonSerializer.Deserialize<Dictionary<string, object>>(
+                    reader.GetString(6))
                 ?? new Dictionary<string, object>()
         };
     }

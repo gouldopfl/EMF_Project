@@ -1,11 +1,48 @@
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
+using EMF.Core.Models.Integrity;
 using EMF.Tests.TestInfrastructure;
 
 namespace EMF.Tests;
 
 public sealed class EvidenceRepositoryTests
 {
+
+    [Fact]
+    public async Task FindArtifactAsync_MatchesSourceAndFingerprint()
+    {
+        var repository = new InMemoryEvidenceRepository();
+
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId("artifact-find-001"),
+            Name = "evidence.db",
+            ArtifactType = "file",
+            Fingerprint = new ContentFingerprint
+            {
+                Algorithm = "SHA-256",
+                Value = "ABC123"
+            }
+        };
+
+        await repository.AddArtifactWithProvenanceAsync(
+            artifact,
+            new Provenance
+            {
+                ArtifactId = artifact.Id,
+                Source = "/data/evidence.db",
+                RecordedBy = "EMF.Tests"
+            });
+
+        var result = await repository.FindArtifactAsync(
+            "/data/evidence.db",
+            artifact.Fingerprint);
+
+        Assert.NotNull(result);
+        Assert.Equal(artifact.Id, result!.Id);
+    }
+
+
     [Fact]
     public async Task Repository_StoresAndRetrievesArtifact()
     {

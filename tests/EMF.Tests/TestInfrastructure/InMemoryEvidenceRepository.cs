@@ -1,6 +1,7 @@
 using EMF.Core.Contracts;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
+using EMF.Core.Models.Integrity;
 
 namespace EMF.Tests.TestInfrastructure;
 
@@ -37,6 +38,23 @@ private readonly List<Provenance> _provenance = new();
         _artifacts.TryGetValue(
             artifactId.Value,
             out var artifact);
+
+        return Task.FromResult(artifact);
+    }
+
+    public Task<Artifact?> FindArtifactAsync(
+        string source,
+        ContentFingerprint fingerprint,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = _provenance
+            .Where(x => x.Source == source)
+            .Select(x => x.ArtifactId.Value)
+            .ToHashSet();
+
+        var artifact = _artifacts.Values.FirstOrDefault(x =>
+            ids.Contains(x.Id.Value) &&
+            x.Fingerprint == fingerprint);
 
         return Task.FromResult(artifact);
     }

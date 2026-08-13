@@ -11,6 +11,55 @@ public sealed class PersistenceTests
 {
 
     [Fact]
+    public async Task SqliteEvidenceRepository_FindArtifactAsync_MatchesSourceAndFingerprint()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-evidence-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository = new SqliteEvidenceRepository(databasePath);
+            await repository.InitializeAsync();
+
+            var artifact = new Artifact
+            {
+                Id = new ArtifactId("artifact-find-001"),
+                Name = "evidence.db",
+                ArtifactType = "file",
+                Fingerprint = new ContentFingerprint
+                {
+                    Algorithm = "SHA-256",
+                    Value = "ABC123"
+                }
+            };
+
+            await repository.AddArtifactWithProvenanceAsync(
+                artifact,
+                new Provenance
+                {
+                    ArtifactId = artifact.Id,
+                    Source = "/data/evidence.db",
+                    RecordedBy = "EMF.Tests"
+                });
+
+            var result = await repository.FindArtifactAsync(
+                "/data/evidence.db",
+                artifact.Fingerprint);
+
+            Assert.NotNull(result);
+            Assert.Equal(artifact.Id, result!.Id);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+                File.Delete(databasePath);
+        }
+    }
+
+
+
+    [Fact]
     public async Task SqliteEvidenceRepository_AddArtifactWithProvenanceAsync_RollsBackOnFailure()
     {
         var databasePath = Path.Combine(
