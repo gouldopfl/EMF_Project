@@ -1087,6 +1087,32 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_FindingRegulatoryProvisions (
                     RegulatoryProvisionId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                32,
+                "AddFindingArtifacts",
+                """
+                CREATE TABLE
+                    VeteransClaims_FindingArtifacts (
+                        FindingId TEXT NOT NULL,
+                        ArtifactId TEXT NOT NULL,
+                        Role TEXT NOT NULL,
+                        PRIMARY KEY (
+                            FindingId,
+                            ArtifactId,
+                            Role
+                        ),
+                        FOREIGN KEY (FindingId)
+                            REFERENCES VeteransClaims_Findings (
+                                Id
+                            )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_FindingArtifacts_Artifact
+                ON VeteransClaims_FindingArtifacts (
+                    ArtifactId
+                );
                 """)
         };
 }
