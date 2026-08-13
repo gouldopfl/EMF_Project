@@ -103,6 +103,58 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
 
 
     [Fact]
+    public async Task RewrapAsync_TamperingLeavesEnvelopeUnchanged()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        try
+        {
+            var artifactId = new ArtifactId("artifact-tampered");
+            var original = new EncryptedEnvelope
+            {
+                Ciphertext = [1, 2, 3],
+                Nonce = [4, 5, 6],
+                AuthenticationTag = [7, 8, 9],
+                WrappedDataEncryptionKey = [10],
+                KeyEncryptionKeyId = "key/v1",
+                Algorithm = "AES-256-GCM"
+            };
+
+            var originalBytes =
+                JsonSerializer.SerializeToUtf8Bytes(original);
+            var contentStore =
+                new FileSystemArtifactContentStore(root);
+
+            await contentStore.WriteAsync(
+                artifactId,
+                originalBytes);
+
+            var service = new ArtifactEnvelopeRewrappingService(
+                contentStore,
+                new TamperingRewrappingService(),
+                new AllowPolicy());
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.RewrapAsync(
+                    CreateRequest(artifactId)));
+
+            Assert.Equal(
+                originalBytes,
+                await contentStore.ReadAsync(artifactId));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [Fact]
+
     public async Task RewrapAsync_DeniedRequestDoesNotProceed()
     {
         var service =
@@ -162,6 +214,28 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
                 AuthorizationDecision.Allow);
         }
     }
+
+    private sealed class TamperingRewrappingService :
+        IEnvelopeKeyRewrappingService
+    {
+        public Task<EncryptedEnvelope> RewrapAsync(
+            EncryptedEnvelope envelope,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(
+                new EncryptedEnvelope
+                {
+                    Ciphertext = [99],
+                    Nonce = envelope.Nonce.ToArray(),
+                    AuthenticationTag =
+                        envelope.AuthenticationTag.ToArray(),
+                    WrappedDataEncryptionKey = [20],
+                    KeyEncryptionKeyId = "key/v2",
+                    Algorithm = envelope.Algorithm
+                });
+        }
+    }
+
 
     private sealed class TestRewrappingService :
         IEnvelopeKeyRewrappingService

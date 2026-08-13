@@ -86,6 +86,10 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 envelope,
                 cancellationToken);
 
+        ValidateRewrappedEnvelope(
+            envelope,
+            rewrapped);
+
         if (ReferenceEquals(envelope, rewrapped) ||
             (envelope.KeyEncryptionKeyId ==
                 rewrapped.KeyEncryptionKeyId &&
@@ -138,6 +142,25 @@ public sealed class ArtifactEnvelopeRewrappingService :
         }
 
         return envelope;
+    }
+
+    private static void ValidateRewrappedEnvelope(
+        EncryptedEnvelope original,
+        EncryptedEnvelope replacement)
+    {
+        ValidateEnvelope(replacement);
+
+        if (!original.Ciphertext.SequenceEqual(
+                replacement.Ciphertext) ||
+            !original.Nonce.SequenceEqual(
+                replacement.Nonce) ||
+            !original.AuthenticationTag.SequenceEqual(
+                replacement.AuthenticationTag) ||
+            original.Algorithm != replacement.Algorithm)
+        {
+            throw new InvalidOperationException(
+                "Rewrapping changed protected content metadata.");
+        }
     }
 
     private static ArtifactEnvelopeRewrappingResult
