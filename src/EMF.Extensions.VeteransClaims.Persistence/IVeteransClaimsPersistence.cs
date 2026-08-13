@@ -20,6 +20,8 @@ public interface IVeteransClaimsPersistence
 
     IFindingRepository Findings { get; }
 
+    IEvidenceGapRepository EvidenceGaps { get; }
+
     IServiceConnectionRepository ServiceConnections
     {
         get;

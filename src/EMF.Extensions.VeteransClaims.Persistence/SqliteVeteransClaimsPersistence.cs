@@ -46,6 +46,9 @@ internal sealed class SqliteVeteransClaimsPersistence :
         Findings =
             new SqliteFindingRepository(databasePath);
 
+        EvidenceGaps =
+            new SqliteEvidenceGapRepository(databasePath);
+
         ServiceConnections =
             new SqliteServiceConnectionRepository(
                 databasePath);
@@ -78,6 +81,8 @@ internal sealed class SqliteVeteransClaimsPersistence :
     { get; }
 
     public IFindingRepository Findings { get; }
+
+    public IEvidenceGapRepository EvidenceGaps { get; }
 
     public IServiceConnectionRepository
         ServiceConnections
