@@ -15,6 +15,70 @@ public sealed class OrchestrationTests
 {
 
     [Fact]
+    public async Task InventoryOrchestrationService_DoesNotStoreContentWhenInventoryFails()
+    {
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-orchestration-{Guid.NewGuid():N}");
+
+        var contentPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-content-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(rootPath);
+
+        var badPath = Path.Combine(rootPath, "bad.db");
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                badPath,
+                "not a sqlite database");
+
+            var contentStore =
+                new FileSystemArtifactContentStore(contentPath);
+
+            var service =
+                new InventoryOrchestrationService(
+                    new FileSystemDiscoveryService(),
+                    new InventoryRoutingService(
+                        new[] { new SqliteInventoryProvider() }),
+                    new ArtifactFactory(),
+                    new GuidArtifactIdGenerator(),
+                    new Sha256ContentFingerprintService(),
+                    contentStore);
+
+            InventoryOrchestrationResult? result = null;
+
+            await foreach (var item in service.ExecuteAsync(
+                rootPath,
+                new DiscoveryOptions()))
+            {
+                result = item;
+            }
+
+            Assert.NotNull(result);
+            Assert.False(result.Success);
+
+            var stored =
+                await contentStore.ReadAsync(
+                    result.Artifact.Id);
+
+            Assert.Null(stored);
+        }
+        finally
+        {
+            if (Directory.Exists(rootPath))
+                Directory.Delete(rootPath, true);
+
+            if (Directory.Exists(contentPath))
+                Directory.Delete(contentPath, true);
+        }
+    }
+
+
+
+    [Fact]
     public async Task InventoryOrchestrationService_WritesArtifactContentToStore()
     {
         var rootPath = Path.Combine(

@@ -101,19 +101,6 @@ var artifactResult = _artifactFactory.Create(
     artifactId,
     fingerprint);
 
-                if (_contentStore is not null)
-                {
-                    var content =
-                        await File.ReadAllBytesAsync(
-                            item.SourcePath,
-                            cancellationToken);
-
-                    await _contentStore.WriteAsync(
-                        artifactId,
-                        content,
-                        cancellationToken);
-                }
-
                 InventoryOrchestrationResult result;
 
                 try
@@ -123,6 +110,19 @@ var artifactResult = _artifactFactory.Create(
                         cancellationToken);
 
                     Statistics.InventoriesCompleted++;
+
+                    if (_contentStore is not null)
+                    {
+                        var content =
+                            await File.ReadAllBytesAsync(
+                                item.SourcePath,
+                                cancellationToken);
+
+                        await _contentStore.WriteAsync(
+                            artifactId,
+                            content,
+                            cancellationToken);
+                    }
 
                     result = new InventoryOrchestrationResult
                     {
