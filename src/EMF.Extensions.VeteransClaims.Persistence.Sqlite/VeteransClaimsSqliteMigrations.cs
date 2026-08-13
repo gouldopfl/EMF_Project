@@ -506,6 +506,37 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_Requirements (
                     RegulatoryProvisionId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                13,
+                "AddIssueDecisionRegulatoryProvisions",
+                """
+                CREATE TABLE
+                    VeteransClaims_IssueDecisionRegulatoryProvisions (
+                        IssueDecisionId TEXT NOT NULL,
+                        RegulatoryProvisionId TEXT NOT NULL,
+                        PRIMARY KEY (
+                            IssueDecisionId,
+                            RegulatoryProvisionId
+                        ),
+                        FOREIGN KEY (IssueDecisionId)
+                            REFERENCES
+                                VeteransClaims_IssueDecisions (
+                                    Id
+                                ),
+                        FOREIGN KEY (RegulatoryProvisionId)
+                            REFERENCES
+                                VeteransClaims_RegulatoryProvisions (
+                                    Id
+                                )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_IssueDecisionRegulatoryProvisions_Provision
+                ON
+                    VeteransClaims_IssueDecisionRegulatoryProvisions (
+                        RegulatoryProvisionId
+                    );
                 """)
         };
 }
