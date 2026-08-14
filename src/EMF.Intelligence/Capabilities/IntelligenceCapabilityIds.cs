@@ -9,4 +9,10 @@ public static class IntelligenceCapabilityIds
     {
         get;
     } = new("text.summarize");
+
+    public static IntelligenceCapabilityId
+        TextSegmentation
+    {
+        get;
+    } = new("text.segment");
 }
