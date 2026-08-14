@@ -39,6 +39,7 @@
     <ProjectReference Include="..\..\src\EMF.Intelligence.Development\EMF.Intelligence.Development.csproj" />
     <ProjectReference Include="..\..\src\EMF.Laboratory\EMF.Laboratory.csproj" />
     <ProjectReference Include="..\..\src\EMF.Console\EMF.Console.csproj" />
+    <ProjectReference Include="..\..\src\EMF.Intelligence.AzureOpenAI\EMF.Intelligence.AzureOpenAI.csproj" />
   </ItemGroup>
 
 </Project>
