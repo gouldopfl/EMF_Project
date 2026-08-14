@@ -37,6 +37,18 @@ public sealed class IntelligenceCapabilityContractTests
             method!.ReturnType
                 .GetGenericTypeDefinition());
 
+        var resultType =
+            method.ReturnType
+                .GetGenericArguments()[0];
+
+        Assert.Equal(
+            typeof(IntelligenceCapabilityResult<>),
+            resultType.GetGenericTypeDefinition());
+
+        Assert.True(
+            resultType.GetGenericArguments()[0]
+                .IsGenericParameter);
+
         var parameters =
             method.GetParameters();
 

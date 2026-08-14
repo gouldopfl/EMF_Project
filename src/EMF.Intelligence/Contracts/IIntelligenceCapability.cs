@@ -11,7 +11,7 @@ public interface IIntelligenceCapability<
 {
     IntelligenceCapabilityId Id { get; }
 
-    Task<TResult> ExecuteAsync(
+    Task<IntelligenceCapabilityResult<TResult>> ExecuteAsync(
         TRequest request,
         IntelligenceExecutionContext context,
         CancellationToken cancellationToken = default);
