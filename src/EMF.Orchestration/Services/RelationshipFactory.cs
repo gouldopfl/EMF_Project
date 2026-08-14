@@ -13,8 +13,6 @@ public sealed class RelationshipFactory : IRelationshipFactory
         string relationshipType,
         IReadOnlyDictionary<string, object>? properties = null)
     {
-        ArgumentNullException.ThrowIfNull(sourceArtifactId);
-        ArgumentNullException.ThrowIfNull(targetArtifactId);
         ArgumentException.ThrowIfNullOrWhiteSpace(relationshipType);
 
         var relationship = new Relationship
