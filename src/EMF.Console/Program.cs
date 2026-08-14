@@ -1,3 +1,3 @@
 using EMF.ConsoleApplication;
 
-return await InventoryConsoleCommand.RunAsync(args);
+return await ConsoleCommandRouter.RunAsync(args);
