@@ -12,6 +12,7 @@
     <ProjectReference Include="..\EMF.Intelligence\EMF.Intelligence.csproj" />
     <ProjectReference Include="..\EMF.Intelligence.Development\EMF.Intelligence.Development.csproj" />
     <ProjectReference Include="..\EMF.Security.Persistence.Sqlite\EMF.Security.Persistence.Sqlite.csproj" />
+    <ProjectReference Include="..\EMF.Intelligence.AzureOpenAI\EMF.Intelligence.AzureOpenAI.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -23,4 +23,15 @@ public sealed class ConsoleCommandRouterTests
 
         Assert.Equal(0, exitCode);
     }
+
+    [Fact]
+    public async Task SummarizeCommand_RequiresTextFile()
+    {
+        var exitCode =
+            await ConsoleCommandRouter.RunAsync(
+                ["intelligence", "summarize"]);
+
+        Assert.Equal(2, exitCode);
+    }
+
 }

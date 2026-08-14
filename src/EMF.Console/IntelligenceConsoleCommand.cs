@@ -19,6 +19,14 @@ public static class IntelligenceConsoleCommand
     public static async Task<int> RunAsync(
         string[] args)
     {
+        if (args.Length > 0 &&
+            args[0] == "summarize")
+        {
+            return await
+                TextSummarizationConsoleCommand
+                    .RunAsync(args[1..]);
+        }
+
         var promoteToEvidence =
             args.Length == 3 &&
             args[1] == "--promote";
