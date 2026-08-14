@@ -18,4 +18,9 @@ public static class IntelligenceAgentIds
     {
         get;
     } = new("text.insight");
+
+    public static AgentId LongTextInsight
+    {
+        get;
+    } = new("text.insight.long");
 }
