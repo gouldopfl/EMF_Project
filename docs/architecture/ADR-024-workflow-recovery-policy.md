@@ -1,12 +1,12 @@
-# ADR-008: Workflow Recovery Decision Policy
+# ADR-024: Workflow Recovery Decision Policy
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
-ADR-007 established persisted workflow recovery state.
+ADR-023 established persisted workflow recovery state.
 
 EMF can now identify workflows that were interrupted through:
 

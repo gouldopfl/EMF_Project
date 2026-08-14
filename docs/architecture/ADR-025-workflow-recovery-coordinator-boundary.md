@@ -1,14 +1,14 @@
-# ADR-009: Workflow Recovery Coordinator Boundary
+# ADR-025: Workflow Recovery Coordinator Boundary
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
-ADR-007 introduced persisted workflow recovery state.
+ADR-023 introduced persisted workflow recovery state.
 
-ADR-008 introduced the workflow recovery decision policy.
+ADR-024 introduced the workflow recovery decision policy.
 
 The workflow engine can now:
 

@@ -1,4 +1,4 @@
-# ADR-007: Workflow Resume and Restart Semantics
+# ADR-023: Workflow Resume and Restart Semantics
 
 ## Status
 
