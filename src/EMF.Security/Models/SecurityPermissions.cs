@@ -8,4 +8,9 @@ public static class SecurityPermissions
     {
         get;
     } = new("artifact.envelope.rewrap");
+
+    public static PermissionId ArtifactIntelligenceUse
+    {
+        get;
+    } = new("artifact.intelligence.use");
 }

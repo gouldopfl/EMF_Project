@@ -50,6 +50,7 @@ public sealed partial class IntelligenceCapabilityExecutorTests
                 string,
                 string>(
                     router,
+                    new RecordingAuthorizationPolicy(),
                     auditSink);
 
         var result =
@@ -110,6 +111,7 @@ public sealed partial class IntelligenceCapabilityExecutorTests
                 string,
                 string>(
                     router,
+                    new RecordingAuthorizationPolicy(),
                     auditSink);
 
         var exception =

@@ -41,6 +41,7 @@ public sealed partial class
                     string>(
                     [provider],
                     policy),
+                new RecordingAuthorizationPolicy(),
                 new RecordingAuditSink());
 
         var completedUtc =

@@ -32,6 +32,7 @@ public sealed partial class
                 string,
                 string>(
                 router,
+                new RecordingAuthorizationPolicy(),
                 auditSink);
 
         using var cancellation =

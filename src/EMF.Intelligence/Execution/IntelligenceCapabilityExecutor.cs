@@ -5,6 +5,7 @@ using EMF.Intelligence.Routing;
 using EMF.Security.Auditing;
 using EMF.Security.Auditing.Models;
 using EMF.Security.Authorization;
+using EMF.Security.Models;
 
 namespace EMF.Intelligence.Execution;
 
@@ -22,6 +23,9 @@ public sealed class IntelligenceCapabilityExecutor<
             TRequest,
             TResult> _router;
 
+    private readonly IAuthorizationPolicy
+        _authorizationPolicy;
+
     private readonly IntelligenceCapabilityAuditWriter
         _auditWriter;
 
@@ -29,12 +33,17 @@ public sealed class IntelligenceCapabilityExecutor<
         IntelligenceCapabilityProviderRouter<
             TRequest,
             TResult> router,
+        IAuthorizationPolicy authorizationPolicy,
         ISecurityAuditSink auditSink)
     {
         ArgumentNullException.ThrowIfNull(router);
+        ArgumentNullException.ThrowIfNull(
+            authorizationPolicy);
         ArgumentNullException.ThrowIfNull(auditSink);
 
         _router = router;
+        _authorizationPolicy =
+            authorizationPolicy;
         _auditWriter =
             new IntelligenceCapabilityAuditWriter(
                 auditSink);
@@ -60,6 +69,7 @@ public sealed class IntelligenceCapabilityExecutor<
             TResult>? provider = null;
 
         IntelligenceExecutionMetadata? metadata = null;
+        AuthorizationDecision? authorizationDecision = null;
         IntelligenceCapabilityResult<TResult> result;
 
         if (cancellationToken.IsCancellationRequested)
@@ -78,6 +88,44 @@ public sealed class IntelligenceCapabilityExecutor<
 
         try
         {
+            foreach (var artifactId in
+                context.InputArtifactIds)
+            {
+                authorizationDecision =
+                    await _authorizationPolicy
+                        .EvaluateAsync(
+                            new AuthorizationRequest
+                            {
+                                SubjectId =
+                                    context.SubjectId,
+                                PermissionId =
+                                    SecurityPermissions
+                                        .ArtifactIntelligenceUse,
+                                ArtifactId = artifactId,
+                                ProtectionClassificationId =
+                                    context
+                                        .ProtectionClassificationId
+                            },
+                            cancellationToken);
+
+                if (authorizationDecision !=
+                    AuthorizationDecision.Allow)
+                {
+                    await _auditWriter.WriteAsync(
+                        capabilityId,
+                        context,
+                        null,
+                        null,
+                        authorizationDecision,
+                        SecurityAuditOutcome.Denied,
+                        DateTimeOffset.UtcNow);
+
+                    throw new
+                        IntelligenceInputAuthorizationException(
+                            artifactId);
+                }
+            }
+
             provider =
                 await _router.SelectAsync(
                     capabilityId,
@@ -113,6 +161,10 @@ public sealed class IntelligenceCapabilityExecutor<
                 capabilityId,
                 provider!.ProviderId,
                 context);
+        }
+        catch (IntelligenceInputAuthorizationException)
+        {
+            throw;
         }
         catch (IntelligenceProviderUnavailableException)
         {

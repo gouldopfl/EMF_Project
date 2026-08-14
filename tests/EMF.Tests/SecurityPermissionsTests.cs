@@ -13,4 +13,14 @@ public sealed class SecurityPermissionsTests
                 .ArtifactEnvelopeRewrap
                 .Value);
     }
+
+    [Fact]
+    public void ArtifactIntelligenceUse_HasStableIdentity()
+    {
+        Assert.Equal(
+            "artifact.intelligence.use",
+            SecurityPermissions
+                .ArtifactIntelligenceUse
+                .Value);
+    }
 }

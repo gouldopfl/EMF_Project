@@ -50,6 +50,7 @@ public sealed partial class
                     string>(
                     [provider],
                     policy),
+                new RecordingAuthorizationPolicy(),
                 auditSink);
 
         var thrown =
