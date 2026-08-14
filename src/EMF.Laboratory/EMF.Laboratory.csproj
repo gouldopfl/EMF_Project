@@ -6,6 +6,8 @@
     <ProjectReference Include="..\EMF.Core\EMF.Core.csproj" />
     <ProjectReference Include="..\EMF.Intelligence\EMF.Intelligence.csproj" />
     <ProjectReference Include="..\EMF.Security\EMF.Security.csproj" />
+    <ProjectReference Include="..\EMF.Orchestration\EMF.Orchestration.csproj" />
+    <ProjectReference Include="..\EMF.Persistence\EMF.Persistence.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
