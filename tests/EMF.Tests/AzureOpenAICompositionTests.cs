@@ -81,7 +81,11 @@ public sealed class AzureOpenAICompositionTests
     public async Task ExecuteAsync_InvokesProviderForPermittedClassification()
     {
         var client =
-            new RecordingAzureOpenAITextClient();
+            new RecordingAzureOpenAITextClient
+            {
+                Completion =
+                    new("GENERATED_OUTPUT_MARKER")
+            };
 
         var provider =
             new AzureOpenAITextSummarizationProvider(
@@ -126,17 +130,31 @@ public sealed class AzureOpenAICompositionTests
                     IntelligenceCapabilityIds
                         .TextSummarization,
                     new TextSummarizationRequest(
-                        "Permitted source text.",
+                        "PROTECTED_INPUT_MARKER",
                         100),
                     context);
 
         Assert.True(result.Success);
         Assert.Equal(
-            "Permitted source text.",
+            "PROTECTED_INPUT_MARKER",
             client.Input);
         Assert.Single(auditSink.Records);
         Assert.Equal(
             "Succeeded",
             auditSink.Records[0].Outcome.ToString());
+
+        Assert.All(
+            auditSink.Records,
+            record =>
+            {
+                Assert.DoesNotContain(
+                    record.Facts.Values,
+                    value => value.Contains(
+                        "PROTECTED_INPUT_MARKER"));
+                Assert.DoesNotContain(
+                    record.Facts.Values,
+                    value => value.Contains(
+                        "GENERATED_OUTPUT_MARKER"));
+            });
     }
 }
