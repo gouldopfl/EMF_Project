@@ -1,5 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <ProjectReference Include="..\EMF.Intelligence.Development\EMF.Intelligence.Development.csproj" />
+    <ProjectReference Include="..\EMF.Security.Persistence.Sqlite\EMF.Security.Persistence.Sqlite.csproj" />
+    <ProjectReference Include="..\EMF.Core\EMF.Core.csproj" />
+    <ProjectReference Include="..\EMF.Intelligence\EMF.Intelligence.csproj" />
+    <ProjectReference Include="..\EMF.Security\EMF.Security.csproj" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>

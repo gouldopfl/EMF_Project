@@ -37,6 +37,7 @@
     <ProjectReference Include="..\..\src\EMF.Security.Persistence.Sqlite\EMF.Security.Persistence.Sqlite.csproj" />
     <ProjectReference Include="..\..\src\EMF.Intelligence\EMF.Intelligence.csproj" />
     <ProjectReference Include="..\..\src\EMF.Intelligence.Development\EMF.Intelligence.Development.csproj" />
+    <ProjectReference Include="..\..\src\EMF.Laboratory\EMF.Laboratory.csproj" />
   </ItemGroup>
 
 </Project>
