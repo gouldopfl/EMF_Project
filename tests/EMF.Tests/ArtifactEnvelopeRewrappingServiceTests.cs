@@ -205,11 +205,12 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
         var contentStore =
             new FailingReplacementContentStore(originalBytes);
 
+        RecordingSecurityAuditSink replacementAuditSink = new();
         var service = new ArtifactEnvelopeRewrappingService(
             contentStore,
             new TestRewrappingService(),
             new AllowPolicy(),
-            new RecordingSecurityAuditSink());
+            replacementAuditSink);
 
         await Assert.ThrowsAsync<IOException>(
             () => service.RewrapAsync(
@@ -218,6 +219,15 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
         Assert.Equal(
             originalBytes,
             await contentStore.ReadAsync(artifactId));
+
+        var auditRecord =
+            Assert.Single(replacementAuditSink.Records);
+        Assert.Equal(
+            AuthorizationDecision.Allow,
+            auditRecord.PolicyDecision);
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            auditRecord.Outcome);
     }
 
     [Fact]

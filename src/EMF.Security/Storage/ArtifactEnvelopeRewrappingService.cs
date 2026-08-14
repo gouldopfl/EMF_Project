@@ -155,10 +155,33 @@ public sealed class ArtifactEnvelopeRewrappingService :
             JsonSerializer.SerializeToUtf8Bytes(
                 rewrapped);
 
-        await _contentStore.WriteAsync(
-            request.ArtifactId,
-            replacement,
-            cancellationToken);
+        try
+        {
+            await _contentStore.WriteAsync(
+                request.ArtifactId,
+                replacement,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            await WriteAuditAsync(
+                request,
+                AuthorizationDecision.Allow,
+                SecurityAuditOutcome.Cancelled,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
+        catch (Exception)
+        {
+            await WriteAuditAsync(
+                request,
+                AuthorizationDecision.Allow,
+                SecurityAuditOutcome.Failed,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
 
         return await CreateResultAsync(
             request,
