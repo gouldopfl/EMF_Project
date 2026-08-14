@@ -6,7 +6,7 @@ using EMF.Core.Models.Identities;
 using EMF.Core.Models.Integrity;
 using EMF.Intelligence.Capabilities;
 
-namespace EMF.Laboratory;
+namespace EMF.Orchestration.Services;
 
 public sealed class TextInsightEvidenceArtifactFactory
 {

@@ -1,5 +1,5 @@
 using EMF.Intelligence.Capabilities;
-using EMF.Laboratory;
+using EMF.Orchestration.Services;
 
 namespace EMF.Tests;
 
