@@ -14,6 +14,9 @@ public static class ConsoleCommandRouter
             "inventory" =>
                 InventoryConsoleCommand.RunAsync(args[1..]),
 
+            "intelligence" =>
+                IntelligenceConsoleCommand.RunAsync(args[1..]),
+
             "help" or "--help" or "-h" =>
                 ShowHelpAsync(),
 
@@ -30,6 +33,8 @@ public static class ConsoleCommandRouter
             "Usage:");
         global::System.Console.WriteLine(
             "  emf inventory [source-path] [workflow-id]");
+        global::System.Console.WriteLine(
+            "  emf intelligence analyze <text-file>");
         global::System.Console.WriteLine();
         global::System.Console.WriteLine(
             "Legacy positional inventory arguments remain supported.");

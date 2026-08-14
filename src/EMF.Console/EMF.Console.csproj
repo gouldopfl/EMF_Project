@@ -9,6 +9,9 @@
     <ProjectReference Include="..\EMF.Persistence\EMF.Persistence.csproj" />
     <ProjectReference Include="..\EMF.Security.Azure\EMF.Security.Azure.csproj" />
     <ProjectReference Include="..\EMF.Security\EMF.Security.csproj" />
+    <ProjectReference Include="..\EMF.Intelligence\EMF.Intelligence.csproj" />
+    <ProjectReference Include="..\EMF.Intelligence.Development\EMF.Intelligence.Development.csproj" />
+    <ProjectReference Include="..\EMF.Security.Persistence.Sqlite\EMF.Security.Persistence.Sqlite.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
