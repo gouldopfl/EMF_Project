@@ -1,4 +1,5 @@
 using EMF.Intelligence.Contracts;
+using EMF.Intelligence.Execution;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
 
@@ -64,5 +65,45 @@ public sealed class IntelligenceCapabilityContractTests
         Assert.Equal(
             typeof(CancellationToken),
             parameters[2].ParameterType);
+    }
+
+    [Fact]
+    public void Executor_ImplementsProviderNeutralContract()
+    {
+        var contract =
+            typeof(
+                IIntelligenceCapabilityExecutor<
+                    string,
+                    string>);
+
+        var implementation =
+            typeof(
+                IntelligenceCapabilityExecutor<
+                    string,
+                    string>);
+
+        Assert.True(
+            contract.IsAssignableFrom(
+                implementation));
+
+        var method =
+            contract.GetMethod(
+                nameof(
+                    IIntelligenceCapabilityExecutor<
+                        string,
+                        string>.ExecuteAsync));
+
+        Assert.NotNull(method);
+
+        Assert.Equal(
+            typeof(
+                Task<
+                    IntelligenceCapabilityResult<
+                        string>>),
+            method!.ReturnType);
+
+        Assert.Equal(
+            4,
+            method.GetParameters().Length);
     }
 }

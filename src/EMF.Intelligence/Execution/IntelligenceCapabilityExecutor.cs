@@ -10,7 +10,10 @@ namespace EMF.Intelligence.Execution;
 
 public sealed class IntelligenceCapabilityExecutor<
     TRequest,
-    TResult>
+    TResult> :
+    IIntelligenceCapabilityExecutor<
+        TRequest,
+        TResult>
     where TRequest : notnull
     where TResult : notnull
 {
