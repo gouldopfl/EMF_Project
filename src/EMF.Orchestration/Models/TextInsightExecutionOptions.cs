@@ -1,10 +1,10 @@
 using EMF.Intelligence.Capabilities;
 
-namespace EMF.Laboratory;
+namespace EMF.Orchestration.Models;
 
-public sealed class TextInsightLaboratoryOptions
+public sealed class TextInsightExecutionOptions
 {
-    public TextInsightLaboratoryOptions(
+    public TextInsightExecutionOptions(
         int maximumSegmentCharacters = 4_000,
         int overlapCharacters = 200,
         int maximumSummaryCharacters = 1_000,

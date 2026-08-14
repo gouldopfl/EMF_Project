@@ -6,7 +6,6 @@ using EMF.Core.Models.Integrity;
 using EMF.Intelligence.Agents;
 using EMF.Intelligence.Development.Composition;
 using EMF.Intelligence.Models.Identities;
-using EMF.Laboratory;
 using EMF.Orchestration.Models;
 using EMF.Orchestration.Services;
 using EMF.Persistence.Repositories;
@@ -109,7 +108,7 @@ var correlationId =
         $"laboratory-{Guid.NewGuid():N}");
 
 var runner =
-    new TextInsightLaboratoryRunner(
+    new TextInsightExecutionService(
         composition.LongTextInsightAgentExecutor);
 
 var result =

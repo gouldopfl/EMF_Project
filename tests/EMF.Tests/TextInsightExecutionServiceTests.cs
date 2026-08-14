@@ -4,18 +4,19 @@ using EMF.Intelligence.Capabilities;
 using EMF.Intelligence.Contracts;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
-using EMF.Laboratory;
+using EMF.Orchestration.Models;
+using EMF.Orchestration.Services;
 using EMF.Security.Models.Identities;
 
 namespace EMF.Tests;
 
-public sealed class TextInsightLaboratoryRunnerTests
+public sealed class TextInsightExecutionServiceTests
 {
     [Fact]
     public void Options_ExposeSafeLocalDefaults()
     {
         var options =
-            new TextInsightLaboratoryOptions();
+            new TextInsightExecutionOptions();
 
         Assert.Equal(
             4_000,
@@ -39,7 +40,7 @@ public sealed class TextInsightLaboratoryRunnerTests
             new RecordingAgentExecutor();
 
         var runner =
-            new TextInsightLaboratoryRunner(
+            new TextInsightExecutionService(
                 executor);
 
         var artifactId =
@@ -54,7 +55,7 @@ public sealed class TextInsightLaboratoryRunnerTests
                 new ProtectionClassificationId(
                     "confidential"),
                 [artifactId],
-                new TextInsightLaboratoryOptions(
+                new TextInsightExecutionOptions(
                     1_000,
                     100,
                     200,

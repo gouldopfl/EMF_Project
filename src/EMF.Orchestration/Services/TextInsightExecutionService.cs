@@ -5,16 +5,17 @@ using EMF.Intelligence.Contracts;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
 using EMF.Security.Models.Identities;
+using EMF.Orchestration.Models;
 
-namespace EMF.Laboratory;
+namespace EMF.Orchestration.Services;
 
-public sealed class TextInsightLaboratoryRunner
+public sealed class TextInsightExecutionService
 {
     private readonly IIntelligenceAgentExecutor<
         LongTextInsightRequest,
         TextInsight> _agentExecutor;
 
-    public TextInsightLaboratoryRunner(
+    public TextInsightExecutionService(
         IIntelligenceAgentExecutor<
             LongTextInsightRequest,
             TextInsight> agentExecutor)
@@ -34,7 +35,7 @@ public sealed class TextInsightLaboratoryRunner
                 protectionClassificationId,
             IReadOnlyCollection<ArtifactId>
                 inputArtifactIds,
-            TextInsightLaboratoryOptions? options = null,
+            TextInsightExecutionOptions? options = null,
             CancellationToken cancellationToken =
                 default)
     {
@@ -42,7 +43,7 @@ public sealed class TextInsightLaboratoryRunner
             inputArtifactIds);
 
         options ??=
-            new TextInsightLaboratoryOptions();
+            new TextInsightExecutionOptions();
 
         var context =
             new IntelligenceExecutionContext(
