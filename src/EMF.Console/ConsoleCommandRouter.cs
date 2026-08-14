@@ -34,7 +34,7 @@ public static class ConsoleCommandRouter
         global::System.Console.WriteLine(
             "  emf inventory [source-path] [workflow-id]");
         global::System.Console.WriteLine(
-            "  emf intelligence analyze <text-file>");
+            "  emf intelligence analyze [--promote] <text-file>");
         global::System.Console.WriteLine();
         global::System.Console.WriteLine(
             "Legacy positional inventory arguments remain supported.");

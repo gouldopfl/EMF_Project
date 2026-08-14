@@ -1,3 +1,4 @@
+using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Intelligence.Agents;
 using EMF.Intelligence.Capabilities;
@@ -9,7 +10,9 @@ internal static class TextInsightConsoleOutputWriter
     public static void Write(
         IntelligenceAgentResult<TextInsight> result,
         ArtifactId sourceArtifactId,
-        string auditDatabasePath)
+        string auditDatabasePath,
+        Artifact? evidenceArtifact = null,
+        string? evidenceDatabasePath = null)
     {
         global::System.Console.WriteLine(
             "======================================");
@@ -52,5 +55,13 @@ internal static class TextInsightConsoleOutputWriter
             $"Artifact    : {sourceArtifactId.Value}");
         global::System.Console.WriteLine(
             $"Audit DB    : {auditDatabasePath}");
+
+        if (evidenceArtifact is not null)
+        {
+            global::System.Console.WriteLine(
+                $"Evidence    : {evidenceArtifact.Id.Value}");
+            global::System.Console.WriteLine(
+                $"Evidence DB : {evidenceDatabasePath}");
+        }
     }
 }

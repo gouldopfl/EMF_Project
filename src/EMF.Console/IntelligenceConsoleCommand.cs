@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Intelligence.Agents;
 using EMF.Intelligence.Development.Composition;
@@ -18,15 +19,22 @@ public static class IntelligenceConsoleCommand
     public static async Task<int> RunAsync(
         string[] args)
     {
-        if (args.Length != 2 ||
-            args[0] != "analyze")
+        var promoteToEvidence =
+            args.Length == 3 &&
+            args[1] == "--promote";
+
+        if (args.Length == 0 ||
+            args[0] != "analyze" ||
+            (args.Length != 2 && !promoteToEvidence))
         {
             global::System.Console.WriteLine(
-                "Usage: emf intelligence analyze <text-file>");
+                "Usage: emf intelligence analyze " +
+                "[--promote] <text-file>");
             return 2;
         }
 
-        var sourcePath = Path.GetFullPath(args[1]);
+        var sourcePath =
+            Path.GetFullPath(args[^1]);
 
         if (!File.Exists(sourcePath))
         {
@@ -122,10 +130,49 @@ public static class IntelligenceConsoleCommand
             return 1;
         }
 
+        Artifact? evidenceArtifact = null;
+        string? evidenceDatabasePath = null;
+
+        if (promoteToEvidence)
+        {
+            var reviewedBy =
+                Environment.GetEnvironmentVariable(
+                    "EMF_REVIEWED_BY");
+
+            if (string.IsNullOrWhiteSpace(reviewedBy))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Evidence promotion requires review. " +
+                    "Set EMF_REVIEWED_BY to the reviewer identity.");
+                return 1;
+            }
+
+            evidenceDatabasePath =
+                Environment.GetEnvironmentVariable(
+                    "EMF_EVIDENCE_DATABASE") ??
+                Path.Combine(
+                    AppContext.BaseDirectory,
+                    "emf-workflows.db");
+
+            evidenceArtifact =
+                await TextInsightConsoleEvidencePublisher
+                    .PublishAsync(
+                        sourcePath,
+                        contentHash,
+                        sourceArtifactId,
+                        subjectId,
+                        reviewedBy,
+                        DateTimeOffset.UtcNow,
+                        result,
+                        evidenceDatabasePath);
+        }
+
         TextInsightConsoleOutputWriter.Write(
             result,
             sourceArtifactId,
-            auditDatabasePath);
+            auditDatabasePath,
+            evidenceArtifact,
+            evidenceDatabasePath);
 
         return 0;
     }
