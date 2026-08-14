@@ -28,6 +28,7 @@ public sealed class SqliteSecurityAuditSinkTests
                     databasePath);
 
             await sink.InitializeAsync();
+            await sink.InitializeAsync();
 
             var occurredUtc =
                 new DateTimeOffset(

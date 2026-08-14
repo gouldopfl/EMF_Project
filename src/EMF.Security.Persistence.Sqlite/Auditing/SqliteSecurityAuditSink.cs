@@ -30,51 +30,12 @@ public sealed class SqliteSecurityAuditSink :
             builder.ToString());
     }
 
-    public async Task InitializeAsync(
+    public Task InitializeAsync(
         CancellationToken cancellationToken = default)
     {
-        await using var connection =
-            CreateConnection();
-
-        await connection.OpenAsync(
-            cancellationToken);
-
-        await using var command =
-            connection.CreateCommand();
-
-        command.CommandText =
-            """
-            CREATE TABLE IF NOT EXISTS SecurityAuditRecords (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Operation TEXT NOT NULL,
-                ResourceType TEXT NOT NULL,
-                ResourceId TEXT NOT NULL,
-                SubjectId TEXT NOT NULL,
-                PolicyDecision TEXT NULL,
-                Destination TEXT NULL,
-                Outcome TEXT NOT NULL,
-                OccurredUtc TEXT NOT NULL,
-                FactsJson TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS
-                IX_SecurityAuditRecords_Resource
-            ON SecurityAuditRecords (
-                ResourceType,
-                ResourceId,
-                OccurredUtc
-            );
-
-            CREATE INDEX IF NOT EXISTS
-                IX_SecurityAuditRecords_Subject
-            ON SecurityAuditRecords (
-                SubjectId,
-                OccurredUtc
-            );
-            """;
-
-        await command.ExecuteNonQueryAsync(
-            cancellationToken);
+        return new SecurityAuditSqliteSchema(
+            _databasePath)
+            .InitializeAsync(cancellationToken);
     }
 
     public async Task WriteAsync(
