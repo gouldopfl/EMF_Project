@@ -377,13 +377,14 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
 
     public async Task RewrapAsync_DeniedRequestDoesNotProceed()
     {
+        RecordingSecurityAuditSink deniedAuditSink = new();
         var service =
             new ArtifactEnvelopeRewrappingService(
                 new FileSystemArtifactContentStore(
                     Path.GetTempPath()),
                 new TestRewrappingService(),
                 new DenyPolicy(),
-                new RecordingSecurityAuditSink());
+                deniedAuditSink);
 
         await Assert.ThrowsAsync<
             UnauthorizedAccessException>(
@@ -391,6 +392,19 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
                     CreateRequest(
                         new ArtifactId(
                             "denied-artifact"))));
+
+        var auditRecord = Assert.Single(deniedAuditSink.Records);
+        Assert.Equal(
+            SecurityPermissions.ArtifactEnvelopeRewrap.ToString(),
+            auditRecord.Operation);
+        Assert.Equal("denied-artifact", auditRecord.ResourceId);
+        Assert.Equal("security-steward", auditRecord.SubjectId);
+        Assert.Equal(
+            AuthorizationDecision.Deny,
+            auditRecord.PolicyDecision);
+        Assert.Equal(
+            SecurityAuditOutcome.Denied,
+            auditRecord.Outcome);
     }
     private static ArtifactEnvelopeRewrappingRequest
         CreateRequest(ArtifactId artifactId)

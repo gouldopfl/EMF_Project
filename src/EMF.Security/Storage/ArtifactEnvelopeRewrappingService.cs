@@ -64,6 +64,11 @@ public sealed class ArtifactEnvelopeRewrappingService :
 
         if (authorization != AuthorizationDecision.Allow)
         {
+            await WriteAuditAsync(
+                request,
+                authorization,
+                SecurityAuditOutcome.Denied,
+                DateTimeOffset.UtcNow);
             throw new UnauthorizedAccessException(
                 "Artifact envelope rewrapping was denied.");
         }
@@ -168,6 +173,29 @@ public sealed class ArtifactEnvelopeRewrappingService :
             throw new InvalidOperationException(
                 "Rewrapping changed protected content metadata.");
         }
+    }
+
+    private Task WriteAuditAsync(
+        ArtifactEnvelopeRewrappingRequest request,
+        AuthorizationDecision? policyDecision,
+        SecurityAuditOutcome outcome,
+        DateTimeOffset occurredUtc)
+    {
+        return _auditSink.WriteAsync(
+            new SecurityAuditRecord
+            {
+                Operation =
+                    SecurityPermissions
+                        .ArtifactEnvelopeRewrap
+                        .ToString(),
+                ResourceType = "Artifact",
+                ResourceId = request.ArtifactId.Value,
+                SubjectId = request.SubjectId,
+                PolicyDecision = policyDecision,
+                Outcome = outcome,
+                OccurredUtc = occurredUtc
+            },
+            CancellationToken.None);
     }
 
     private async Task<ArtifactEnvelopeRewrappingResult>
