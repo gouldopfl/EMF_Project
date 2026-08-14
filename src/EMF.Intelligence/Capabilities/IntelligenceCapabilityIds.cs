@@ -15,4 +15,10 @@ public static class IntelligenceCapabilityIds
     {
         get;
     } = new("text.segment");
+
+    public static IntelligenceCapabilityId
+        TextKeywordExtraction
+    {
+        get;
+    } = new("text.keywords.extract");
 }
