@@ -93,6 +93,19 @@ public Task AddArtifactWithProvenanceAsync(
     return Task.CompletedTask;
 }
 
+public Task AddArtifactWithProvenanceAndRelationshipsAsync(
+    Artifact artifact,
+    Provenance provenance,
+    IReadOnlyCollection<Relationship> relationships,
+    CancellationToken cancellationToken = default)
+{
+    _artifacts[artifact.Id.Value] = artifact;
+    _provenance.Add(provenance);
+    _relationships.AddRange(relationships);
+
+    return Task.CompletedTask;
+}
+
 public Task<IReadOnlyList<Provenance>> GetProvenanceAsync(
     ArtifactId artifactId,
     CancellationToken cancellationToken = default)

@@ -44,6 +44,41 @@ public sealed class EvidenceRepositoryTests
 
 
     [Fact]
+    public async Task Repository_StoresCompleteEvidenceAggregate()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var id = new ArtifactId("generated-001");
+
+        var artifact = new Artifact
+        {
+            Id = id,
+            Name = "Generated summary",
+            ArtifactType = "intelligence-output"
+        };
+
+        await repository.AddArtifactWithProvenanceAndRelationshipsAsync(
+            artifact,
+            new Provenance
+            {
+                ArtifactId = id,
+                Source = "EMF.Intelligence",
+                RecordedBy = "laboratory-steward"
+            },
+            [
+                new Relationship
+                {
+                    SourceArtifactId = id,
+                    TargetArtifactId = new ArtifactId("source-001"),
+                    RelationshipType = RelationshipTypes.GeneratedFrom
+                }
+            ]);
+
+        Assert.NotNull(await repository.GetArtifactAsync(id));
+        Assert.Single(await repository.GetProvenanceAsync(id));
+        Assert.Single(await repository.GetRelationshipsAsync(id));
+    }
+
+    [Fact]
     public async Task Repository_StoresAndRetrievesArtifact()
     {
         var repository = new InMemoryEvidenceRepository();

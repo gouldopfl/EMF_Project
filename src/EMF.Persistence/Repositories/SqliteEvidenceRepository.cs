@@ -298,13 +298,27 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
     }
 
 
-    public async Task AddArtifactWithProvenanceAsync(
+    public Task AddArtifactWithProvenanceAsync(
         Artifact artifact,
         Provenance provenance,
         CancellationToken cancellationToken = default)
     {
+        return AddArtifactWithProvenanceAndRelationshipsAsync(
+            artifact,
+            provenance,
+            Array.Empty<Relationship>(),
+            cancellationToken);
+    }
+
+    public async Task AddArtifactWithProvenanceAndRelationshipsAsync(
+        Artifact artifact,
+        Provenance provenance,
+        IReadOnlyCollection<Relationship> relationships,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(artifact);
         ArgumentNullException.ThrowIfNull(provenance);
+        ArgumentNullException.ThrowIfNull(relationships);
 
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
@@ -364,6 +378,43 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
                     JsonSerializer.Serialize(provenance.Properties));
 
                 await provenanceCommand.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            foreach (var relationship in relationships)
+            {
+                ArgumentNullException.ThrowIfNull(relationship);
+
+                await using var relationshipCommand =
+                    connection.CreateCommand();
+
+                relationshipCommand.Transaction =
+                    (SqliteTransaction)transaction;
+                relationshipCommand.CommandText =
+                    "INSERT INTO Relationships " +
+                    "(SourceArtifactId, TargetArtifactId, " +
+                    "RelationshipType, CreatedUtc, PropertiesJson) " +
+                    "VALUES ($sourceArtifactId, $targetArtifactId, " +
+                    "$relationshipType, $createdUtc, $propertiesJson);";
+
+                relationshipCommand.Parameters.AddWithValue(
+                    "$sourceArtifactId",
+                    relationship.SourceArtifactId.Value);
+                relationshipCommand.Parameters.AddWithValue(
+                    "$targetArtifactId",
+                    relationship.TargetArtifactId.Value);
+                relationshipCommand.Parameters.AddWithValue(
+                    "$relationshipType",
+                    relationship.RelationshipType);
+                relationshipCommand.Parameters.AddWithValue(
+                    "$createdUtc",
+                    relationship.CreatedUtc.ToString("O"));
+                relationshipCommand.Parameters.AddWithValue(
+                    "$propertiesJson",
+                    JsonSerializer.Serialize(
+                        relationship.Properties));
+
+                await relationshipCommand.ExecuteNonQueryAsync(
+                    cancellationToken);
             }
 
             await transaction.CommitAsync(cancellationToken);
