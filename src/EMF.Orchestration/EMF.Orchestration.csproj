@@ -4,6 +4,7 @@
     <ProjectReference Include="..\EMF.Core\EMF.Core.csproj" />
     <ProjectReference Include="..\EMF.Discovery\EMF.Discovery.csproj" />
     <ProjectReference Include="..\EMF.Inventory\EMF.Inventory.csproj" />
+    <ProjectReference Include="..\EMF.Security\EMF.Security.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
