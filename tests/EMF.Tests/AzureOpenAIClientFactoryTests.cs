@@ -40,7 +40,8 @@ public sealed class AzureOpenAIClientFactoryTests
         return new AzureOpenAIOptions
         {
             Endpoint = endpoint,
-            DeploymentName = "test-deployment"
+            DeploymentName = "test-deployment",
+            ProviderId = "azure.openai"
         };
     }
 }

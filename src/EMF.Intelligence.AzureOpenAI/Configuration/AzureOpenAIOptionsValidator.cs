@@ -21,6 +21,9 @@ internal static class AzureOpenAIOptionsValidator
         ArgumentException.ThrowIfNullOrWhiteSpace(
             options.DeploymentName);
 
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            options.ProviderId);
+
         if (options.RequestTimeout <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(

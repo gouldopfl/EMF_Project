@@ -54,6 +54,7 @@ public sealed class AzureOpenAIOptionsTests
             Endpoint =
                 "https://example.openai.azure.com",
             DeploymentName = deploymentName,
+            ProviderId = "azure.openai",
             MaximumRetries = maximumRetries
         };
     }
