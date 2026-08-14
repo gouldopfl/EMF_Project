@@ -159,11 +159,12 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
                 artifactId,
                 originalBytes);
 
+            RecordingSecurityAuditSink tamperingAuditSink = new();
             var service = new ArtifactEnvelopeRewrappingService(
                 contentStore,
                 new TamperingRewrappingService(),
                 new AllowPolicy(),
-                new RecordingSecurityAuditSink());
+                tamperingAuditSink);
 
             await Assert.ThrowsAsync<InvalidOperationException>(
                 () => service.RewrapAsync(
@@ -172,6 +173,12 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
             Assert.Equal(
                 originalBytes,
                 await contentStore.ReadAsync(artifactId));
+
+            var auditRecord =
+                Assert.Single(tamperingAuditSink.Records);
+            Assert.Equal(
+                SecurityAuditOutcome.Failed,
+                auditRecord.Outcome);
         }
         finally
         {
@@ -355,11 +362,12 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
         byte[] corruptContent = [0xFF, 0x00, 0x7F];
         var contentStore =
             new FailingReplacementContentStore(corruptContent);
+        RecordingSecurityAuditSink corruptAuditSink = new();
         var service = new ArtifactEnvelopeRewrappingService(
             contentStore,
             new TestRewrappingService(),
             new AllowPolicy(),
-            new RecordingSecurityAuditSink());
+            corruptAuditSink);
 
         await Assert.ThrowsAnyAsync<JsonException>(
             () => service.RewrapAsync(
@@ -367,6 +375,12 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
 
         Assert.Equal(corruptContent,
             await contentStore.ReadAsync(artifactId));
+
+        var auditRecord =
+            Assert.Single(corruptAuditSink.Records);
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            auditRecord.Outcome);
     }
 
     [Fact]

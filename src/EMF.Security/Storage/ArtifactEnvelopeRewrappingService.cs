@@ -96,11 +96,26 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 null);
         }
 
-        var envelope =
-            ValidateEnvelope(
-                JsonSerializer
-                    .Deserialize<EncryptedEnvelope>(
-                        serialized));
+        EncryptedEnvelope envelope;
+
+        try
+        {
+            envelope =
+                ValidateEnvelope(
+                    JsonSerializer
+                        .Deserialize<EncryptedEnvelope>(
+                            serialized));
+        }
+        catch (Exception)
+        {
+            await WriteAuditAsync(
+                request,
+                AuthorizationDecision.Allow,
+                SecurityAuditOutcome.Failed,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
 
         EncryptedEnvelope rewrapped;
 
@@ -132,9 +147,22 @@ public sealed class ArtifactEnvelopeRewrappingService :
             throw;
         }
 
-        ValidateRewrappedEnvelope(
-            envelope,
-            rewrapped);
+        try
+        {
+            ValidateRewrappedEnvelope(
+                envelope,
+                rewrapped);
+        }
+        catch (Exception)
+        {
+            await WriteAuditAsync(
+                request,
+                AuthorizationDecision.Allow,
+                SecurityAuditOutcome.Failed,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
 
         if (ReferenceEquals(envelope, rewrapped) ||
             (envelope.KeyEncryptionKeyId ==
