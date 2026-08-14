@@ -40,7 +40,8 @@ public sealed partial class
                     string,
                     string>(
                     [provider],
-                    policy));
+                    policy),
+                new RecordingAuditSink());
 
         var completedUtc =
             new DateTimeOffset(

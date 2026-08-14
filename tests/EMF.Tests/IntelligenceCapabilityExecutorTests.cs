@@ -4,6 +4,8 @@ using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
 using EMF.Intelligence.Routing;
 using EMF.Security.Models.Identities;
+using EMF.Security.Auditing.Models;
+using EMF.Security.Authorization;
 
 namespace EMF.Tests;
 
@@ -40,10 +42,15 @@ public sealed partial class IntelligenceCapabilityExecutorTests
                 [provider],
                 policy);
 
+        var auditSink =
+            new RecordingAuditSink();
+
         var executor =
             new IntelligenceCapabilityExecutor<
                 string,
-                string>(router);
+                string>(
+                    router,
+                    auditSink);
 
         var result =
             await executor.ExecuteAsync(
@@ -56,6 +63,21 @@ public sealed partial class IntelligenceCapabilityExecutorTests
             "request-content",
             provider.LastRequest);
         Assert.Same(context, provider.LastContext);
+
+        var audit = Assert.Single(auditSink.Records);
+
+        Assert.Equal(
+            SecurityAuditOutcome.Succeeded,
+            audit.Outcome);
+        Assert.Equal(
+            AuthorizationDecision.Allow,
+            audit.PolicyDecision);
+        Assert.Equal(
+            provider.ProviderId.Value,
+            audit.Destination);
+        Assert.Equal(
+            capabilityId.Value,
+            audit.ResourceId);
     }
 
     [Fact]
@@ -80,10 +102,15 @@ public sealed partial class IntelligenceCapabilityExecutorTests
                     Array.Empty<
                         IntelligenceProviderRoutingGrant>()));
 
+        var auditSink =
+            new RecordingAuditSink();
+
         var executor =
             new IntelligenceCapabilityExecutor<
                 string,
-                string>(router);
+                string>(
+                    router,
+                    auditSink);
 
         var exception =
             await Assert.ThrowsAsync<
@@ -98,6 +125,16 @@ public sealed partial class IntelligenceCapabilityExecutorTests
             exception.CapabilityId);
 
         Assert.Null(provider.LastRequest);
+
+        var audit = Assert.Single(auditSink.Records);
+
+        Assert.Equal(
+            SecurityAuditOutcome.Denied,
+            audit.Outcome);
+        Assert.Equal(
+            AuthorizationDecision.Deny,
+            audit.PolicyDecision);
+        Assert.Null(audit.Destination);
     }
 
     private static IntelligenceExecutionContext
@@ -156,6 +193,8 @@ public sealed partial class IntelligenceCapabilityExecutorTests
         public IntelligenceCapabilityResult<string>
             Result { get; set; }
 
+        public Exception? Failure { get; init; }
+
         public string? LastRequest { get; private set; }
 
         public IntelligenceExecutionContext? LastContext
@@ -174,6 +213,13 @@ public sealed partial class IntelligenceCapabilityExecutorTests
         {
             cancellationToken
                 .ThrowIfCancellationRequested();
+
+            if (Failure is not null)
+            {
+                return Task.FromException<
+                    IntelligenceCapabilityResult<string>>(
+                    Failure);
+            }
 
             LastRequest = request;
             LastContext = context;

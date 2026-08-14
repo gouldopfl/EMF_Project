@@ -8,7 +8,7 @@ internal static class
     IntelligenceCapabilityResultValidator
 {
     public static void Validate<TResult>(
-        IntelligenceCapabilityResult<TResult>? result,
+        [NotNull] IntelligenceCapabilityResult<TResult>? result,
         IntelligenceCapabilityId capabilityId,
         IntelligenceProviderId providerId,
         IntelligenceExecutionContext context)

@@ -1,6 +1,10 @@
+using EMF.Intelligence.Contracts;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
 using EMF.Intelligence.Routing;
+using EMF.Security.Auditing;
+using EMF.Security.Auditing.Models;
+using EMF.Security.Authorization;
 
 namespace EMF.Intelligence.Execution;
 
@@ -15,14 +19,22 @@ public sealed class IntelligenceCapabilityExecutor<
             TRequest,
             TResult> _router;
 
+    private readonly IntelligenceCapabilityAuditWriter
+        _auditWriter;
+
     public IntelligenceCapabilityExecutor(
         IntelligenceCapabilityProviderRouter<
             TRequest,
-            TResult> router)
+            TResult> router,
+        ISecurityAuditSink auditSink)
     {
         ArgumentNullException.ThrowIfNull(router);
+        ArgumentNullException.ThrowIfNull(auditSink);
 
         _router = router;
+        _auditWriter =
+            new IntelligenceCapabilityAuditWriter(
+                auditSink);
     }
 
     public async Task<
@@ -40,30 +52,110 @@ public sealed class IntelligenceCapabilityExecutor<
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
 
-        var provider =
-            await _router.SelectAsync(
+        IIntelligenceCapabilityProvider<
+            TRequest,
+            TResult>? provider = null;
+
+        IntelligenceExecutionMetadata? metadata = null;
+        IntelligenceCapabilityResult<TResult> result;
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            await _auditWriter.WriteAsync(
                 capabilityId,
                 context,
-                cancellationToken);
+                null,
+                null,
+                null,
+                SecurityAuditOutcome.Cancelled,
+                DateTimeOffset.UtcNow);
 
-        if (provider is null)
-        {
-            throw new
-                IntelligenceProviderUnavailableException(
-                    capabilityId);
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
-        var result =
-            await provider.ExecuteAsync(
-                request,
-                context,
-                cancellationToken);
+        try
+        {
+            provider =
+                await _router.SelectAsync(
+                    capabilityId,
+                    context,
+                    cancellationToken);
 
-        IntelligenceCapabilityResultValidator.Validate(
-            result,
+            if (provider is null)
+            {
+                await _auditWriter.WriteAsync(
+                    capabilityId,
+                    context,
+                    null,
+                    null,
+                    AuthorizationDecision.Deny,
+                    SecurityAuditOutcome.Denied,
+                    DateTimeOffset.UtcNow);
+
+                throw new
+                    IntelligenceProviderUnavailableException(
+                        capabilityId);
+            }
+
+            result =
+                await provider.ExecuteAsync(
+                    request,
+                    context,
+                    cancellationToken);
+
+            metadata = result?.Metadata;
+
+            IntelligenceCapabilityResultValidator.Validate(
+                result,
+                capabilityId,
+                provider!.ProviderId,
+                context);
+        }
+        catch (IntelligenceProviderUnavailableException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            await _auditWriter.WriteAsync(
+                capabilityId,
+                context,
+                provider?.ProviderId,
+                metadata,
+                provider is null
+                    ? null
+                    : AuthorizationDecision.Allow,
+                SecurityAuditOutcome.Cancelled,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
+        catch (Exception)
+        {
+            await _auditWriter.WriteAsync(
+                capabilityId,
+                context,
+                provider?.ProviderId,
+                metadata,
+                provider is null
+                    ? null
+                    : AuthorizationDecision.Allow,
+                SecurityAuditOutcome.Failed,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
+
+        await _auditWriter.WriteAsync(
             capabilityId,
-            provider.ProviderId,
-            context);
+            context,
+            provider!.ProviderId,
+            result.Metadata,
+            AuthorizationDecision.Allow,
+            result.Success
+                ? SecurityAuditOutcome.Succeeded
+                : SecurityAuditOutcome.Failed,
+            DateTimeOffset.UtcNow);
 
         return result;
     }
