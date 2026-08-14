@@ -354,11 +354,12 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
     public async Task RewrapAsync_CancellationIsNotReportedAsSuccess()
     {
         var policy = new AllowPolicy();
+        RecordingSecurityAuditSink cancelledAuditSink = new();
         var service = new ArtifactEnvelopeRewrappingService(
             new MissingContentStore(),
             new TestRewrappingService(),
             policy,
-            new RecordingSecurityAuditSink());
+            cancelledAuditSink);
 
         using var cancellation =
             new CancellationTokenSource();
@@ -371,6 +372,13 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
                 cancellation.Token));
 
         Assert.Null(policy.LastRequest);
+
+        var auditRecord =
+            Assert.Single(cancelledAuditSink.Records);
+        Assert.Null(auditRecord.PolicyDecision);
+        Assert.Equal(
+            SecurityAuditOutcome.Cancelled,
+            auditRecord.Outcome);
     }
 
     [Fact]

@@ -46,7 +46,16 @@ public sealed class ArtifactEnvelopeRewrappingService :
             CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        cancellationToken.ThrowIfCancellationRequested();
+        if (cancellationToken.IsCancellationRequested)
+        {
+            await WriteAuditAsync(
+                request,
+                null,
+                SecurityAuditOutcome.Cancelled,
+                DateTimeOffset.UtcNow);
+
+            cancellationToken.ThrowIfCancellationRequested();
+        }
 
         var authorization =
             await _authorizationPolicy.EvaluateAsync(
