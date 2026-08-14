@@ -8,4 +8,9 @@ public static class IntelligenceAgentIds
     {
         get;
     } = new("text.summarization");
+
+    public static AgentId LongTextSummarization
+    {
+        get;
+    } = new("text.summarization.long");
 }
