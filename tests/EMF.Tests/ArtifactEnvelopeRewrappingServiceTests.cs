@@ -3,6 +3,7 @@ using System.Text.Json;
 using EMF.Core.Models.Identities;
 using EMF.Persistence.Storage;
 using EMF.Security.Authorization;
+using EMF.Security.Auditing.Models;
 using EMF.Security.Encryption.Envelope;
 using EMF.Security.Encryption.Envelope.Models;
 using EMF.Security.Models;
@@ -48,11 +49,15 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
 
             var policy = new AllowPolicy();
 
+            var auditSink =
+                new RecordingSecurityAuditSink();
+
             var service =
                 new ArtifactEnvelopeRewrappingService(
                     contentStore,
                     new TestRewrappingService(),
-                    policy);
+                    policy,
+                    auditSink);
 
             var result =
                 await service.RewrapAsync(
@@ -92,6 +97,28 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
             Assert.Equal(
                 SecurityPermissions.ArtifactEnvelopeRewrap,
                 policy.LastRequest!.PermissionId);
+
+            var auditRecord =
+                Assert.Single(auditSink.Records);
+
+            Assert.Equal(
+                SecurityPermissions.ArtifactEnvelopeRewrap.ToString(),
+                auditRecord.Operation);
+            Assert.Equal("Artifact", auditRecord.ResourceType);
+            Assert.Equal(artifactId.Value, auditRecord.ResourceId);
+            Assert.Equal("security-steward", auditRecord.SubjectId);
+            Assert.Equal(
+                AuthorizationDecision.Allow,
+                auditRecord.PolicyDecision);
+            Assert.Equal(
+                SecurityAuditOutcome.Succeeded,
+                auditRecord.Outcome);
+            Assert.Equal(
+                "key/v1",
+                auditRecord.Facts["previousKeyEncryptionKeyId"]);
+            Assert.Equal(
+                "key/v2",
+                auditRecord.Facts["currentKeyEncryptionKeyId"]);
         }
         finally
         {
@@ -135,7 +162,8 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
             var service = new ArtifactEnvelopeRewrappingService(
                 contentStore,
                 new TamperingRewrappingService(),
-                new AllowPolicy());
+                new AllowPolicy(),
+                new RecordingSecurityAuditSink());
 
             await Assert.ThrowsAsync<InvalidOperationException>(
                 () => service.RewrapAsync(
@@ -180,7 +208,8 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
         var service = new ArtifactEnvelopeRewrappingService(
             contentStore,
             new TestRewrappingService(),
-            new AllowPolicy());
+            new AllowPolicy(),
+            new RecordingSecurityAuditSink());
 
         await Assert.ThrowsAsync<IOException>(
             () => service.RewrapAsync(
@@ -214,7 +243,8 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
         var service = new ArtifactEnvelopeRewrappingService(
             contentStore,
             new FailingRewrappingService(),
-            new AllowPolicy());
+            new AllowPolicy(),
+            new RecordingSecurityAuditSink());
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.RewrapAsync(
@@ -229,10 +259,12 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
     public async Task RewrapAsync_MissingArtifactReturnsNotFound()
     {
         var artifactId = new ArtifactId("artifact-missing");
+        var auditSink = new RecordingSecurityAuditSink();
         var service = new ArtifactEnvelopeRewrappingService(
             new MissingContentStore(),
             new TestRewrappingService(),
-            new AllowPolicy());
+            new AllowPolicy(),
+            auditSink);
 
         var result = await service.RewrapAsync(
             CreateRequest(artifactId));
@@ -243,6 +275,11 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
         Assert.Equal(artifactId, result.ArtifactId);
         Assert.Null(result.PreviousKeyEncryptionKeyId);
         Assert.Null(result.CurrentKeyEncryptionKeyId);
+
+        var auditRecord = Assert.Single(auditSink.Records);
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            auditRecord.Outcome);
     }
 
     [Fact]
@@ -264,10 +301,12 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
             JsonSerializer.SerializeToUtf8Bytes(original);
         var contentStore =
             new FailingReplacementContentStore(originalBytes);
+        RecordingSecurityAuditSink currentAuditSink = new();
         var service = new ArtifactEnvelopeRewrappingService(
             contentStore,
             new AlreadyCurrentRewrappingService(),
-            new AllowPolicy());
+            new AllowPolicy(),
+            currentAuditSink);
 
         var result = await service.RewrapAsync(
             CreateRequest(artifactId));
@@ -279,6 +318,11 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
             result.PreviousKeyEncryptionKeyId);
         Assert.Equal("key/v2",
             result.CurrentKeyEncryptionKeyId);
+
+        var auditRecord = Assert.Single(currentAuditSink.Records);
+        Assert.Equal(
+            SecurityAuditOutcome.Skipped,
+            auditRecord.Outcome);
         Assert.Equal(originalBytes,
             await contentStore.ReadAsync(artifactId));
     }
@@ -294,7 +338,8 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
         var service = new ArtifactEnvelopeRewrappingService(
             contentStore,
             new TestRewrappingService(),
-            new AllowPolicy());
+            new AllowPolicy(),
+            new RecordingSecurityAuditSink());
 
         await Assert.ThrowsAnyAsync<JsonException>(
             () => service.RewrapAsync(
@@ -312,7 +357,8 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
         var service = new ArtifactEnvelopeRewrappingService(
             new MissingContentStore(),
             new TestRewrappingService(),
-            policy);
+            policy,
+            new RecordingSecurityAuditSink());
 
         using var cancellation =
             new CancellationTokenSource();
@@ -336,7 +382,8 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
                 new FileSystemArtifactContentStore(
                     Path.GetTempPath()),
                 new TestRewrappingService(),
-                new DenyPolicy());
+                new DenyPolicy(),
+                new RecordingSecurityAuditSink());
 
         await Assert.ThrowsAsync<
             UnauthorizedAccessException>(

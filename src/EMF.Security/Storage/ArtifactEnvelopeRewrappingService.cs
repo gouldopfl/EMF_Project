@@ -1,3 +1,5 @@
+using EMF.Security.Auditing;
+using EMF.Security.Auditing.Models;
 using System.Text.Json;
 using EMF.Core.Contracts.Storage;
 using EMF.Security.Authorization;
@@ -16,21 +18,26 @@ public sealed class ArtifactEnvelopeRewrappingService :
         _rewrappingService;
     private readonly IAuthorizationPolicy
         _authorizationPolicy;
+    private readonly ISecurityAuditSink
+        _auditSink;
 
     public ArtifactEnvelopeRewrappingService(
         IArtifactContentStore contentStore,
         IEnvelopeKeyRewrappingService rewrappingService,
-        IAuthorizationPolicy authorizationPolicy)
+        IAuthorizationPolicy authorizationPolicy,
+        ISecurityAuditSink auditSink)
     {
         ArgumentNullException.ThrowIfNull(contentStore);
         ArgumentNullException.ThrowIfNull(
             rewrappingService);
         ArgumentNullException.ThrowIfNull(
             authorizationPolicy);
+        ArgumentNullException.ThrowIfNull(auditSink);
 
         _contentStore = contentStore;
         _rewrappingService = rewrappingService;
         _authorizationPolicy = authorizationPolicy;
+        _auditSink = auditSink;
     }
 
     public async Task<ArtifactEnvelopeRewrappingResult>
@@ -68,7 +75,7 @@ public sealed class ArtifactEnvelopeRewrappingService :
 
         if (serialized is null)
         {
-            return CreateResult(
+            return await CreateResultAsync(
                 request,
                 ArtifactEnvelopeRewrappingOutcome.NotFound,
                 null,
@@ -97,7 +104,7 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 .SequenceEqual(
                     rewrapped.WrappedDataEncryptionKey)))
         {
-            return CreateResult(
+            return await CreateResultAsync(
                 request,
                 ArtifactEnvelopeRewrappingOutcome
                     .AlreadyCurrent,
@@ -114,7 +121,7 @@ public sealed class ArtifactEnvelopeRewrappingService :
             replacement,
             cancellationToken);
 
-        return CreateResult(
+        return await CreateResultAsync(
             request,
             ArtifactEnvelopeRewrappingOutcome.Updated,
             envelope.KeyEncryptionKeyId,
@@ -163,14 +170,14 @@ public sealed class ArtifactEnvelopeRewrappingService :
         }
     }
 
-    private static ArtifactEnvelopeRewrappingResult
-        CreateResult(
+    private async Task<ArtifactEnvelopeRewrappingResult>
+        CreateResultAsync(
             ArtifactEnvelopeRewrappingRequest request,
             ArtifactEnvelopeRewrappingOutcome outcome,
             string? previousKeyId,
             string? currentKeyId)
     {
-        return new ArtifactEnvelopeRewrappingResult
+        var result = new ArtifactEnvelopeRewrappingResult
         {
             ArtifactId = request.ArtifactId,
             Outcome = outcome,
@@ -181,5 +188,50 @@ public sealed class ArtifactEnvelopeRewrappingService :
             CompletedUtc =
                 DateTimeOffset.UtcNow
         };
+
+        var facts =
+            new Dictionary<string, string>(
+                StringComparer.Ordinal);
+
+        if (!string.IsNullOrWhiteSpace(previousKeyId))
+        {
+            facts["previousKeyEncryptionKeyId"] =
+                previousKeyId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentKeyId))
+        {
+            facts["currentKeyEncryptionKeyId"] =
+                currentKeyId;
+        }
+
+        await _auditSink.WriteAsync(
+            new SecurityAuditRecord
+            {
+                Operation =
+                    SecurityPermissions
+                        .ArtifactEnvelopeRewrap
+                        .ToString(),
+                ResourceType = "Artifact",
+                ResourceId = request.ArtifactId.Value,
+                SubjectId = request.SubjectId,
+                PolicyDecision =
+                    AuthorizationDecision.Allow,
+                Outcome = outcome switch
+                {
+                    ArtifactEnvelopeRewrappingOutcome.Updated =>
+                        SecurityAuditOutcome.Succeeded,
+                    ArtifactEnvelopeRewrappingOutcome.AlreadyCurrent =>
+                        SecurityAuditOutcome.Skipped,
+                    ArtifactEnvelopeRewrappingOutcome.NotFound =>
+                        SecurityAuditOutcome.Failed,
+                    _ => SecurityAuditOutcome.Failed
+                },
+                OccurredUtc = result.CompletedUtc,
+                Facts = facts
+            },
+            CancellationToken.None);
+
+        return result;
     }
 }
