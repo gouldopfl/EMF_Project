@@ -7,7 +7,7 @@ using EMF.Security.Models.Identities;
 
 namespace EMF.Tests;
 
-public sealed class IntelligenceCapabilityExecutorTests
+public sealed partial class IntelligenceCapabilityExecutorTests
 {
     [Fact]
     public async Task ExecuteAsync_UsesPermittedProvider()
@@ -154,7 +154,7 @@ public sealed class IntelligenceCapabilityExecutorTests
         }
 
         public IntelligenceCapabilityResult<string>
-            Result { get; }
+            Result { get; set; }
 
         public string? LastRequest { get; private set; }
 

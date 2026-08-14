@@ -53,9 +53,18 @@ public sealed class IntelligenceCapabilityExecutor<
                     capabilityId);
         }
 
-        return await provider.ExecuteAsync(
-            request,
-            context,
-            cancellationToken);
+        var result =
+            await provider.ExecuteAsync(
+                request,
+                context,
+                cancellationToken);
+
+        IntelligenceCapabilityResultValidator.Validate(
+            result,
+            capabilityId,
+            provider.ProviderId,
+            context);
+
+        return result;
     }
 }
