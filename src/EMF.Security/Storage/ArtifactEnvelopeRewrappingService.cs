@@ -102,10 +102,35 @@ public sealed class ArtifactEnvelopeRewrappingService :
                     .Deserialize<EncryptedEnvelope>(
                         serialized));
 
-        var rewrapped =
-            await _rewrappingService.RewrapAsync(
-                envelope,
-                cancellationToken);
+        EncryptedEnvelope rewrapped;
+
+        try
+        {
+            rewrapped =
+                await _rewrappingService.RewrapAsync(
+                    envelope,
+                    cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            await WriteAuditAsync(
+                request,
+                AuthorizationDecision.Allow,
+                SecurityAuditOutcome.Cancelled,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
+        catch (Exception)
+        {
+            await WriteAuditAsync(
+                request,
+                AuthorizationDecision.Allow,
+                SecurityAuditOutcome.Failed,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
 
         ValidateRewrappedEnvelope(
             envelope,

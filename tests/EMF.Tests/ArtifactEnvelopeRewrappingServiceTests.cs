@@ -240,11 +240,12 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
             JsonSerializer.SerializeToUtf8Bytes(original);
         var contentStore =
             new FailingReplacementContentStore(originalBytes);
+        RecordingSecurityAuditSink wrappingFailureAuditSink = new();
         var service = new ArtifactEnvelopeRewrappingService(
             contentStore,
             new FailingRewrappingService(),
             new AllowPolicy(),
-            new RecordingSecurityAuditSink());
+            wrappingFailureAuditSink);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.RewrapAsync(
@@ -252,6 +253,15 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
 
         Assert.Equal(originalBytes,
             await contentStore.ReadAsync(artifactId));
+
+        var auditRecord =
+            Assert.Single(wrappingFailureAuditSink.Records);
+        Assert.Equal(
+            AuthorizationDecision.Allow,
+            auditRecord.PolicyDecision);
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            auditRecord.Outcome);
     }
 
     [Fact]
