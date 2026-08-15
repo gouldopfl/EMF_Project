@@ -20,12 +20,12 @@ Strong security architecture, but not yet ready for production PII, PHI, or CUI.
 - Auditing, provenance, correlation, and timing
 - 469 passing automated tests
 - Pinned CI, enforced NuGet auditing, and CodeQL scanning
+- Secret scanning, push protection, Dependabot, and an SPDX 2.3 SBOM
 
 ## Principal Gaps
 
 - Formal NIST control mapping
 - Hardened production deployment
-- SBOM generation and automated secret scanning
 - Threat model and penetration testing
 - Incident response and continuous monitoring
 - Authorized Azure live integration test
