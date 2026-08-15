@@ -125,4 +125,54 @@ public sealed class
                     7),
                 context));
     }
+
+    [Fact]
+    public async Task
+        ExecuteAsync_RecordsNonStopFinishReasonWarning()
+    {
+        var client =
+            new RecordingAzureOpenAITextClient
+            {
+                Completion =
+                    new(
+                        "summary",
+                        FinishReason: "Length")
+            };
+
+        var provider =
+            new AzureOpenAITextSummarizationProvider(
+                client,
+                new AzureOpenAIOptions
+                {
+                    Endpoint =
+                        "https://example.openai.azure.com",
+                    DeploymentName = "summary-deployment",
+                    ProviderId = "azure.openai"
+                });
+
+        var context =
+            new IntelligenceExecutionContext(
+                "security-steward",
+                new IntelligenceCorrelationId(
+                    "operation-warning"),
+                new ProtectionClassificationId(
+                    "confidential"),
+                []);
+
+        var result =
+            await provider.ExecuteAsync(
+                new TextSummarizationRequest(
+                    "Source evidence text.",
+                    100),
+                context);
+
+        Assert.True(result.Success);
+        Assert.Equal("summary", result.Output);
+
+        Assert.Equal(
+            "Provider completion finished with reason 'Length'.",
+            Assert.Single(result.Warnings));
+
+        Assert.True(result.RequiresReview);
+    }
 }
