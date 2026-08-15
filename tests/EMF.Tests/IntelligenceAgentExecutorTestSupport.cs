@@ -107,6 +107,8 @@ public sealed partial class
             CancellationToken cancellationToken =
                 default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             Records.Add(record);
 
             return Task.CompletedTask;
