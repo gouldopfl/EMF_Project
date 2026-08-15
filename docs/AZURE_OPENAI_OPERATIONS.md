@@ -47,6 +47,27 @@ apply:
 Configuration contains endpoint and deployment identifiers but no
 reusable authentication secret.
 
+## Subscription and Quota Prerequisites
+
+Azure OpenAI quota is governed by the Azure subscription, model,
+deployment type, and region. It is not determined by whether the
+account uses a Microsoft-hosted or third-party email address.
+
+Azure Free Trial subscriptions are not eligible for quota increases.
+Upgrade the existing subscription to Pay-As-You-Go before requesting
+model quota. Upgrading preserves any remaining trial credit through
+its original 30-day availability period, but usage can become billable
+after that credit expires or is exhausted.
+
+A subscription upgrade permits quota requests but does not guarantee
+model availability or approval. Confirm that the requested model is
+currently supported, request only the capacity required for the
+controlled test, and configure Azure budgets and cost alerts before
+enabling live execution.
+
+Do not enable the live integration test until the deployment exists
+and quota is available.
+
 ## Console Usage
 
 Configure the endpoint and deployment:
@@ -95,6 +116,8 @@ unset EMF_AZURE_OPENAI_LIVE_TESTS
 - Availability does not imply authorization.
 - Azure failure does not permit fallback to Development.
 - Prompts and responses are excluded from security-audit facts.
+- Audit metadata records the deployment name as the engine name and
+  the provider-returned model version as the engine version.
 - Generated output requires review before Evidence promotion.
 - Live tests never run automatically in the ordinary test suite.
 
@@ -104,3 +127,5 @@ unset EMF_AZURE_OPENAI_LIVE_TESTS
 - [ADR-027](architecture/ADR-027-initial-production-intelligence-provider.md)
 - [Managed identity](https://learn.microsoft.com/azure/foundry-classic/openai/how-to/managed-identity)
 - [Azure OpenAI RBAC](https://learn.microsoft.com/azure/foundry-classic/openai/how-to/role-based-access-control)
+- [Upgrade an Azure subscription](https://learn.microsoft.com/azure/cost-management-billing/manage/upgrade-azure-subscription)
+- [Azure OpenAI quotas and limits](https://learn.microsoft.com/azure/foundry/openai/quotas-limits)
