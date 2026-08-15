@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Intelligence.Contracts;
 using EMF.Intelligence.Execution;
 using EMF.Intelligence.Models;
@@ -24,7 +25,21 @@ public sealed partial class IntelligenceCapabilityExecutorTests
                 new IntelligenceProviderId(
                     "provider-one"));
 
-        var context = CreateContext();
+        var context =
+            new IntelligenceExecutionContext(
+                "security-steward",
+                new IntelligenceCorrelationId(
+                    "operation-001"),
+                new ProtectionClassificationId(
+                    "confidential"),
+                [
+                    new ArtifactId(
+                        "artifact-001"),
+                    new ArtifactId(
+                        "artifact-002")
+                ],
+                new AgentId(
+                    "analysis-agent"));
 
         var policy =
             new ConfiguredIntelligenceProviderRoutingPolicy(
@@ -79,6 +94,49 @@ public sealed partial class IntelligenceCapabilityExecutorTests
         Assert.Equal(
             capabilityId.Value,
             audit.ResourceId);
+        Assert.Equal(
+            "IntelligenceCapability.Execute",
+            audit.Operation);
+        Assert.Equal(
+            "IntelligenceCapability",
+            audit.ResourceType);
+        Assert.Equal(
+            context.SubjectId,
+            audit.SubjectId);
+        Assert.NotEqual(
+            default,
+            audit.OccurredUtc);
+        Assert.Equal(
+            context.CorrelationId.Value,
+            audit.Facts["correlationId"]);
+        Assert.Equal(
+            context.ProtectionClassificationId.Value,
+            audit.Facts[
+                "protectionClassificationId"]);
+        Assert.Equal(
+            "artifact-001,artifact-002",
+            audit.Facts["inputArtifactIds"]);
+        Assert.Equal(
+            "analysis-agent",
+            audit.Facts["agentId"]);
+        Assert.Equal(
+            provider.Result.Metadata.EngineName,
+            audit.Facts["engineName"]);
+        Assert.Equal(
+            provider.Result.Metadata.EngineVersion,
+            audit.Facts["engineVersion"]);
+        Assert.Equal(
+            provider.Result.Metadata.ProviderOperationId,
+            audit.Facts["providerOperationId"]);
+        Assert.Equal(
+            provider.Result.Metadata.StartedUtc.ToString("O"),
+            audit.Facts["startedUtc"]);
+        Assert.Equal(
+            provider.Result.Metadata.CompletedUtc.ToString("O"),
+            audit.Facts["completedUtc"]);
+        Assert.Equal(
+            9,
+            audit.Facts.Count);
     }
 
     [Fact]
@@ -267,6 +325,9 @@ public sealed partial class IntelligenceCapabilityExecutorTests
                                 new IntelligenceCorrelationId(
                                     "operation-001"),
                             EngineName = "test-engine",
+                            EngineVersion = "1.2.3",
+                            ProviderOperationId =
+                                "provider-operation-001",
                             StartedUtc =
                                 DateTimeOffset.UtcNow,
                             CompletedUtc =
