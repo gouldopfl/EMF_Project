@@ -34,7 +34,7 @@ internal static class
                 [artifactId]);
 
         var result =
-            await runtime.Composition
+            await runtime
                 .TextSummarizationCapabilityExecutor
                 .ExecuteAsync(
                     IntelligenceCapabilityIds

@@ -1,5 +1,3 @@
-using EMF.Intelligence.AzureOpenAI.Exceptions;
-
 namespace EMF.ConsoleApplication;
 
 internal static class
@@ -15,10 +13,10 @@ internal static class
                     .ExecuteAsync(
                         text);
         }
-        catch (AzureOpenAIProviderException exception)
+        catch (TextSummarizationProviderException exception)
         {
             global::System.Console.Error.WriteLine(
-                "Azure OpenAI request failed: " +
+                "Text summarization provider failed: " +
                 exception.FailureKind + ".");
             return 1;
         }

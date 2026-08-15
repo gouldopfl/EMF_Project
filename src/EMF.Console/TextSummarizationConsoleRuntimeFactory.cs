@@ -57,14 +57,19 @@ internal static class
                         }
                     ]));
 
+        var composition =
+            new AzureOpenAITextIntelligenceComposition(
+                options,
+                policy,
+                auditSink,
+                [classification]);
+
         return new TextSummarizationConsoleRuntime
         {
-            Composition =
-                new AzureOpenAITextIntelligenceComposition(
-                    options,
-                    policy,
-                    auditSink,
-                    [classification]),
+            TextSummarizationCapabilityExecutor =
+                new AzureOpenAITextSummarizationExecutorAdapter(
+                    composition
+                        .TextSummarizationCapabilityExecutor),
             SubjectId = subjectId,
             ClassificationId = classification,
             AuditDatabasePath = auditPath
