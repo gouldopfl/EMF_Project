@@ -82,6 +82,96 @@ public sealed partial class IntelligenceCapabilityExecutorTests
     }
 
     [Fact]
+    public async Task
+        ExecuteAsync_DoesNotFallbackAfterSelectedProviderFailure()
+    {
+        var capabilityId =
+            new IntelligenceCapabilityId(
+                "document-analysis");
+
+        var failure =
+            new InvalidOperationException(
+                "Primary provider failed.");
+
+        var primaryProvider =
+            new TestProvider(
+                capabilityId,
+                new IntelligenceProviderId(
+                    "provider-primary"))
+            {
+                Failure = failure
+            };
+
+        var fallbackProvider =
+            new TestProvider(
+                capabilityId,
+                new IntelligenceProviderId(
+                    "provider-fallback"));
+
+        var context = CreateContext();
+
+        var policy =
+            new ConfiguredIntelligenceProviderRoutingPolicy(
+                [
+                    new IntelligenceProviderRoutingGrant(
+                        primaryProvider.ProviderId,
+                        capabilityId,
+                        context.ProtectionClassificationId),
+                    new IntelligenceProviderRoutingGrant(
+                        fallbackProvider.ProviderId,
+                        capabilityId,
+                        context.ProtectionClassificationId)
+                ]);
+
+        var router =
+            new IntelligenceCapabilityProviderRouter<
+                string,
+                string>(
+                [
+                    primaryProvider,
+                    fallbackProvider
+                ],
+                policy);
+
+        var auditSink =
+            new RecordingAuditSink();
+
+        var executor =
+            new IntelligenceCapabilityExecutor<
+                string,
+                string>(
+                    router,
+                    new RecordingAuthorizationPolicy(),
+                    auditSink);
+
+        var exception =
+            await Assert.ThrowsAsync<
+                InvalidOperationException>(
+                () => executor.ExecuteAsync(
+                    capabilityId,
+                    "request-content",
+                    context));
+
+        Assert.Same(failure, exception);
+
+        Assert.Null(
+            fallbackProvider.LastRequest);
+        Assert.Null(
+            fallbackProvider.LastContext);
+
+        var audit =
+            Assert.Single(
+                auditSink.Records);
+
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            audit.Outcome);
+        Assert.Equal(
+            primaryProvider.ProviderId.Value,
+            audit.Destination);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ThrowsWhenNoProviderPermitted()
     {
         var capabilityId =
