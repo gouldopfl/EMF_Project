@@ -99,6 +99,8 @@ public sealed partial class
     private sealed class RecordingAuditSink :
         ISecurityAuditSink
     {
+        public Exception? Failure { get; set; }
+
         public List<SecurityAuditRecord> Records
         { get; } = [];
 
@@ -108,6 +110,11 @@ public sealed partial class
                 default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            if (Failure is not null)
+            {
+                return Task.FromException(Failure);
+            }
 
             Records.Add(record);
 
