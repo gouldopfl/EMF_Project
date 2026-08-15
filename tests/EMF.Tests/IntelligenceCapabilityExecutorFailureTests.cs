@@ -1,4 +1,5 @@
 using EMF.Intelligence.Execution;
+using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
 using EMF.Intelligence.Routing;
 using EMF.Security.Auditing.Models;
@@ -65,6 +66,66 @@ public sealed partial class
 
         var audit =
             Assert.Single(auditSink.Records);
+
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            audit.Outcome);
+
+        Assert.Equal(
+            provider.ProviderId.Value,
+            audit.Destination);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_AuditsUnsuccessfulResult()
+    {
+        var capabilityId =
+            new IntelligenceCapabilityId("document-analysis");
+
+        var provider =
+            new TestProvider(
+                capabilityId,
+                new IntelligenceProviderId("provider-one"));
+
+        provider.Result =
+            new IntelligenceCapabilityResult<string>
+            {
+                Success = false,
+                Message = "Provider could not complete the request.",
+                Metadata = provider.Result.Metadata
+            };
+
+        var context = CreateContext();
+        var auditSink = new RecordingAuditSink();
+
+        var policy =
+            new ConfiguredIntelligenceProviderRoutingPolicy(
+                [
+                    new IntelligenceProviderRoutingGrant(
+                        provider.ProviderId,
+                        capabilityId,
+                        context.ProtectionClassificationId)
+                ]);
+
+        var executor =
+            new IntelligenceCapabilityExecutor<string, string>(
+                new IntelligenceCapabilityProviderRouter<string, string>(
+                    [provider],
+                    policy),
+                new RecordingAuthorizationPolicy(),
+                auditSink);
+
+        var result =
+            await executor.ExecuteAsync(
+                capabilityId,
+                "request-content",
+                context);
+
+        Assert.Same(provider.Result, result);
+        Assert.False(result.Success);
+        Assert.Null(result.Output);
+
+        var audit = Assert.Single(auditSink.Records);
 
         Assert.Equal(
             SecurityAuditOutcome.Failed,
