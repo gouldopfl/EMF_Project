@@ -74,6 +74,9 @@ public sealed class AzureOpenAIIntegrationTests
         Assert.Equal(
             deployment,
             result.Metadata.EngineName);
+        Assert.False(
+            string.IsNullOrWhiteSpace(
+                result.Metadata.EngineVersion));
         Assert.Equal(
             correlationId,
             result.Metadata.CorrelationId);

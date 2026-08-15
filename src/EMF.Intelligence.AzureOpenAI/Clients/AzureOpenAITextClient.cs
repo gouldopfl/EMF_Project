@@ -108,6 +108,7 @@ internal sealed class AzureOpenAITextClient :
 
         return new AzureOpenAITextCompletion(
             text,
+            ModelVersion: completion.Model,
             ProviderOperationId: operationId,
             FinishReason:
                 completion.FinishReason.ToString());
