@@ -8,6 +8,8 @@ public sealed partial class
     private sealed class RecordingAuthorizationPolicy :
         IAuthorizationPolicy
     {
+        public Exception? Failure { get; init; }
+
         public AuthorizationDecision Decision
         {
             get;
@@ -29,6 +31,12 @@ public sealed partial class
                 .ThrowIfCancellationRequested();
 
             Requests.Add(request);
+
+            if (Failure is not null)
+            {
+                return Task.FromException<AuthorizationDecision>(
+                    Failure);
+            }
 
             return Task.FromResult(Decision);
         }
