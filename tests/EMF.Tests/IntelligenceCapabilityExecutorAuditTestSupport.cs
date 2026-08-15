@@ -21,6 +21,8 @@ public sealed partial class
             CancellationToken cancellationToken =
                 default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (Failure is not null)
             {
                 return Task.FromException(Failure);
