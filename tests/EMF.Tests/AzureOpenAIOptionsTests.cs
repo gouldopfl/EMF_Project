@@ -58,4 +58,44 @@ public sealed class AzureOpenAIOptionsTests
             MaximumRetries = maximumRetries
         };
     }
+
+    [Fact]
+    public void Factory_RequiresProviderId()
+    {
+        var options =
+            new AzureOpenAIOptions
+            {
+                Endpoint =
+                    "https://example.openai.azure.com",
+                DeploymentName = "test-deployment",
+                ProviderId = " "
+            };
+
+        Assert.Throws<ArgumentException>(
+            () => new AzureOpenAIClientFactory(
+                options));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Factory_RejectsNonPositiveRequestTimeout(
+        int timeoutMilliseconds)
+    {
+        var options =
+            new AzureOpenAIOptions
+            {
+                Endpoint =
+                    "https://example.openai.azure.com",
+                DeploymentName = "test-deployment",
+                ProviderId = "azure.openai",
+                RequestTimeout =
+                    TimeSpan.FromMilliseconds(
+                        timeoutMilliseconds)
+            };
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new AzureOpenAIClientFactory(
+                options));
+    }
 }
