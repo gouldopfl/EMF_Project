@@ -68,6 +68,19 @@ public sealed class
         Assert.Equal(
             "operation-001",
             result.Metadata.ProviderOperationId);
+
+        Assert.Equal(
+            context.CorrelationId,
+            result.Metadata.CorrelationId);
+        Assert.NotEqual(
+            default,
+            result.Metadata.StartedUtc);
+        Assert.NotEqual(
+            default,
+            result.Metadata.CompletedUtc);
+        Assert.True(
+            result.Metadata.CompletedUtc >=
+            result.Metadata.StartedUtc);
         Assert.Equal(
             artifactId,
             Assert.Single(
