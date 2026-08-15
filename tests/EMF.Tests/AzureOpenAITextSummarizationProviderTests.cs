@@ -175,4 +175,49 @@ public sealed class
 
         Assert.True(result.RequiresReview);
     }
+
+    [Fact]
+    public async Task
+        ExecuteAsync_PropagatesCancellationWithoutInvocation()
+    {
+        var client =
+            new RecordingAzureOpenAITextClient();
+
+        var provider =
+            new AzureOpenAITextSummarizationProvider(
+                client,
+                new AzureOpenAIOptions
+                {
+                    Endpoint =
+                        "https://example.openai.azure.com",
+                    DeploymentName = "summary-deployment",
+                    ProviderId = "azure.openai"
+                });
+
+        var context =
+            new IntelligenceExecutionContext(
+                "security-steward",
+                new IntelligenceCorrelationId(
+                    "operation-cancelled"),
+                new ProtectionClassificationId(
+                    "confidential"),
+                []);
+
+        using var cancellation =
+            new CancellationTokenSource();
+
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<
+            OperationCanceledException>(
+            () => provider.ExecuteAsync(
+                new TextSummarizationRequest(
+                    "Source evidence text.",
+                    100),
+                context,
+                cancellation.Token));
+
+        Assert.Null(client.SystemInstruction);
+        Assert.Null(client.Input);
+    }
 }
