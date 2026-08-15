@@ -244,6 +244,67 @@ public sealed class IntelligenceCapabilityProviderRouterTests
         Assert.Empty(policy.Evaluated);
     }
 
+    [Fact]
+    public async Task SelectAsync_RejectsDefaultCapabilityId()
+    {
+        var provider =
+            new TestProvider(
+                new IntelligenceCapabilityId(
+                    "document-analysis"),
+                "provider-one");
+
+        var policy =
+            new RecordingRoutingPolicy(
+                provider.ProviderId);
+
+        var router =
+            new IntelligenceCapabilityProviderRouter<
+                string,
+                string>(
+                [provider],
+                policy);
+
+        await Assert.ThrowsAsync<
+            ArgumentNullException>(
+            () => router.SelectAsync(
+                default,
+                CreateContext()));
+
+        Assert.Empty(policy.Evaluated);
+    }
+
+    [Fact]
+    public async Task SelectAsync_RejectsNullExecutionContext()
+    {
+        var capabilityId =
+            new IntelligenceCapabilityId(
+                "document-analysis");
+
+        var provider =
+            new TestProvider(
+                capabilityId,
+                "provider-one");
+
+        var policy =
+            new RecordingRoutingPolicy(
+                provider.ProviderId);
+
+        var router =
+            new IntelligenceCapabilityProviderRouter<
+                string,
+                string>(
+                [provider],
+                policy);
+
+        await Assert.ThrowsAsync<
+            ArgumentNullException>(
+            () => router.SelectAsync(
+                capabilityId,
+                null!));
+
+        Assert.Empty(policy.Evaluated);
+    }
+
     private static IntelligenceExecutionContext
         CreateContext()
     {
