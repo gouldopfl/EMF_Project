@@ -131,6 +131,119 @@ public sealed class IntelligenceCapabilityProviderRouterTests
         Assert.Single(policy.Evaluated);
     }
 
+    [Fact]
+    public async Task SelectAsync_ReturnsNullWhenNoProviderMatchesCapability()
+    {
+        var requestedId =
+            new IntelligenceCapabilityId(
+                "document-analysis");
+
+        var unrelated =
+            new TestProvider(
+                new IntelligenceCapabilityId(
+                    "image-analysis"),
+                "image-provider");
+
+        var policy =
+            new RecordingRoutingPolicy(
+                unrelated.ProviderId);
+
+        var router =
+            new IntelligenceCapabilityProviderRouter<
+                string,
+                string>(
+                [unrelated],
+                policy);
+
+        var selected =
+            await router.SelectAsync(
+                requestedId,
+                CreateContext());
+
+        Assert.Null(selected);
+        Assert.Empty(policy.Evaluated);
+    }
+
+    [Fact]
+    public async Task SelectAsync_ReturnsNullWhenAllMatchingProvidersAreDenied()
+    {
+        var capabilityId =
+            new IntelligenceCapabilityId(
+                "document-analysis");
+
+        var first =
+            new TestProvider(
+                capabilityId,
+                "provider-one");
+
+        var second =
+            new TestProvider(
+                capabilityId,
+                "provider-two");
+
+        var policy =
+            new RecordingRoutingPolicy();
+
+        var router =
+            new IntelligenceCapabilityProviderRouter<
+                string,
+                string>(
+                [first, second],
+                policy);
+
+        var selected =
+            await router.SelectAsync(
+                capabilityId,
+                CreateContext());
+
+        Assert.Null(selected);
+        Assert.Equal(2, policy.Evaluated.Count);
+        Assert.Equal(
+            first.ProviderId,
+            policy.Evaluated[0]);
+        Assert.Equal(
+            second.ProviderId,
+            policy.Evaluated[1]);
+    }
+
+    [Fact]
+    public async Task SelectAsync_ThrowsWhenCancellationIsRequested()
+    {
+        var capabilityId =
+            new IntelligenceCapabilityId(
+                "document-analysis");
+
+        var provider =
+            new TestProvider(
+                capabilityId,
+                "provider-one");
+
+        var policy =
+            new RecordingRoutingPolicy(
+                provider.ProviderId);
+
+        var router =
+            new IntelligenceCapabilityProviderRouter<
+                string,
+                string>(
+                [provider],
+                policy);
+
+        using var cancellationSource =
+            new CancellationTokenSource();
+
+        cancellationSource.Cancel();
+
+        await Assert.ThrowsAsync<
+            OperationCanceledException>(
+            () => router.SelectAsync(
+                capabilityId,
+                CreateContext(),
+                cancellationSource.Token));
+
+        Assert.Empty(policy.Evaluated);
+    }
+
     private static IntelligenceExecutionContext
         CreateContext()
     {
