@@ -211,7 +211,8 @@ owner and is outside this document.
   is deleted, or Azure key services become unavailable.
 - **Current mitigations:** Production key-encryption keys remain provider
   managed and non-exportable; key versions are preserved; data-encryption keys
-  are random and cleared from memory; rewrapping supports rotation.
+  are random and cleared from memory; rewrapping supports rotation; Azure vault
+  endpoints must be absolute HTTPS root URIs without embedded credentials.
 - **Required work:** Implement and exercise the documented
   [Azure key-management operations](AZURE_KEY_MANAGEMENT_OPERATIONS.md)
   baseline, including infrastructure enforcement and authorized recovery.

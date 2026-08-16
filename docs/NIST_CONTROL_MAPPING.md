@@ -110,8 +110,9 @@ required reviews, approval rules, and emergency procedures remains open.
 
 **Status:** Partial
 
-Centralized build-security settings enforce NuGet auditing. Validated Azure
-configuration rejects invalid or incomplete options. Approved production
+Centralized build-security settings enforce NuGet auditing. Azure Key Vault
+configuration rejects blank, malformed, non-HTTPS, credential-bearing,
+non-root, query-bearing, and fragment-bearing vault URIs. Approved production
 values and automated configuration-drift detection remain undefined.
 
 ### CP-9 — System Backup
@@ -119,8 +120,8 @@ values and automated configuration-drift detection remain undefined.
 **Status:** Partial
 
 The [protected-backup procedure](PROTECTED_BACKUP_RECOVERY.md) defines
-scope, encryption, consistency,
-historical-key dependencies, integrity verification, separation of duties,
+scope, encryption, consistency, historical-key dependencies, integrity
+verification, separation of duties,
 and recovery evidence. Production services, retention, RPO, geographic
 separation, and an exercised backup policy remain open.
 
@@ -161,7 +162,7 @@ and configuration-accounting procedures remain undefined.
 
 **Status:** Application-supported
 
-The regression baseline is 478 passed, one intentionally skipped live test,
+The regression baseline is 485 passed, one intentionally skipped live test,
 and zero failed. CI, CodeQL, and dependency auditing are automated. Threat
 modeling, penetration testing, and authorized Azure live testing remain open.
 
@@ -274,7 +275,7 @@ not been selected. No claim of CUI compliance is made.
   vulnerability auditing, Dependabot, and the SBOM support governance.
 - **PW.7 — Review or Analyze Human-Readable Code:** Partial. CodeQL analysis
   is automated; formal human security-review criteria remain open.
-- **PW.8 — Test Executable Code:** Application-supported. The 478-test
+- **PW.8 — Test Executable Code:** Application-supported. The 485-test
   baseline and CI verify behavior and security boundaries.
 - **PW.9 — Secure Settings by Default:** Partial. Invalid Azure settings are
   rejected and authorization fails closed; production hardening remains open.
@@ -289,7 +290,7 @@ not been selected. No claim of CUI compliance is made.
   vulnerability auditing, Dependabot, and the SBOM support governance.
 - **PW.7 — Review or Analyze Human-Readable Code:** Partial. CodeQL analysis
   is automated; formal human security-review criteria remain open.
-- **PW.8 — Test Executable Code:** Application-supported. The 478-test
+- **PW.8 — Test Executable Code:** Application-supported. The 485-test
   baseline and CI verify behavior and security boundaries.
 - **PW.9 — Secure Settings by Default:** Partial. Invalid Azure settings are
   rejected and authorization fails closed; production hardening remains open.
@@ -322,9 +323,9 @@ not been selected. No claim of CUI compliance is made.
 
 Verified on 2026-08-16:
 
-- Repository commit: `542c7fd`
+- Repository commit: `02615b1`
 - Branch: `main`, synchronized with `origin/main`
-- Automated tests: 478 passed, 1 skipped, 0 failed
+- Automated tests: 485 passed, 1 skipped, 0 failed
 - Live Azure OpenAI test: intentionally disabled
 - CI: restore, release build, tests, and transitive dependency audit
 - CodeQL: security-extended analysis on changes and weekly
