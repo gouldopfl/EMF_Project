@@ -21,9 +21,15 @@ public sealed class
         VerifyAsync(
             CancellationToken cancellationToken = default)
     {
+        var connectionString =
+            new SqliteConnectionStringBuilder
+            {
+                DataSource = _databasePath,
+                Mode = SqliteOpenMode.ReadOnly
+            }.ToString();
+
         await using var connection =
-            new SqliteConnection(
-                $"Data Source={_databasePath}");
+            new SqliteConnection(connectionString);
 
         await connection.OpenAsync(
             cancellationToken);

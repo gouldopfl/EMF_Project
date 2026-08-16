@@ -33,6 +33,8 @@ Strong security architecture, but not yet ready for production PII, PHI, or CUI.
 - Versioned tamper-evident SQLite audit chain with
   [ADR-028](architecture/ADR-028-tamper-evident-security-audit-storage.md) and
   independent verification
+- Draft [security audit integrity operations](SECURITY_AUDIT_OPERATIONS.md)
+  procedure
 
 ## Principal Gaps
 

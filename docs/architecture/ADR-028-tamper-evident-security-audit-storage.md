@@ -124,6 +124,7 @@ approved.
 
 - ADR-016: Provider-Owned Versioned Schema Migrations
 - ADR-017: Protected and Regulated Information Boundary
+- `docs/SECURITY_AUDIT_OPERATIONS.md`
 - `docs/INCIDENT_RESPONSE_AND_MONITORING.md`
 - `docs/NIST_CONTROL_MAPPING.md`
 - `docs/THREAT_MODEL.md`

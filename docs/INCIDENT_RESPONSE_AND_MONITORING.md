@@ -226,6 +226,10 @@ security-information and event-management system. Production deployments must
 forward or collect required records into centralized, access-controlled,
 integrity-protected storage.
 
+Manual integrity verification is available through
+`emf security audit verify <database-path>`. Exit code `1` is a security event
+and must follow `SECURITY_AUDIT_OPERATIONS.md`.
+
 ## Evidence Preservation
 
 Responders must:
