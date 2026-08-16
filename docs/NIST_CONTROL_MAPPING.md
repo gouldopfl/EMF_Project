@@ -96,9 +96,10 @@ response procedures remain undefined.
 
 `global.json`, centralized build settings, CI configuration, architecture
 decisions, and the compiled and linted Azure Key Vault Bicep profile establish
-repository baselines. Azure Policy assignments are also compiled and linted in
-CI. Approved environment parameters, deployment, and compliance monitoring
-remain open.
+repository baselines. Azure Policy assignments are compiled and linted in CI,
+which also validates the compliance checker's shell syntax. Approved
+environment parameters, deployment, monitoring-identity authorization, and
+scheduled compliance evaluation remain open.
 
 ### CM-3 — Configuration Change Control
 
@@ -116,8 +117,10 @@ Centralized build-security settings enforce NuGet auditing. Azure Key Vault
 configuration validates vault URIs. Bicep defines RBAC, private networking,
 private DNS, deletion protection, diagnostics, and deny-by-default access.
 Azure Policy denies unsafe RBAC, public-access, deletion-protection, and
-key-expiration settings and audits private-link compliance. Approved deployment
-and compliance remediation remain open.
+key-expiration settings and audits private-link compliance. A read-only checker
+validates expected assignment identifiers, enforcement modes, effects, and
+reported noncompliance. Approved deployment, monitoring identity, scheduled
+execution, and remediation remain open.
 
 ### CP-9 — System Backup
 

@@ -317,10 +317,12 @@ owner and is outside this document.
   Vault Bicep profile defines RBAC, private networking, diagnostics, deletion
   protection, and key rotation. A CI-validated Azure Policy baseline defines
   deny controls for unsafe Key Vault settings and audits private-link
-  compliance.
-- **Required work:** Review and deploy approved infrastructure and policy parameters;
-  implement compliance monitoring, remediation, environment separation,
-  deployment gates, configuration inventory, and periodic review.
+  compliance. A read-only checker fails closed when assignments are missing,
+  misconfigured, inaccessible, or report noncompliant resources.
+- **Required work:** Review and deploy approved infrastructure and policy
+  parameters; approve a monitoring identity; schedule compliance checks;
+  define remediation; implement environment separation, deployment gates,
+  configuration inventory, and periodic review.
 
 ## Treatment Priorities
 

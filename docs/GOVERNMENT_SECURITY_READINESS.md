@@ -27,6 +27,8 @@ Strong security architecture, but not yet ready for production PII, PHI, or CUI.
 - Draft [Azure key-management operations](AZURE_KEY_MANAGEMENT_OPERATIONS.md) baseline
 - CI-validated [Azure Key Vault Bicep profile](../infra/key-vault/README.md)
 - CI-validated [Azure Policy baseline](../infra/policy/README.md) for Key Vault safeguards
+- Read-only [Azure Policy compliance checker](../infra/policy/README.md) with
+  fail-closed authorization handling
 
 ## Principal Gaps
 
