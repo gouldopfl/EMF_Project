@@ -315,10 +315,12 @@ owner and is outside this document.
 - **Current mitigations:** Required options are validated; managed identity
   avoids embedded API keys; ADRs define production boundaries; the Azure Key
   Vault Bicep profile defines RBAC, private networking, diagnostics, deletion
-  protection, and key rotation and is compiled and linted in CI.
-- **Required work:** Review and deploy approved infrastructure parameters; add
-  Azure Policy, drift detection, environment separation, deployment gates,
-  configuration inventory, and periodic review.
+  protection, and key rotation. A CI-validated Azure Policy baseline defines
+  deny controls for unsafe Key Vault settings and audits private-link
+  compliance.
+- **Required work:** Review and deploy approved infrastructure and policy parameters;
+  implement compliance monitoring, remediation, environment separation,
+  deployment gates, configuration inventory, and periodic review.
 
 ## Treatment Priorities
 
