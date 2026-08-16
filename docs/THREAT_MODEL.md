@@ -313,10 +313,12 @@ owner and is outside this document.
 - **Scenario:** Azure identities, endpoints, networks, keys, providers, logging,
   or storage are deployed with unsafe settings or drift from an approved state.
 - **Current mitigations:** Required options are validated; managed identity
-  avoids embedded API keys; ADRs define intended production boundaries.
-- **Required work:** Implement reviewed infrastructure as code, hardened
-  baselines, private networking, Azure Policy, drift detection, environment
-  separation, deployment gates, configuration inventory, and periodic review.
+  avoids embedded API keys; ADRs define production boundaries; the Azure Key
+  Vault Bicep profile defines RBAC, private networking, diagnostics, deletion
+  protection, and key rotation and is compiled and linted in CI.
+- **Required work:** Review and deploy approved infrastructure parameters; add
+  Azure Policy, drift detection, environment separation, deployment gates,
+  configuration inventory, and periodic review.
 
 ## Treatment Priorities
 

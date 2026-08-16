@@ -25,6 +25,7 @@ Strong security architecture, but not yet ready for production PII, PHI, or CUI.
 - Initial [threat model](THREAT_MODEL.md) with residual-risk priorities
 - Draft [protected backup and recovery](PROTECTED_BACKUP_RECOVERY.md) procedure
 - Draft [Azure key-management operations](AZURE_KEY_MANAGEMENT_OPERATIONS.md) baseline
+- CI-validated [Azure Key Vault Bicep profile](../infra/key-vault/README.md)
 
 ## Principal Gaps
 

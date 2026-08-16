@@ -94,9 +94,10 @@ response procedures remain undefined.
 
 **Status:** Partial
 
-`global.json`, centralized build settings, CI configuration, and architecture
-decisions establish repository baselines. A hardened and versioned Azure
-production baseline remains undefined.
+`global.json`, centralized build settings, CI configuration, architecture
+decisions, and the compiled and linted Azure Key Vault Bicep profile establish
+repository baselines. Approved environment parameters, deployment, and
+configuration-drift enforcement remain open.
 
 ### CM-3 — Configuration Change Control
 
@@ -111,9 +112,9 @@ required reviews, approval rules, and emergency procedures remains open.
 **Status:** Partial
 
 Centralized build-security settings enforce NuGet auditing. Azure Key Vault
-configuration rejects blank, malformed, non-HTTPS, credential-bearing,
-non-root, query-bearing, and fragment-bearing vault URIs. Approved production
-values and automated configuration-drift detection remain undefined.
+configuration validates vault URIs. Bicep defines RBAC, private networking,
+private DNS, deletion protection, diagnostics, and deny-by-default access.
+Approved production values and automated drift detection remain open.
 
 ### CP-9 — System Backup
 
@@ -121,8 +122,7 @@ values and automated configuration-drift detection remain undefined.
 
 The [protected-backup procedure](PROTECTED_BACKUP_RECOVERY.md) defines
 scope, encryption, consistency, historical-key dependencies, integrity
-verification, separation of duties,
-and recovery evidence. Production services, retention, RPO, geographic
+verification, separation of duties, and recovery evidence. Production services, retention, RPO, geographic
 separation, and an exercised backup policy remain open.
 
 ### CP-10 — System Recovery and Reconstitution
@@ -182,7 +182,9 @@ Azure Key Vault references include explicit key versions. Envelope keys are
 generated per operation, and key wrapping and rewrapping are tested. Draft
 [Azure key-management operations](AZURE_KEY_MANAGEMENT_OPERATIONS.md) define
 RBAC, isolation, rotation, retention, recovery, monitoring, and emergency
-requirements. Production enforcement and exercises remain open.
+requirements. The Bicep profile defines a non-exportable wrap/unwrap key,
+rotation policy, least-privilege workload role, purge protection, and soft
+deletion. Production deployment and exercises remain open.
 
 ### SC-13 — Cryptographic Protection
 
@@ -323,11 +325,11 @@ not been selected. No claim of CUI compliance is made.
 
 Verified on 2026-08-16:
 
-- Repository commit: `02615b1`
+- Repository commit: `96a473c`
 - Branch: `main`, synchronized with `origin/main`
 - Automated tests: 485 passed, 1 skipped, 0 failed
 - Live Azure OpenAI test: intentionally disabled
-- CI: restore, release build, tests, and transitive dependency audit
+- CI: Bicep validation, restore, release build, tests, and dependency audit
 - CodeQL: security-extended analysis on changes and weekly
 - Repository: secret scanning, push protection, and Dependabot
 - Supply-chain inventory: SPDX 2.3 SBOM
