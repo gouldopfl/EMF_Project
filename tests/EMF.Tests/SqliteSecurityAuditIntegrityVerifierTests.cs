@@ -79,6 +79,40 @@ public sealed class
             Assert.Contains(
                 "does not match its content",
                 invalidResult.FailureReason);
+
+            await using (
+                var connection =
+                    new SqliteConnection(
+                        $"Data Source={databasePath}"))
+            {
+                await connection.OpenAsync();
+
+                await using var command =
+                    connection.CreateCommand();
+
+                command.CommandText =
+                    """
+                    UPDATE SecurityAuditRecords
+                    SET ResourceId = 'artifact-001'
+                    WHERE Id = 1;
+
+                    DELETE FROM SecurityAuditRecords
+                    WHERE Id = 1;
+                    """;
+
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var deletionResult =
+                await verifier.VerifyAsync();
+
+            Assert.False(deletionResult.IsValid);
+            Assert.Equal(
+                2,
+                deletionResult.InvalidRecordId);
+            Assert.Contains(
+                "Previous audit record hash does not match",
+                deletionResult.FailureReason);
         }
         finally
         {
