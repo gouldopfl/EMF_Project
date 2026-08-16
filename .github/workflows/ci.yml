@@ -28,6 +28,8 @@ jobs:
           az bicep build --file infra/key-vault/main.bicep --stdout > /dev/null
           az bicep build --file infra/key-vault/key.bicep --stdout > /dev/null
           az bicep build --file infra/policy/key-vault-policy.bicep --stdout > /dev/null
+      - name: Validate policy tooling
+        run: bash -n infra/policy/check-key-vault-policy-compliance.sh
       - name: Restore
         run: dotnet restore EMF.sln -p:AuditPipeline=true
       - name: Build
