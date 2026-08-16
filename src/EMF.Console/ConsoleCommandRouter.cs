@@ -20,8 +20,48 @@ public static class ConsoleCommandRouter
             "help" or "--help" or "-h" =>
                 ShowHelpAsync(),
 
-            _ => InventoryConsoleCommand.RunAsync(args)
+            _ when IsLegacyInventoryInvocation(args) =>
+                RunLegacyInventoryAsync(args),
+
+            _ => ShowUnknownCommandAsync(args[0])
         };
+    }
+
+    private static bool IsLegacyInventoryInvocation(
+        string[] args)
+    {
+        if (args.Length is < 1 or > 2)
+            return false;
+
+        var sourcePath = args[0];
+
+        return Path.IsPathRooted(sourcePath) ||
+            sourcePath.StartsWith(
+                ".",
+                StringComparison.Ordinal) ||
+            sourcePath.Contains(
+                Path.DirectorySeparatorChar) ||
+            sourcePath.Contains(
+                Path.AltDirectorySeparatorChar) ||
+            Directory.Exists(sourcePath);
+    }
+
+    private static Task<int> RunLegacyInventoryAsync(
+        string[] args)
+    {
+        global::System.Console.Error.WriteLine(
+            "Legacy inventory syntax is deprecated; use 'emf inventory [source-path] [workflow-id]'.");
+
+        return InventoryConsoleCommand.RunAsync(args);
+    }
+
+    private static Task<int> ShowUnknownCommandAsync(
+        string command)
+    {
+        global::System.Console.Error.WriteLine(
+            $"Unknown command '{command}'.");
+
+        return Task.FromResult(2);
     }
 
     private static Task<int> ShowHelpAsync()
@@ -39,7 +79,7 @@ public static class ConsoleCommandRouter
             "  emf intelligence summarize <text-file>");
         global::System.Console.WriteLine();
         global::System.Console.WriteLine(
-            "Legacy positional inventory arguments remain supported.");
+            "Legacy positional inventory arguments are deprecated.");
 
         return Task.FromResult(0);
     }

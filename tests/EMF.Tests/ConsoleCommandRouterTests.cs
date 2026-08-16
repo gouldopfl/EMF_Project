@@ -34,4 +34,24 @@ public sealed class ConsoleCommandRouterTests
         Assert.Equal(2, exitCode);
     }
 
+
+    [Fact]
+    public async Task UnknownCommand_ReturnsUsageError()
+    {
+        var exitCode =
+            await ConsoleCommandRouter.RunAsync(
+                ["inteligence"]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
+    public async Task LegacyInventoryWithTooManyArguments_ReturnsUsageError()
+    {
+        var exitCode =
+            await ConsoleCommandRouter.RunAsync(
+                ["./dataset", "workflow-id", "unexpected"]);
+
+        Assert.Equal(2, exitCode);
+    }
 }
