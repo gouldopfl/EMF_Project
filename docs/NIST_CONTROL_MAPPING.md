@@ -72,17 +72,20 @@ facts. Production privacy-minimization rules remain undefined.
 **Status:** Partial
 
 Executor tests verify audit-sink failure behavior and prevent silent success.
-A draft incident-response baseline defines evidence and fail-closed response
-requirements. Production alerting, recovery, escalation, and ownership remain
-undefined.
+A versioned hash chain and independent verifier detect record modification and
+broken chain links. A draft incident-response baseline defines evidence and
+fail-closed response requirements. Scheduled verification, production alerting,
+recovery, escalation, and ownership remain undefined.
 
 ### AU-12 — Audit Record Generation
 
 **Status:** Application-supported
 
 Audit contracts, executor integration, SQLite persistence, schema migrations,
-and automated tests provide application-level audit generation. Centralized
-production collection and complete deployed-component coverage remain open.
+and automated tests provide application-level audit generation. New records
+use a versioned SHA-256 hash chain with an independent verifier. Centralized
+production collection, external chain-head anchoring, and complete deployed-
+component coverage remain open.
 
 ### CA-7 — Continuous Monitoring
 

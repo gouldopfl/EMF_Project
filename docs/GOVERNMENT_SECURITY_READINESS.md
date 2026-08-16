@@ -30,6 +30,9 @@ Strong security architecture, but not yet ready for production PII, PHI, or CUI.
 - Read-only [Azure Policy compliance checker](../infra/policy/README.md) with
   fail-closed authorization handling
 - Draft [incident-response and continuous-monitoring baseline](INCIDENT_RESPONSE_AND_MONITORING.md)
+- Versioned tamper-evident SQLite audit chain with
+  [ADR-028](architecture/ADR-028-tamper-evident-security-audit-storage.md) and
+  independent verification
 
 ## Principal Gaps
 

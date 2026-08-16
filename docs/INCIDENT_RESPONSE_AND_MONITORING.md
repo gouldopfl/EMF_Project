@@ -307,7 +307,7 @@ As of 2026-08-16:
 - operational roles and response times are unassigned
 - centralized production audit collection is not deployed
 - alert thresholds and notification routes are not approved
-- the SQLite audit store is not independently integrity protected
+- the local hash chain requires external chain-head anchoring and centralized collection
 - no production monitoring identity is approved
 - no incident-response exercise has been recorded
 

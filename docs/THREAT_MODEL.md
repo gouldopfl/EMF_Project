@@ -225,14 +225,16 @@ owner and is outside this document.
 - **Scenario:** Security events are omitted, altered, deleted, flooded, or made
   unattributable, preventing reconstruction and accountability.
 - **Current mitigations:** Structured records include subject, operation,
-  resource, decision, outcome, time, destination, and facts; SQLite migrations
-  and sink-failure behavior are tested. A draft incident-response and monitoring
-  baseline defines monitoring sources, alert conditions, evidence handling, and
-  response activities.
+  resource, decision, outcome, time, destination, and facts. SQLite schema
+  version 2 hash-chains new records with length-prefixed SHA-256 input. Immediate
+  transactions serialize appends, and an independent verifier detects content
+  modification, broken links, reordering, and interior deletion. Legacy rows
+  remain explicitly unprotected. Audit migrations and sink-failure behavior are
+  tested. A draft incident-response baseline defines response activities.
 - **Required work:** Approve and exercise the plan; assign operational ownership;
-  centralize logs in access-controlled, integrity-protected storage; and define
-  retention, time synchronization, review, alerting, capacity, privacy
-  minimization, failure recovery, and administrative separation.
+  centralize logs in access-controlled, integrity-protected storage; externally
+  anchor chain heads and record counts; and define retention, review, alerting,
+  capacity, privacy minimization, recovery, and administrative separation.
 
 ### TM-07 — Workflow State Tampering or Replay
 
