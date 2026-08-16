@@ -21,10 +21,11 @@ Strong security architecture, but not yet ready for production PII, PHI, or CUI.
 - 469 passing automated tests
 - Pinned CI, enforced NuGet auditing, and CodeQL scanning
 - Secret scanning, push protection, Dependabot, and an SPDX 2.3 SBOM
+- Initial [NIST control evidence mapping](NIST_CONTROL_MAPPING.md) documented
 
 ## Principal Gaps
 
-- Formal NIST control mapping
+- Complete NIST SP 800-53 Moderate baseline mapping and tailoring
 - Hardened production deployment
 - Threat model and penetration testing
 - Incident response and continuous monitoring
