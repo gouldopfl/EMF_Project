@@ -72,7 +72,9 @@ facts. Production privacy-minimization rules remain undefined.
 **Status:** Partial
 
 Executor tests verify audit-sink failure behavior and prevent silent success.
-Production alerting, recovery procedures, and escalation remain undefined.
+A draft incident-response baseline defines evidence and fail-closed response
+requirements. Production alerting, recovery, escalation, and ownership remain
+undefined.
 
 ### AU-12 — Audit Record Generation
 
@@ -87,8 +89,9 @@ production collection and complete deployed-component coverage remain open.
 **Status:** Partial
 
 CI runs on pushes and pull requests. CodeQL runs on pushes, pull requests,
-and a weekly schedule. Production telemetry, thresholds, ownership, and
-response procedures remain undefined.
+and a weekly schedule. A draft monitoring baseline defines sources, alert
+conditions, evidence handling, and response activities. Production telemetry,
+thresholds, ownership, exercises, and response approval remain undefined.
 
 ### CM-2 — Baseline Configuration
 
@@ -317,7 +320,7 @@ not been selected. No claim of CUI compliance is made.
 - Hardened and versioned Azure production architecture
 - Production identity governance, MFA, and privileged access
 - Centralized log protection, retention, review, and alerting
-- Incident response planning, exercises, and reporting
+- Incident-response plan approval, role assignment, exercises, and reporting
 - Backup, continuity, disaster recovery, and recovery testing
 - Continuous production monitoring and vulnerability management
 - Threat modeling, abuse cases, and penetration testing

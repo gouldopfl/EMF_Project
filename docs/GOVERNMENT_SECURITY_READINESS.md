@@ -29,13 +29,14 @@ Strong security architecture, but not yet ready for production PII, PHI, or CUI.
 - CI-validated [Azure Policy baseline](../infra/policy/README.md) for Key Vault safeguards
 - Read-only [Azure Policy compliance checker](../infra/policy/README.md) with
   fail-closed authorization handling
+- Draft [incident-response and continuous-monitoring baseline](INCIDENT_RESPONSE_AND_MONITORING.md)
 
 ## Principal Gaps
 
 - Complete NIST SP 800-53 Moderate baseline mapping and tailoring
 - Hardened production deployment
 - Independent penetration testing and remediation
-- Incident response and continuous monitoring
+- Approve and exercise incident response; deploy centralized continuous monitoring
 - Authorized Azure live integration test
 
 ## Target Standards

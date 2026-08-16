@@ -226,10 +226,13 @@ owner and is outside this document.
   unattributable, preventing reconstruction and accountability.
 - **Current mitigations:** Structured records include subject, operation,
   resource, decision, outcome, time, destination, and facts; SQLite migrations
-  and sink-failure behavior are tested.
-- **Required work:** Centralize logs in access-controlled, integrity-protected
-  storage; define retention, time synchronization, review, alerting, capacity,
-  privacy minimization, failure recovery, and administrative separation.
+  and sink-failure behavior are tested. A draft incident-response and monitoring
+  baseline defines monitoring sources, alert conditions, evidence handling, and
+  response activities.
+- **Required work:** Approve and exercise the plan; assign operational ownership;
+  centralize logs in access-controlled, integrity-protected storage; and define
+  retention, time synchronization, review, alerting, capacity, privacy
+  minimization, failure recovery, and administrative separation.
 
 ### TM-07 — Workflow State Tampering or Replay
 
@@ -376,4 +379,5 @@ owner, and any change to likelihood, impact, or residual risk.
 - ADR-023 through ADR-025: Workflow Recovery Boundaries
 - ADR-026: Intelligence Services and Agent Boundary
 - ADR-027: Initial Production Intelligence Provider
+- `docs/INCIDENT_RESPONSE_AND_MONITORING.md`
 - `docs/NIST_CONTROL_MAPPING.md`
