@@ -199,7 +199,8 @@ owner and is outside this document.
   rejected; key versions are explicit; versioned authenticated context binds
   new encrypted content to its artifact identity; substitution and replay
   tests verify rejection; rewrapping preserves ciphertext and context binding.
-- **Required work:** Add protected backup and recovery procedures.
+- **Required work:** Approve, implement, and exercise the documented
+  [protected backup and recovery](PROTECTED_BACKUP_RECOVERY.md) procedure.
 
 ### TM-05 — Key Compromise, Loss, or Unavailability
 
@@ -331,7 +332,7 @@ owner and is outside this document.
 ### Moderate Residual Risk
 
 - TM-02: classification and authorization administration
-- TM-04: complete encrypted-envelope integrity protection
+- TM-04: approve and exercise protected backup and recovery
 - TM-08: production routing verification and monitoring
 - TM-10: signed releases and supply-chain provenance
 - TM-11: capacity, resilience, and degraded-operation controls

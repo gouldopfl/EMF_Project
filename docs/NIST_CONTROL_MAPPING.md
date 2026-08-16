@@ -114,6 +114,25 @@ Centralized build-security settings enforce NuGet auditing. Validated Azure
 configuration rejects invalid or incomplete options. Approved production
 values and automated configuration-drift detection remain undefined.
 
+### CP-9 — System Backup
+
+**Status:** Partial
+
+The [protected-backup procedure](PROTECTED_BACKUP_RECOVERY.md) defines
+scope, encryption, consistency,
+historical-key dependencies, integrity verification, separation of duties,
+and recovery evidence. Production services, retention, RPO, geographic
+separation, and an exercised backup policy remain open.
+
+### CP-10 — System Recovery and Reconstitution
+
+**Status:** Partial
+
+The recovery procedure requires isolated restoration, identity and network
+re-establishment, schema and database validation, artifact-binding checks,
+audit review, and approval before return to service. No production recovery
+exercise has been completed.
+
 ### IA-5 — Authenticator Management
 
 **Status:** Partial
@@ -177,8 +196,10 @@ clearing. FIPS validation of the deployed modules remains unverified.
 `EncryptedArtifactContentStore` encrypts content before persistence,
 cryptographically binds new envelopes to artifact identity, rejects
 cross-artifact replay, and decrypts content when read. Azure Key Vault
-protects envelope keys. Production
-backups, temporary data, metadata, logs, and every storage path remain open.
+protects envelope keys. Draft
+[protected-backup and recovery procedures](PROTECTED_BACKUP_RECOVERY.md) are
+documented. Production implementation, recovery testing, temporary data,
+metadata, logs, and every storage path remain open.
 
 ### SI-2 — Flaw Remediation
 

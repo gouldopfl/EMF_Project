@@ -23,6 +23,7 @@ Strong security architecture, but not yet ready for production PII, PHI, or CUI.
 - Secret scanning, push protection, Dependabot, and an SPDX 2.3 SBOM
 - Initial [NIST control evidence mapping](NIST_CONTROL_MAPPING.md) documented
 - Initial [threat model](THREAT_MODEL.md) with residual-risk priorities
+- Draft [protected backup and recovery](PROTECTED_BACKUP_RECOVERY.md) procedure
 
 ## Principal Gaps
 
