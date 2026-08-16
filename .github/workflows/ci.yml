@@ -24,8 +24,10 @@ jobs:
           az bicep install --version v0.46.1
           az bicep lint --file infra/key-vault/main.bicep
           az bicep lint --file infra/key-vault/key.bicep
+          az bicep lint --file infra/policy/key-vault-policy.bicep
           az bicep build --file infra/key-vault/main.bicep --stdout > /dev/null
           az bicep build --file infra/key-vault/key.bicep --stdout > /dev/null
+          az bicep build --file infra/policy/key-vault-policy.bicep --stdout > /dev/null
       - name: Restore
         run: dotnet restore EMF.sln -p:AuditPipeline=true
       - name: Build
