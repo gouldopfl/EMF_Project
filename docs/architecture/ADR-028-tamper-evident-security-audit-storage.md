@@ -67,8 +67,9 @@ The verifier detects:
 - unsupported integrity versions
 - legacy rows inserted after the protected chain begins
 
-The verifier reports protected and legacy record counts, the first invalid
-record identifier, and a failure reason.
+The verifier reports protected and legacy record counts, the verified chain
+head identifier and hash, the first invalid record identifier, and a failure
+reason.
 
 ## Limitations
 

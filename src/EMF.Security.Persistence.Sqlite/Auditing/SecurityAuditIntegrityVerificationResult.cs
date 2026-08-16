@@ -11,6 +11,11 @@ public sealed record
     public required int LegacyRecordCount
     { get; init; }
 
+    public long? LastProtectedRecordId
+    { get; init; }
+
+    public string? ChainHeadHash { get; init; }
+
     public long? InvalidRecordId { get; init; }
 
     public string? FailureReason { get; init; }

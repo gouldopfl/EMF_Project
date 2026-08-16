@@ -64,6 +64,7 @@ public sealed class
         var legacyRecordCount = 0;
         var protectedRecordCount = 0;
         string? expectedPreviousHash = null;
+        long? lastProtectedRecordId = null;
         var protectedRecordsStarted = false;
 
         while (await reader.ReadAsync(
@@ -150,6 +151,7 @@ public sealed class
 
             protectedRecordCount++;
             expectedPreviousHash = recordHash;
+            lastProtectedRecordId = recordId;
         }
 
         return new SecurityAuditIntegrityVerificationResult
@@ -158,7 +160,11 @@ public sealed class
             ProtectedRecordCount =
                 protectedRecordCount,
             LegacyRecordCount =
-                legacyRecordCount
+                legacyRecordCount,
+            LastProtectedRecordId =
+                lastProtectedRecordId,
+            ChainHeadHash =
+                expectedPreviousHash
         };
     }
 

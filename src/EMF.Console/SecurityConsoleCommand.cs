@@ -67,6 +67,15 @@ public static class SecurityConsoleCommand
         global::System.Console.WriteLine(
             $"Legacy records    : {result.LegacyRecordCount}");
 
+        if (result.LastProtectedRecordId.HasValue)
+        {
+            global::System.Console.WriteLine(
+                $"Chain head record  : {result.LastProtectedRecordId}");
+
+            global::System.Console.WriteLine(
+                $"Chain head SHA-256 : {result.ChainHeadHash}");
+        }
+
         return 0;
     }
 

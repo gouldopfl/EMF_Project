@@ -48,6 +48,15 @@ public sealed class
             Assert.Equal(
                 0,
                 validResult.LegacyRecordCount);
+            Assert.Equal(
+                2,
+                validResult.LastProtectedRecordId);
+            Assert.NotNull(
+                validResult.ChainHeadHash);
+            Assert.Equal(
+                64,
+                validResult.ChainHeadHash!.Length);
+
 
             await using (
                 var connection =

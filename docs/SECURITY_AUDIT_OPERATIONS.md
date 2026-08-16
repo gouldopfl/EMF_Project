@@ -27,8 +27,10 @@ Exit codes:
 | `1` | An integrity failure was detected |
 | `2` | Usage, file access, or database execution prevented verification |
 
-Successful output reports protected and legacy record counts. Failure output
-reports the first invalid record identifier and reason.
+Successful output reports protected and legacy record counts, the latest
+protected record identifier, and the chain-head SHA-256 hash. Preserve these
+values in an approved independent system. Failure output reports the first
+invalid record identifier and reason.
 
 ## Preconditions
 
