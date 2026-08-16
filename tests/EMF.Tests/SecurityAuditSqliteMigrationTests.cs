@@ -45,8 +45,8 @@ public sealed class SecurityAuditSqliteMigrationTests
                         AppliedUtc
                     )
                     VALUES (
-                        2,
-                        'FutureSecurityAuditSchema',
+                        3,
+                        'FutureSecurityAuditSchemaV3',
                         '2026-08-14T12:00:00.0000000+00:00'
                     );
                     """;
@@ -64,7 +64,7 @@ public sealed class SecurityAuditSqliteMigrationTests
                         () => schema.InitializeAsync());
 
             Assert.Contains(
-                "unsupported migration version 2",
+                "unsupported migration version 3",
                 exception.Message);
         }
         finally

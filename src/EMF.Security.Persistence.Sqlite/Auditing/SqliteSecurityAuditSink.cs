@@ -1,4 +1,3 @@
-using System.Text.Json;
 using EMF.Security.Auditing;
 using EMF.Security.Auditing.Models;
 using Microsoft.Data.Sqlite;
@@ -59,66 +58,9 @@ public sealed class SqliteSecurityAuditSink :
         await connection.OpenAsync(
             cancellationToken);
 
-        await using var command =
-            connection.CreateCommand();
-
-        command.CommandText =
-            """
-            INSERT INTO SecurityAuditRecords (
-                Operation,
-                ResourceType,
-                ResourceId,
-                SubjectId,
-                PolicyDecision,
-                Destination,
-                Outcome,
-                OccurredUtc,
-                FactsJson
-            )
-            VALUES (
-                $operation,
-                $resourceType,
-                $resourceId,
-                $subjectId,
-                $policyDecision,
-                $destination,
-                $outcome,
-                $occurredUtc,
-                $factsJson
-            );
-            """;
-
-        command.Parameters.AddWithValue(
-            "$operation",
-            record.Operation);
-        command.Parameters.AddWithValue(
-            "$resourceType",
-            record.ResourceType);
-        command.Parameters.AddWithValue(
-            "$resourceId",
-            record.ResourceId);
-        command.Parameters.AddWithValue(
-            "$subjectId",
-            record.SubjectId);
-        command.Parameters.AddWithValue(
-            "$policyDecision",
-            (object?)record.PolicyDecision?.ToString()
-                ?? DBNull.Value);
-        command.Parameters.AddWithValue(
-            "$destination",
-            (object?)record.Destination
-                ?? DBNull.Value);
-        command.Parameters.AddWithValue(
-            "$outcome",
-            record.Outcome.ToString());
-        command.Parameters.AddWithValue(
-            "$occurredUtc",
-            record.OccurredUtc.ToString("O"));
-        command.Parameters.AddWithValue(
-            "$factsJson",
-            JsonSerializer.Serialize(record.Facts));
-
-        await command.ExecuteNonQueryAsync(
+        await SecurityAuditHashChainWriter.WriteAsync(
+            connection,
+            record,
             cancellationToken);
     }
 }

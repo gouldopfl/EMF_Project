@@ -38,6 +38,25 @@ internal static class SecurityAuditSqliteMigrations
                     SubjectId,
                     OccurredUtc
                 );
+                """),
+            new SecurityAuditSqliteMigration(
+                2,
+                "AddTamperEvidentHashChain",
+                """
+                ALTER TABLE SecurityAuditRecords
+                ADD COLUMN IntegrityVersion INTEGER NOT NULL DEFAULT 0
+                    CHECK (IntegrityVersion IN (0, 1));
+
+                ALTER TABLE SecurityAuditRecords
+                ADD COLUMN PreviousRecordHash TEXT NULL;
+
+                ALTER TABLE SecurityAuditRecords
+                ADD COLUMN RecordHash TEXT NULL;
+
+                CREATE UNIQUE INDEX
+                    IX_SecurityAuditRecords_RecordHash
+                ON SecurityAuditRecords (RecordHash)
+                WHERE RecordHash IS NOT NULL;
                 """)
         };
 }
