@@ -241,7 +241,7 @@ public sealed class ArtifactEnvelopeRewrappingService :
 
         try
         {
-            _ = EncryptedEnvelopeFormat.GetAuthenticatedData(
+            EncryptedEnvelopeFormat.Validate(
                 envelope.FormatVersion,
                 envelope.Algorithm);
         }

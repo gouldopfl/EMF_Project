@@ -23,9 +23,24 @@ public sealed class AzureEnvelopeEncryptionService :
         _cryptographyFactory = cryptographyFactory;
     }
 
-    public async Task<EncryptedEnvelope> EncryptAsync(
+    public Task<EncryptedEnvelope> EncryptAsync(
         ReadOnlyMemory<byte> plaintext,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        EncryptCoreAsync(plaintext, null, cancellationToken);
+
+    public Task<EncryptedEnvelope> EncryptWithContextAsync(
+        ReadOnlyMemory<byte> plaintext,
+        ReadOnlyMemory<byte> authenticatedContext,
+        CancellationToken cancellationToken = default) =>
+        EncryptCoreAsync(
+            plaintext,
+            authenticatedContext,
+            cancellationToken);
+
+    private async Task<EncryptedEnvelope> EncryptCoreAsync(
+        ReadOnlyMemory<byte> plaintext,
+        ReadOnlyMemory<byte>? authenticatedContext,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -41,9 +56,15 @@ public sealed class AzureEnvelopeEncryptionService :
         var tag = new byte[16];
 
         var authenticatedData =
-            EncryptedEnvelopeFormat.GetAuthenticatedData(
-                EncryptedEnvelopeFormat.CurrentVersion,
-                EncryptedEnvelopeFormat.Aes256GcmAlgorithm);
+            authenticatedContext.HasValue
+                ? EncryptedEnvelopeFormat
+                    .GetContextBoundAuthenticatedData(
+                        EncryptedEnvelopeFormat
+                            .Aes256GcmAlgorithm,
+                        authenticatedContext.Value)
+                : EncryptedEnvelopeFormat.GetAuthenticatedData(
+                    EncryptedEnvelopeFormat.CurrentVersion,
+                    EncryptedEnvelopeFormat.Aes256GcmAlgorithm);
 
         try
         {
@@ -64,7 +85,9 @@ public sealed class AzureEnvelopeEncryptionService :
             return new EncryptedEnvelope
             {
                 FormatVersion =
-                    EncryptedEnvelopeFormat.CurrentVersion,
+                    authenticatedContext.HasValue
+                        ? EncryptedEnvelopeFormat.ContextBoundVersion
+                        : EncryptedEnvelopeFormat.CurrentVersion,
                 Ciphertext = ciphertext,
                 Nonce = nonce,
                 AuthenticationTag = tag,
@@ -81,17 +104,40 @@ public sealed class AzureEnvelopeEncryptionService :
         }
     }
 
-    public async Task<byte[]> DecryptAsync(
+    public Task<byte[]> DecryptAsync(
         EncryptedEnvelope envelope,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        DecryptCoreAsync(envelope, null, cancellationToken);
+
+    public Task<byte[]> DecryptWithContextAsync(
+        EncryptedEnvelope envelope,
+        ReadOnlyMemory<byte> authenticatedContext,
+        CancellationToken cancellationToken = default) =>
+        DecryptCoreAsync(
+            envelope,
+            authenticatedContext,
+            cancellationToken);
+
+    private async Task<byte[]> DecryptCoreAsync(
+        EncryptedEnvelope envelope,
+        ReadOnlyMemory<byte>? authenticatedContext,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(envelope);
         cancellationToken.ThrowIfCancellationRequested();
 
         var authenticatedData =
-            EncryptedEnvelopeFormat.GetAuthenticatedData(
-                envelope.FormatVersion,
-                envelope.Algorithm);
+            envelope.FormatVersion ==
+                EncryptedEnvelopeFormat.ContextBoundVersion
+                ? EncryptedEnvelopeFormat
+                    .GetContextBoundAuthenticatedData(
+                        envelope.Algorithm,
+                        authenticatedContext
+                            ?? throw new CryptographicException(
+                                "Authenticated context is required."))
+                : EncryptedEnvelopeFormat.GetAuthenticatedData(
+                    envelope.FormatVersion,
+                    envelope.Algorithm);
 
         var parts = envelope.KeyEncryptionKeyId.Split('/', 2);
 

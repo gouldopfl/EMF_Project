@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using EMF.Security.Azure.Cryptography;
 using EMF.Security.Azure.Encryption;
@@ -40,6 +41,36 @@ public sealed class AzureEnvelopeEncryptionServiceTests
         Assert.Equal(
             EncryptedEnvelopeFormat.Aes256GcmAlgorithm,
             envelope.Algorithm);
+    }
+
+
+    [Fact]
+    public async Task DecryptWithContextAsync_RejectsWrongContext()
+    {
+        var keyReference = new AzureKeyReference
+        {
+            KeyName = "emf-key",
+            KeyVersion = "v1"
+        };
+
+        var service =
+            new AzureEnvelopeEncryptionService(
+                new FakeKeyProvider(keyReference),
+                new FakeFactory(new FakeCryptography()));
+
+        var envelope =
+            await service.EncryptWithContextAsync(
+                Encoding.UTF8.GetBytes("protected"),
+                Encoding.UTF8.GetBytes("artifact-a"));
+
+        Assert.Equal(
+            EncryptedEnvelopeFormat.ContextBoundVersion,
+            envelope.FormatVersion);
+
+        await Assert.ThrowsAnyAsync<CryptographicException>(
+            () => service.DecryptWithContextAsync(
+                envelope,
+                Encoding.UTF8.GetBytes("artifact-b")));
     }
 
     private sealed class FakeKeyProvider :

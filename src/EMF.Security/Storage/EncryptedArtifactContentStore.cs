@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using EMF.Core.Contracts.Storage;
 using EMF.Security.Encryption.Envelope.Models;
@@ -40,8 +41,9 @@ public sealed class EncryptedArtifactContentStore :
         CancellationToken cancellationToken)
     {
         var envelope =
-            await _encryption.EncryptAsync(
+            await _encryption.EncryptWithContextAsync(
                 content,
+                GetContext(artifactId),
                 cancellationToken);
 
         var serialized =
@@ -91,8 +93,15 @@ public sealed class EncryptedArtifactContentStore :
             throw new InvalidOperationException(
                 "Encrypted artifact envelope is invalid.");
 
-        return await _encryption.DecryptAsync(
+        return await _encryption.DecryptWithContextAsync(
             envelope,
+            GetContext(artifactId),
             cancellationToken);
     }
+
+    private static byte[] GetContext(
+        ArtifactId artifactId) =>
+        Encoding.UTF8.GetBytes(
+            $"EMF-ARTIFACT-ID\0{artifactId.Value}");
+
 }

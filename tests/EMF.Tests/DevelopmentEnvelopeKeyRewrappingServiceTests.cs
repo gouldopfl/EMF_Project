@@ -76,6 +76,52 @@ public sealed class
     }
 
 
+
+    [Fact]
+    public async Task RewrapAsync_PreservesAuthenticatedContext()
+    {
+        var keyA = CreateKey("kek-A");
+        var keyB = CreateKey("kek-B");
+        var provider =
+            new RotatingKeyProvider(keyA, keyB);
+        var encryption =
+            new DevelopmentEnvelopeEncryptionService(provider);
+
+        var plaintext =
+            Encoding.UTF8.GetBytes("Context-bound content.");
+        var context =
+            Encoding.UTF8.GetBytes("artifact-001");
+
+        var original =
+            await encryption.EncryptWithContextAsync(
+                plaintext,
+                context);
+
+        provider.RotateTo(keyB.KeyId);
+
+        var rewrapped =
+            await new DevelopmentEnvelopeKeyRewrappingService(
+                provider)
+                .RewrapAsync(original);
+
+        Assert.Equal(
+            original.FormatVersion,
+            rewrapped.FormatVersion);
+        Assert.Equal(
+            original.AuthenticationTag,
+            rewrapped.AuthenticationTag);
+        Assert.Equal(
+            plaintext,
+            await encryption.DecryptWithContextAsync(
+                rewrapped,
+                context));
+
+        await Assert.ThrowsAnyAsync<CryptographicException>(
+            () => encryption.DecryptWithContextAsync(
+                rewrapped,
+                Encoding.UTF8.GetBytes("artifact-002")));
+    }
+
     [Fact]
     public async Task RewrapAsync_MissingHistoricalKey_Fails()
     {

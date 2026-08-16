@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using EMF.Core.Models.Identities;
 using EMF.Persistence.Storage;
@@ -182,4 +183,61 @@ public sealed class EncryptedArtifactContentStoreTests
                 Directory.Delete(root, true);
         }
     }
+
+
+    [Fact]
+    public async Task ReadAsync_RejectsEnvelopeFromDifferentArtifact()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        try
+        {
+            var key = new EncryptionKey
+            {
+                KeyId = "test-key",
+                KeyMaterial = new byte[32]
+            };
+
+            var inner =
+                new FileSystemArtifactContentStore(root);
+
+            var store =
+                new EncryptedArtifactContentStore(
+                    inner,
+                    new DevelopmentEnvelopeEncryptionService(
+                        new InMemoryEncryptionKeyProvider(
+                            new[] { key })));
+
+            var sourceId =
+                new ArtifactId("artifact-source");
+
+            var targetId =
+                new ArtifactId("artifact-target");
+
+            await store.WriteAsync(
+                sourceId,
+                Encoding.UTF8.GetBytes(
+                    "source protected content"));
+
+            var sourceEnvelope =
+                await inner.ReadAsync(sourceId);
+
+            Assert.NotNull(sourceEnvelope);
+
+            await inner.WriteAsync(
+                targetId,
+                sourceEnvelope);
+
+            await Assert.ThrowsAnyAsync<CryptographicException>(
+                () => store.ReadAsync(targetId));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+        }
+    }
+
 }
