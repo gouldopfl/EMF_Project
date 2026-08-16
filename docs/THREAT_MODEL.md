@@ -196,11 +196,10 @@ owner and is outside this document.
 - **Scenario:** Ciphertext, authentication data, wrapped keys, key identifiers,
   algorithms, or serialized envelope structure are modified or substituted.
 - **Current mitigations:** AES-GCM authenticates ciphertext; corruption is
-  rejected; key versions are explicit; rewrapping preserves the original
-  envelope when validation or replacement fails.
-- **Required work:** Version the envelope schema; bind security metadata to
-  cryptographic integrity protection; test substitution and replay cases; add
-  protected backup and recovery procedures.
+  rejected; key versions are explicit; versioned authenticated context binds
+  new encrypted content to its artifact identity; substitution and replay
+  tests verify rejection; rewrapping preserves ciphertext and context binding.
+- **Required work:** Add protected backup and recovery procedures.
 
 ### TM-05 — Key Compromise, Loss, or Unavailability
 

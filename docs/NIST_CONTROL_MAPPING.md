@@ -142,7 +142,7 @@ and configuration-accounting procedures remain undefined.
 
 **Status:** Application-supported
 
-The regression baseline is 469 passed, one intentionally skipped live test,
+The regression baseline is 478 passed, one intentionally skipped live test,
 and zero failed. CI, CodeQL, and dependency auditing are automated. Threat
 modeling, penetration testing, and authorized Azure live testing remain open.
 
@@ -174,8 +174,10 @@ clearing. FIPS validation of the deployed modules remains unverified.
 
 **Status:** Application-supported
 
-`EncryptedArtifactContentStore` encrypts content before persistence and
-decrypts it when read. Azure Key Vault protects envelope keys. Production
+`EncryptedArtifactContentStore` encrypts content before persistence,
+cryptographically binds new envelopes to artifact identity, rejects
+cross-artifact replay, and decrypts content when read. Azure Key Vault
+protects envelope keys. Production
 backups, temporary data, metadata, logs, and every storage path remain open.
 
 ### SI-2 — Flaw Remediation
@@ -249,7 +251,7 @@ not been selected. No claim of CUI compliance is made.
   vulnerability auditing, Dependabot, and the SBOM support governance.
 - **PW.7 — Review or Analyze Human-Readable Code:** Partial. CodeQL analysis
   is automated; formal human security-review criteria remain open.
-- **PW.8 — Test Executable Code:** Application-supported. The 469-test
+- **PW.8 — Test Executable Code:** Application-supported. The 478-test
   baseline and CI verify behavior and security boundaries.
 - **PW.9 — Secure Settings by Default:** Partial. Invalid Azure settings are
   rejected and authorization fails closed; production hardening remains open.
@@ -264,7 +266,7 @@ not been selected. No claim of CUI compliance is made.
   vulnerability auditing, Dependabot, and the SBOM support governance.
 - **PW.7 — Review or Analyze Human-Readable Code:** Partial. CodeQL analysis
   is automated; formal human security-review criteria remain open.
-- **PW.8 — Test Executable Code:** Application-supported. The 469-test
+- **PW.8 — Test Executable Code:** Application-supported. The 478-test
   baseline and CI verify behavior and security boundaries.
 - **PW.9 — Secure Settings by Default:** Partial. Invalid Azure settings are
   rejected and authorization fails closed; production hardening remains open.
@@ -297,9 +299,9 @@ not been selected. No claim of CUI compliance is made.
 
 Verified on 2026-08-16:
 
-- Repository commit: `2545684`
+- Repository commit: `542c7fd`
 - Branch: `main`, synchronized with `origin/main`
-- Automated tests: 469 passed, 1 skipped, 0 failed
+- Automated tests: 478 passed, 1 skipped, 0 failed
 - Live Azure OpenAI test: intentionally disabled
 - CI: restore, release build, tests, and transitive dependency audit
 - CodeQL: security-extended analysis on changes and weekly
