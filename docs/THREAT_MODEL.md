@@ -212,9 +212,9 @@ owner and is outside this document.
 - **Current mitigations:** Production key-encryption keys remain provider
   managed and non-exportable; key versions are preserved; data-encryption keys
   are random and cleared from memory; rewrapping supports rotation.
-- **Required work:** Define Key Vault RBAC, network isolation, rotation,
-  revocation, soft-delete, purge protection, recovery, monitoring, alerting,
-  historical-key retention, and emergency-access procedures.
+- **Required work:** Implement and exercise the documented
+  [Azure key-management operations](AZURE_KEY_MANAGEMENT_OPERATIONS.md)
+  baseline, including infrastructure enforcement and authorized recovery.
 
 ### TM-06 — Audit Loss, Tampering, or Repudiation
 

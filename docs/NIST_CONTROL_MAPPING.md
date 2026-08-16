@@ -178,8 +178,10 @@ A formally approved secure-development policy and review cadence remain open.
 **Status:** Partial
 
 Azure Key Vault references include explicit key versions. Envelope keys are
-generated per operation, and key wrapping and rewrapping are tested. Production
-rotation, recovery, revocation, monitoring, and destruction remain undefined.
+generated per operation, and key wrapping and rewrapping are tested. Draft
+[Azure key-management operations](AZURE_KEY_MANAGEMENT_OPERATIONS.md) define
+RBAC, isolation, rotation, retention, recovery, monitoring, and emergency
+requirements. Production enforcement and exercises remain open.
 
 ### SC-13 — Cryptographic Protection
 

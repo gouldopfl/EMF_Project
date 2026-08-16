@@ -24,6 +24,7 @@ Strong security architecture, but not yet ready for production PII, PHI, or CUI.
 - Initial [NIST control evidence mapping](NIST_CONTROL_MAPPING.md) documented
 - Initial [threat model](THREAT_MODEL.md) with residual-risk priorities
 - Draft [protected backup and recovery](PROTECTED_BACKUP_RECOVERY.md) procedure
+- Draft [Azure key-management operations](AZURE_KEY_MANAGEMENT_OPERATIONS.md) baseline
 
 ## Principal Gaps
 
