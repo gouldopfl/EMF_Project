@@ -54,4 +54,14 @@ public sealed class ConsoleCommandRouterTests
 
         Assert.Equal(2, exitCode);
     }
+
+    [Fact]
+    public async Task SecurityCommand_RequiresAuditVerifyArguments()
+    {
+        var exitCode =
+            await ConsoleCommandRouter.RunAsync(
+                ["security"]);
+
+        Assert.Equal(2, exitCode);
+    }
 }

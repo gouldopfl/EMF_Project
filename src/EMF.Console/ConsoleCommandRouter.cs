@@ -17,6 +17,9 @@ public static class ConsoleCommandRouter
             "intelligence" =>
                 IntelligenceConsoleCommand.RunAsync(args[1..]),
 
+            "security" =>
+                SecurityConsoleCommand.RunAsync(args[1..]),
+
             "help" or "--help" or "-h" =>
                 ShowHelpAsync(),
 
@@ -73,6 +76,8 @@ public static class ConsoleCommandRouter
             "Usage:");
         global::System.Console.WriteLine(
             "  emf inventory [source-path] [workflow-id]");
+        global::System.Console.WriteLine(
+            "  emf security audit verify <database-path>");
         global::System.Console.WriteLine(
             "  emf intelligence analyze [--promote] <text-file>");
         global::System.Console.WriteLine(
