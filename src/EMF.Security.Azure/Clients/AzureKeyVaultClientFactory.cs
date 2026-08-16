@@ -12,14 +12,8 @@ public sealed class AzureKeyVaultClientFactory :
     public AzureKeyVaultClientFactory(
         AzureKeyVaultOptions options)
     {
-        ArgumentNullException.ThrowIfNull(options);
-
-        if (string.IsNullOrWhiteSpace(options.VaultUri))
-        {
-            throw new ArgumentException(
-                "Vault URI is required.",
-                nameof(options));
-        }
+        _ = AzureKeyVaultOptionsValidator
+            .ValidateVaultUri(options);
 
         _options = options;
     }

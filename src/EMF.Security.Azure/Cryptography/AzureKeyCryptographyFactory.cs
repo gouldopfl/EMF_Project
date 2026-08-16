@@ -11,7 +11,9 @@ public sealed class AzureKeyCryptographyFactory : IAzureKeyCryptographyFactory
 
     public AzureKeyCryptographyFactory(AzureKeyVaultOptions options)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        _ = AzureKeyVaultOptionsValidator
+            .ValidateVaultUri(options);
+
         _options = options;
     }
 

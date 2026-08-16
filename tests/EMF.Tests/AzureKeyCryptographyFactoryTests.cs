@@ -6,6 +6,19 @@ namespace EMF.Tests;
 
 public sealed class AzureKeyCryptographyFactoryTests
 {
+
+    [Fact]
+    public void Constructor_RejectsInvalidVaultUri()
+    {
+        var options = new AzureKeyVaultOptions
+        {
+            VaultUri = "http://example.vault.azure.net/"
+        };
+
+        Assert.Throws<ArgumentException>(
+            () => new AzureKeyCryptographyFactory(options));
+    }
+
     [Fact]
     public void Create_ReturnsCryptography()
     {

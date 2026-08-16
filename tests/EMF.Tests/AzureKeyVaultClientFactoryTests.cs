@@ -25,6 +25,27 @@ public sealed class AzureKeyVaultClientFactoryTests
             () => new AzureKeyVaultClientFactory(options));
     }
 
+
+    [Theory]
+    [InlineData("http://example.vault.azure.net/")]
+    [InlineData("example.vault.azure.net")]
+    [InlineData("https://user@example.vault.azure.net/")]
+    [InlineData("https://example.vault.azure.net/?x=1")]
+    [InlineData("https://example.vault.azure.net/#fragment")]
+    [InlineData("https://example.vault.azure.net/not-root")]
+    public void Constructor_RejectsInvalidVaultUri(
+        string vaultUri)
+    {
+        var options =
+            new AzureKeyVaultOptions
+            {
+                VaultUri = vaultUri
+            };
+
+        Assert.Throws<ArgumentException>(
+            () => new AzureKeyVaultClientFactory(options));
+    }
+
     [Fact]
     public void CreateKeyClient_ReturnsClient()
     {
