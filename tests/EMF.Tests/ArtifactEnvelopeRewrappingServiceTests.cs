@@ -31,6 +31,8 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
             var original =
                 new EncryptedEnvelope
                 {
+                    FormatVersion =
+                        EncryptedEnvelopeFormat.CurrentVersion,
                     Ciphertext = [1, 2, 3],
                     Nonce = [4, 5, 6],
                     AuthenticationTag = [7, 8, 9],
@@ -576,6 +578,8 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
             return Task.FromResult(
                 new EncryptedEnvelope
                 {
+                    FormatVersion =
+                        envelope.FormatVersion,
                     Ciphertext = [99],
                     Nonce = envelope.Nonce.ToArray(),
                     AuthenticationTag =
@@ -598,6 +602,8 @@ public sealed class ArtifactEnvelopeRewrappingServiceTests
             return Task.FromResult(
                 new EncryptedEnvelope
                 {
+                    FormatVersion =
+                        envelope.FormatVersion,
                     Ciphertext =
                         envelope.Ciphertext.ToArray(),
                     Nonce =

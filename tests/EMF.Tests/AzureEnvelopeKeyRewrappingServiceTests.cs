@@ -1,6 +1,7 @@
 using EMF.Security.Azure.Cryptography;
 using EMF.Security.Azure.Encryption;
 using EMF.Security.Azure.Keys;
+using EMF.Security.Encryption.Envelope;
 using EMF.Security.Encryption.Envelope.Models;
 
 namespace EMF.Tests;
@@ -24,6 +25,8 @@ public sealed class
         var original =
             new EncryptedEnvelope
             {
+                FormatVersion =
+                    EncryptedEnvelopeFormat.CurrentVersion,
                 Ciphertext = [1, 2, 3],
                 Nonce = [4, 5, 6],
                 AuthenticationTag = [7, 8, 9],
@@ -50,6 +53,10 @@ public sealed class
         Assert.Equal(
             original.AuthenticationTag,
             rewrapped.AuthenticationTag);
+
+        Assert.Equal(
+            original.FormatVersion,
+            rewrapped.FormatVersion);
 
         Assert.Equal([2, 42, 43],
             rewrapped.WrappedDataEncryptionKey);

@@ -101,6 +101,8 @@ public sealed class AzureEnvelopeKeyRewrappingService :
 
             return new EncryptedEnvelope
             {
+                FormatVersion =
+                    envelope.FormatVersion,
                 Ciphertext =
                     envelope.Ciphertext.ToArray(),
                 Nonce =

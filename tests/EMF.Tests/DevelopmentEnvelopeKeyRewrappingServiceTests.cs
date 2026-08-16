@@ -58,6 +58,10 @@ public sealed class
             original.Algorithm,
             rewrapped.Algorithm);
 
+        Assert.Equal(
+            original.FormatVersion,
+            rewrapped.FormatVersion);
+
         Assert.NotEqual(
             original.WrappedDataEncryptionKey,
             rewrapped.WrappedDataEncryptionKey);

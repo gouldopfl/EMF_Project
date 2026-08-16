@@ -74,6 +74,8 @@ public sealed class
 
             return new EncryptedEnvelope
             {
+                FormatVersion =
+                    envelope.FormatVersion,
                 Ciphertext = envelope.Ciphertext.ToArray(),
                 Nonce = envelope.Nonce.ToArray(),
                 AuthenticationTag =

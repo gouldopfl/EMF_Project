@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using EMF.Security.Auditing;
 using EMF.Security.Auditing.Models;
 using System.Text.Json;
@@ -238,6 +239,19 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 "Encrypted artifact envelope is invalid.");
         }
 
+        try
+        {
+            _ = EncryptedEnvelopeFormat.GetAuthenticatedData(
+                envelope.FormatVersion,
+                envelope.Algorithm);
+        }
+        catch (CryptographicException exception)
+        {
+            throw new InvalidOperationException(
+                "Encrypted artifact envelope is invalid.",
+                exception);
+        }
+
         return envelope;
     }
 
@@ -247,7 +261,9 @@ public sealed class ArtifactEnvelopeRewrappingService :
     {
         ValidateEnvelope(replacement);
 
-        if (!original.Ciphertext.SequenceEqual(
+        if (original.FormatVersion !=
+                replacement.FormatVersion ||
+            !original.Ciphertext.SequenceEqual(
                 replacement.Ciphertext) ||
             !original.Nonce.SequenceEqual(
                 replacement.Nonce) ||

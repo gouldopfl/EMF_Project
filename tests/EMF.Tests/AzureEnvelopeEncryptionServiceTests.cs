@@ -2,6 +2,7 @@ using System.Text;
 using EMF.Security.Azure.Cryptography;
 using EMF.Security.Azure.Encryption;
 using EMF.Security.Azure.Keys;
+using EMF.Security.Encryption.Envelope;
 
 namespace EMF.Tests;
 
@@ -33,6 +34,12 @@ public sealed class AzureEnvelopeEncryptionServiceTests
             await service.DecryptAsync(envelope);
 
         Assert.Equal(plaintext, result);
+        Assert.Equal(
+            EncryptedEnvelopeFormat.CurrentVersion,
+            envelope.FormatVersion);
+        Assert.Equal(
+            EncryptedEnvelopeFormat.Aes256GcmAlgorithm,
+            envelope.Algorithm);
     }
 
     private sealed class FakeKeyProvider :

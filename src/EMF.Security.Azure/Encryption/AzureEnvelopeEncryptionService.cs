@@ -40,10 +40,20 @@ public sealed class AzureEnvelopeEncryptionService :
         var ciphertext = new byte[plaintext.Length];
         var tag = new byte[16];
 
+        var authenticatedData =
+            EncryptedEnvelopeFormat.GetAuthenticatedData(
+                EncryptedEnvelopeFormat.CurrentVersion,
+                EncryptedEnvelopeFormat.Aes256GcmAlgorithm);
+
         try
         {
             using var aes = new AesGcm(dek, 16);
-            aes.Encrypt(nonce, plaintext.Span, ciphertext, tag);
+            aes.Encrypt(
+                nonce,
+                plaintext.Span,
+                ciphertext,
+                tag,
+                authenticatedData);
 
             var cryptography =
                 _cryptographyFactory.Create(keyReference);
@@ -53,13 +63,16 @@ public sealed class AzureEnvelopeEncryptionService :
 
             return new EncryptedEnvelope
             {
+                FormatVersion =
+                    EncryptedEnvelopeFormat.CurrentVersion,
                 Ciphertext = ciphertext,
                 Nonce = nonce,
                 AuthenticationTag = tag,
                 WrappedDataEncryptionKey = wrappedDek,
                 KeyEncryptionKeyId =
                     $"{keyReference.KeyName}/{keyReference.KeyVersion}",
-                Algorithm = "AES-256-GCM"
+                Algorithm =
+                    EncryptedEnvelopeFormat.Aes256GcmAlgorithm
             };
         }
         finally
@@ -74,6 +87,11 @@ public sealed class AzureEnvelopeEncryptionService :
     {
         ArgumentNullException.ThrowIfNull(envelope);
         cancellationToken.ThrowIfCancellationRequested();
+
+        var authenticatedData =
+            EncryptedEnvelopeFormat.GetAuthenticatedData(
+                envelope.FormatVersion,
+                envelope.Algorithm);
 
         var parts = envelope.KeyEncryptionKeyId.Split('/', 2);
 
@@ -103,7 +121,8 @@ public sealed class AzureEnvelopeEncryptionService :
                 envelope.Nonce,
                 envelope.Ciphertext,
                 envelope.AuthenticationTag,
-                plaintext);
+                plaintext,
+                authenticatedData);
 
             return plaintext;
         }

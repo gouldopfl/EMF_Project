@@ -2,6 +2,8 @@ namespace EMF.Security.Encryption.Envelope.Models;
 
 public sealed class EncryptedEnvelope
 {
+    public int FormatVersion { get; init; }
+
     public required byte[] Ciphertext { get; init; }
 
     public required byte[] Nonce { get; init; }

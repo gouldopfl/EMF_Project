@@ -43,13 +43,19 @@ public sealed class DevelopmentEnvelopeEncryptionService :
         var ciphertext = new byte[plaintext.Length];
         var tag = new byte[TagSize];
 
+        var authenticatedData =
+            EncryptedEnvelopeFormat.GetAuthenticatedData(
+                EncryptedEnvelopeFormat.CurrentVersion,
+                EncryptedEnvelopeFormat.Aes256GcmAlgorithm);
+
         using (var aes = new AesGcm(dek, TagSize))
         {
             aes.Encrypt(
                 nonce,
                 plaintext.Span,
                 ciphertext,
-                tag);
+                tag,
+                authenticatedData);
         }
 
         var wrappedDek =
@@ -59,12 +65,15 @@ public sealed class DevelopmentEnvelopeEncryptionService :
 
         return new EncryptedEnvelope
         {
+            FormatVersion =
+                EncryptedEnvelopeFormat.CurrentVersion,
             Ciphertext = ciphertext,
             Nonce = nonce,
             AuthenticationTag = tag,
             WrappedDataEncryptionKey = wrappedDek,
             KeyEncryptionKeyId = key.KeyId,
-            Algorithm = "AES-256-GCM"
+            Algorithm =
+                EncryptedEnvelopeFormat.Aes256GcmAlgorithm
         };
     }
 
@@ -73,6 +82,11 @@ public sealed class DevelopmentEnvelopeEncryptionService :
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
+
+        var authenticatedData =
+            EncryptedEnvelopeFormat.GetAuthenticatedData(
+                envelope.FormatVersion,
+                envelope.Algorithm);
 
         var key =
             await _keyProvider.GetKeyAsync(
@@ -99,7 +113,8 @@ public sealed class DevelopmentEnvelopeEncryptionService :
                 envelope.Nonce,
                 envelope.Ciphertext,
                 envelope.AuthenticationTag,
-                plaintext);
+                plaintext,
+                authenticatedData);
 
             return plaintext;
         }
