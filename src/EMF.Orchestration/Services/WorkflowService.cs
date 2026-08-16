@@ -104,7 +104,8 @@ public sealed class WorkflowService : IWorkflowService
             DefinitionVersion = execution.DefinitionVersion,
             CreatedUtc = execution.CreatedUtc,
             CurrentStatus = WorkflowStatus.Completed,
-            RecoveryStatus = execution.RecoveryStatus
+            RecoveryStatus = execution.RecoveryStatus,
+            Revision = execution.Revision
         },
         new WorkflowStatusTransition
         {
@@ -160,7 +161,8 @@ public sealed class WorkflowService : IWorkflowService
             DefinitionVersion = execution.DefinitionVersion,
             CreatedUtc = execution.CreatedUtc,
             CurrentStatus = WorkflowStatus.Failed,
-            RecoveryStatus = execution.RecoveryStatus
+            RecoveryStatus = execution.RecoveryStatus,
+            Revision = execution.Revision
         },
         new WorkflowStatusTransition
         {

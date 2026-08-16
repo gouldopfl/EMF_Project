@@ -83,7 +83,8 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
                     DefinitionVersion = execution.DefinitionVersion,
                     CreatedUtc = execution.CreatedUtc,
                     CurrentStatus = execution.CurrentStatus,
-                    RecoveryStatus = recoveryStatus
+                    RecoveryStatus = recoveryStatus,
+                    Revision = execution.Revision
                 },
                 cancellationToken);
         }

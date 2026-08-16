@@ -90,6 +90,13 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
 
     await AddColumnIfMissingAsync(
         connection,
+        "Workflows",
+        "Revision",
+        "INTEGER NOT NULL DEFAULT 0",
+        cancellationToken);
+
+    await AddColumnIfMissingAsync(
+        connection,
         "WorkflowCheckpoints",
         "ActivityId",
         "TEXT NULL",
@@ -199,8 +206,10 @@ public async Task CreateExecutionAsync(
             """
             UPDATE Workflows
             SET CurrentStatus = $currentStatus,
-                RecoveryStatus = $recoveryStatus
-            WHERE Id = $id;
+                RecoveryStatus = $recoveryStatus,
+                Revision = Revision + 1
+            WHERE Id = $id
+              AND Revision = $expectedRevision;
             """;
 
         command.Parameters.AddWithValue(
@@ -215,7 +224,20 @@ public async Task CreateExecutionAsync(
             "$id",
             execution.WorkflowId.Value);
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        command.Parameters.AddWithValue(
+            "$expectedRevision",
+            execution.Revision);
+
+        var affectedRows =
+            await command.ExecuteNonQueryAsync(
+                cancellationToken);
+
+        if (affectedRows != 1)
+        {
+            throw new WorkflowConcurrencyException(
+                execution.WorkflowId,
+                execution.Revision);
+        }
     }
 
     public async Task<WorkflowExecutionRecord?> GetExecutionAsync(
@@ -229,7 +251,8 @@ public async Task CreateExecutionAsync(
 
         command.CommandText =
             """
-            SELECT DefinitionId, DefinitionVersion, CreatedUtc, CurrentStatus, RecoveryStatus
+            SELECT DefinitionId, DefinitionVersion, CreatedUtc,
+                   CurrentStatus, RecoveryStatus, Revision
             FROM Workflows
             WHERE Id = $id;
             """;
@@ -252,10 +275,13 @@ public async Task CreateExecutionAsync(
             DefinitionId = reader.GetString(0),
             DefinitionVersion = reader.GetString(1),
             CreatedUtc = DateTimeOffset.Parse(reader.GetString(2)),
-            CurrentStatus = Enum.Parse<WorkflowStatus>(
-                reader.GetString(3)),
-        RecoveryStatus = Enum.Parse<WorkflowRecoveryStatus>(
-            reader.GetString(4))
+            CurrentStatus =
+                Enum.Parse<WorkflowStatus>(
+                    reader.GetString(3)),
+            RecoveryStatus =
+                Enum.Parse<WorkflowRecoveryStatus>(
+                    reader.GetString(4)),
+            Revision = reader.GetInt64(5)
         };
     }
 
@@ -501,8 +527,10 @@ public async Task CreateExecutionAsync(
                     """
                     UPDATE Workflows
                     SET CurrentStatus = $currentStatus,
-                        RecoveryStatus = $recoveryStatus
-                    WHERE Id = $id;
+                        RecoveryStatus = $recoveryStatus,
+                        Revision = Revision + 1
+                    WHERE Id = $id
+                      AND Revision = $expectedRevision;
                     """;
 
                 updateCommand.Parameters.AddWithValue(
@@ -517,7 +545,20 @@ public async Task CreateExecutionAsync(
                     "$id",
                     execution.WorkflowId.Value);
 
-                await updateCommand.ExecuteNonQueryAsync(cancellationToken);
+                updateCommand.Parameters.AddWithValue(
+                    "$expectedRevision",
+                    execution.Revision);
+
+                var affectedRows =
+                    await updateCommand.ExecuteNonQueryAsync(
+                        cancellationToken);
+
+                if (affectedRows != 1)
+                {
+                    throw new WorkflowConcurrencyException(
+                        execution.WorkflowId,
+                        execution.Revision);
+                }
             }
 
             await using (var transitionCommand = connection.CreateCommand())

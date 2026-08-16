@@ -15,4 +15,6 @@ public sealed class WorkflowExecutionRecord
     public required WorkflowStatus CurrentStatus { get; init; }
 
     public required WorkflowRecoveryStatus RecoveryStatus { get; init; }
+
+    public long Revision { get; init; }
 }

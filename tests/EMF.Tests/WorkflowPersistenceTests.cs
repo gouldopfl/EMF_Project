@@ -167,6 +167,7 @@ public sealed class WorkflowExecutionPersistenceTests
             Assert.Equal(
                 WorkflowRecoveryStatus.Recoverable,
                 stored.RecoveryStatus);
+            Assert.Equal(0, stored.Revision);
         }
         finally
         {
@@ -248,6 +249,7 @@ public sealed class WorkflowSchemaMigrationTests
 
             Assert.Contains("DefinitionId", columns);
             Assert.Contains("DefinitionVersion", columns);
+            Assert.Contains("Revision", columns);
         }
         finally
         {

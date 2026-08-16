@@ -65,6 +65,7 @@ public sealed class WorkflowAtomicTransitionPersistenceTests
             Assert.Equal(
                 WorkflowStatus.Completed,
                 execution!.CurrentStatus);
+            Assert.Equal(1, execution.Revision);
 
             var transition = Assert.Single(transitions);
 
