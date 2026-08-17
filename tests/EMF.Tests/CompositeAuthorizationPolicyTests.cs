@@ -16,7 +16,8 @@ public sealed class CompositeAuthorizationPolicyTests
         {
             SubjectId = "user-001",
             PermissionId = new PermissionId(permission),
-            ArtifactId = new ArtifactId("artifact-001"),
+            ResourceType = "Artifact",
+            ResourceId = "artifact-001",
             ProtectionClassificationId =
                 new ProtectionClassificationId(classification)
         };

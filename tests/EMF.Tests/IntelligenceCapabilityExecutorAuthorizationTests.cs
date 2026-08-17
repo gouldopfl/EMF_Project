@@ -73,7 +73,7 @@ public sealed partial class
             ["artifact-001", "artifact-002"],
             authorizationPolicy.Requests
                 .Select(request =>
-                    request.ArtifactId.Value)
+                    request.ResourceId)
                 .ToArray());
 
         Assert.All(

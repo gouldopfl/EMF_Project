@@ -101,7 +101,9 @@ public sealed class IntelligenceCapabilityExecutor<
                                 PermissionId =
                                     SecurityPermissions
                                         .ArtifactIntelligenceUse,
-                                ArtifactId = artifactId,
+                                ResourceType =
+                                    SecurityResourceTypes.Artifact,
+                                ResourceId = artifactId.Value,
                                 ProtectionClassificationId =
                                     context
                                         .ProtectionClassificationId

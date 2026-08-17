@@ -1,3 +1,4 @@
+using EMF.Security.Models;
 using EMF.Core.Models.Identities;
 using EMF.Security.Authorization;
 using EMF.Security.Models.Identities;
@@ -14,8 +15,8 @@ public sealed class AuthorizationRequestTests
             SubjectId = "user-001",
             PermissionId =
                 new PermissionId("evidence.read"),
-            ArtifactId =
-                new ArtifactId("artifact-001"),
+            ResourceType = "Artifact",
+            ResourceId = "artifact-001",
             ProtectionClassificationId =
                 new ProtectionClassificationId("regulated")
         };
@@ -29,11 +30,31 @@ public sealed class AuthorizationRequestTests
             request.PermissionId.Value);
 
         Assert.Equal(
+            SecurityResourceTypes.Artifact,
+            request.ResourceType);
+
+        Assert.Equal(
             "artifact-001",
-            request.ArtifactId.Value);
+            request.ResourceId);
 
         Assert.Equal(
             "regulated",
             request.ProtectionClassificationId.Value);
+    }
+
+    [Fact]
+    public void Request_preserves_workflow_identity()
+    {
+        var request = new AuthorizationRequest
+        {
+            SubjectId = "steward",
+            PermissionId = new("workflow.claim.recover"),
+            ResourceType = SecurityResourceTypes.Workflow,
+            ResourceId = "workflow-001",
+            ProtectionClassificationId = new("internal")
+        };
+
+        Assert.Equal("Workflow", request.ResourceType);
+        Assert.Equal("workflow-001", request.ResourceId);
     }
 }

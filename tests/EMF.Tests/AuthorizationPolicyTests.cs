@@ -15,7 +15,8 @@ public sealed class AuthorizationPolicyTests
         {
             SubjectId = subjectId,
             PermissionId = new PermissionId(permissionId),
-            ArtifactId = new ArtifactId("artifact-001"),
+            ResourceType = "Artifact",
+            ResourceId = "artifact-001",
             ProtectionClassificationId =
                 new ProtectionClassificationId("regulated")
         };

@@ -66,7 +66,9 @@ public sealed class ArtifactEnvelopeRewrappingService :
                     PermissionId =
                         SecurityPermissions
                             .ArtifactEnvelopeRewrap,
-                    ArtifactId = request.ArtifactId,
+                    ResourceType =
+                        SecurityResourceTypes.Artifact,
+                    ResourceId = request.ArtifactId.Value,
                     ProtectionClassificationId =
                         request.ProtectionClassificationId
                 },

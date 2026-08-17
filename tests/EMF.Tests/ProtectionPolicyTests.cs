@@ -16,8 +16,8 @@ public sealed class ProtectionPolicyTests
             SubjectId = "user-001",
             PermissionId =
                 new PermissionId("evidence.read"),
-            ArtifactId =
-                new ArtifactId("artifact-001"),
+            ResourceType = "Artifact",
+            ResourceId = "artifact-001",
             ProtectionClassificationId =
                 new ProtectionClassificationId(
                     classification)

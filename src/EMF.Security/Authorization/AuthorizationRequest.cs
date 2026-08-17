@@ -1,4 +1,3 @@
-using EMF.Core.Models.Identities;
 using EMF.Security.Models.Identities;
 
 namespace EMF.Security.Authorization;
@@ -9,7 +8,9 @@ public sealed class AuthorizationRequest
 
     public required PermissionId PermissionId { get; init; }
 
-    public required ArtifactId ArtifactId { get; init; }
+    public required string ResourceType { get; init; }
+
+    public required string ResourceId { get; init; }
 
     public required ProtectionClassificationId
         ProtectionClassificationId
