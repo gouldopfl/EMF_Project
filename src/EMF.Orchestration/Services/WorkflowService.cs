@@ -186,6 +186,49 @@ public sealed class WorkflowService : IWorkflowService
             cancellationToken);
     }
 
+    public Task<bool> TryClaimActivityAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        DateTimeOffset claimedUtc,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.TryClaimActivityAsync(
+            workflowId,
+            activityId,
+            claimId,
+            claimedUtc,
+            cancellationToken);
+    }
+
+    public Task CompleteActivityClaimAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        DateTimeOffset completedUtc,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.CompleteActivityClaimAsync(
+            workflowId,
+            activityId,
+            claimId,
+            completedUtc,
+            cancellationToken);
+    }
+
+    public Task ReleaseActivityClaimAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.ReleaseActivityClaimAsync(
+            workflowId,
+            activityId,
+            claimId,
+            cancellationToken);
+    }
+
     private static void EnsureTransition(
         WorkflowStatus current,
         WorkflowStatus next)

@@ -192,6 +192,31 @@ public sealed class WorkflowRunnerTests
         Assert.Empty(workflowService.Checkpoints);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_stops_when_activity_claim_is_unavailable()
+    {
+        var workflowService =
+            new FakeWorkflowService
+            {
+                ClaimAvailable = false
+            };
+
+        var executionOrder = new List<string>();
+        var runner = new WorkflowRunner(workflowService);
+
+        await runner.ExecuteAsync(
+            new WorkflowExecutionContext
+            {
+                WorkflowId = new WorkflowId("workflow-claimed")
+            },
+            [new FakeActivity("First", executionOrder)]);
+
+        Assert.Empty(executionOrder);
+        Assert.Empty(workflowService.Checkpoints);
+        Assert.False(workflowService.CompleteCalled);
+        Assert.False(workflowService.FailCalled);
+    }
+
     private sealed class FakeActivity : IWorkflowActivity
     {
         private readonly IList<string> _executionOrder;
@@ -232,6 +257,10 @@ public sealed class WorkflowRunnerTests
     private sealed class FakeWorkflowService : IWorkflowService
     {
         public List<WorkflowCheckpoint> Checkpoints { get; } = new();
+
+        private HashSet<(WorkflowId, string)> Claims { get; } = new();
+
+        public bool ClaimAvailable { get; set; } = true;
 
         public bool CompleteCalled { get; private set; }
 
@@ -277,6 +306,36 @@ public sealed class WorkflowRunnerTests
             CancellationToken cancellationToken = default)
         {
             FailCalled = true;
+            return Task.CompletedTask;
+        }
+        public Task<bool> TryClaimActivityAsync(
+            WorkflowId workflowId,
+            string activityId,
+            string claimId,
+            DateTimeOffset claimedUtc,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(
+                ClaimAvailable && Claims.Add((workflowId, activityId)));
+        }
+
+        public Task CompleteActivityClaimAsync(
+            WorkflowId workflowId,
+            string activityId,
+            string claimId,
+            DateTimeOffset completedUtc,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task ReleaseActivityClaimAsync(
+            WorkflowId workflowId,
+            string activityId,
+            string claimId,
+            CancellationToken cancellationToken = default)
+        {
+            Claims.Remove((workflowId, activityId));
             return Task.CompletedTask;
         }
     }

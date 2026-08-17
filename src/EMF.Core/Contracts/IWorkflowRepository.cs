@@ -41,4 +41,36 @@ public interface IWorkflowRepository
         WorkflowStatusTransition transition,
         CancellationToken cancellationToken = default);
 
+    Task<bool> TryClaimActivityAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        DateTimeOffset claimedUtc,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Workflow activity claims are not supported by this repository.");
+    }
+
+    Task CompleteActivityClaimAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        DateTimeOffset completedUtc,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Workflow activity claims are not supported by this repository.");
+    }
+
+    Task ReleaseActivityClaimAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Workflow activity claims are not supported by this repository.");
+    }
+
 }

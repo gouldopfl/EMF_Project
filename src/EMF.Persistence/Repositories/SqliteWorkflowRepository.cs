@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EMF.Persistence.Repositories;
 
-public sealed class SqliteWorkflowRepository : IWorkflowRepository
+public sealed partial class SqliteWorkflowRepository : IWorkflowRepository
 {
     private readonly string _databasePath;
 
@@ -62,6 +62,16 @@ public sealed class SqliteWorkflowRepository : IWorkflowRepository
             ToStatus TEXT NOT NULL,
             RecordedUtc TEXT NOT NULL,
             Message TEXT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS WorkflowActivityClaims (
+            WorkflowId TEXT NOT NULL,
+            ActivityId TEXT NOT NULL,
+            ClaimId TEXT NOT NULL UNIQUE,
+            Status TEXT NOT NULL,
+            ClaimedUtc TEXT NOT NULL,
+            CompletedUtc TEXT NULL,
+            PRIMARY KEY (WorkflowId, ActivityId)
         );
         """;
 

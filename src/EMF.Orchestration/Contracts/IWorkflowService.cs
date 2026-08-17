@@ -25,4 +25,36 @@ public interface IWorkflowService
         WorkflowId workflowId,
         string message,
         CancellationToken cancellationToken = default);
+
+    Task<bool> TryClaimActivityAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        DateTimeOffset claimedUtc,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Workflow activity claims are not supported by this service.");
+    }
+
+    Task CompleteActivityClaimAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        DateTimeOffset completedUtc,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Workflow activity claims are not supported by this service.");
+    }
+
+    Task ReleaseActivityClaimAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Workflow activity claims are not supported by this service.");
+    }
 }

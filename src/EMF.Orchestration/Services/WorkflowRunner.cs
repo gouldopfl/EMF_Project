@@ -56,6 +56,21 @@ public sealed class WorkflowRunner : IWorkflowRunner
                 continue;
             }
 
+            var claimId = Guid.NewGuid().ToString("N");
+
+            var claimed =
+                await _workflowService.TryClaimActivityAsync(
+                    context.WorkflowId,
+                    activity.Id,
+                    claimId,
+                    DateTimeOffset.UtcNow,
+                    cancellationToken);
+
+            if (!claimed)
+            {
+                return;
+            }
+
             var result = await activity.ExecuteAsync(
                 context,
                 cancellationToken);
@@ -74,15 +89,30 @@ public sealed class WorkflowRunner : IWorkflowRunner
                 },
                 cancellationToken);
 
-            if (!result.Succeeded)
+            if (result.Succeeded)
             {
-                await _workflowService.FailAsync(
+                await _workflowService.CompleteActivityClaimAsync(
                     context.WorkflowId,
-                    result.Message ?? "Workflow activity failed.",
+                    activity.Id,
+                    claimId,
+                    result.CompletedUtc,
                     cancellationToken);
 
-                return;
+                continue;
             }
+
+            await _workflowService.ReleaseActivityClaimAsync(
+                context.WorkflowId,
+                activity.Id,
+                claimId,
+                cancellationToken);
+
+            await _workflowService.FailAsync(
+                context.WorkflowId,
+                result.Message ?? "Workflow activity failed.",
+                cancellationToken);
+
+            return;
         }
 
         await _workflowService.CompleteAsync(
