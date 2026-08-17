@@ -19,6 +19,7 @@ public sealed class SqliteSecurityAuditOperationReporter
     public async Task<SecurityAuditOperationReport>
         CreateAsync(
             string operation,
+            DateTimeOffset? occurredSinceUtc = null,
             CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
@@ -54,11 +55,19 @@ public sealed class SqliteSecurityAuditOperationReporter
                    MIN(OccurredUtc), MAX(OccurredUtc)
             FROM SecurityAuditRecords
             WHERE Operation = $operation
+              AND ($occurredSinceUtc IS NULL OR
+                   julianday(OccurredUtc) >=
+                   julianday($occurredSinceUtc))
             GROUP BY Outcome;
             """;
 
         command.Parameters.AddWithValue(
             "$operation", operation);
+
+        command.Parameters.AddWithValue(
+            "$occurredSinceUtc",
+            (object?)occurredSinceUtc?.ToString("O") ??
+                DBNull.Value);
 
         await using var reader =
             await command.ExecuteReaderAsync(cancellationToken);

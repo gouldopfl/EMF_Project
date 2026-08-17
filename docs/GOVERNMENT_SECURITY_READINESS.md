@@ -18,7 +18,7 @@ Strong security architecture, but not yet ready for production PII, PHI, or CUI.
 - Managed identity with no API-key configuration
 - Envelope encryption and key rewrapping
 - Auditing, provenance, correlation, and timing
-- 512 passing automated tests
+- 514 passing automated tests
 - Pinned CI, enforced NuGet auditing, and CodeQL scanning
 - Secret scanning, push protection, Dependabot, and an SPDX 2.3 SBOM
 - Initial [NIST control evidence mapping](NIST_CONTROL_MAPPING.md) documented
