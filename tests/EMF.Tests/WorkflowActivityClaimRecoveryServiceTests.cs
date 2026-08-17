@@ -326,4 +326,34 @@ public sealed class WorkflowActivityClaimRecoveryServiceTests
         }
     }
 
+
+    [Fact]
+    public async Task Future_abandonment_cutoff_is_rejected()
+    {
+        var audit = new RecordingSecurityAuditSink();
+
+        var service =
+            new WorkflowActivityClaimRecoveryService(
+                new SqliteWorkflowRepository("unused.db"),
+                new AlwaysAllowAuthorizationPolicy(),
+                audit);
+
+        var now = DateTimeOffset.UtcNow;
+
+        var request = new WorkflowActivityClaimRecoveryRequest
+        {
+            SubjectId = "steward",
+            WorkflowId = new("workflow-invalid"),
+            ActivityId = "activity",
+            NewClaimId = "new-claim",
+            ReclaimedUtc = now,
+            AbandonedBeforeUtc = now.AddMinutes(1),
+            ProtectionClassificationId = new("internal")
+        };
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => service.RecoverAsync(request));
+
+        Assert.Empty(audit.Records);
+    }
 }

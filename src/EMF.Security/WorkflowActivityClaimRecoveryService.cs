@@ -36,6 +36,10 @@ public sealed class WorkflowActivityClaimRecoveryService :
         ArgumentException.ThrowIfNullOrWhiteSpace(request.ActivityId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.NewClaimId);
 
+        if (request.AbandonedBeforeUtc > request.ReclaimedUtc)
+            throw new ArgumentOutOfRangeException(
+                nameof(request.AbandonedBeforeUtc));
+
         var decision = await _authorization.EvaluateAsync(
             new AuthorizationRequest
             {
