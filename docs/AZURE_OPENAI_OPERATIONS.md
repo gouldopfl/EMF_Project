@@ -110,6 +110,62 @@ test connectivity. Afterward, disable it:
 unset EMF_AZURE_OPENAI_LIVE_TESTS
 ```
 
+## Live Validation Record
+
+On 2026-08-17, the Azure OpenAI production adapter was validated
+against a real Azure deployment using the EMF development VM's
+system-assigned managed identity.
+
+Validated configuration:
+
+- Azure region: East US 2
+- Azure OpenAI resource: `emf-intelligence-eastus2`
+- Endpoint: `https://emf-intelligence-eastus2.openai.azure.com/`
+- Deployment: `emf-gpt-4-1`
+- Model: `gpt-4.1`
+- Model version: `2025-04-14`
+- Deployment type: `Standard`
+- Deployment capacity: 10
+- Authentication: system-assigned managed identity
+- Runtime role: `Cognitive Services OpenAI User`
+- API keys: not used
+
+The deployment reported `Running` and provisioning state `Succeeded`.
+
+Regional capacity investigation showed no usable interactive
+capacity for the tested GPT-5.6-sol and GPT-5.5 deployments in the
+queried U.S. regions. GPT-5.4 exposed batch capacity but no interactive
+Standard capacity. GPT-4.1 exposed regional Standard capacity in
+East US 2 and multiple other U.S. regions.
+
+Because suitable GPT-4.1 Standard capacity was available in East US 2,
+the EMF development VM and existing Azure OpenAI resource did not need
+to be migrated to another Azure region.
+
+GPT-4.1 is being used as an authorized live integration-validation
+model. This does not change the provider-independent intelligence
+architecture or establish GPT-4.1 as the long-term production model.
+
+The targeted live integration test completed successfully:
+
+- Tests run: 1
+- Passed: 1
+- Failed: 0
+- Skipped: 0
+
+The complete EMF test suite was then executed with live Azure testing
+enabled:
+
+- Tests run: 515
+- Passed: 515
+- Failed: 0
+- Skipped: 0
+
+This validated real managed-identity authentication, Azure OpenAI
+connectivity, deployment invocation, adapter translation, normalized
+response handling, and coexistence with the complete EMF regression
+suite.
+
 ## Operational Boundaries
 
 - Routing must authorize the capability and protection classification.
