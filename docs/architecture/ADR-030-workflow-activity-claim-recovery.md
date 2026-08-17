@@ -52,6 +52,7 @@ Automated tests verify:
 - former owners are fenced out
 - fresh claims cannot be reclaimed
 - completed claims cannot be reclaimed
+- recovery service audits success, skip, denial, cancellation, and failure
 - concurrent initial claims produce exactly one winner
 
 ## Follow-up Work

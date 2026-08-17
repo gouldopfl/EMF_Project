@@ -222,4 +222,108 @@ public sealed class WorkflowActivityClaimRecoveryServiceTests
                 File.Delete(path);
         }
     }
+
+    [Fact]
+    public async Task Repository_failure_is_audited()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString(),
+            "missing",
+            "workflow.db");
+
+        var audit = new RecordingSecurityAuditSink();
+
+        var service =
+            new WorkflowActivityClaimRecoveryService(
+                new SqliteWorkflowRepository(path),
+                new AlwaysAllowAuthorizationPolicy(),
+                audit);
+
+        var request =
+            new WorkflowActivityClaimRecoveryRequest
+            {
+                SubjectId = "steward",
+                WorkflowId = new("workflow-failure"),
+                ActivityId = "activity",
+                NewClaimId = "new-claim",
+                ReclaimedUtc = DateTimeOffset.UtcNow,
+                AbandonedBeforeUtc =
+                    DateTimeOffset.UtcNow.AddMinutes(-5),
+                ProtectionClassificationId =
+                    new("internal")
+            };
+
+        await Assert.ThrowsAnyAsync<Exception>(
+            () => service.RecoverAsync(request));
+
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            Assert.Single(audit.Records).Outcome);
+    }
+
+    private sealed class AlwaysAllowAuthorizationPolicy :
+        IAuthorizationPolicy
+    {
+        public Task<AuthorizationDecision> EvaluateAsync(
+            AuthorizationRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(
+                AuthorizationDecision.Allow);
+        }
+    }
+
+    [Fact]
+    public async Task Cancelled_recovery_is_audited()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-cancelled-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new SqliteWorkflowRepository(path);
+
+            await repository.InitializeAsync();
+
+            var audit = new RecordingSecurityAuditSink();
+
+            var service =
+                new WorkflowActivityClaimRecoveryService(
+                    repository,
+                    new AlwaysAllowAuthorizationPolicy(),
+                    audit);
+
+            using var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => service.RecoverAsync(
+                    new WorkflowActivityClaimRecoveryRequest
+                    {
+                        SubjectId = "steward",
+                        WorkflowId = new("workflow-cancelled"),
+                        ActivityId = "activity",
+                        NewClaimId = "new-claim",
+                        ReclaimedUtc = DateTimeOffset.UtcNow,
+                        AbandonedBeforeUtc =
+                            DateTimeOffset.UtcNow.AddMinutes(-5),
+                        ProtectionClassificationId =
+                            new("internal")
+                    },
+                    cancellation.Token));
+
+            Assert.Equal(
+                SecurityAuditOutcome.Cancelled,
+                Assert.Single(audit.Records).Outcome);
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+    }
+
 }
