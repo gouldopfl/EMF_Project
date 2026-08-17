@@ -154,4 +154,72 @@ public sealed class WorkflowActivityClaimRecoveryServiceTests
                 File.Delete(path);
         }
     }
+
+    [Fact]
+    public async Task Fresh_claim_is_audited_as_skipped()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-skipped-recovery-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new SqliteWorkflowRepository(path);
+
+            await repository.InitializeAsync();
+
+            var workflowId = new WorkflowId("workflow-fresh");
+            var now = DateTimeOffset.UtcNow;
+
+            await repository.TryClaimActivityAsync(
+                workflowId, "activity", "current-claim", now);
+
+            var context = new AuthorizationContext
+            {
+                SubjectId = "steward",
+                RoleIds = [],
+                PermissionIds =
+                [
+                    SecurityPermissions
+                        .WorkflowActivityClaimRecover
+                ]
+            };
+
+            var audit = new RecordingSecurityAuditSink();
+
+            var service =
+                new WorkflowActivityClaimRecoveryService(
+                    repository,
+                    new AuthorizationPolicy(
+                        new InMemoryAuthorizationContextProvider(
+                            [context])),
+                    audit);
+
+            var recovered = await service.RecoverAsync(
+                new WorkflowActivityClaimRecoveryRequest
+                {
+                    SubjectId = "steward",
+                    WorkflowId = workflowId,
+                    ActivityId = "activity",
+                    NewClaimId = "new-claim",
+                    ReclaimedUtc = now,
+                    AbandonedBeforeUtc =
+                        now.AddMinutes(-5),
+                    ProtectionClassificationId =
+                        new("internal")
+                });
+
+            Assert.False(recovered);
+
+            Assert.Equal(
+                SecurityAuditOutcome.Skipped,
+                Assert.Single(audit.Records).Outcome);
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+    }
 }
