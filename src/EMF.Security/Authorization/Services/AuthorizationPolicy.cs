@@ -18,7 +18,9 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        if (string.IsNullOrWhiteSpace(request.SubjectId))
+        if (string.IsNullOrWhiteSpace(request.SubjectId) ||
+            string.IsNullOrWhiteSpace(request.ResourceType) ||
+            string.IsNullOrWhiteSpace(request.ResourceId))
         {
             return AuthorizationDecision.Deny;
         }

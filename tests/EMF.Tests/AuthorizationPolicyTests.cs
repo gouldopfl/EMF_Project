@@ -125,4 +125,44 @@ public sealed class AuthorizationPolicyTests
             AuthorizationDecision.Deny,
             decision);
     }
+
+    [Theory]
+    [InlineData("", "artifact-001")]
+    [InlineData("Artifact", "")]
+    public async Task Blank_resource_identity_denies(
+        string resourceType,
+        string resourceId)
+    {
+        var policy = new AuthorizationPolicy(
+            new InMemoryAuthorizationContextProvider(
+            [
+                new AuthorizationContext
+                {
+                    SubjectId = "user-001",
+                    RoleIds = [],
+                    PermissionIds =
+                    [
+                        new PermissionId("evidence.read")
+                    ]
+                }
+            ]));
+
+        var request = CreateRequest(
+            "user-001",
+            "evidence.read");
+
+        var malformed = new AuthorizationRequest
+        {
+            SubjectId = request.SubjectId,
+            PermissionId = request.PermissionId,
+            ResourceType = resourceType,
+            ResourceId = resourceId,
+            ProtectionClassificationId =
+                request.ProtectionClassificationId
+        };
+
+        Assert.Equal(
+            AuthorizationDecision.Deny,
+            await policy.EvaluateAsync(malformed));
+    }
 }
