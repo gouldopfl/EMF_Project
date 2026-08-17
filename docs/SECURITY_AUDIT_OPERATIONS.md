@@ -12,9 +12,9 @@ SQLite security audit chain and responds to a verification failure.
 
 Run:
 
-~~bash
+```bash
 emf security audit verify <database-path>
-~~
+```
 
 The verifier opens the database in SQLite read-only mode and checks records in
 ascending identifier order.
@@ -55,6 +55,14 @@ Exit code `1` is a security event. The operator must:
 7. obtain authorization before repair, restoration, or return to service
 
 Do not rewrite hashes, delete records, or rerun migrations as a repair action.
+
+## Aggregate Operation Reports
+
+`SqliteSecurityAuditOperationReporter` produces read-only counts by outcome
+for a selected operation. It verifies the complete audit chain before querying
+and refuses to report from a tampered database. Reports include the operation,
+total count, outcome counts, first and last occurrence times, and chain head.
+Detailed audit facts are not exposed by this aggregate report.
 
 ## Limitations
 
