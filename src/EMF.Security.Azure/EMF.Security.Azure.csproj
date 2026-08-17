@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Azure.Monitor.Ingestion" Version="1.2.0" />
     <PackageReference Include="Azure.Security.KeyVault.Keys" Version="4.10.0" />
   </ItemGroup>
 
