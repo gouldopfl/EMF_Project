@@ -40,7 +40,7 @@ public sealed class AzureMonitorSecurityAlertSink :
                     alert.ObservedUtc,
                     alert.EventCount,
                     alert.WindowStartedUtc,
-                    Facts = alert.Facts
+                    Facts = SecurityAlertFactSanitizer.Sanitize(alert.Facts)
                 });
 
         return _client.UploadAsync(

@@ -57,6 +57,54 @@ public sealed class AzureMonitorSecurityAlertSinkTests
             doc.RootElement.GetProperty("AlertId").GetString());
     }
 
+
+    [Fact]
+    public async Task WriteAsync_excludes_sensitive_facts()
+    {
+        var client = new RecordingLogsClient();
+
+        var sink = new AzureMonitorSecurityAlertSink(
+            new AzureMonitorAlertOptions
+            {
+                Endpoint = "https://example.monitor.azure.com",
+                RuleId = "rule",
+                StreamName = "stream"
+            },
+            client);
+
+        await sink.WriteAsync(new SecurityAlert
+        {
+            AlertId = "alert-002",
+            AlertType = "test",
+            Severity = SecurityAlertSeverity.High,
+            Operation = "artifact.access",
+            ObservedUtc = DateTimeOffset.UtcNow,
+            EventCount = 1,
+            WindowStartedUtc = DateTimeOffset.UtcNow,
+            Facts = new Dictionary<string, string>
+            {
+                ["outcome"] = "Denied",
+                ["accessToken"] = "do-not-send",
+                ["password"] = "do-not-send"
+            }
+        });
+
+        using var doc =
+            JsonDocument.Parse(client.Data!.ToStream());
+
+        var facts = doc.RootElement.GetProperty("Facts");
+
+        Assert.Equal(
+            "Denied",
+            facts.GetProperty("outcome").GetString());
+
+        Assert.False(
+            facts.TryGetProperty("accessToken", out _));
+
+        Assert.False(
+            facts.TryGetProperty("password", out _));
+    }
+
     [Fact]
     public async Task Delivery_failure_propagates()
     {
