@@ -35,6 +35,8 @@ Strong security architecture, but not yet ready for production PII, PHI, or CUI.
   independent verification
 - Draft [security audit integrity operations](SECURITY_AUDIT_OPERATIONS.md)
   procedure
+- Revision-based workflow optimistic concurrency with atomic transition history
+  documented in [ADR-029](architecture/ADR-029-workflow-optimistic-concurrency.md)
 
 ## Principal Gaps
 

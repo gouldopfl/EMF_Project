@@ -231,8 +231,12 @@ exception handling, ownership, and closure evidence remain undefined.
 **Status:** Partial
 
 GitHub actions are pinned by commit SHA. CI verifies restore, release build,
-tests, and dependencies, and an SPDX 2.3 SBOM is available. Signed releases,
-provenance attestations, and deployment verification remain open.
+tests, and dependencies, and an SPDX 2.3 SBOM is available. SQLite audit
+records use a versioned SHA-256 hash chain with independent verification.
+Workflow execution revisions reject stale updates, while transactions bind
+accepted status changes to transition history. External audit-chain anchoring,
+workflow checkpoint and history integrity, signed releases, provenance
+attestations, and deployment verification remain open.
 
 ### SR-3 — Supply Chain Controls and Processes
 

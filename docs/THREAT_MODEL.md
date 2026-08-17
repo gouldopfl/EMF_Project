@@ -246,10 +246,13 @@ owner and is outside this document.
   conceal failure, or produce incorrect evidence state.
 - **Current mitigations:** Persisted state is authoritative; activity identity
   and workflow versions are stable; recovery decisions are explicit; completed
-  work is not unnecessarily repeated.
-- **Required work:** Authenticate and authorize state changes; add optimistic
-  concurrency, integrity verification, protected backups, replay detection,
-  administrative audit, and recovery testing.
+  work is not unnecessarily repeated. Revision-based optimistic concurrency
+  rejects stale execution updates. Status updates and transition-history writes
+  are atomic, so a rejected stale transition cannot append misleading history.
+- **Required work:** Authenticate and authorize state changes; add integrity
+  verification for checkpoints and transitions, protected backups, operation
+  identifiers, replay and duplicate detection, administrative audit, and
+  recovery testing.
 
 ### TM-08 — Unsafe Provider Selection or Fallback
 
