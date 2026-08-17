@@ -87,6 +87,67 @@ public sealed class SqliteSecurityAuditHashChainTests
         }
     }
 
+    [Fact]
+    public async Task WriteAsync_serializes_concurrent_writers()
+    {
+        var root =
+            Path.Combine(
+                Path.GetTempPath(),
+                Guid.NewGuid().ToString());
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var databasePath =
+                Path.Combine(
+                    root,
+                    "concurrent-audit-chain.db");
+
+            var sink =
+                new SqliteSecurityAuditSink(
+                    databasePath);
+
+            await sink.InitializeAsync();
+
+            const int recordCount = 32;
+
+            var writes =
+                Enumerable.Range(1, recordCount)
+                    .Select(
+                        index =>
+                            sink.WriteAsync(
+                                CreateRecord(
+                                    $"artifact-{index:D3}",
+                                    SecurityAuditOutcome
+                                        .Succeeded)))
+                    .ToArray();
+
+            await Task.WhenAll(writes);
+
+            var verifier =
+                new SqliteSecurityAuditIntegrityVerifier(
+                    databasePath);
+
+            var result =
+                await verifier.VerifyAsync();
+
+            Assert.True(result.IsValid);
+            Assert.Equal(
+                recordCount,
+                result.ProtectedRecordCount);
+            Assert.Equal(0, result.LegacyRecordCount);
+            Assert.NotNull(result.ChainHeadHash);
+            Assert.Equal(
+                64,
+                result.ChainHeadHash!.Length);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     private static SecurityAuditRecord CreateRecord(
         string resourceId,
         SecurityAuditOutcome outcome)
