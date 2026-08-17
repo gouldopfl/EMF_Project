@@ -174,7 +174,7 @@ and configuration-accounting procedures remain undefined.
 
 **Status:** Application-supported
 
-The regression baseline is 485 passed, one intentionally skipped live test,
+The regression baseline is 501 passed, one intentionally skipped live test,
 and zero failed. CI, CodeQL, and dependency auditing are automated. Threat
 modeling, penetration testing, and authorized Azure live testing remain open.
 
@@ -293,7 +293,7 @@ not been selected. No claim of CUI compliance is made.
   vulnerability auditing, Dependabot, and the SBOM support governance.
 - **PW.7 — Review or Analyze Human-Readable Code:** Partial. CodeQL analysis
   is automated; formal human security-review criteria remain open.
-- **PW.8 — Test Executable Code:** Application-supported. The 485-test
+- **PW.8 — Test Executable Code:** Application-supported. The 501-test
   baseline and CI verify behavior and security boundaries.
 - **PW.9 — Secure Settings by Default:** Partial. Invalid Azure settings are
   rejected and authorization fails closed; production hardening remains open.
@@ -308,7 +308,7 @@ not been selected. No claim of CUI compliance is made.
   vulnerability auditing, Dependabot, and the SBOM support governance.
 - **PW.7 — Review or Analyze Human-Readable Code:** Partial. CodeQL analysis
   is automated; formal human security-review criteria remain open.
-- **PW.8 — Test Executable Code:** Application-supported. The 485-test
+- **PW.8 — Test Executable Code:** Application-supported. The 501-test
   baseline and CI verify behavior and security boundaries.
 - **PW.9 — Secure Settings by Default:** Partial. Invalid Azure settings are
   rejected and authorization fails closed; production hardening remains open.
@@ -343,7 +343,7 @@ Verified on 2026-08-16:
 
 - Repository commit: `96a473c`
 - Branch: `main`, synchronized with `origin/main`
-- Automated tests: 485 passed, 1 skipped, 0 failed
+- Automated tests: 501 passed, 1 skipped, 0 failed
 - Live Azure OpenAI test: intentionally disabled
 - CI: Bicep validation, restore, release build, tests, and dependency audit
 - CodeQL: security-extended analysis on changes and weekly

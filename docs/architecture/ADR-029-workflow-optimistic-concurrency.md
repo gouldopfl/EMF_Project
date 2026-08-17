@@ -75,7 +75,7 @@ Automated tests verify:
 - add operation identifiers and replay or duplicate detection
 - evaluate integrity protection for checkpoints and transition history
 - audit administrative workflow changes
-- exercise concurrent recovery behavior
+- integrate authorized and audited abandoned-claim recovery (see ADR-030)
 - protect and test workflow backups
 
 ## References
@@ -84,3 +84,4 @@ Automated tests verify:
 - ADR-023: Workflow Resume and Restart Semantics
 - ADR-024: Workflow Recovery Policy
 - ADR-025: Workflow Recovery Coordinator Boundary
+- ADR-030: Workflow Activity Claim Recovery
