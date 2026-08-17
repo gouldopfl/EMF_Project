@@ -56,7 +56,7 @@ Automated tests verify:
 
 ## Follow-up Work
 
-- authorize and audit claim-recovery operations
+- expose authorized recovery through an administrative composition boundary
 - define operational abandonment thresholds
 - consider claim heartbeats or lease renewal
 - require idempotency controls for external side effects

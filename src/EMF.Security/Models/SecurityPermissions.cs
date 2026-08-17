@@ -13,4 +13,10 @@ public static class SecurityPermissions
     {
         get;
     } = new("artifact.intelligence.use");
+
+    public static PermissionId WorkflowActivityClaimRecover
+    {
+        get;
+    } = new("workflow.activity-claim.recover");
+
 }
