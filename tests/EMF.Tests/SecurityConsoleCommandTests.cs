@@ -54,6 +54,13 @@ public sealed class SecurityConsoleCommandTests
 
             Assert.Equal(0, validExitCode);
 
+            var reportExitCode =
+                await SecurityConsoleCommand.RunAsync(
+                    ["audit", "report", databasePath,
+                     "artifact.read"]);
+
+            Assert.Equal(0, reportExitCode);
+
             await using (
                 var connection =
                     new SqliteConnection(

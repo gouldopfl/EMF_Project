@@ -79,6 +79,8 @@ public static class ConsoleCommandRouter
         global::System.Console.WriteLine(
             "  emf security audit verify <database-path>");
         global::System.Console.WriteLine(
+            "  emf security audit report <database-path> <operation>");
+        global::System.Console.WriteLine(
             "  emf intelligence analyze [--promote] <text-file>");
         global::System.Console.WriteLine(
             "  emf intelligence summarize <text-file>");

@@ -16,6 +16,8 @@ Run:
 emf security audit verify <database-path>
 ```
 
+Generate a verified aggregate with `emf security audit report <database-path> <operation>`.
+
 The verifier opens the database in SQLite read-only mode and checks records in
 ascending identifier order.
 

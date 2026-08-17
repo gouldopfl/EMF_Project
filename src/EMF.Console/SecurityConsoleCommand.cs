@@ -8,6 +8,13 @@ public static class SecurityConsoleCommand
     public static async Task<int> RunAsync(
         string[] args)
     {
+        if (args.Length == 4 &&
+            args[0] == "audit" &&
+            args[1] == "report")
+        {
+            return await RunReportAsync(args[2], args[3]);
+        }
+
         if (args.Length != 3 ||
             args[0] != "audit" ||
             args[1] != "verify")
@@ -79,9 +86,65 @@ public static class SecurityConsoleCommand
         return 0;
     }
 
+
+    private static async Task<int> RunReportAsync(
+        string databaseArgument,
+        string operation)
+    {
+        var databasePath =
+            Path.GetFullPath(databaseArgument);
+
+        if (!File.Exists(databasePath))
+        {
+            global::System.Console.Error.WriteLine(
+                $"Security audit database not found: {databasePath}");
+            return 2;
+        }
+
+        SecurityAuditOperationReport report;
+
+        try
+        {
+            report =
+                await new SqliteSecurityAuditOperationReporter(
+                    databasePath)
+                    .CreateAsync(operation);
+        }
+        catch (Exception exception)
+            when (exception is SqliteException
+                or InvalidOperationException)
+        {
+            global::System.Console.Error.WriteLine(
+                "Security audit report could not run: " +
+                exception.Message);
+            return 1;
+        }
+
+        global::System.Console.WriteLine(
+            $"Operation   : {report.Operation}");
+        global::System.Console.WriteLine(
+            $"Total       : {report.TotalCount}");
+
+        foreach (var outcome in report.OutcomeCounts)
+        {
+            global::System.Console.WriteLine(
+                $"{outcome.Key,-11} : {outcome.Value}");
+        }
+
+        global::System.Console.WriteLine(
+            $"First UTC   : {report.FirstOccurredUtc:O}");
+        global::System.Console.WriteLine(
+            $"Last UTC    : {report.LastOccurredUtc:O}");
+        global::System.Console.WriteLine(
+            $"Chain head  : {report.ChainHeadHash}");
+
+        return 0;
+    }
     private static void ShowUsage()
     {
         global::System.Console.WriteLine(
             "Usage: emf security audit verify <database-path>");
+        global::System.Console.WriteLine(
+            "Usage: emf security audit report <database-path> <operation>");
     }
 }
