@@ -245,6 +245,79 @@ public sealed class WorkflowRecoveryCoordinatorTests
     }
 
     [Fact]
+    public async Task Retry_with_multiple_failed_operations_requires_review()
+    {
+        var workflowId =
+            new WorkflowId("workflow-multiple-failed-operations");
+
+        var repository = new FakeWorkflowRepository
+        {
+            Execution = new WorkflowExecutionRecord
+            {
+                WorkflowId = workflowId,
+                DefinitionId = "test",
+                DefinitionVersion = "1",
+                CreatedUtc = DateTimeOffset.UtcNow,
+                CurrentStatus = WorkflowStatus.Interrupted,
+                RecoveryStatus = WorkflowRecoveryStatus.None
+            },
+            Operations = new[]
+            {
+                new WorkflowOperationRecord
+                {
+                    WorkflowId = workflowId,
+                    ActivityId = "First",
+                    OperationId = new OperationId("operation-first"),
+                    OperationType = "external-side-effect",
+                    Status = "Failed",
+                    CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-2),
+                    CompletedUtc = DateTimeOffset.UtcNow.AddMinutes(-1)
+                },
+                new WorkflowOperationRecord
+                {
+                    WorkflowId = workflowId,
+                    ActivityId = "Second",
+                    OperationId = new OperationId("operation-second"),
+                    OperationType = "external-side-effect",
+                    Status = "Failed",
+                    CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
+                    CompletedUtc = DateTimeOffset.UtcNow
+                }
+            }
+        };
+
+        var policy = new FakeRecoveryPolicy
+        {
+            Decision = RecoveryDecision.Retry
+        };
+
+        var coordinator =
+            new WorkflowRecoveryCoordinator(
+                repository,
+                policy);
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "Test Workflow",
+            Version = "1",
+            ActivityIds = new[] { "First", "Second" }
+        };
+
+        var result =
+            await coordinator.RecoverAsync(
+                workflowId,
+                definition);
+
+        Assert.Equal(
+            RecoveryDecision.RequireReview,
+            result.Decision);
+
+        Assert.Null(result.RetryActivityId);
+        Assert.Null(result.RetryOperationId);
+    }
+
+    [Fact]
     public async Task Retry_with_failed_operation_missing_activity_id_requires_review()
     {
         var workflowId =
