@@ -48,12 +48,12 @@ public sealed class WorkflowRecoveryPolicy : IWorkflowRecoveryPolicy
             execution.CurrentStatus switch
             {
                 WorkflowStatus.Interrupted
-                    when hasFailedOperation
-                    => RecoveryDecision.Retry,
-
-                WorkflowStatus.Interrupted
                     when hasPendingOperation
                     => RecoveryDecision.RequireReview,
+
+                WorkflowStatus.Interrupted
+                    when hasFailedOperation
+                    => RecoveryDecision.Retry,
 
                 WorkflowStatus.Interrupted when checkpoints.Count > 0
                     => RecoveryDecision.Resume,
