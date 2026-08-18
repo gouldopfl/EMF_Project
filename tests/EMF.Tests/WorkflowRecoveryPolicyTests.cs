@@ -279,6 +279,66 @@ public sealed class WorkflowRecoveryFailedOperationTests
     }
 }
 
+public sealed class WorkflowRecoveryMixedOperationTests
+{
+    [Fact]
+    public async Task Interrupted_workflow_with_pending_and_failed_operations_requires_review()
+    {
+        var policy = new WorkflowRecoveryPolicy();
+
+        var execution = new WorkflowExecutionRecord
+        {
+            WorkflowId = new WorkflowId("workflow-mixed-operation"),
+            DefinitionId = "test",
+            DefinitionVersion = "1",
+            CreatedUtc = DateTimeOffset.UtcNow,
+            CurrentStatus = WorkflowStatus.Interrupted,
+            RecoveryStatus = WorkflowRecoveryStatus.None
+        };
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "Test Workflow",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
+        var operations = new[]
+        {
+            new WorkflowOperationRecord
+            {
+                WorkflowId = execution.WorkflowId,
+                ActivityId = "activity-pending",
+                OperationId = new OperationId("operation-pending"),
+                OperationType = "external-side-effect",
+                Status = "Pending",
+                CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-2)
+            },
+            new WorkflowOperationRecord
+            {
+                WorkflowId = execution.WorkflowId,
+                ActivityId = "activity-failed",
+                OperationId = new OperationId("operation-failed"),
+                OperationType = "external-side-effect",
+                Status = "Failed",
+                CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
+                CompletedUtc = DateTimeOffset.UtcNow
+            }
+        };
+
+        var result = await policy.EvaluateAsync(
+            execution,
+            definition,
+            Array.Empty<WorkflowCheckpoint>(),
+            operations);
+
+        Assert.Equal(
+            RecoveryDecision.RequireReview,
+            result);
+    }
+}
+
 public sealed class WorkflowRecoveryCompletedOperationTests
 {
     [Fact]
