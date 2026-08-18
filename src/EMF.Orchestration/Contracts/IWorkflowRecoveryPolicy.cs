@@ -8,5 +8,6 @@ public interface IWorkflowRecoveryPolicy
         WorkflowExecutionRecord execution,
         WorkflowDefinition definition,
         IReadOnlyList<WorkflowCheckpoint> checkpoints,
+        IReadOnlyList<WorkflowOperationRecord> operations,
         CancellationToken cancellationToken = default);
 }

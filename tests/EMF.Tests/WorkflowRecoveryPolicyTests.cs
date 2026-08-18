@@ -43,7 +43,8 @@ public sealed class WorkflowRecoveryPolicyTests
         var result = await policy.EvaluateAsync(
             execution,
             definition,
-            checkpoints);
+            checkpoints,
+            Array.Empty<WorkflowOperationRecord>());
 
         Assert.Equal(RecoveryDecision.Resume, result);
     }
@@ -75,7 +76,8 @@ public sealed class WorkflowRecoveryPolicyTests
         var result = await policy.EvaluateAsync(
             execution,
             definition,
-            checkpoints);
+            checkpoints,
+            Array.Empty<WorkflowOperationRecord>());
 
         Assert.Equal(RecoveryDecision.RequireReview, result);
     }
@@ -121,7 +123,8 @@ public sealed class WorkflowRecoveryDefinitionCompatibilityTests
         var result = await policy.EvaluateAsync(
             execution,
             definition,
-            checkpoints);
+            checkpoints,
+            Array.Empty<WorkflowOperationRecord>());
 
         Assert.Equal(
             RecoveryDecision.RequireReview,
@@ -154,7 +157,8 @@ public sealed class WorkflowRecoveryDefinitionCompatibilityTests
         var result = await policy.EvaluateAsync(
             execution,
             definition,
-            Array.Empty<WorkflowCheckpoint>());
+            Array.Empty<WorkflowCheckpoint>(),
+            Array.Empty<WorkflowOperationRecord>());
 
         Assert.Equal(
             RecoveryDecision.RequireReview,

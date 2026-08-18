@@ -54,11 +54,15 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
                 workflowId,
                 cancellationToken);
 
+        var operations = await _repository.GetOperationsAsync(
+            workflowId, cancellationToken);
+
         var decision =
             await _policy.EvaluateAsync(
                 execution,
                 definition,
                 checkpoints,
+                operations,
                 cancellationToken);
 
         var recoveryStatus =

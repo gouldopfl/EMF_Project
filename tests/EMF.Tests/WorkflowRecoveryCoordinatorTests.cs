@@ -284,6 +284,7 @@ public sealed class WorkflowRecoveryCoordinatorTests
             WorkflowExecutionRecord execution,
             WorkflowDefinition definition,
             IReadOnlyList<WorkflowCheckpoint> checkpoints,
+            IReadOnlyList<WorkflowOperationRecord> operations,
             CancellationToken cancellationToken = default)
         {
             WasCalled = true;
@@ -444,6 +445,7 @@ public sealed class WorkflowRecoveryCoordinatorStatusTests
             WorkflowExecutionRecord execution,
             WorkflowDefinition definition,
             IReadOnlyList<WorkflowCheckpoint> checkpoints,
+            IReadOnlyList<WorkflowOperationRecord> operations,
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult(Decision);

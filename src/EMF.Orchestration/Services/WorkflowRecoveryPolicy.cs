@@ -9,11 +9,13 @@ public sealed class WorkflowRecoveryPolicy : IWorkflowRecoveryPolicy
         WorkflowExecutionRecord execution,
         WorkflowDefinition definition,
         IReadOnlyList<WorkflowCheckpoint> checkpoints,
+        IReadOnlyList<WorkflowOperationRecord> operations,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(execution);
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentNullException.ThrowIfNull(checkpoints);
+        ArgumentNullException.ThrowIfNull(operations);
 
         if (!string.Equals(
                 execution.DefinitionId,
