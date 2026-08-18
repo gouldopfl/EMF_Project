@@ -143,7 +143,6 @@ public sealed class WorkflowExecutionCoordinatorTests
             definition);
 
         Assert.False(activityResolver.WasCalled);
-        Assert.False(activityResolver.WasCalled);
         Assert.False(runner.WasCalled);
     }
 
