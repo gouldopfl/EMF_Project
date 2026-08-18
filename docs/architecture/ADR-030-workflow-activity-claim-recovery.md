@@ -55,10 +55,11 @@ Automated tests verify:
 - recovery service audits success, skip, denial, cancellation, and failure
 - administrative console composition exposes authorized abandoned-claim recovery
 - administrative recovery reclaims abandoned claims and preserves fresh claims
+- operational abandonment uses a validated default threshold of 15 minutes
+- administrative recovery derives the cutoff from the configured threshold
 - concurrent initial claims produce exactly one winner
 
 ## Follow-up Work
 
-- define operational abandonment thresholds
 - consider claim heartbeats or lease renewal
 - require idempotency controls for external side effects

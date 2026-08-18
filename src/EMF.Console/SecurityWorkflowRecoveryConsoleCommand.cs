@@ -14,20 +14,22 @@ internal static class SecurityWorkflowRecoveryConsoleCommand
     public static async Task<int> RunAsync(
         string[] args)
     {
-        if (args.Length != 5)
+        if (args.Length != 4)
             return 2;
 
         var databasePath =
             Path.GetFullPath(args[0]);
 
-        if (!DateTimeOffset.TryParse(
-                args[4],
-                out var abandonedBeforeUtc))
-        {
-            global::System.Console.Error.WriteLine(
-                "Invalid abandonment cutoff.");
-            return 2;
-        }
+        var recoveryOptions =
+            new WorkflowActivityClaimRecoveryOptions();
+
+        var reclaimedUtc =
+            DateTimeOffset.UtcNow;
+
+        var abandonedBeforeUtc =
+            recoveryOptions
+                .CalculateAbandonedBeforeUtc(
+                    reclaimedUtc);
 
         var subjectId =
             Environment.GetEnvironmentVariable(
@@ -92,7 +94,7 @@ internal static class SecurityWorkflowRecoveryConsoleCommand
                     ActivityId = args[2],
                     NewClaimId = args[3],
                     ReclaimedUtc =
-                        DateTimeOffset.UtcNow,
+                        reclaimedUtc,
                     AbandonedBeforeUtc =
                         abandonedBeforeUtc,
                     ProtectionClassificationId =

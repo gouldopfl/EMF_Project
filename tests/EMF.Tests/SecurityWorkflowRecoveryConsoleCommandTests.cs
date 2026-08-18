@@ -31,7 +31,7 @@ public sealed class SecurityWorkflowRecoveryConsoleCommandTests
                     workflowId,
                     "activity",
                     "old-claim",
-                    now.AddMinutes(-10)));
+                    now.AddMinutes(-20)));
 
             var exitCode =
                 await SecurityConsoleCommand.RunAsync(
@@ -41,8 +41,7 @@ public sealed class SecurityWorkflowRecoveryConsoleCommandTests
                     path,
                     workflowId.Value,
                     "activity",
-                    "new-claim",
-                    now.AddMinutes(-5).ToString("O")
+                    "new-claim"
                 ]);
 
             Assert.Equal(0, exitCode);
@@ -102,8 +101,7 @@ public sealed class SecurityWorkflowRecoveryConsoleCommandTests
                     path,
                     workflowId.Value,
                     "activity",
-                    "new-claim",
-                    now.AddMinutes(-5).ToString("O")
+                    "new-claim"
                 ]);
 
             Assert.Equal(1, exitCode);
