@@ -130,6 +130,62 @@ public sealed class WorkflowActivityClaimRecoveryTests
     }
 
     [Fact]
+    public async Task Abandoned_claim_cannot_be_renewed_after_reclaim()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-recovery-renew-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new SqliteWorkflowRepository(path);
+
+            await repository.InitializeAsync();
+
+            var workflowId =
+                new WorkflowId("recovery-renew");
+
+            var now =
+                DateTimeOffset.UtcNow;
+
+            Assert.True(
+                await repository.TryClaimActivityAsync(
+                    workflowId,
+                    "activity",
+                    "old-claim",
+                    now.AddMinutes(-10)));
+
+            Assert.True(
+                await repository.TryReclaimActivityAsync(
+                    workflowId,
+                    "activity",
+                    "new-claim",
+                    now,
+                    now.AddMinutes(-5)));
+
+            Assert.False(
+                await repository.TryRenewActivityClaimAsync(
+                    workflowId,
+                    "activity",
+                    "old-claim",
+                    now));
+
+            Assert.True(
+                await repository.TryRenewActivityClaimAsync(
+                    workflowId,
+                    "activity",
+                    "new-claim",
+                    now));
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task Fresh_claim_cannot_be_reclaimed()
     {
         var path = Path.Combine(
