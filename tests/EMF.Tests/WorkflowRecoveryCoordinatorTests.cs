@@ -181,9 +181,74 @@ public sealed class WorkflowRecoveryCoordinatorTests
         Assert.False(policy.WasCalled);
     }
 
+    [Fact]
+    public async Task Existing_workflow_passes_persisted_operations_to_policy()
+    {
+        var repository = new FakeWorkflowRepository
+        {
+            Execution = new WorkflowExecutionRecord
+            {
+                WorkflowId = new WorkflowId("workflow-operations"),
+                DefinitionId = "test",
+                DefinitionVersion = "1",
+                CreatedUtc = DateTimeOffset.UtcNow,
+                CurrentStatus = WorkflowStatus.Interrupted,
+                RecoveryStatus = WorkflowRecoveryStatus.None
+            },
+            Operations = new[]
+            {
+                new WorkflowOperationRecord
+                {
+                    WorkflowId = new WorkflowId("workflow-operations"),
+                    ActivityId = "activity-1",
+                    OperationId = new OperationId("operation-1"),
+                    OperationType = "test-operation",
+                    Status = "Pending",
+                    CreatedUtc = DateTimeOffset.UtcNow
+                }
+            }
+        };
+
+        var policy = new FakeRecoveryPolicy
+        {
+            Decision = RecoveryDecision.RequireReview
+        };
+
+        var coordinator =
+            new WorkflowRecoveryCoordinator(
+                repository,
+                policy);
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "Test Workflow",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
+        var result =
+            await coordinator.RecoverAsync(
+                repository.Execution.WorkflowId,
+                definition);
+
+        Assert.Equal(
+            RecoveryDecision.RequireReview,
+            result);
+
+        Assert.True(policy.WasCalled);
+        Assert.Single(policy.Operations);
+        Assert.Equal(
+            "Pending",
+            policy.Operations[0].Status);
+    }
+
     private sealed class FakeWorkflowRepository : IWorkflowRepository
     {
         public WorkflowExecutionRecord? Execution { get; set; }
+
+        public IReadOnlyList<WorkflowOperationRecord> Operations { get; set; } =
+            Array.Empty<WorkflowOperationRecord>();
 
         public Task<WorkflowOperationRecord?> GetOperationAsync(
             WorkflowId workflowId,
@@ -195,8 +260,7 @@ public sealed class WorkflowRecoveryCoordinatorTests
         public Task<IReadOnlyList<WorkflowOperationRecord>> GetOperationsAsync(
             WorkflowId workflowId,
             CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<WorkflowOperationRecord>>(
-                Array.Empty<WorkflowOperationRecord>());
+            => Task.FromResult(Operations);
 
         public Task<bool> TryCreateOperationAsync(
             WorkflowOperationRecord operation,
@@ -278,6 +342,9 @@ public sealed class WorkflowRecoveryCoordinatorTests
     {
         public RecoveryDecision Decision { get; set; }
 
+        public IReadOnlyList<WorkflowOperationRecord> Operations { get; private set; } =
+            Array.Empty<WorkflowOperationRecord>();
+
         public bool WasCalled { get; private set; }
 
         public Task<RecoveryDecision> EvaluateAsync(
@@ -288,6 +355,7 @@ public sealed class WorkflowRecoveryCoordinatorTests
             CancellationToken cancellationToken = default)
         {
             WasCalled = true;
+            Operations = operations;
 
             return Task.FromResult(Decision);
         }
@@ -348,6 +416,9 @@ public sealed class WorkflowRecoveryCoordinatorStatusTests
     private sealed class TestWorkflowRepository : IWorkflowRepository
     {
         public WorkflowExecutionRecord? Execution { get; set; }
+
+        public IReadOnlyList<WorkflowOperationRecord> Operations { get; set; } =
+            Array.Empty<WorkflowOperationRecord>();
 
         public Task CreateExecutionAsync(
             WorkflowExecutionRecord execution,
