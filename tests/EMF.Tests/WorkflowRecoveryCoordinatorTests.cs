@@ -185,6 +185,29 @@ public sealed class WorkflowRecoveryCoordinatorTests
     {
         public WorkflowExecutionRecord? Execution { get; set; }
 
+        public Task<WorkflowOperationRecord?> GetOperationAsync(
+            WorkflowId workflowId,
+            string activityId,
+            OperationId operationId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<WorkflowOperationRecord?>(null);
+
+        public Task<IReadOnlyList<WorkflowOperationRecord>> GetOperationsAsync(
+            WorkflowId workflowId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<WorkflowOperationRecord>>(
+                Array.Empty<WorkflowOperationRecord>());
+
+        public Task<bool> TryCreateOperationAsync(
+            WorkflowOperationRecord operation,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(true);
+
+        public Task UpdateOperationAsync(
+            WorkflowOperationRecord operation,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
         public Task<WorkflowExecutionRecord?> GetExecutionAsync(
             WorkflowId workflowId,
             CancellationToken cancellationToken = default)
@@ -340,6 +363,29 @@ public sealed class WorkflowRecoveryCoordinatorStatusTests
             Execution = execution;
             return Task.CompletedTask;
         }
+
+        public Task<WorkflowOperationRecord?> GetOperationAsync(
+            WorkflowId workflowId,
+            string activityId,
+            OperationId operationId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<WorkflowOperationRecord?>(null);
+
+        public Task<IReadOnlyList<WorkflowOperationRecord>> GetOperationsAsync(
+            WorkflowId workflowId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<WorkflowOperationRecord>>(
+                Array.Empty<WorkflowOperationRecord>());
+
+        public Task<bool> TryCreateOperationAsync(
+            WorkflowOperationRecord operation,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(true);
+
+        public Task UpdateOperationAsync(
+            WorkflowOperationRecord operation,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
 
         public Task<WorkflowExecutionRecord?> GetExecutionAsync(
             WorkflowId workflowId,

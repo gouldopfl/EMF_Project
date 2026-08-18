@@ -73,6 +73,17 @@ public sealed partial class SqliteWorkflowRepository : IWorkflowRepository
             CompletedUtc TEXT NULL,
             PRIMARY KEY (WorkflowId, ActivityId)
         );
+
+        CREATE TABLE IF NOT EXISTS WorkflowOperations (
+            WorkflowId TEXT NOT NULL,
+            ActivityId TEXT NOT NULL,
+            OperationId TEXT NOT NULL,
+            OperationType TEXT NOT NULL,
+            Status TEXT NOT NULL,
+            CreatedUtc TEXT NOT NULL,
+            CompletedUtc TEXT NULL,
+            PRIMARY KEY (WorkflowId, ActivityId, OperationId)
+        );
         """;
 
     await command.ExecuteNonQueryAsync(cancellationToken);

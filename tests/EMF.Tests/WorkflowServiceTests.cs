@@ -67,7 +67,30 @@ public sealed class WorkflowServiceTests
                 new WorkflowId(Guid.NewGuid().ToString()));
         }
 
-        public Task RecordCheckpointAsync(
+        public Task<WorkflowOperationRecord?> GetOperationAsync(
+        WorkflowId workflowId,
+        string activityId,
+        OperationId operationId,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<WorkflowOperationRecord?>(null);
+    }
+
+    public Task<bool> TryCreateOperationAsync(
+        WorkflowOperationRecord operation,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(true);
+    }
+
+    public Task UpdateOperationAsync(
+        WorkflowOperationRecord operation,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task RecordCheckpointAsync(
             WorkflowCheckpoint checkpoint,
             CancellationToken cancellationToken = default)
         {
@@ -277,6 +300,29 @@ private sealed class RecordingWorkflowRepository : IWorkflowRepository
         {
             return Task.FromResult(Execution);
         }
+
+        public Task<WorkflowOperationRecord?> GetOperationAsync(
+            WorkflowId workflowId,
+            string activityId,
+            OperationId operationId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<WorkflowOperationRecord?>(null);
+
+        public Task<IReadOnlyList<WorkflowOperationRecord>> GetOperationsAsync(
+            WorkflowId workflowId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<WorkflowOperationRecord>>(
+                Array.Empty<WorkflowOperationRecord>());
+
+        public Task<bool> TryCreateOperationAsync(
+            WorkflowOperationRecord operation,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(true);
+
+        public Task UpdateOperationAsync(
+            WorkflowOperationRecord operation,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
 
         public Task AddCheckpointAsync(
             WorkflowCheckpoint checkpoint,

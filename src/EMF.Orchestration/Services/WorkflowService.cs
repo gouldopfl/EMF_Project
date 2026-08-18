@@ -54,6 +54,41 @@ public sealed class WorkflowService : IWorkflowService
         return workflowId;
     }
 
+    public Task<WorkflowOperationRecord?> GetOperationAsync(
+        WorkflowId workflowId,
+        string activityId,
+        OperationId operationId,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.GetOperationAsync(
+            workflowId,
+            activityId,
+            operationId,
+            cancellationToken);
+    }
+
+    public Task<bool> TryCreateOperationAsync(
+        WorkflowOperationRecord operation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        return _repository.TryCreateOperationAsync(
+            operation,
+            cancellationToken);
+    }
+
+    public Task UpdateOperationAsync(
+        WorkflowOperationRecord operation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        return _repository.UpdateOperationAsync(
+            operation,
+            cancellationToken);
+    }
+
     public Task RecordCheckpointAsync(
         WorkflowCheckpoint checkpoint,
         CancellationToken cancellationToken = default)

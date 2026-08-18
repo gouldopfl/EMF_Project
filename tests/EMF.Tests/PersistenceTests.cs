@@ -2,6 +2,7 @@ using EMF.Persistence.Repositories;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Core.Models.Integrity;
+using EMF.Core.Models.Workflow;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 
@@ -408,6 +409,151 @@ public sealed class PersistenceTests
             {
                 File.Delete(databasePath);
             }
+        }
+    }
+
+    [Fact]
+    public async Task SqliteWorkflowRepository_UpdateOperationAsync_ThrowsWhenOperationDoesNotExist()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-workflow-operation-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new SqliteWorkflowRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var operation = new WorkflowOperationRecord
+            {
+                WorkflowId = new WorkflowId("workflow-operation-missing"),
+                ActivityId = "activity-missing",
+                OperationId = new OperationId("operation-missing"),
+                OperationType = "external-side-effect",
+                Status = "Completed",
+                CreatedUtc = DateTimeOffset.UtcNow,
+                CompletedUtc = DateTimeOffset.UtcNow
+            };
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => repository.UpdateOperationAsync(operation));
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+                File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task SqliteWorkflowRepository_UpdateOperationAsync_PersistsCompletion()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-workflow-operation-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new SqliteWorkflowRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var createdUtc = DateTimeOffset.UtcNow;
+            var completedUtc = createdUtc.AddMinutes(2);
+
+            var operation = new WorkflowOperationRecord
+            {
+                WorkflowId = new WorkflowId("workflow-operation-002"),
+                ActivityId = "activity-002",
+                OperationId = new OperationId("operation-002"),
+                OperationType = "external-side-effect",
+                Status = "Pending",
+                CreatedUtc = createdUtc
+            };
+
+            Assert.True(
+                await repository.TryCreateOperationAsync(operation));
+
+            var completed = new WorkflowOperationRecord
+            {
+                WorkflowId = operation.WorkflowId,
+                ActivityId = operation.ActivityId,
+                OperationId = operation.OperationId,
+                OperationType = operation.OperationType,
+                Status = "Completed",
+                CreatedUtc = operation.CreatedUtc,
+                CompletedUtc = completedUtc
+            };
+
+            await repository.UpdateOperationAsync(completed);
+
+            var result =
+                await repository.GetOperationAsync(
+                    completed.WorkflowId,
+                    completed.ActivityId,
+                    completed.OperationId);
+
+            Assert.NotNull(result);
+            Assert.Equal("Completed", result!.Status);
+            Assert.Equal(completedUtc, result.CompletedUtc);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+                File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task SqliteWorkflowRepository_OperationPersistence_RoundTrips()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-workflow-operation-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new SqliteWorkflowRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var operation = new WorkflowOperationRecord
+            {
+                WorkflowId = new WorkflowId("workflow-operation-001"),
+                ActivityId = "activity-001",
+                OperationId = new OperationId("operation-001"),
+                OperationType = "external-side-effect",
+                Status = "Pending",
+                CreatedUtc = DateTimeOffset.UtcNow
+            };
+
+            Assert.True(
+                await repository.TryCreateOperationAsync(operation));
+
+            Assert.False(
+                await repository.TryCreateOperationAsync(operation));
+
+            var result =
+                await repository.GetOperationAsync(
+                    operation.WorkflowId,
+                    operation.ActivityId,
+                    operation.OperationId);
+
+            Assert.NotNull(result);
+            Assert.Equal(operation.WorkflowId, result!.WorkflowId);
+            Assert.Equal(operation.ActivityId, result.ActivityId);
+            Assert.Equal(operation.OperationId, result.OperationId);
+            Assert.Equal(operation.OperationType, result.OperationType);
+            Assert.Equal(operation.Status, result.Status);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+                File.Delete(databasePath);
         }
     }
 

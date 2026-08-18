@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Core.Models.Workflow;
 using EMF.Orchestration.Contracts;
 using EMF.Orchestration.Models;
@@ -84,12 +85,56 @@ public sealed class WorkflowRunner : IWorkflowRunner
                 return;
             }
 
+            var operation = new WorkflowOperationRecord
+            {
+                WorkflowId = context.WorkflowId,
+                ActivityId = activity.Id,
+                OperationId = new OperationId(
+                    Guid.NewGuid().ToString("N")),
+                OperationType = activity.Id,
+                Status = "Pending",
+                CreatedUtc = DateTimeOffset.UtcNow
+            };
+
+            var operationCreated =
+                await _workflowService.TryCreateOperationAsync(
+                    operation,
+                    cancellationToken);
+
+            if (!operationCreated)
+            {
+                await _workflowService.ReleaseActivityClaimAsync(
+                    context.WorkflowId,
+                    activity.Id,
+                    claimId,
+                    cancellationToken);
+
+                return;
+            }
+
             var result =
                 await ExecuteWithClaimHeartbeatAsync(
                     context,
                     activity,
                     claimId,
                     cancellationToken);
+
+            operation = new WorkflowOperationRecord
+            {
+                WorkflowId = operation.WorkflowId,
+                ActivityId = operation.ActivityId,
+                OperationId = operation.OperationId,
+                OperationType = operation.OperationType,
+                Status = result.Succeeded
+                    ? "Completed"
+                    : "Failed",
+                CreatedUtc = operation.CreatedUtc,
+                CompletedUtc = result.CompletedUtc
+            };
+
+            await _workflowService.UpdateOperationAsync(
+                operation,
+                cancellationToken);
 
             await _workflowService.RecordCheckpointAsync(
                 new WorkflowCheckpoint

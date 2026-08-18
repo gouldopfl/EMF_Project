@@ -18,6 +18,24 @@ public interface IWorkflowRepository
         WorkflowId workflowId,
         CancellationToken cancellationToken = default);
 
+    Task<WorkflowOperationRecord?> GetOperationAsync(
+        WorkflowId workflowId,
+        string activityId,
+        OperationId operationId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<WorkflowOperationRecord>> GetOperationsAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> TryCreateOperationAsync(
+        WorkflowOperationRecord operation,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateOperationAsync(
+        WorkflowOperationRecord operation,
+        CancellationToken cancellationToken = default);
+
     Task AddCheckpointAsync(
         WorkflowCheckpoint checkpoint,
         CancellationToken cancellationToken = default);

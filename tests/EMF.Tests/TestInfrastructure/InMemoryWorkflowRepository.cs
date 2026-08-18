@@ -42,6 +42,37 @@ private readonly List<WorkflowStatusTransition> _transitions = new();
         return Task.FromResult(execution);
     }
 
+    public Task<WorkflowOperationRecord?> GetOperationAsync(
+        WorkflowId workflowId,
+        string activityId,
+        OperationId operationId,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<WorkflowOperationRecord?>(null);
+    }
+
+    public Task<bool> TryCreateOperationAsync(
+        WorkflowOperationRecord operation,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(true);
+    }
+
+    public Task UpdateOperationAsync(
+        WorkflowOperationRecord operation,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<WorkflowOperationRecord>> GetOperationsAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<WorkflowOperationRecord>>(
+            Array.Empty<WorkflowOperationRecord>());
+    }
+
     public Task AddCheckpointAsync(
         WorkflowCheckpoint checkpoint,
         CancellationToken cancellationToken = default)

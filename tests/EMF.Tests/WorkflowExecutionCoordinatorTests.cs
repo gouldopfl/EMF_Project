@@ -315,6 +315,29 @@ private sealed class FakeWorkflowService : IWorkflowService
         return Task.FromResult(new WorkflowId("workflow-started"));
     }
 
+    public Task<WorkflowOperationRecord?> GetOperationAsync(
+        WorkflowId workflowId,
+        string activityId,
+        OperationId operationId,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<WorkflowOperationRecord?>(null);
+    }
+
+    public Task<bool> TryCreateOperationAsync(
+        WorkflowOperationRecord operation,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(true);
+    }
+
+    public Task UpdateOperationAsync(
+        WorkflowOperationRecord operation,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
     public Task RecordCheckpointAsync(
         WorkflowCheckpoint checkpoint,
         CancellationToken cancellationToken = default)
