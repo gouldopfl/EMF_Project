@@ -30,9 +30,20 @@ public sealed class WorkflowRecoveryPolicy : IWorkflowRecoveryPolicy
                 RecoveryDecision.RequireReview);
         }
 
+        var hasPendingOperation =
+            operations.Any(operation =>
+                string.Equals(
+                    operation.Status,
+                    "Pending",
+                    StringComparison.OrdinalIgnoreCase));
+
         var decision =
             execution.CurrentStatus switch
             {
+                WorkflowStatus.Interrupted
+                    when hasPendingOperation
+                    => RecoveryDecision.RequireReview,
+
                 WorkflowStatus.Interrupted when checkpoints.Count > 0
                     => RecoveryDecision.Resume,
 
