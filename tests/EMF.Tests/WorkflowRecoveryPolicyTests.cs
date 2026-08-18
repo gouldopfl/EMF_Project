@@ -227,6 +227,58 @@ public sealed class WorkflowRecoveryPendingOperationTests
     }
 }
 
+
+public sealed class WorkflowRecoveryFailedOperationTests
+{
+    [Fact]
+    public async Task Interrupted_workflow_with_failed_operation_returns_retry()
+    {
+        var policy = new WorkflowRecoveryPolicy();
+
+        var execution = new WorkflowExecutionRecord
+        {
+            WorkflowId = new WorkflowId("workflow-failed-operation"),
+            DefinitionId = "test",
+            DefinitionVersion = "1",
+            CreatedUtc = DateTimeOffset.UtcNow,
+            CurrentStatus = WorkflowStatus.Interrupted,
+            RecoveryStatus = WorkflowRecoveryStatus.None
+        };
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "Test Workflow",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
+        var operations = new[]
+        {
+            new WorkflowOperationRecord
+            {
+                WorkflowId = execution.WorkflowId,
+                ActivityId = "activity-001",
+                OperationId = new OperationId("operation-001"),
+                OperationType = "external-side-effect",
+                Status = "Failed",
+                CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
+                CompletedUtc = DateTimeOffset.UtcNow
+            }
+        };
+
+        var result = await policy.EvaluateAsync(
+            execution,
+            definition,
+            Array.Empty<WorkflowCheckpoint>(),
+            operations);
+
+        Assert.Equal(
+            RecoveryDecision.Retry,
+            result);
+    }
+}
+
 public sealed class WorkflowRecoveryCompletedOperationTests
 {
     [Fact]
