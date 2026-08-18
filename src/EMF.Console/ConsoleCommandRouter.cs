@@ -81,6 +81,8 @@ public static class ConsoleCommandRouter
         global::System.Console.WriteLine(
             "  emf security audit report <database-path> <operation>");
         global::System.Console.WriteLine(
+            "  emf security workflow recover <database-path> <workflow-id> <activity-id> <new-claim-id> <abandoned-before-utc>");
+        global::System.Console.WriteLine(
             "  emf intelligence analyze [--promote] <text-file>");
         global::System.Console.WriteLine(
             "  emf intelligence summarize <text-file>");

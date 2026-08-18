@@ -15,6 +15,15 @@ public static class SecurityConsoleCommand
             return await RunReportAsync(args[2], args[3]);
         }
 
+        if (args.Length == 7 &&
+            args[0] == "workflow" &&
+            args[1] == "recover")
+        {
+            return await
+                SecurityWorkflowRecoveryConsoleCommand
+                    .RunAsync(args[2..]);
+        }
+
         if (args.Length != 3 ||
             args[0] != "audit" ||
             args[1] != "verify")
@@ -146,5 +155,7 @@ public static class SecurityConsoleCommand
             "Usage: emf security audit verify <database-path>");
         global::System.Console.WriteLine(
             "Usage: emf security audit report <database-path> <operation>");
+        global::System.Console.WriteLine(
+            "Usage: emf security workflow recover <database-path> <workflow-id> <activity-id> <new-claim-id> <abandoned-before-utc>");
     }
 }

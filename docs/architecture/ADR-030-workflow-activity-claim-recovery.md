@@ -53,11 +53,12 @@ Automated tests verify:
 - fresh claims cannot be reclaimed
 - completed claims cannot be reclaimed
 - recovery service audits success, skip, denial, cancellation, and failure
+- administrative console composition exposes authorized abandoned-claim recovery
+- administrative recovery reclaims abandoned claims and preserves fresh claims
 - concurrent initial claims produce exactly one winner
 
 ## Follow-up Work
 
-- expose authorized recovery through an administrative composition boundary
 - define operational abandonment thresholds
 - consider claim heartbeats or lease renewal
 - require idempotency controls for external side effects
