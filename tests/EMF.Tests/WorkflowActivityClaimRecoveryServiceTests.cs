@@ -1,6 +1,8 @@
 using EMF.Core.Models.Identities;
+using EMF.Core.Models.Workflow;
 using EMF.Security;
 using EMF.Security.Auditing.Models;
+using EMF.Security.Auditing;
 using EMF.Security.Authorization;
 using EMF.Security.Authorization.Services;
 using EMF.Security.Models;
@@ -224,6 +226,98 @@ public sealed class WorkflowActivityClaimRecoveryServiceTests
     }
 
     [Fact]
+    public async Task Successful_recovery_propagates_audit_failure()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-audit-failure-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new SqliteWorkflowRepository(path);
+
+            await repository.InitializeAsync();
+
+            var workflowId =
+                new WorkflowId("workflow-audit-failure");
+
+            var now =
+                DateTimeOffset.UtcNow;
+
+            Assert.True(
+                await repository.TryClaimActivityAsync(
+                    workflowId,
+                    "activity",
+                    "old-claim",
+                    now.AddHours(-1)));
+
+            var context = new AuthorizationContext
+            {
+                SubjectId = "steward",
+                RoleIds = [],
+                PermissionIds =
+                [
+                    SecurityPermissions
+                        .WorkflowActivityClaimRecover
+                ]
+            };
+
+            var auditFailure =
+                new InvalidOperationException(
+                    "Synthetic audit failure.");
+
+            var service =
+                new WorkflowActivityClaimRecoveryService(
+                    repository,
+                    new AuthorizationPolicy(
+                        new InMemoryAuthorizationContextProvider(
+                            [context])),
+                    new ThrowingSecurityAuditSink(auditFailure));
+
+            var request =
+                new WorkflowActivityClaimRecoveryRequest
+                {
+                    SubjectId = "steward",
+                    WorkflowId = workflowId,
+                    ActivityId = "activity",
+                    NewClaimId = "new-claim",
+                    ReclaimedUtc = now,
+                    AbandonedBeforeUtc =
+                        now.AddMinutes(-5),
+                    ProtectionClassificationId =
+                        new("internal")
+                };
+
+            var exception =
+                await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => service.RecoverAsync(request));
+
+            Assert.Same(
+                auditFailure,
+                exception);
+
+            await Assert.ThrowsAsync<WorkflowActivityClaimException>(
+                () => repository.CompleteActivityClaimAsync(
+                    workflowId,
+                    "activity",
+                    "old-claim",
+                    now));
+
+            await repository.CompleteActivityClaimAsync(
+                workflowId,
+                "activity",
+                "new-claim",
+                now);
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task Repository_failure_is_audited()
     {
         var path = Path.Combine(
@@ -260,6 +354,24 @@ public sealed class WorkflowActivityClaimRecoveryServiceTests
         Assert.Equal(
             SecurityAuditOutcome.Failed,
             Assert.Single(audit.Records).Outcome);
+    }
+
+    private sealed class ThrowingSecurityAuditSink :
+        ISecurityAuditSink
+    {
+        private readonly Exception _exception;
+
+        public ThrowingSecurityAuditSink(Exception exception)
+        {
+            _exception = exception;
+        }
+
+        public Task WriteAsync(
+            SecurityAuditRecord record,
+            CancellationToken cancellationToken = default)
+        {
+            throw _exception;
+        }
     }
 
     private sealed class AlwaysAllowAuthorizationPolicy :
