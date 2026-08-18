@@ -339,6 +339,57 @@ public sealed class WorkflowRecoveryMixedOperationTests
     }
 }
 
+public sealed class WorkflowRecoveryUnknownOperationTests
+{
+    [Fact]
+    public async Task Interrupted_workflow_with_unrecognized_operation_status_requires_review()
+    {
+        var policy = new WorkflowRecoveryPolicy();
+
+        var execution = new WorkflowExecutionRecord
+        {
+            WorkflowId = new WorkflowId("workflow-unknown-operation"),
+            DefinitionId = "test",
+            DefinitionVersion = "1",
+            CreatedUtc = DateTimeOffset.UtcNow,
+            CurrentStatus = WorkflowStatus.Interrupted,
+            RecoveryStatus = WorkflowRecoveryStatus.None
+        };
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "Test Workflow",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
+        var operations = new[]
+        {
+            new WorkflowOperationRecord
+            {
+                WorkflowId = execution.WorkflowId,
+                ActivityId = "activity-unknown",
+                OperationId = new OperationId("operation-unknown"),
+                OperationType = "external-side-effect",
+                Status = "Unknown",
+                CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-1)
+            }
+        };
+
+        var result = await policy.EvaluateAsync(
+            execution,
+            definition,
+            Array.Empty<WorkflowCheckpoint>(),
+            operations);
+
+        Assert.Equal(
+            RecoveryDecision.RequireReview,
+            result);
+    }
+}
+
+
 public sealed class WorkflowRecoveryCompletedOperationTests
 {
     [Fact]

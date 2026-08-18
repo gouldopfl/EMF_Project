@@ -44,6 +44,27 @@ public sealed class WorkflowRecoveryPolicy : IWorkflowRecoveryPolicy
                     "Failed",
                     StringComparison.OrdinalIgnoreCase));
 
+        var hasUnknownOperation =
+            operations.Any(operation =>
+                !string.Equals(
+                    operation.Status,
+                    "Pending",
+                    StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(
+                    operation.Status,
+                    "Failed",
+                    StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(
+                    operation.Status,
+                    "Completed",
+                    StringComparison.OrdinalIgnoreCase));
+
+        if (hasUnknownOperation)
+        {
+            return Task.FromResult(
+                RecoveryDecision.RequireReview);
+        }
+
         var decision =
             execution.CurrentStatus switch
             {
