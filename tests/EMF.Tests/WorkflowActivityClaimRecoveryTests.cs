@@ -46,6 +46,90 @@ public sealed class WorkflowActivityClaimRecoveryTests
     }
 
     [Fact]
+    public async Task Concurrent_reclaim_attempts_allow_only_one_new_owner()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-concurrent-recovery-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new SqliteWorkflowRepository(path);
+
+            await repository.InitializeAsync();
+
+            var workflowId =
+                new WorkflowId("concurrent-recovery");
+
+            var now =
+                DateTimeOffset.UtcNow;
+
+            Assert.True(
+                await repository.TryClaimActivityAsync(
+                    workflowId,
+                    "activity",
+                    "old-claim",
+                    now.AddMinutes(-10)));
+
+            var first =
+                repository.TryReclaimActivityAsync(
+                    workflowId,
+                    "activity",
+                    "new-claim-1",
+                    now,
+                    now.AddMinutes(-5));
+
+            var second =
+                repository.TryReclaimActivityAsync(
+                    workflowId,
+                    "activity",
+                    "new-claim-2",
+                    now,
+                    now.AddMinutes(-5));
+
+            var results =
+                await Task.WhenAll(first, second);
+
+            Assert.Equal(
+                1,
+                results.Count(result => result));
+
+            Assert.Equal(
+                1,
+                results.Count(result => !result));
+
+            var winningClaimId =
+                results[0]
+                    ? "new-claim-1"
+                    : "new-claim-2";
+
+            var losingClaimId =
+                results[0]
+                    ? "new-claim-2"
+                    : "new-claim-1";
+
+            await Assert.ThrowsAsync<WorkflowActivityClaimException>(
+                () => repository.CompleteActivityClaimAsync(
+                    workflowId,
+                    "activity",
+                    losingClaimId,
+                    now));
+
+            await repository.CompleteActivityClaimAsync(
+                workflowId,
+                "activity",
+                winningClaimId,
+                now);
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task Fresh_claim_cannot_be_reclaimed()
     {
         var path = Path.Combine(
