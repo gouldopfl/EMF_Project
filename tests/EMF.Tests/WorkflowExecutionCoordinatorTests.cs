@@ -200,11 +200,58 @@ public sealed class WorkflowExecutionCoordinatorTests
 
 
     [Fact]
+    public async Task Retry_decision_without_operation_identity_does_not_run_workflow()
+    {
+        var recoveryCoordinator =
+            new FakeRecoveryCoordinator
+            {
+                Decision = RecoveryDecision.Retry,
+                RetryActivityId = "Second",
+                RetryOperationId = null
+            };
+
+        var workflowService = new FakeWorkflowService();
+        var runner = new FakeWorkflowRunner();
+        var activityResolver =
+            new FakeWorkflowActivityResolver();
+
+        var coordinator =
+            new WorkflowExecutionCoordinator(
+                workflowService,
+                recoveryCoordinator,
+                activityResolver,
+                runner);
+
+        var workflowId =
+            new WorkflowId("workflow-incomplete-retry");
+
+        var definition =
+            new WorkflowDefinition
+            {
+                Id = "test",
+                Name = "Test Workflow",
+                Version = "1",
+                ActivityIds = new[] { "Second" }
+            };
+
+        await coordinator.ExecuteRecoveryAsync(
+            workflowId,
+            definition);
+
+        Assert.False(runner.WasCalled);
+        Assert.False(activityResolver.WasCalled);
+    }
+
+
+    [Fact]
     public async Task Retry_decision_delegates_to_runner()
     {
         var recoveryCoordinator = new FakeRecoveryCoordinator
         {
-            Decision = RecoveryDecision.Retry
+            Decision = RecoveryDecision.Retry,
+            RetryActivityId = "Second",
+            RetryOperationId =
+                new OperationId("operation-retry-001")
         };
 
         var workflowService = new FakeWorkflowService();
@@ -230,7 +277,7 @@ public sealed class WorkflowExecutionCoordinatorTests
                 Id = "test",
                 Name = "Test Workflow",
                 Version = "1",
-                ActivityIds = Array.Empty<string>()
+                ActivityIds = new[] { "Second" }
             };
 
         var context =

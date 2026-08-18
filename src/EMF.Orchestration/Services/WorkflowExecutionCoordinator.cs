@@ -73,6 +73,13 @@ public sealed class WorkflowExecutionCoordinator
             return;
         }
 
+        if (recovery.Decision == RecoveryDecision.Retry &&
+            (string.IsNullOrWhiteSpace(recovery.RetryActivityId) ||
+             recovery.RetryOperationId is null))
+        {
+            return;
+        }
+
         var context =
             new WorkflowExecutionContext
             {
