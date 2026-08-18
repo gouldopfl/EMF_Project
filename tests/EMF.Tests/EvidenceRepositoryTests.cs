@@ -124,4 +124,86 @@ public sealed class EvidenceRepositoryTests
             RelationshipTypes.Contains,
             results[0].RelationshipType);
     }
+
+    [Fact]
+    public async Task SqliteEvidenceRepository_ConcurrentDuplicatePersistence_does_not_create_duplicate_evidence()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-evidence-concurrency-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new EMF.Persistence.Repositories.SqliteEvidenceRepository(
+                    databasePath);
+
+            await repository.InitializeAsync();
+
+            var fingerprint = new ContentFingerprint
+            {
+                Algorithm = "SHA-256",
+                Value = "CONCURRENT-DUPLICATE-001"
+            };
+
+            var artifact1 = new Artifact
+            {
+                Id = new ArtifactId("artifact-concurrent-001"),
+                Name = "evidence-1.db",
+                ArtifactType = "file",
+                Fingerprint = fingerprint
+            };
+
+            var artifact2 = new Artifact
+            {
+                Id = new ArtifactId("artifact-concurrent-002"),
+                Name = "evidence-2.db",
+                ArtifactType = "file",
+                Fingerprint = fingerprint
+            };
+
+            var task1 =
+                repository.AddArtifactWithProvenanceAsync(
+                    artifact1,
+                    new Provenance
+                    {
+                        ArtifactId = artifact1.Id,
+                        Source = "/data/concurrent.db",
+                        RecordedBy = "EMF.Tests"
+                    });
+
+            var task2 =
+                repository.AddArtifactWithProvenanceAsync(
+                    artifact2,
+                    new Provenance
+                    {
+                        ArtifactId = artifact2.Id,
+                        Source = "/data/concurrent.db",
+                        RecordedBy = "EMF.Tests"
+                    });
+
+            await Task.WhenAll(task1, task2);
+
+            var first =
+                await repository.FindArtifactAsync(
+                    "/data/concurrent.db",
+                    fingerprint);
+
+            Assert.NotNull(first);
+
+            var stored1 =
+                await repository.GetArtifactAsync(artifact1.Id);
+
+            var stored2 =
+                await repository.GetArtifactAsync(artifact2.Id);
+
+            Assert.True(
+                (stored1 is not null) ^ (stored2 is not null));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
 }

@@ -324,10 +324,49 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
         await connection.OpenAsync(cancellationToken);
 
         await using var transaction =
-            await connection.BeginTransactionAsync(cancellationToken);
+            connection.BeginTransaction(
+                System.Data.IsolationLevel.Serializable,
+                deferred: false);
 
         try
         {
+            if (artifact.Fingerprint is not null)
+            {
+                await using var existingCommand = connection.CreateCommand();
+
+                existingCommand.Transaction =
+                    (SqliteTransaction)transaction;
+
+                existingCommand.CommandText =
+                    "SELECT 1 " +
+                    "FROM Artifacts a " +
+                    "INNER JOIN Provenance p ON p.ArtifactId = a.Id " +
+                    "WHERE p.Source = $source " +
+                    "AND a.FingerprintAlgorithm = $algorithm " +
+                    "AND a.FingerprintValue = $value " +
+                    "LIMIT 1;";
+
+                existingCommand.Parameters.AddWithValue(
+                    "$source",
+                    provenance.Source);
+                existingCommand.Parameters.AddWithValue(
+                    "$algorithm",
+                    artifact.Fingerprint.Algorithm);
+                existingCommand.Parameters.AddWithValue(
+                    "$value",
+                    artifact.Fingerprint.Value);
+
+                var existing =
+                    await existingCommand.ExecuteScalarAsync(
+                        cancellationToken);
+
+                if (existing is not null)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                    return;
+                }
+            }
+
             await using (var artifactCommand = connection.CreateCommand())
             {
                 artifactCommand.Transaction = (SqliteTransaction)transaction;
