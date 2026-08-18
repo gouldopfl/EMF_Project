@@ -168,6 +168,51 @@ public sealed class WorkflowRunnerTests
 
 
     [Fact]
+    public async Task ExecuteAsync_retries_activity_with_failed_operation()
+    {
+        var workflowService = new FakeWorkflowService();
+        var runner = new WorkflowRunner(workflowService);
+        var executionOrder = new List<string>();
+
+        var workflowId = new WorkflowId("workflow-retry-operation");
+
+        workflowService.Operations.Add(
+            new WorkflowOperationRecord
+            {
+                WorkflowId = workflowId,
+                ActivityId = "First",
+                OperationId = new OperationId("operation-001"),
+                OperationType = "First",
+                Status = "Failed",
+                CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
+                CompletedUtc = DateTimeOffset.UtcNow
+            });
+
+        var context = new WorkflowExecutionContext
+        {
+            WorkflowId = workflowId
+        };
+
+        var activities = new[]
+        {
+            new FakeActivity("First", executionOrder)
+        };
+
+        await runner.ExecuteAsync(context, activities);
+
+        Assert.Equal(
+            new[] { "First" },
+            executionOrder);
+
+        Assert.Contains(
+            workflowService.Operations,
+            operation =>
+                operation.ActivityId == "First" &&
+                operation.Status == "Completed");
+    }
+
+
+    [Fact]
     public async Task ExecuteAsync_rejects_duplicate_activity_ids()
     {
         var workflowService = new FakeWorkflowService();
@@ -387,6 +432,8 @@ public sealed class WorkflowRunnerTests
     {
         public List<WorkflowCheckpoint> Checkpoints { get; } = new();
 
+        public List<WorkflowOperationRecord> Operations { get; } = new();
+
         private HashSet<(WorkflowId, string)> Claims { get; } = new();
 
         public bool ClaimAvailable { get; set; } = true;
@@ -412,27 +459,58 @@ public sealed class WorkflowRunnerTests
         }
 
         public Task<WorkflowOperationRecord?> GetOperationAsync(
-        WorkflowId workflowId,
-        string activityId,
-        OperationId operationId,
-        CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult<WorkflowOperationRecord?>(null);
-    }
+            WorkflowId workflowId,
+            string activityId,
+            OperationId operationId,
+            CancellationToken cancellationToken = default)
+        {
+            var operation =
+                Operations.FirstOrDefault(x =>
+                    x.WorkflowId == workflowId &&
+                    x.ActivityId == activityId &&
+                    x.OperationId == operationId);
 
-    public Task<bool> TryCreateOperationAsync(
-        WorkflowOperationRecord operation,
-        CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult(true);
-    }
+            return Task.FromResult(operation);
+        }
 
-    public Task UpdateOperationAsync(
-        WorkflowOperationRecord operation,
-        CancellationToken cancellationToken = default)
-    {
-        return Task.CompletedTask;
-    }
+        public Task<bool> TryCreateOperationAsync(
+            WorkflowOperationRecord operation,
+            CancellationToken cancellationToken = default)
+        {
+            if (Operations.Any(x =>
+                x.WorkflowId == operation.WorkflowId &&
+                x.ActivityId == operation.ActivityId &&
+                x.OperationId == operation.OperationId))
+            {
+                return Task.FromResult(false);
+            }
+
+            Operations.Add(operation);
+
+            return Task.FromResult(true);
+        }
+
+        public Task UpdateOperationAsync(
+            WorkflowOperationRecord operation,
+            CancellationToken cancellationToken = default)
+        {
+            var index =
+                Operations.FindIndex(x =>
+                    x.WorkflowId == operation.WorkflowId &&
+                    x.ActivityId == operation.ActivityId &&
+                    x.OperationId == operation.OperationId);
+
+            if (index >= 0)
+            {
+                Operations[index] = operation;
+            }
+            else
+            {
+                Operations.Add(operation);
+            }
+
+            return Task.CompletedTask;
+        }
 
     public Task RecordCheckpointAsync(
             WorkflowCheckpoint checkpoint,

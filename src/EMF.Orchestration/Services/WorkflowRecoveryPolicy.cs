@@ -37,9 +37,20 @@ public sealed class WorkflowRecoveryPolicy : IWorkflowRecoveryPolicy
                     "Pending",
                     StringComparison.OrdinalIgnoreCase));
 
+        var hasFailedOperation =
+            operations.Any(operation =>
+                string.Equals(
+                    operation.Status,
+                    "Failed",
+                    StringComparison.OrdinalIgnoreCase));
+
         var decision =
             execution.CurrentStatus switch
             {
+                WorkflowStatus.Interrupted
+                    when hasFailedOperation
+                    => RecoveryDecision.Retry,
+
                 WorkflowStatus.Interrupted
                     when hasPendingOperation
                     => RecoveryDecision.RequireReview,
