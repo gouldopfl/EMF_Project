@@ -201,6 +201,21 @@ public sealed class WorkflowService : IWorkflowService
             cancellationToken);
     }
 
+    public Task<bool> TryRenewActivityClaimAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        DateTimeOffset renewedUtc,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.TryRenewActivityClaimAsync(
+            workflowId,
+            activityId,
+            claimId,
+            renewedUtc,
+            cancellationToken);
+    }
+
     public Task CompleteActivityClaimAsync(
         WorkflowId workflowId,
         string activityId,

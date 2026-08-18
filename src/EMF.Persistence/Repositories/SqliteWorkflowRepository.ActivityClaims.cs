@@ -41,6 +41,43 @@ public sealed partial class SqliteWorkflowRepository
             cancellationToken) == 1;
     }
 
+    public async Task<bool> TryRenewActivityClaimAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        DateTimeOffset renewedUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(activityId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(claimId);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            UPDATE WorkflowActivityClaims
+            SET ClaimedUtc = $renewedUtc
+            WHERE WorkflowId = $workflowId
+              AND ActivityId = $activityId
+              AND ClaimId = $claimId
+              AND Status = 'Claimed';
+            """;
+
+        command.Parameters.AddWithValue(
+            "$renewedUtc", renewedUtc.ToString("O"));
+        command.Parameters.AddWithValue(
+            "$workflowId", workflowId.Value);
+        command.Parameters.AddWithValue(
+            "$activityId", activityId);
+        command.Parameters.AddWithValue(
+            "$claimId", claimId);
+
+        return await command.ExecuteNonQueryAsync(
+            cancellationToken) == 1;
+    }
+
     public async Task CompleteActivityClaimAsync(
         WorkflowId workflowId,
         string activityId,

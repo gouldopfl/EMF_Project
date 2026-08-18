@@ -57,9 +57,11 @@ Automated tests verify:
 - administrative recovery reclaims abandoned claims and preserves fresh claims
 - operational abandonment uses a validated default threshold of 15 minutes
 - administrative recovery derives the cutoff from the configured threshold
+- active claims renew on a validated five-minute heartbeat interval
+- stale claim owners cannot renew after ownership is transferred
+- workflow execution stops if claim renewal reports lost ownership
 - concurrent initial claims produce exactly one winner
 
 ## Follow-up Work
 
-- consider claim heartbeats or lease renewal
 - require idempotency controls for external side effects

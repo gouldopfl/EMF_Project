@@ -64,6 +64,17 @@ public interface IWorkflowRepository
             "Workflow activity recovery is not supported by this repository.");
     }
 
+    Task<bool> TryRenewActivityClaimAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        DateTimeOffset renewedUtc,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Workflow activity claim renewal is not supported by this repository.");
+    }
+
     Task CompleteActivityClaimAsync(
         WorkflowId workflowId,
         string activityId,

@@ -37,6 +37,17 @@ public interface IWorkflowService
             "Workflow activity claims are not supported by this service.");
     }
 
+    Task<bool> TryRenewActivityClaimAsync(
+        WorkflowId workflowId,
+        string activityId,
+        string claimId,
+        DateTimeOffset renewedUtc,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Workflow activity claim renewal is not supported by this service.");
+    }
+
     Task CompleteActivityClaimAsync(
         WorkflowId workflowId,
         string activityId,

@@ -217,6 +217,74 @@ public sealed class WorkflowRunnerTests
         Assert.False(workflowService.FailCalled);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_renews_claim_while_activity_is_running()
+    {
+        var workflowService =
+            new FakeWorkflowService();
+
+        var renewalObserved =
+            new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+        workflowService.OnRenew =
+            () => renewalObserved.TrySetResult();
+
+        var runner =
+            new WorkflowRunner(
+                workflowService,
+                new WorkflowActivityClaimHeartbeatOptions(
+                    TimeSpan.FromMilliseconds(10)));
+
+        var activity =
+            new WaitingActivity(
+                renewalObserved.Task);
+
+        await runner.ExecuteAsync(
+            new WorkflowExecutionContext
+            {
+                WorkflowId =
+                    new WorkflowId("workflow-heartbeat")
+            },
+            [activity]);
+
+        Assert.True(
+            workflowService.RenewalCount > 0);
+    }
+
+
+    [Fact]
+    public async Task ExecuteAsync_stops_when_claim_renewal_is_lost()
+    {
+        var workflowService =
+            new FakeWorkflowService
+            {
+                RenewalAvailable = false
+            };
+
+        var runner =
+            new WorkflowRunner(
+                workflowService,
+                new WorkflowActivityClaimHeartbeatOptions(
+                    TimeSpan.FromMilliseconds(10)));
+
+        var activity =
+            new CancellableWaitingActivity();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => runner.ExecuteAsync(
+                new WorkflowExecutionContext
+                {
+                    WorkflowId =
+                        new WorkflowId("workflow-heartbeat-lost")
+                },
+                [activity]));
+
+        Assert.True(activity.CancellationObserved);
+        Assert.False(workflowService.CompleteCalled);
+    }
+
+
     private sealed class FakeActivity : IWorkflowActivity
     {
         private readonly IList<string> _executionOrder;
@@ -254,6 +322,67 @@ public sealed class WorkflowRunnerTests
         }
     }
 
+    private sealed class WaitingActivity :
+        IWorkflowActivity
+    {
+        private readonly Task _release;
+
+        public WaitingActivity(Task release)
+        {
+            _release = release;
+        }
+
+        public string Id => "Waiting";
+
+        public string Name => "Waiting";
+
+        public async Task<WorkflowActivityResult> ExecuteAsync(
+            WorkflowExecutionContext context,
+            CancellationToken cancellationToken = default)
+        {
+            await _release.WaitAsync(
+                cancellationToken);
+
+            return new WorkflowActivityResult
+            {
+                Succeeded = true,
+                Message = "Completed",
+                CompletedUtc =
+                    DateTimeOffset.UtcNow
+            };
+        }
+    }
+
+    private sealed class CancellableWaitingActivity :
+        IWorkflowActivity
+    {
+        public string Id => "CancellableWaiting";
+
+        public string Name => "CancellableWaiting";
+
+        public bool CancellationObserved { get; private set; }
+
+        public async Task<WorkflowActivityResult> ExecuteAsync(
+            WorkflowExecutionContext context,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await Task.Delay(
+                    Timeout.InfiniteTimeSpan,
+                    cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                CancellationObserved = true;
+                throw;
+            }
+
+            throw new InvalidOperationException(
+                "Unreachable.");
+        }
+    }
+
     private sealed class FakeWorkflowService : IWorkflowService
     {
         public List<WorkflowCheckpoint> Checkpoints { get; } = new();
@@ -262,9 +391,15 @@ public sealed class WorkflowRunnerTests
 
         public bool ClaimAvailable { get; set; } = true;
 
+        public bool RenewalAvailable { get; set; } = true;
+
         public bool CompleteCalled { get; private set; }
 
         public bool FailCalled { get; private set; }
+
+        public int RenewalCount { get; private set; }
+
+        public Action? OnRenew { get; set; }
 
         public WorkflowId? CompletedWorkflowId { get; private set; }
 
@@ -317,6 +452,20 @@ public sealed class WorkflowRunnerTests
         {
             return Task.FromResult(
                 ClaimAvailable && Claims.Add((workflowId, activityId)));
+        }
+
+        public Task<bool> TryRenewActivityClaimAsync(
+            WorkflowId workflowId,
+            string activityId,
+            string claimId,
+            DateTimeOffset renewedUtc,
+            CancellationToken cancellationToken = default)
+        {
+            RenewalCount++;
+            OnRenew?.Invoke();
+
+            return Task.FromResult(
+                RenewalAvailable);
         }
 
         public Task CompleteActivityClaimAsync(
