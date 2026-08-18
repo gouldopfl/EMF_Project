@@ -2,6 +2,7 @@ using EMF.Core.Contracts;
 using EMF.Core.Models.Identities;
 using EMF.Core.Models.Workflow;
 using EMF.Orchestration.Contracts;
+using EMF.Orchestration.Models;
 
 namespace EMF.Orchestration.Services;
 
@@ -21,7 +22,7 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
         _policy = policy;
     }
 
-    public async Task<RecoveryDecision> RecoverAsync(
+    public async Task<WorkflowRecoveryResult> RecoverAsync(
         WorkflowId workflowId,
         WorkflowDefinition definition,
         CancellationToken cancellationToken = default)
@@ -34,7 +35,10 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
 
         if (execution is null)
         {
-            return RecoveryDecision.Failed;
+            return new WorkflowRecoveryResult
+            {
+                Decision = RecoveryDecision.Failed
+            };
         }
 
         if (!string.Equals(
@@ -46,7 +50,10 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
                 definition.Version,
                 StringComparison.Ordinal))
         {
-            return RecoveryDecision.Failed;
+            return new WorkflowRecoveryResult
+            {
+                Decision = RecoveryDecision.Failed
+            };
         }
 
         var checkpoints =
@@ -64,6 +71,23 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
                 checkpoints,
                 operations,
                 cancellationToken);
+
+        if (decision == RecoveryDecision.Retry)
+        {
+            var failedOperations =
+                operations
+                    .Where(operation =>
+                        string.Equals(
+                            operation.Status,
+                            "Failed",
+                            StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+            if (failedOperations.Count != 1)
+            {
+                decision = RecoveryDecision.RequireReview;
+            }
+        }
 
         var recoveryStatus =
             decision switch
@@ -93,6 +117,26 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
                 cancellationToken);
         }
 
-        return decision;
+        if (decision == RecoveryDecision.Retry)
+        {
+            var failedOperation =
+                operations.Single(operation =>
+                    string.Equals(
+                        operation.Status,
+                        "Failed",
+                        StringComparison.OrdinalIgnoreCase));
+
+            return new WorkflowRecoveryResult
+            {
+                Decision = decision,
+                RetryActivityId = failedOperation.ActivityId,
+                RetryOperationId = failedOperation.OperationId
+            };
+        }
+
+        return new WorkflowRecoveryResult
+        {
+            Decision = decision
+        };
     }
 }

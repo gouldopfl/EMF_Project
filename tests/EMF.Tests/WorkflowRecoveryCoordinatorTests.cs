@@ -34,7 +34,7 @@ public sealed class WorkflowRecoveryCoordinatorTests
 
         Assert.Equal(
             RecoveryDecision.Failed,
-            result);
+            result.Decision);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class WorkflowRecoveryCoordinatorTests
 
         Assert.Equal(
             RecoveryDecision.Resume,
-            result);
+            result.Decision);
 
         Assert.True(policy.WasCalled);
 
@@ -130,7 +130,7 @@ public sealed class WorkflowRecoveryCoordinatorTests
 
         Assert.Equal(
             RecoveryDecision.Failed,
-            result);
+            result.Decision);
 
         Assert.False(policy.WasCalled);
     }
@@ -176,7 +176,7 @@ public sealed class WorkflowRecoveryCoordinatorTests
 
         Assert.Equal(
             RecoveryDecision.Failed,
-            result);
+            result.Decision);
 
         Assert.False(policy.WasCalled);
     }
@@ -234,7 +234,7 @@ public sealed class WorkflowRecoveryCoordinatorTests
 
         Assert.Equal(
             RecoveryDecision.RequireReview,
-            result);
+            result.Decision);
 
         Assert.True(policy.WasCalled);
         Assert.Single(policy.Operations);
@@ -405,7 +405,7 @@ public sealed class WorkflowRecoveryCoordinatorStatusTests
 
         Assert.Equal(
             RecoveryDecision.RequireReview,
-            result);
+            result.Decision);
 
         Assert.NotNull(repository.Execution);
         Assert.Equal(

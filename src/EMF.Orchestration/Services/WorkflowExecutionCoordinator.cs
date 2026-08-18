@@ -51,7 +51,7 @@ public sealed class WorkflowExecutionCoordinator
         await _runner.ExecuteAsync(
             context,
             activities,
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 
     public async Task ExecuteRecoveryAsync(
@@ -61,13 +61,13 @@ public sealed class WorkflowExecutionCoordinator
     {
         ArgumentNullException.ThrowIfNull(definition);
 
-        var decision =
+        var recovery =
             await _recoveryCoordinator.RecoverAsync(
                 workflowId,
                 definition,
                 cancellationToken);
 
-        if (decision is not RecoveryDecision.Resume
+        if (recovery.Decision is not RecoveryDecision.Resume
             and not RecoveryDecision.Retry)
         {
             return;
@@ -84,6 +84,8 @@ public sealed class WorkflowExecutionCoordinator
         await _runner.ExecuteAsync(
             context,
             activities,
-            cancellationToken);
+            retryActivityId: recovery.RetryActivityId,
+            retryOperationId: recovery.RetryOperationId,
+            cancellationToken: cancellationToken);
     }
 }

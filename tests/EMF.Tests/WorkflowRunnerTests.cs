@@ -133,6 +133,145 @@ public sealed class WorkflowRunnerTests
 
 
     [Fact]
+    public async Task ExecuteAsync_retry_reuses_existing_operation_id()
+    {
+        var workflowService = new FakeWorkflowService();
+        var runner = new WorkflowRunner(workflowService);
+        var executionOrder = new List<string>();
+
+        var workflowId = new WorkflowId("workflow-retry-operation");
+
+        var existingOperationId =
+            new OperationId("operation-retry-001");
+
+        workflowService.Operations.Add(
+            new WorkflowOperationRecord
+            {
+                WorkflowId = workflowId,
+                ActivityId = "Second",
+                OperationId = existingOperationId,
+                OperationType = "Second",
+                Status = "Failed",
+                CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
+                CompletedUtc = DateTimeOffset.UtcNow
+            });
+
+        var context = new WorkflowExecutionContext
+        {
+            WorkflowId = workflowId,
+        };
+
+        var activities = new[]
+        {
+            new FakeActivity("First", executionOrder),
+            new FakeActivity("Second", executionOrder)
+        };
+
+        await runner.ExecuteAsync(
+            context,
+            activities,
+            retryActivityId: "Second",
+            retryOperationId: existingOperationId,
+            cancellationToken: default);
+
+        var retryOperation =
+            workflowService.Operations
+                .Single(x => x.ActivityId == "Second");
+
+        Assert.Equal(
+            existingOperationId,
+            retryOperation.OperationId);
+    }
+
+
+    [Fact]
+    public async Task ExecuteAsync_retry_does_not_replay_pending_operation()
+    {
+        var workflowService = new FakeWorkflowService();
+        var runner = new WorkflowRunner(workflowService);
+        var executionOrder = new List<string>();
+
+        var workflowId = new WorkflowId("workflow-pending-operation");
+        var operationId = new OperationId("operation-pending-001");
+
+        workflowService.Operations.Add(
+            new WorkflowOperationRecord
+            {
+                WorkflowId = workflowId,
+                ActivityId = "Second",
+                OperationId = operationId,
+                OperationType = "Second",
+                Status = "Pending",
+                CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-1)
+            });
+
+        var context = new WorkflowExecutionContext
+        {
+            WorkflowId = workflowId
+        };
+
+        var activities = new[]
+        {
+            new FakeActivity("First", executionOrder),
+            new FakeActivity("Second", executionOrder)
+        };
+
+        await runner.ExecuteAsync(
+            context,
+            activities,
+            retryActivityId: "Second",
+            retryOperationId: operationId);
+
+        Assert.DoesNotContain(
+            "Second",
+            executionOrder);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_retry_does_not_replay_completed_operation()
+    {
+        var workflowService = new FakeWorkflowService();
+        var runner = new WorkflowRunner(workflowService);
+        var executionOrder = new List<string>();
+
+        var workflowId = new WorkflowId("workflow-completed-operation");
+        var operationId = new OperationId("operation-completed-001");
+
+        workflowService.Operations.Add(
+            new WorkflowOperationRecord
+            {
+                WorkflowId = workflowId,
+                ActivityId = "Second",
+                OperationId = operationId,
+                OperationType = "Second",
+                Status = "Completed",
+                CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-2),
+                CompletedUtc = DateTimeOffset.UtcNow.AddMinutes(-1)
+            });
+
+        var context = new WorkflowExecutionContext
+        {
+            WorkflowId = workflowId
+        };
+
+        var activities = new[]
+        {
+            new FakeActivity("First", executionOrder),
+            new FakeActivity("Second", executionOrder)
+        };
+
+        await runner.ExecuteAsync(
+            context,
+            activities,
+            retryActivityId: "Second",
+            retryOperationId: operationId);
+
+        Assert.DoesNotContain(
+            "Second",
+            executionOrder);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_stops_after_failed_activity()
     {
         var workflowService = new FakeWorkflowService();

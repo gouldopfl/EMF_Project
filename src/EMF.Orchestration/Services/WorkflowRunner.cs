@@ -32,6 +32,8 @@ public sealed class WorkflowRunner : IWorkflowRunner
     public async Task ExecuteAsync(
         WorkflowExecutionContext context,
         IEnumerable<IWorkflowActivity> activities,
+        string? retryActivityId = null,
+        OperationId? retryOperationId = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -85,7 +87,49 @@ public sealed class WorkflowRunner : IWorkflowRunner
                 return;
             }
 
-            var operation = new WorkflowOperationRecord
+            var isRetry =
+                string.Equals(
+                    activity.Id,
+                    retryActivityId,
+                    StringComparison.Ordinal);
+
+            if (isRetry && retryOperationId is null)
+            {
+                await _workflowService.ReleaseActivityClaimAsync(
+                    context.WorkflowId,
+                    activity.Id,
+                    claimId,
+                    cancellationToken);
+
+                return;
+            }
+
+            var operation =
+                isRetry
+                    ? await _workflowService.GetOperationAsync(
+                        context.WorkflowId,
+                        activity.Id,
+                        retryOperationId!.Value,
+                        cancellationToken)
+                    : null;
+
+            if (isRetry &&
+                (operation is null ||
+                 !string.Equals(
+                     operation.Status,
+                     "Failed",
+                     StringComparison.OrdinalIgnoreCase)))
+            {
+                await _workflowService.ReleaseActivityClaimAsync(
+                    context.WorkflowId,
+                    activity.Id,
+                    claimId,
+                    cancellationToken);
+
+                return;
+            }
+
+            operation ??= new WorkflowOperationRecord
             {
                 WorkflowId = context.WorkflowId,
                 ActivityId = activity.Id,
@@ -96,20 +140,39 @@ public sealed class WorkflowRunner : IWorkflowRunner
                 CreatedUtc = DateTimeOffset.UtcNow
             };
 
-            var operationCreated =
-                await _workflowService.TryCreateOperationAsync(
+            if (!isRetry)
+            {
+                var operationCreated =
+                    await _workflowService.TryCreateOperationAsync(
+                        operation,
+                        cancellationToken);
+
+                if (!operationCreated)
+                {
+                    await _workflowService.ReleaseActivityClaimAsync(
+                        context.WorkflowId,
+                        activity.Id,
+                        claimId,
+                        cancellationToken);
+
+                    return;
+                }
+            }
+            else
+            {
+                operation = new WorkflowOperationRecord
+                {
+                    WorkflowId = operation.WorkflowId,
+                    ActivityId = operation.ActivityId,
+                    OperationId = operation.OperationId,
+                    OperationType = operation.OperationType,
+                    Status = "Pending",
+                    CreatedUtc = operation.CreatedUtc
+                };
+
+                await _workflowService.UpdateOperationAsync(
                     operation,
                     cancellationToken);
-
-            if (!operationCreated)
-            {
-                await _workflowService.ReleaseActivityClaimAsync(
-                    context.WorkflowId,
-                    activity.Id,
-                    claimId,
-                    cancellationToken);
-
-                return;
             }
 
             var result =

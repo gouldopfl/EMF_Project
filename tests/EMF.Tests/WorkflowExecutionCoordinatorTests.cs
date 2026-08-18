@@ -148,6 +148,58 @@ public sealed class WorkflowExecutionCoordinatorTests
 
 
     [Fact]
+    public async Task Retry_decision_passes_operation_identity_to_runner()
+    {
+        var operationId =
+            new OperationId("operation-retry-001");
+
+        var recoveryCoordinator =
+            new FakeRecoveryCoordinator
+            {
+                Decision = RecoveryDecision.Retry,
+                RetryActivityId = "Second",
+                RetryOperationId = operationId
+            };
+
+        var workflowService = new FakeWorkflowService();
+        var runner = new FakeWorkflowRunner();
+        var activityResolver =
+            new FakeWorkflowActivityResolver();
+
+        var coordinator =
+            new WorkflowExecutionCoordinator(
+                workflowService,
+                recoveryCoordinator,
+                activityResolver,
+                runner);
+
+        var workflowId =
+            new WorkflowId("workflow-retry-identity");
+
+        var definition =
+            new WorkflowDefinition
+            {
+                Id = "test",
+                Name = "Test Workflow",
+                Version = "1",
+                ActivityIds = Array.Empty<string>()
+            };
+
+        await coordinator.ExecuteRecoveryAsync(
+            workflowId,
+            definition);
+
+        Assert.Equal(
+            "Second",
+            runner.RetryActivityId);
+
+        Assert.Equal(
+            operationId,
+            runner.RetryOperationId);
+    }
+
+
+    [Fact]
     public async Task Retry_decision_delegates_to_runner()
     {
         var recoveryCoordinator = new FakeRecoveryCoordinator
@@ -365,12 +417,22 @@ private sealed class FakeRecoveryCoordinator :
     {
         public RecoveryDecision Decision { get; set; }
 
-        public Task<RecoveryDecision> RecoverAsync(
+        public string? RetryActivityId { get; set; }
+
+        public OperationId? RetryOperationId { get; set; }
+
+        public Task<WorkflowRecoveryResult> RecoverAsync(
             WorkflowId workflowId,
             WorkflowDefinition definition,
             CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(Decision);
+            return Task.FromResult(
+                new WorkflowRecoveryResult
+                {
+                    Decision = Decision,
+                    RetryActivityId = RetryActivityId,
+                    RetryOperationId = RetryOperationId
+                });
         }
     }
 
@@ -381,13 +443,21 @@ private sealed class FakeRecoveryCoordinator :
 
         public WorkflowId? WorkflowId { get; private set; }
 
+        public string? RetryActivityId { get; private set; }
+
+        public OperationId? RetryOperationId { get; private set; }
+
         public Task ExecuteAsync(
             WorkflowExecutionContext context,
             IEnumerable<IWorkflowActivity> activities,
+            string? retryActivityId = null,
+            OperationId? retryOperationId = null,
             CancellationToken cancellationToken = default)
         {
             WasCalled = true;
             WorkflowId = context.WorkflowId;
+            RetryActivityId = retryActivityId;
+            RetryOperationId = retryOperationId;
 
             return Task.CompletedTask;
         }
