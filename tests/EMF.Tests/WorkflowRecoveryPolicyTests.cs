@@ -165,3 +165,126 @@ public sealed class WorkflowRecoveryDefinitionCompatibilityTests
             result);
     }
 }
+
+public sealed class WorkflowRecoveryPendingOperationTests
+{
+    [Fact]
+    public async Task Interrupted_workflow_with_pending_operation_requires_review()
+    {
+        var policy = new WorkflowRecoveryPolicy();
+
+        var execution = new WorkflowExecutionRecord
+        {
+            WorkflowId = new WorkflowId("workflow-pending-operation"),
+            DefinitionId = "test",
+            DefinitionVersion = "1",
+            CreatedUtc = DateTimeOffset.UtcNow,
+            CurrentStatus = WorkflowStatus.Interrupted,
+            RecoveryStatus = WorkflowRecoveryStatus.None
+        };
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "Test Workflow",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
+        var checkpoints = new[]
+        {
+            new WorkflowCheckpoint
+            {
+                WorkflowId = execution.WorkflowId,
+                Step = "Step A",
+                Status = WorkflowStatus.Completed,
+                RecordedUtc = DateTimeOffset.UtcNow
+            }
+        };
+
+        var operations = new[]
+        {
+            new WorkflowOperationRecord
+            {
+                WorkflowId = execution.WorkflowId,
+                ActivityId = "activity-001",
+                OperationId = new OperationId("operation-001"),
+                OperationType = "external-side-effect",
+                Status = "Pending",
+                CreatedUtc = DateTimeOffset.UtcNow
+            }
+        };
+
+        var result = await policy.EvaluateAsync(
+            execution,
+            definition,
+            checkpoints,
+            operations);
+
+        Assert.Equal(
+            RecoveryDecision.RequireReview,
+            result);
+    }
+}
+
+public sealed class WorkflowRecoveryCompletedOperationTests
+{
+    [Fact]
+    public async Task Interrupted_workflow_with_completed_operation_returns_resume()
+    {
+        var policy = new WorkflowRecoveryPolicy();
+
+        var execution = new WorkflowExecutionRecord
+        {
+            WorkflowId = new WorkflowId("workflow-completed-operation"),
+            DefinitionId = "test",
+            DefinitionVersion = "1",
+            CreatedUtc = DateTimeOffset.UtcNow,
+            CurrentStatus = WorkflowStatus.Interrupted,
+            RecoveryStatus = WorkflowRecoveryStatus.None
+        };
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "Test Workflow",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
+        var checkpoints = new[]
+        {
+            new WorkflowCheckpoint
+            {
+                WorkflowId = execution.WorkflowId,
+                Step = "Step A",
+                Status = WorkflowStatus.Completed,
+                RecordedUtc = DateTimeOffset.UtcNow
+            }
+        };
+
+        var operations = new[]
+        {
+            new WorkflowOperationRecord
+            {
+                WorkflowId = execution.WorkflowId,
+                ActivityId = "activity-001",
+                OperationId = new OperationId("operation-001"),
+                OperationType = "external-side-effect",
+                Status = "Completed",
+                CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
+                CompletedUtc = DateTimeOffset.UtcNow
+            }
+        };
+
+        var result = await policy.EvaluateAsync(
+            execution,
+            definition,
+            checkpoints,
+            operations);
+
+        Assert.Equal(
+            RecoveryDecision.Resume,
+            result);
+    }
+}
