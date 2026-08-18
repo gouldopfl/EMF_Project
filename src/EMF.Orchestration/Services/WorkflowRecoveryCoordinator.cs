@@ -87,6 +87,22 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
             {
                 decision = RecoveryDecision.RequireReview;
             }
+            else
+            {
+                var failedOperation = failedOperations[0];
+
+                var activityExists =
+                    definition.ActivityIds.Any(activityId =>
+                        string.Equals(
+                            activityId,
+                            failedOperation.ActivityId,
+                            StringComparison.Ordinal));
+
+                if (!activityExists)
+                {
+                    decision = RecoveryDecision.RequireReview;
+                }
+            }
         }
 
         var recoveryStatus =
