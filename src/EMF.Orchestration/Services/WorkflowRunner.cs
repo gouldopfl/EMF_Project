@@ -55,6 +55,12 @@ public sealed class WorkflowRunner : IWorkflowRunner
                 "Workflow activity IDs must be unique.");
         }
 
+        if (retryOperationId is not null &&
+            string.IsNullOrWhiteSpace(retryActivityId))
+        {
+            return;
+        }
+
         var checkpoints = await _workflowService.GetCheckpointsAsync(
             context.WorkflowId,
             cancellationToken);
