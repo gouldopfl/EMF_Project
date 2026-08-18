@@ -237,6 +237,36 @@ public sealed class WorkflowRunnerTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_retry_activity_without_operation_id_fails_closed()
+    {
+        var workflowService = new FakeWorkflowService();
+        var runner = new WorkflowRunner(workflowService);
+        var executionOrder = new List<string>();
+
+        var workflowId =
+            new WorkflowId("workflow-invalid-retry-activity");
+
+        var context = new WorkflowExecutionContext
+        {
+            WorkflowId = workflowId
+        };
+
+        var activities = new[]
+        {
+            new FakeActivity("First", executionOrder),
+            new FakeActivity("Second", executionOrder)
+        };
+
+        await runner.ExecuteAsync(
+            context,
+            activities,
+            retryActivityId: "Second");
+
+        Assert.Empty(executionOrder);
+        Assert.Empty(workflowService.Operations);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_retry_does_not_replay_pending_operation()
     {
         var workflowService = new FakeWorkflowService();

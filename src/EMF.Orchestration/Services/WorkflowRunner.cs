@@ -55,8 +55,13 @@ public sealed class WorkflowRunner : IWorkflowRunner
                 "Workflow activity IDs must be unique.");
         }
 
-        if (retryOperationId is not null &&
-            string.IsNullOrWhiteSpace(retryActivityId))
+        var hasRetryActivity =
+            !string.IsNullOrWhiteSpace(retryActivityId);
+
+        var hasRetryOperation =
+            retryOperationId is not null;
+
+        if (hasRetryActivity != hasRetryOperation)
         {
             return;
         }
