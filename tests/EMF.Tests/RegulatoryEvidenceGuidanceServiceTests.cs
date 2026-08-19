@@ -49,6 +49,37 @@ public sealed class RegulatoryEvidenceGuidanceServiceTests
             results[0].EvidenceGuidance[0].Id);
     }
 
+
+    [Fact]
+    public async Task GetEvidenceGuidanceAsync_RetainsRequirementWithoutGuidance()
+    {
+        var provisionId =
+            new RegulatoryProvisionId("provision-001");
+
+        var requirement =
+            new Requirement
+            {
+                Id = new RequirementId("requirement-001"),
+                RegulatoryProvisionId = provisionId,
+                Description = "Required element."
+            };
+
+        var service =
+            new RegulatoryEvidenceGuidanceService(
+                new StubRegulatoryRepository(requirement),
+                new EmptyGuidanceRepository());
+
+        var results =
+            await service.GetEvidenceGuidanceAsync(provisionId);
+
+        Assert.Single(results);
+        Assert.Equal(
+            requirement.Id,
+            results[0].Requirement.Id);
+        Assert.Empty(results[0].EvidenceGuidance);
+    }
+
+
     private sealed class StubRegulatoryRepository :
         IRegulatoryRepository
     {
@@ -92,4 +123,27 @@ public sealed class RegulatoryEvidenceGuidanceServiceTests
         public Task AddEvidenceRequirementGuidanceAsync(EvidenceRequirementGuidance g, CancellationToken c = default) => throw new NotSupportedException();
         public Task<EvidenceRequirementGuidance?> GetEvidenceRequirementGuidanceAsync(EvidenceRequirementGuidanceId id, CancellationToken c = default) => throw new NotSupportedException();
     }
+
+    private sealed class EmptyGuidanceRepository :
+        IEvidenceRequirementGuidanceRepository
+    {
+        public Task<IReadOnlyList<EvidenceRequirementGuidance>>
+            GetEvidenceRequirementGuidanceAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<EvidenceRequirementGuidance>>(
+                Array.Empty<EvidenceRequirementGuidance>());
+
+        public Task AddEvidenceRequirementGuidanceAsync(
+            EvidenceRequirementGuidance guidance,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<EvidenceRequirementGuidance?>
+            GetEvidenceRequirementGuidanceAsync(
+                EvidenceRequirementGuidanceId guidanceId,
+                CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
 }
