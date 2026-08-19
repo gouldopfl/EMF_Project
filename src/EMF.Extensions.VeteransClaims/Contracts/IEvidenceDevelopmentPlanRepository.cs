@@ -13,6 +13,17 @@ public interface IEvidenceDevelopmentPlanRepository
         EvidenceDevelopmentPlanId planId,
         CancellationToken cancellationToken = default);
 
+
+    Task AddEvidenceDevelopmentPlanRequirementAsync(
+        EvidenceDevelopmentPlanRequirement requirement,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<EvidenceDevelopmentPlanRequirement>>
+        GetEvidenceDevelopmentPlanRequirementsAsync(
+            EvidenceDevelopmentPlanId planId,
+            CancellationToken cancellationToken = default);
+
+
     Task<IReadOnlyList<EvidenceDevelopmentPlan>>
         GetEvidenceDevelopmentPlansAsync(
             ClaimIssueId claimIssueId,

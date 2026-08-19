@@ -110,6 +110,85 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
         };
     }
 
+
+    public async Task AddEvidenceDevelopmentPlanRequirementAsync(
+        EvidenceDevelopmentPlanRequirement requirement,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(requirement);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_EvidenceDevelopmentPlanRequirements (
+                EvidenceDevelopmentPlanId,
+                RequirementId
+            )
+            VALUES (
+                $planId,
+                $requirementId
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$planId",
+            requirement.EvidenceDevelopmentPlanId.Value);
+
+        command.Parameters.AddWithValue(
+            "$requirementId",
+            requirement.RequirementId.Value);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EvidenceDevelopmentPlanRequirement>>
+        GetEvidenceDevelopmentPlanRequirementsAsync(
+            EvidenceDevelopmentPlanId planId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT EvidenceDevelopmentPlanId, RequirementId
+            FROM VeteransClaims_EvidenceDevelopmentPlanRequirements
+            WHERE EvidenceDevelopmentPlanId = $planId
+            ORDER BY RequirementId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$planId",
+            planId.Value);
+
+        var results =
+            new List<EvidenceDevelopmentPlanRequirement>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(
+                new EvidenceDevelopmentPlanRequirement
+                {
+                    EvidenceDevelopmentPlanId =
+                        new EvidenceDevelopmentPlanId(
+                            reader.GetString(0)),
+                    RequirementId =
+                        new RequirementId(
+                            reader.GetString(1))
+                });
+        }
+
+        return results;
+    }
+
+
     public async Task<IReadOnlyList<EvidenceDevelopmentPlan>>
         GetEvidenceDevelopmentPlansAsync(
             ClaimIssueId claimIssueId,
