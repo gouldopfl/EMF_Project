@@ -1299,6 +1299,34 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_EvidencePackageArtifacts (
                     ArtifactId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                40,
+                "AddRegulatoryProvisionProvenance",
+                """
+                ALTER TABLE
+                    VeteransClaims_RegulatoryProvisions
+                ADD COLUMN Version TEXT NULL;
+
+                ALTER TABLE
+                    VeteransClaims_RegulatoryProvisions
+                ADD COLUMN EffectiveFrom TEXT NULL;
+
+                ALTER TABLE
+                    VeteransClaims_RegulatoryProvisions
+                ADD COLUMN EffectiveTo TEXT NULL;
+
+                ALTER TABLE
+                    VeteransClaims_RegulatoryProvisions
+                ADD COLUMN SourceUri TEXT NULL;
+
+                ALTER TABLE
+                    VeteransClaims_RegulatoryProvisions
+                ADD COLUMN SourceHash TEXT NULL;
+
+                ALTER TABLE
+                    VeteransClaims_RegulatoryProvisions
+                ADD COLUMN RetrievedUtc TEXT NULL;
                 """)
         };
 }

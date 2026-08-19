@@ -205,4 +205,87 @@ public sealed class
         }
     }
 
+
+    [Fact]
+    public async Task
+        Repository_AllowsMultipleVersionsOfSameCitation()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteRegulatoryRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var authority = new RegulatoryAuthority
+            {
+                Id = new RegulatoryAuthorityId("authority-versioned"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Pensions, Bonuses, and Veterans Relief"
+            };
+
+            await repository.AddRegulatoryAuthorityAsync(authority);
+
+            var first = new RegulatoryProvision
+            {
+                Id = new RegulatoryProvisionId("provision-3.310-2026"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Requirement,
+                Citation = "38 CFR 3.310",
+                Version = "2026-01",
+                EffectiveFrom = new DateTimeOffset(
+                    2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                EffectiveTo = new DateTimeOffset(
+                    2026, 12, 31, 23, 59, 59, TimeSpan.Zero),
+                SourceUri = "https://www.ecfr.gov/",
+                SourceHash = "sha256:version-2026",
+                RetrievedUtc = DateTimeOffset.UtcNow
+            };
+
+            var second = new RegulatoryProvision
+            {
+                Id = new RegulatoryProvisionId("provision-3.310-2027"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Requirement,
+                Citation = "38 CFR 3.310",
+                Version = "2027-01",
+                EffectiveFrom = new DateTimeOffset(
+                    2027, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                SourceUri = "https://www.ecfr.gov/",
+                SourceHash = "sha256:version-2027",
+                RetrievedUtc = DateTimeOffset.UtcNow
+            };
+
+            await repository.AddRegulatoryProvisionAsync(first);
+            await repository.AddRegulatoryProvisionAsync(second);
+
+            var provisions =
+                await repository.GetRegulatoryProvisionsAsync(
+                    authority.Id);
+
+            Assert.Equal(2, provisions.Count);
+
+            var storedFirst =
+                provisions.Single(x => x.Id == first.Id);
+
+            var storedSecond =
+                provisions.Single(x => x.Id == second.Id);
+
+            Assert.Equal("38 CFR 3.310", storedFirst.Citation);
+            Assert.Equal("38 CFR 3.310", storedSecond.Citation);
+            Assert.Equal("2026-01", storedFirst.Version);
+            Assert.Equal("2027-01", storedSecond.Version);
+            Assert.NotEqual(
+                storedFirst.SourceHash,
+                storedSecond.SourceHash);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
 }

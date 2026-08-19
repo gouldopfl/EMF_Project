@@ -163,13 +163,25 @@ public sealed class SqliteRegulatoryRepository :
                 Id,
                 RegulatoryAuthorityId,
                 ProvisionType,
-                Citation
+                Citation,
+                Version,
+                EffectiveFrom,
+                EffectiveTo,
+                SourceUri,
+                SourceHash,
+                RetrievedUtc
             )
             VALUES (
                 $id,
                 $authorityId,
                 $provisionType,
-                $citation
+                $citation,
+                $version,
+                $effectiveFrom,
+                $effectiveTo,
+                $sourceUri,
+                $sourceHash,
+                $retrievedUtc
             );
             """;
 
@@ -185,6 +197,24 @@ public sealed class SqliteRegulatoryRepository :
         command.Parameters.AddWithValue(
             "$citation",
             provision.Citation);
+        command.Parameters.AddWithValue(
+            "$version",
+            (object?)provision.Version ?? DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$effectiveFrom",
+            (object?)provision.EffectiveFrom ?? DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$effectiveTo",
+            (object?)provision.EffectiveTo ?? DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$sourceUri",
+            (object?)provision.SourceUri ?? DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$sourceHash",
+            (object?)provision.SourceHash ?? DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$retrievedUtc",
+            (object?)provision.RetrievedUtc ?? DBNull.Value);
 
         await command.ExecuteNonQueryAsync(
             cancellationToken);
@@ -202,7 +232,25 @@ public sealed class SqliteRegulatoryRepository :
                 new RegulatoryAuthorityId(
                     reader.GetString(1)),
             ProvisionType = reader.GetString(2),
-            Citation = reader.GetString(3)
+            Citation = reader.GetString(3),
+            Version = reader.IsDBNull(4)
+                ? null
+                : reader.GetString(4),
+            EffectiveFrom = reader.IsDBNull(5)
+                ? null
+                : reader.GetFieldValue<DateTimeOffset>(5),
+            EffectiveTo = reader.IsDBNull(6)
+                ? null
+                : reader.GetFieldValue<DateTimeOffset>(6),
+            SourceUri = reader.IsDBNull(7)
+                ? null
+                : reader.GetString(7),
+            SourceHash = reader.IsDBNull(8)
+                ? null
+                : reader.GetString(8),
+            RetrievedUtc = reader.IsDBNull(9)
+                ? null
+                : reader.GetFieldValue<DateTimeOffset>(9)
         };
     }
 
@@ -221,7 +269,13 @@ public sealed class SqliteRegulatoryRepository :
                 Id,
                 RegulatoryAuthorityId,
                 ProvisionType,
-                Citation
+                Citation,
+                Version,
+                EffectiveFrom,
+                EffectiveTo,
+                SourceUri,
+                SourceHash,
+                RetrievedUtc
             FROM VeteransClaims_RegulatoryProvisions
             WHERE Id = $id;
             """;
@@ -257,7 +311,13 @@ public sealed class SqliteRegulatoryRepository :
                 Id,
                 RegulatoryAuthorityId,
                 ProvisionType,
-                Citation
+                Citation,
+                Version,
+                EffectiveFrom,
+                EffectiveTo,
+                SourceUri,
+                SourceHash,
+                RetrievedUtc
             FROM VeteransClaims_RegulatoryProvisions
             WHERE RegulatoryAuthorityId = $authorityId
             ORDER BY Id;
