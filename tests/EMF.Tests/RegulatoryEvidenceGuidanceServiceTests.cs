@@ -80,6 +80,44 @@ public sealed class RegulatoryEvidenceGuidanceServiceTests
     }
 
 
+
+    [Fact]
+    public async Task GetEvidenceGuidanceAsync_ReturnsEmptyWhenProvisionHasNoRequirements()
+    {
+        var service =
+            new RegulatoryEvidenceGuidanceService(
+                new EmptyRegulatoryRepository(),
+                new EmptyGuidanceRepository());
+
+        var results =
+            await service.GetEvidenceGuidanceAsync(
+                new RegulatoryProvisionId("provision-001"));
+
+        Assert.Empty(results);
+    }
+
+
+
+    private sealed class EmptyRegulatoryRepository :
+        IRegulatoryRepository
+    {
+        public Task<IReadOnlyList<Requirement>> GetRequirementsAsync(
+            RegulatoryProvisionId provisionId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Requirement>>(
+                Array.Empty<Requirement>());
+
+        public Task AddRegulatoryAuthorityAsync(RegulatoryAuthority a, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<RegulatoryAuthority?> GetRegulatoryAuthorityAsync(RegulatoryAuthorityId id, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<RegulatoryAuthority>> GetRegulatoryAuthoritiesAsync(CancellationToken c = default) => throw new NotSupportedException();
+        public Task AddRegulatoryProvisionAsync(RegulatoryProvision p, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<RegulatoryProvision?> GetRegulatoryProvisionAsync(RegulatoryProvisionId id, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<RegulatoryProvision>> GetRegulatoryProvisionsAsync(RegulatoryAuthorityId id, CancellationToken c = default) => throw new NotSupportedException();
+        public Task AddRequirementAsync(Requirement r, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<Requirement?> GetRequirementAsync(RequirementId id, CancellationToken c = default) => throw new NotSupportedException();
+    }
+
+
     private sealed class StubRegulatoryRepository :
         IRegulatoryRepository
     {
