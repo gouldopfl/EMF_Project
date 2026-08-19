@@ -111,6 +111,85 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
     }
 
 
+
+    public async Task AddEvidenceDevelopmentPlanEvidenceGapAsync(
+        EvidenceDevelopmentPlanEvidenceGap evidenceGap,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(evidenceGap);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_EvidenceDevelopmentPlanEvidenceGaps (
+                EvidenceDevelopmentPlanId,
+                EvidenceGapId
+            )
+            VALUES (
+                $planId,
+                $evidenceGapId
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$planId",
+            evidenceGap.EvidenceDevelopmentPlanId.Value);
+
+        command.Parameters.AddWithValue(
+            "$evidenceGapId",
+            evidenceGap.EvidenceGapId.Value);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EvidenceDevelopmentPlanEvidenceGap>>
+        GetEvidenceDevelopmentPlanEvidenceGapsAsync(
+            EvidenceDevelopmentPlanId planId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT EvidenceDevelopmentPlanId, EvidenceGapId
+            FROM VeteransClaims_EvidenceDevelopmentPlanEvidenceGaps
+            WHERE EvidenceDevelopmentPlanId = $planId
+            ORDER BY EvidenceGapId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$planId",
+            planId.Value);
+
+        var results =
+            new List<EvidenceDevelopmentPlanEvidenceGap>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(
+                new EvidenceDevelopmentPlanEvidenceGap
+                {
+                    EvidenceDevelopmentPlanId =
+                        new EvidenceDevelopmentPlanId(
+                            reader.GetString(0)),
+                    EvidenceGapId =
+                        new EvidenceGapId(
+                            reader.GetString(1))
+                });
+        }
+
+        return results;
+    }
+
+
     public async Task AddEvidenceDevelopmentPlanRequirementAsync(
         EvidenceDevelopmentPlanRequirement requirement,
         CancellationToken cancellationToken = default)
