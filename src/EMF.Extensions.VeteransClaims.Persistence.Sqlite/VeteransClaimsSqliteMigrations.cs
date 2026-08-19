@@ -1327,6 +1327,29 @@ internal static class VeteransClaimsSqliteMigrations
                 ALTER TABLE
                     VeteransClaims_RegulatoryProvisions
                 ADD COLUMN RetrievedUtc TEXT NULL;
+                """),
+            new VeteransClaimsSqliteMigration(
+                41,
+                "AddEvidenceRequirementGuidance",
+                """
+                CREATE TABLE
+                    VeteransClaims_EvidenceRequirementGuidance (
+                        Id TEXT PRIMARY KEY,
+                        RequirementId TEXT NOT NULL,
+                        EvidenceClassification TEXT NOT NULL,
+                        GuidanceRole TEXT NOT NULL,
+                        Description TEXT NOT NULL,
+                        FOREIGN KEY (RequirementId)
+                            REFERENCES VeteransClaims_Requirements (
+                                Id
+                            )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_EvidenceRequirementGuidance_Requirement
+                ON VeteransClaims_EvidenceRequirementGuidance (
+                    RequirementId
+                );
                 """)
         };
 }
