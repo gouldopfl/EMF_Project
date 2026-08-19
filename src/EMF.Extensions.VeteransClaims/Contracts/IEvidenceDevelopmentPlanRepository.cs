@@ -15,6 +15,17 @@ public interface IEvidenceDevelopmentPlanRepository
 
 
 
+
+    Task AddEvidenceDevelopmentPlanArtifactAsync(
+        EvidenceDevelopmentPlanArtifact artifact,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<EvidenceDevelopmentPlanArtifact>>
+        GetEvidenceDevelopmentPlanArtifactsAsync(
+            EvidenceDevelopmentPlanId planId,
+            CancellationToken cancellationToken = default);
+
+
     Task AddEvidenceDevelopmentPlanEvidenceGapAsync(
         EvidenceDevelopmentPlanEvidenceGap evidenceGap,
         CancellationToken cancellationToken = default);

@@ -112,6 +112,96 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
 
 
 
+
+    public async Task AddEvidenceDevelopmentPlanArtifactAsync(
+        EvidenceDevelopmentPlanArtifact artifact,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(artifact);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_EvidenceDevelopmentPlanArtifacts (
+                EvidenceDevelopmentPlanId,
+                ArtifactId,
+                Role
+            )
+            VALUES (
+                $planId,
+                $artifactId,
+                $role
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$planId",
+            artifact.EvidenceDevelopmentPlanId.Value);
+
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            artifact.ArtifactId.Value);
+
+        command.Parameters.AddWithValue(
+            "$role",
+            artifact.Role);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EvidenceDevelopmentPlanArtifact>>
+        GetEvidenceDevelopmentPlanArtifactsAsync(
+            EvidenceDevelopmentPlanId planId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT EvidenceDevelopmentPlanId, ArtifactId, Role
+            FROM VeteransClaims_EvidenceDevelopmentPlanArtifacts
+            WHERE EvidenceDevelopmentPlanId = $planId
+            ORDER BY ArtifactId, Role;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$planId",
+            planId.Value);
+
+        var results =
+            new List<EvidenceDevelopmentPlanArtifact>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(
+                new EvidenceDevelopmentPlanArtifact
+                {
+                    EvidenceDevelopmentPlanId =
+                        new EvidenceDevelopmentPlanId(
+                            reader.GetString(0)),
+                    ArtifactId =
+                        new EMF.Core.Models.Identities.ArtifactId(
+                            reader.GetString(1)),
+                    Role =
+                        reader.GetString(2)
+                });
+        }
+
+        return results;
+    }
+
+
+
+
+
     public async Task AddEvidenceDevelopmentPlanEvidenceGapAsync(
         EvidenceDevelopmentPlanEvidenceGap evidenceGap,
         CancellationToken cancellationToken = default)

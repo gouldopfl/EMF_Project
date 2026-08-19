@@ -324,4 +324,93 @@ public sealed class VeteransClaimsSqliteEvidenceDevelopmentPlanRepositoryTests
         }
     }
 
+
+    [Fact]
+    public async Task Repository_RoundTripsDevelopmentPlanArtifact()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteEvidenceDevelopmentPlanRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-artifact-001")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-artifact-001"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-artifact-001"),
+                ClaimId = claim.Id,
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var plan = new EvidenceDevelopmentPlan
+            {
+                Id = new EvidenceDevelopmentPlanId("plan-artifact-001"),
+                ClaimIssueId = issue.Id,
+                Description = "Develop supporting evidence."
+            };
+
+            await repository.AddEvidenceDevelopmentPlanAsync(plan);
+
+            var association =
+                new EvidenceDevelopmentPlanArtifact
+                {
+                    EvidenceDevelopmentPlanId = plan.Id,
+                    ArtifactId =
+                        new EMF.Core.Models.Identities.ArtifactId(
+                            "artifact-001"),
+                    Role = "Supporting"
+                };
+
+            await repository
+                .AddEvidenceDevelopmentPlanArtifactAsync(
+                    association);
+
+            var stored =
+                await repository
+                    .GetEvidenceDevelopmentPlanArtifactsAsync(
+                        plan.Id);
+
+            var result = Assert.Single(stored);
+
+            Assert.Equal(
+                association.EvidenceDevelopmentPlanId,
+                result.EvidenceDevelopmentPlanId);
+
+            Assert.Equal(
+                association.ArtifactId,
+                result.ArtifactId);
+
+            Assert.Equal(
+                association.Role,
+                result.Role);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
 }
