@@ -20,4 +20,21 @@ public interface IEvidenceGapRepository
     Task<IReadOnlyList<EvidenceGap>> GetEvidenceGapsAsync(
         RequirementId requirementId,
         CancellationToken cancellationToken = default);
+
+    Task AddEvidenceGapArtifactAsync(
+        EvidenceGapArtifact artifact,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Evidence gap artifacts are not supported by this repository.");
+    }
+
+    Task<IReadOnlyList<EvidenceGapArtifact>>
+        GetEvidenceGapArtifactsAsync(
+            EvidenceGapId evidenceGapId,
+            CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Evidence gap artifacts are not supported by this repository.");
+    }
 }

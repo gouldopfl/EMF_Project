@@ -133,6 +133,93 @@ public sealed class SqliteEvidenceGapRepository :
             cancellationToken);
     }
 
+    public async Task AddEvidenceGapArtifactAsync(
+        EvidenceGapArtifact artifact,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(artifact);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_EvidenceGapArtifacts (
+                EvidenceGapId,
+                ArtifactId,
+                Role
+            )
+            VALUES (
+                $evidenceGapId,
+                $artifactId,
+                $role
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$evidenceGapId",
+            artifact.EvidenceGapId.Value);
+
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            artifact.ArtifactId.Value);
+
+        command.Parameters.AddWithValue(
+            "$role",
+            artifact.Role);
+
+        await command.ExecuteNonQueryAsync(
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EvidenceGapArtifact>>
+        GetEvidenceGapArtifactsAsync(
+            EvidenceGapId evidenceGapId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT EvidenceGapId, ArtifactId, Role
+            FROM VeteransClaims_EvidenceGapArtifacts
+            WHERE EvidenceGapId = $evidenceGapId
+            ORDER BY ArtifactId, Role;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$evidenceGapId",
+            evidenceGapId.Value);
+
+        var results =
+            new List<EvidenceGapArtifact>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(
+                new EvidenceGapArtifact
+                {
+                    EvidenceGapId =
+                        new EvidenceGapId(
+                            reader.GetString(0)),
+                    ArtifactId =
+                        new EMF.Core.Models.Identities.ArtifactId(
+                            reader.GetString(1)),
+                    Role =
+                        reader.GetString(2)
+                });
+        }
+
+        return results;
+    }
+
     private async Task<IReadOnlyList<EvidenceGap>>
         GetEvidenceGapsAsync(
             string columnName,

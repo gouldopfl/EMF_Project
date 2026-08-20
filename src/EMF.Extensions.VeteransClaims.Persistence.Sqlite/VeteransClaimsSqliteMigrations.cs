@@ -1398,6 +1398,29 @@ internal static class VeteransClaimsSqliteMigrations
                     FOREIGN KEY (GuidanceId)
                         REFERENCES VeteransClaims_EvidenceRequirementGuidance (Id)
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                44,
+                "AddEvidenceGapArtifacts",
+                """
+                CREATE TABLE VeteransClaims_EvidenceGapArtifacts (
+                    EvidenceGapId TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    Role TEXT NOT NULL,
+                    PRIMARY KEY (
+                        EvidenceGapId,
+                        ArtifactId,
+                        Role
+                    ),
+                    FOREIGN KEY (EvidenceGapId)
+                        REFERENCES VeteransClaims_EvidenceGaps (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_EvidenceGapArtifacts_Artifact
+                ON VeteransClaims_EvidenceGapArtifacts (
+                    ArtifactId
+                );
                 """)
         };
 }

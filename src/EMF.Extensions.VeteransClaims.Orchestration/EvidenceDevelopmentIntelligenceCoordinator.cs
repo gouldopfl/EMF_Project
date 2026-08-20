@@ -67,10 +67,31 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinator
                 "Evidence gap was not found.");
         }
 
+        var gapArtifacts =
+            await _gapRepository.GetEvidenceGapArtifactsAsync(
+                evidenceGapId,
+                cancellationToken);
+
+        var inputArtifactIds =
+            context.InputArtifactIds
+                .Concat(
+                    gapArtifacts.Select(
+                        artifact => artifact.ArtifactId))
+                .Distinct()
+                .ToArray();
+
+        var intelligenceContext =
+            new IntelligenceExecutionContext(
+                context.SubjectId,
+                context.CorrelationId,
+                context.ProtectionClassificationId,
+                inputArtifactIds,
+                context.AgentId);
+
         return await _service.SummarizeAsync(
             gap,
             developmentResult.EvidenceGuidance,
-            context,
+            intelligenceContext,
             cancellationToken);
     }
 

@@ -138,7 +138,16 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
                 ClaimIssueId = new ClaimIssueId("issue-1"),
                 RequirementId = new RequirementId("req-1"),
                 Description = "Missing evidence."
-            }
+            },
+            Artifacts =
+            [
+                new EvidenceGapArtifact
+                {
+                    EvidenceGapId = new EvidenceGapId("gap-1"),
+                    ArtifactId = new ArtifactId("artifact-gap-1"),
+                    Role = "supporting"
+                }
+            ]
         };
 
         var executor = new FakeExecutor();
@@ -160,6 +169,10 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
         Assert.Contains(
             "medical / supporting: Obtain nexus opinion.",
             executor.Request!.Text);
+
+        Assert.Contains(
+            new ArtifactId("artifact-gap-1"),
+            executor.Context!.InputArtifactIds);
     }
 
     private sealed class FakeDevelopmentRepository :
@@ -243,6 +256,9 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
     {
         public EvidenceGap? Gap { get; set; }
 
+        public IReadOnlyList<EvidenceGapArtifact> Artifacts
+        { get; set; } = Array.Empty<EvidenceGapArtifact>();
+
         public Task AddEvidenceGapAsync(
             EvidenceGap gap,
             CancellationToken cancellationToken = default)
@@ -252,6 +268,12 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
             EvidenceGapId evidenceGapId,
             CancellationToken cancellationToken = default)
             => Task.FromResult(Gap);
+
+        public Task<IReadOnlyList<EvidenceGapArtifact>>
+            GetEvidenceGapArtifactsAsync(
+                EvidenceGapId evidenceGapId,
+                CancellationToken cancellationToken = default)
+            => Task.FromResult(Artifacts);
 
         public Task<IReadOnlyList<EvidenceGap>> GetEvidenceGapsAsync(
             ClaimIssueId claimIssueId,
@@ -269,6 +291,9 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
     {
         public TextSummarizationRequest? Request { get; private set; }
 
+        public IntelligenceExecutionContext? Context
+        { get; private set; }
+
         public Task<IntelligenceCapabilityResult<string>> ExecuteAsync(
             IntelligenceCapabilityId capabilityId,
             TextSummarizationRequest request,
@@ -276,6 +301,7 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
             CancellationToken cancellationToken = default)
         {
             Request = request;
+            Context = context;
 
             return Task.FromResult(
                 new IntelligenceCapabilityResult<string>
