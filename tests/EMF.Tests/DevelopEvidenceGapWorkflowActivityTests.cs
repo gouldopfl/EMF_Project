@@ -74,6 +74,33 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
             guidance.RequestedRequirementId);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_PropagatesResultPersistenceFailure()
+    {
+        var gap = new EvidenceGap
+        {
+            Id = new EvidenceGapId("gap-fail-1"),
+            ClaimIssueId = new ClaimIssueId("issue-fail-1"),
+            RequirementId = new RequirementId("req-fail-1"),
+            Description = "Missing evidence."
+        };
+
+        var activity =
+            new DevelopEvidenceGapWorkflowActivity(
+                new FakeRepository(gap),
+                new FakeGuidanceRepository(),
+                new FailingDevelopmentRepository(),
+                gap.Id);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => activity.ExecuteAsync(
+                new WorkflowExecutionContext
+                {
+                    WorkflowId = new WorkflowId("workflow-fail-1")
+                }));
+    }
+
     [Fact]
     public async Task ExecuteAsync_FailsWhenGapIsMissing()
     {
@@ -96,12 +123,21 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
 
 
 
-    private sealed class FakeDevelopmentRepository :
+    private sealed class FailingDevelopmentRepository :
+        FakeDevelopmentRepository
+    {
+        public override Task AddEvidenceDevelopmentResultAsync(
+            EvidenceDevelopmentResult result,
+            CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Persistence failed.");
+    }
+
+    private class FakeDevelopmentRepository :
         IEvidenceDevelopmentPlanRepository
     {
         public EvidenceDevelopmentResult? Result { get; private set; }
 
-        public Task AddEvidenceDevelopmentResultAsync(
+        public virtual Task AddEvidenceDevelopmentResultAsync(
             EvidenceDevelopmentResult result,
             CancellationToken cancellationToken = default)
         {
