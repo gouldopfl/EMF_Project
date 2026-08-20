@@ -201,6 +201,82 @@ public sealed class VeteransClaimsSqliteEvidenceDevelopmentPlanRepositoryTests
 
 
     [Fact]
+    public async Task CreateEvidenceDevelopmentPlanAsync_RollsBackWhenGapInsertFails()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteEvidenceDevelopmentPlanRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-rollback-001")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-rollback-001"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-rollback-001"),
+                ClaimId = claim.Id,
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var plan = new EvidenceDevelopmentPlan
+            {
+                Id = new EvidenceDevelopmentPlanId("plan-rollback-001"),
+                ClaimIssueId = issue.Id,
+                Description = "Rollback test."
+            };
+
+            var gaps =
+                new[]
+                {
+                    new EvidenceDevelopmentPlanEvidenceGap
+                    {
+                        EvidenceDevelopmentPlanId = plan.Id,
+                        EvidenceGapId =
+                            new EvidenceGapId("missing-gap-001")
+                    }
+                };
+
+            await Assert.ThrowsAnyAsync<Exception>(
+                () => repository.CreateEvidenceDevelopmentPlanAsync(
+                    plan,
+                    gaps));
+
+            var stored =
+                await repository.GetEvidenceDevelopmentPlanAsync(
+                    plan.Id);
+
+            Assert.Null(stored);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
+    [Fact]
     public async Task Repository_RoundTripsDevelopmentPlanEvidenceGap()
     {
         var databasePath = Path.GetTempFileName();
