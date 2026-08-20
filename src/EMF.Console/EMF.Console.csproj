@@ -13,6 +13,9 @@
     <ProjectReference Include="..\EMF.Intelligence.Development\EMF.Intelligence.Development.csproj" />
     <ProjectReference Include="..\EMF.Security.Persistence.Sqlite\EMF.Security.Persistence.Sqlite.csproj" />
     <ProjectReference Include="..\EMF.Intelligence.AzureOpenAI\EMF.Intelligence.AzureOpenAI.csproj" />
+    <ProjectReference Include="..\EMF.Extensions.VeteransClaims\EMF.Extensions.VeteransClaims.csproj" />
+    <ProjectReference Include="..\EMF.Extensions.VeteransClaims.Persistence.Sqlite\EMF.Extensions.VeteransClaims.Persistence.Sqlite.csproj" />
+    <ProjectReference Include="..\EMF.Extensions.VeteransClaims.Orchestration\EMF.Extensions.VeteransClaims.Orchestration.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
