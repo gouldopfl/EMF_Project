@@ -36,6 +36,37 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
         Assert.True(result.Succeeded);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_LoadsGuidanceForGapRequirement()
+    {
+        var gap = new EvidenceGap
+        {
+            Id = new EvidenceGapId("gap-guidance-1"),
+            ClaimIssueId = new ClaimIssueId("issue-guidance-1"),
+            RequirementId = new RequirementId("req-guidance-1"),
+            Description = "Missing evidence."
+        };
+
+        var guidance = new FakeGuidanceRepository();
+
+        var activity =
+            new DevelopEvidenceGapWorkflowActivity(
+                new FakeRepository(gap),
+                guidance,
+                gap.Id);
+
+        await activity.ExecuteAsync(
+            new WorkflowExecutionContext
+            {
+                WorkflowId = new WorkflowId("workflow-guidance-1")
+            });
+
+        Assert.Equal(
+            gap.RequirementId,
+            guidance.RequestedRequirementId);
+    }
+
     [Fact]
     public async Task ExecuteAsync_FailsWhenGapIsMissing()
     {
@@ -59,12 +90,18 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
     private sealed class FakeGuidanceRepository :
         IEvidenceRequirementGuidanceRepository
     {
+        public RequirementId? RequestedRequirementId { get; private set; }
+
         public Task<IReadOnlyList<EvidenceRequirementGuidance>>
             GetEvidenceRequirementGuidanceAsync(
                 RequirementId requirementId,
                 CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<EvidenceRequirementGuidance>>(
+        {
+            RequestedRequirementId = requirementId;
+
+            return Task.FromResult<IReadOnlyList<EvidenceRequirementGuidance>>(
                 Array.Empty<EvidenceRequirementGuidance>());
+        }
 
         public Task AddEvidenceRequirementGuidanceAsync(
             EvidenceRequirementGuidance guidance,
