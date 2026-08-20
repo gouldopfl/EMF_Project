@@ -73,4 +73,21 @@ public interface IEvidenceDevelopmentPlanRepository
         throw new NotSupportedException(
             "Evidence development executions are not supported by this repository.");
     }
+
+    Task AddEvidenceDevelopmentResultAsync(
+        EvidenceDevelopmentResult result,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Evidence development results are not supported by this repository.");
+    }
+
+    Task<EvidenceDevelopmentResult?>
+        GetEvidenceDevelopmentResultAsync(
+            EvidenceGapId evidenceGapId,
+            CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Evidence development results are not supported by this repository.");
+    }
 }

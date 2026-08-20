@@ -571,4 +571,166 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
         };
     }
 
+
+    public async Task AddEvidenceDevelopmentResultAsync(
+        EvidenceDevelopmentResult result,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        using var transaction =
+            connection.BeginTransaction();
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText =
+                """
+                INSERT INTO VeteransClaims_EvidenceDevelopmentResults (
+                    EvidenceGapId,
+                    RequirementId
+                )
+                VALUES (
+                    $evidenceGapId,
+                    $requirementId
+                );
+                """;
+
+            command.Parameters.AddWithValue(
+                "$evidenceGapId",
+                result.EvidenceGapId.Value);
+
+            command.Parameters.AddWithValue(
+                "$requirementId",
+                result.RequirementId.Value);
+
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        foreach (var guidance in result.EvidenceGuidance)
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+
+            command.CommandText =
+                """
+                INSERT INTO VeteransClaims_EvidenceDevelopmentResultGuidance (
+                    EvidenceGapId,
+                    GuidanceId
+                )
+                VALUES (
+                    $evidenceGapId,
+                    $guidanceId
+                );
+                """;
+
+            command.Parameters.AddWithValue(
+                "$evidenceGapId",
+                result.EvidenceGapId.Value);
+
+            command.Parameters.AddWithValue(
+                "$guidanceId",
+                guidance.Id.Value);
+
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+
+    public async Task<EvidenceDevelopmentResult?>
+        GetEvidenceDevelopmentResultAsync(
+            EvidenceGapId evidenceGapId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        RequirementId? requirementId = null;
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText =
+                """
+                SELECT RequirementId
+                FROM VeteransClaims_EvidenceDevelopmentResults
+                WHERE EvidenceGapId = $evidenceGapId;
+                """;
+
+            command.Parameters.AddWithValue(
+                "$evidenceGapId",
+                evidenceGapId.Value);
+
+            var value =
+                await command.ExecuteScalarAsync(cancellationToken);
+
+            if (value is null)
+            {
+                return null;
+            }
+
+            requirementId =
+                new RequirementId((string)value);
+        }
+
+        var guidance =
+            new List<EvidenceRequirementGuidance>();
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText =
+                """
+                SELECT
+                    g.Id,
+                    g.RequirementId,
+                    g.EvidenceClassification,
+                    g.GuidanceRole,
+                    g.Description
+                FROM VeteransClaims_EvidenceDevelopmentResultGuidance rg
+                JOIN VeteransClaims_EvidenceRequirementGuidance g
+                  ON g.Id = rg.GuidanceId
+                WHERE rg.EvidenceGapId = $evidenceGapId
+                ORDER BY g.Id;
+                """;
+
+            command.Parameters.AddWithValue(
+                "$evidenceGapId",
+                evidenceGapId.Value);
+
+            await using var reader =
+                await command.ExecuteReaderAsync(cancellationToken);
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                guidance.Add(
+                    new EvidenceRequirementGuidance
+                    {
+                        Id =
+                            new EvidenceRequirementGuidanceId(
+                                reader.GetString(0)),
+                        RequirementId =
+                            new RequirementId(
+                                reader.GetString(1)),
+                        EvidenceClassification =
+                            reader.GetString(2),
+                        GuidanceRole =
+                            reader.GetString(3),
+                        Description =
+                            reader.GetString(4)
+                    });
+            }
+        }
+
+        return new EvidenceDevelopmentResult
+        {
+            EvidenceGapId = evidenceGapId,
+            RequirementId = requirementId.Value,
+            EvidenceGuidance = guidance
+        };
+    }
+
 }
