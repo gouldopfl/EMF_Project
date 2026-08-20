@@ -1,3 +1,5 @@
+using EMF.Persistence.Repositories;
+using EMF.Orchestration.Services;
 using EMF.ConsoleApplication;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
@@ -82,12 +84,58 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
-    public async Task EvidenceDevelopSummarize_UsesInjectedRuntime()
+    public async Task EvidenceDevelopSummarizePromote_RequiresReviewer()
     {
+        var previous =
+            Environment.GetEnvironmentVariable(
+                "EMF_REVIEWED_BY");
+
         var databasePath = Path.GetTempFileName();
 
         try
         {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                null);
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "develop",
+                        "--summarize",
+                        "--promote",
+                        databasePath,
+                        "plan-1",
+                        "gap-1"
+                    ]);
+
+            Assert.Equal(1, exitCode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                previous);
+
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task EvidenceDevelopSummarize_UsesInjectedRuntime()
+    {
+        var databasePath = Path.GetTempFileName();
+        var previousReviewer =
+            Environment.GetEnvironmentVariable(
+                "EMF_REVIEWED_BY");
+
+        try
+        {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                "console-reviewer");
+
             var repository =
                 new SqliteEvidenceDevelopmentPlanRepository(
                     databasePath);
@@ -171,8 +219,18 @@ public sealed class VeteransConsoleCommandTests
                 Description = "Missing supporting evidence."
             };
 
-            await new SqliteEvidenceGapRepository(databasePath)
-                .AddEvidenceGapAsync(gap);
+            var gapRepository =
+                new SqliteEvidenceGapRepository(databasePath);
+
+            await gapRepository.AddEvidenceGapAsync(gap);
+
+            await gapRepository.AddEvidenceGapArtifactAsync(
+                new EvidenceGapArtifact
+                {
+                    EvidenceGapId = gap.Id,
+                    ArtifactId = new ArtifactId("artifact-console-001"),
+                    Role = "supporting"
+                });
 
             var guidance =
                 new EvidenceRequirementGuidance
@@ -199,6 +257,7 @@ public sealed class VeteransConsoleCommandTests
                         "evidence",
                         "develop",
                         "--summarize",
+                        "--promote",
                         databasePath,
                         plan.Id.Value,
                         gap.Id.Value
@@ -217,9 +276,52 @@ public sealed class VeteransConsoleCommandTests
 
             Assert.Equal(0, exitCode);
 
+            var expectedArtifact =
+                new TextSummaryEvidenceArtifactFactory()
+                    .Create(
+                        "Veterans evidence summary.",
+                        $"Evidence gap {gap.Id.Value} summary",
+                        DateTimeOffset.UtcNow);
+
+            var evidenceRepository =
+                new SqliteEvidenceRepository(databasePath);
+
+            var stored =
+                await evidenceRepository.GetArtifactAsync(
+                    expectedArtifact.Id);
+
+            Assert.NotNull(stored);
+            Assert.Equal(
+                "text-summary",
+                stored!.ArtifactType);
+
+            var provenance =
+                Assert.Single(
+                    await evidenceRepository
+                        .GetProvenanceAsync(
+                            expectedArtifact.Id));
+
+            Assert.Equal(
+                "EMF.Intelligence",
+                provenance.Source);
+
+            var relationship =
+                Assert.Single(
+                    await evidenceRepository
+                        .GetRelationshipsAsync(
+                            expectedArtifact.Id));
+
+            Assert.Equal(
+                new ArtifactId("artifact-console-001"),
+                relationship.TargetArtifactId);
+
         }
         finally
         {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                previousReviewer);
+
             File.Delete(databasePath);
         }
     }
@@ -251,7 +353,9 @@ public sealed class VeteransConsoleCommandTests
                         EngineName = "test",
                         StartedUtc = DateTimeOffset.UtcNow,
                         CompletedUtc = DateTimeOffset.UtcNow
-                    }
+                    },
+                    SourceArtifactIds =
+                        context.InputArtifactIds.ToArray()
                 });
         }
     }

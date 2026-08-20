@@ -25,12 +25,19 @@ public static class VeteransConsoleCommand
     {
         ArgumentNullException.ThrowIfNull(runtimeFactory);
         var summarize =
-            args.Length == 6 &&
+            args.Length >= 6 &&
             args[0] == "evidence" &&
             args[1] == "develop" &&
             args[2] == "--summarize";
 
+        var promote =
+            summarize &&
+            args.Length == 7 &&
+            args[3] == "--promote";
+
         if ((!summarize && args.Length != 5) ||
+            (summarize && !promote && args.Length != 6) ||
+            (summarize && promote && args.Length != 7) ||
             args[0] != "evidence" ||
             args[1] != "develop")
         {
@@ -38,7 +45,10 @@ public static class VeteransConsoleCommand
             return 2;
         }
 
-        var offset = summarize ? 1 : 0;
+        var offset =
+            summarize
+                ? promote ? 2 : 1
+                : 0;
 
         var databasePath =
             Path.GetFullPath(args[2 + offset]);
@@ -56,6 +66,18 @@ public static class VeteransConsoleCommand
 
         var evidenceGapId =
             new EvidenceGapId(args[4 + offset]);
+
+        if (promote &&
+            string.IsNullOrWhiteSpace(
+                Environment.GetEnvironmentVariable(
+                    "EMF_REVIEWED_BY")))
+        {
+            global::System.Console.Error.WriteLine(
+                "Evidence promotion requires review. " +
+                "Set EMF_REVIEWED_BY to the reviewer identity.");
+
+            return 1;
+        }
 
         var workflowRepository =
             new SqliteWorkflowRepository(databasePath);
@@ -161,6 +183,28 @@ public static class VeteransConsoleCommand
                 global::System.Console.WriteLine("-------");
                 global::System.Console.WriteLine(
                     intelligenceResult.Output);
+
+                if (promote)
+                {
+                    await VeteransEvidenceSummaryPublisher.PublishAsync(
+                        databasePath,
+                        $"Evidence gap {evidenceGapId.Value} summary",
+                        runtime.SubjectId,
+                        Environment.GetEnvironmentVariable("EMF_REVIEWED_BY")!,
+                        DateTimeOffset.UtcNow,
+                        intelligenceResult);
+                }
+
+                if (promote)
+                {
+                    await VeteransEvidenceSummaryPublisher.PublishAsync(
+                        databasePath,
+                        $"Evidence gap {evidenceGapId.Value} summary",
+                        runtime.SubjectId,
+                        Environment.GetEnvironmentVariable("EMF_REVIEWED_BY")!,
+                        DateTimeOffset.UtcNow,
+                        intelligenceResult);
+                }
             }
 
             return 0;
@@ -178,6 +222,7 @@ public static class VeteransConsoleCommand
     {
         global::System.Console.WriteLine(
             "Usage: emf veterans evidence develop " +
-            "[--summarize] <database-path> <plan-id> <evidence-gap-id>");
+            "[--summarize [--promote]] " +
+            "<database-path> <plan-id> <evidence-gap-id>");
     }
 }
