@@ -5,7 +5,8 @@ using EMF.Intelligence.Models;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
-public sealed class EvidenceDevelopmentIntelligenceCoordinator
+public sealed class EvidenceDevelopmentIntelligenceCoordinator :
+    IEvidenceDevelopmentIntelligenceCoordinator
 {
     private readonly IEvidenceDevelopmentPlanRepository _repository;
     private readonly IEvidenceGapRepository _gapRepository;
