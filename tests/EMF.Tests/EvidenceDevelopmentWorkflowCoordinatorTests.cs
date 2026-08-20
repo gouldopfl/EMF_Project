@@ -36,6 +36,37 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
 
 
     [Fact]
+    public async Task StartAsync_PersistsDevelopmentResult()
+    {
+        var repository = new FakeRepository();
+
+        var gap = new EvidenceGap
+        {
+            Id = new EvidenceGapId("gap-result-1"),
+            ClaimIssueId = new ClaimIssueId("issue-result-1"),
+            RequirementId = new RequirementId("requirement-result-1"),
+            Description = "Missing evidence."
+        };
+
+        var coordinator =
+            new EvidenceDevelopmentWorkflowCoordinator(
+                new FakeWorkflowService(),
+                repository,
+                new ExecutingWorkflowRunner(),
+                new FakeGapRepository(gap),
+                new FakeGuidanceRepository());
+
+        await coordinator.StartAsync(
+            new EvidenceDevelopmentPlanId("plan-result-1"),
+            gap.Id);
+
+        Assert.NotNull(repository.Result);
+        Assert.Equal(gap.Id, repository.Result!.EvidenceGapId);
+        Assert.Equal(gap.RequirementId, repository.Result.RequirementId);
+    }
+
+
+    [Fact]
     public async Task StartAsync_FailsWorkflowWhenLinkPersistenceFails()
     {
         var workflow = new FakeWorkflowService();
@@ -59,6 +90,22 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
             workflow.FailedWorkflowId);
     }
 
+
+    private sealed class ExecutingWorkflowRunner : IWorkflowRunner
+    {
+        public async Task ExecuteAsync(
+            EMF.Orchestration.Models.WorkflowExecutionContext context,
+            IEnumerable<IWorkflowActivity> activities,
+            string? retryActivityId = null,
+            OperationId? retryOperationId = null,
+            CancellationToken cancellationToken = default)
+        {
+            foreach (var activity in activities)
+            {
+                await activity.ExecuteAsync(context, cancellationToken);
+            }
+        }
+    }
 
     private sealed class FakeWorkflowRunner : IWorkflowRunner
     {
@@ -101,10 +148,17 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
 
     private sealed class FakeGapRepository : IEvidenceGapRepository
     {
+        private readonly EvidenceGap? _gap;
+
+        public FakeGapRepository(EvidenceGap? gap = null)
+        {
+            _gap = gap;
+        }
+
         public Task<EvidenceGap?> GetEvidenceGapAsync(
             EvidenceGapId id,
             CancellationToken cancellationToken = default)
-            => Task.FromResult<EvidenceGap?>(null);
+            => Task.FromResult(_gap);
 
         public Task AddEvidenceGapAsync(EvidenceGap gap, CancellationToken c = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<EvidenceGap>> GetEvidenceGapsAsync(ClaimIssueId id, CancellationToken c = default) => throw new NotSupportedException();
@@ -144,6 +198,15 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
     private class FakeRepository : IEvidenceDevelopmentPlanRepository
     {
         public EvidenceDevelopmentExecution? Execution { get; private set; }
+        public EvidenceDevelopmentResult? Result { get; private set; }
+
+        public Task AddEvidenceDevelopmentResultAsync(
+            EvidenceDevelopmentResult result,
+            CancellationToken cancellationToken = default)
+        {
+            Result = result;
+            return Task.CompletedTask;
+        }
 
         public virtual Task AddEvidenceDevelopmentExecutionAsync(
             EvidenceDevelopmentExecution execution,
