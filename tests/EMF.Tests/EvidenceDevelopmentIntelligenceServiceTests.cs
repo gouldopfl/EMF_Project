@@ -59,8 +59,32 @@ public sealed class EvidenceDevelopmentIntelligenceServiceTests
         Assert.NotNull(executor.Request);
 
         Assert.Contains(
-            "Gap: Missing evidence.",
+            "Prepare a veteran-oriented evidence-development summary.",
             executor.Request!.Text);
+
+        Assert.Contains(
+            "specific types of documents or records",
+            executor.Request.Text);
+
+        Assert.Contains(
+            "Explain why each identified evidence type is relevant.",
+            executor.Request.Text);
+
+        Assert.Contains(
+            "Distinguish required evidence from supporting evidence",
+            executor.Request.Text);
+
+        Assert.Contains(
+            "Do not invent evidence requirements",
+            executor.Request.Text);
+
+        Assert.Contains(
+            "This is evidence-development guidance, not an adjudication decision.",
+            executor.Request.Text);
+
+        Assert.Contains(
+            "Gap: Missing evidence.",
+            executor.Request.Text);
 
         Assert.Contains(
             "Requirement ID: req-1",

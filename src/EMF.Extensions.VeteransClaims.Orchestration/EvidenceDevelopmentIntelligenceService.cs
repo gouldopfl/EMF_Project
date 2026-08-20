@@ -96,7 +96,21 @@ internal sealed class EvidenceDevelopmentIntelligenceService
         var builder = new StringBuilder();
 
         builder.AppendLine(
-            "Summarize the following evidence-development gap.");
+            "Prepare a veteran-oriented evidence-development summary.");
+        builder.AppendLine(
+            "Identify what the evidence must establish, what evidence is needed, " +
+            "and the specific types of documents or records the veteran should " +
+            "look for or provide.");
+        builder.AppendLine(
+            "Explain why each identified evidence type is relevant.");
+        builder.AppendLine(
+            "Distinguish required evidence from supporting evidence when the " +
+            "guidance permits that distinction.");
+        builder.AppendLine(
+            "Do not invent evidence requirements, document types, medical opinions, " +
+            "forms, or other facts that are not supported by the supplied guidance.");
+        builder.AppendLine(
+            "This is evidence-development guidance, not an adjudication decision.");
         builder.AppendLine();
         builder.AppendLine(
             $"Gap: {gap.Description}");
