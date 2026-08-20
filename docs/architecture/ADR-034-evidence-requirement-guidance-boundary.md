@@ -59,6 +59,20 @@ Evidence Requirement Guidance:
 - does not establish a legal or medical conclusion
 - does not automatically mean that the identified evidence is legally required
 
+AI-assisted evidence-development summaries:
+
+- may translate and organize supplied Evidence Requirement Guidance for
+  veteran-oriented presentation
+- may identify document or record types only when supported by the supplied
+  guidance
+- may explain the relevance of an identified evidence type when supported by
+  the supplied guidance
+- must distinguish required evidence from supporting evidence only when that
+  distinction is present in the supplied guidance
+- must not invent evidence requirements, document types, medical opinions,
+  forms, or other facts
+- are evidence-development guidance and not adjudication decisions
+
 Platform Evidence and Artifact identity, provenance, integrity, and storage
 remain owned by EMF platform infrastructure.
 
@@ -91,6 +105,10 @@ Tests verify:
 - Requirements without guidance remain visible
 - Regulatory Provisions without modeled Requirements remain valid
 - regulatory requirements and evidence guidance can be composed through the service boundary
+- AI evidence-development summaries remain grounded in supplied guidance
+- AI summaries do not introduce unsupported evidence requirements
+- AI summaries preserve the distinction between evidence-development guidance
+  and adjudication
 
 ## References
 
