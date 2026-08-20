@@ -1,4 +1,7 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Identities;
+using EMF.Intelligence.Models;
+using EMF.Intelligence.Models.Identities;
 using EMF.Extensions.VeteransClaims.Orchestration;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
 using EMF.Orchestration.Services;
@@ -8,10 +11,26 @@ namespace EMF.ConsoleApplication;
 
 public static class VeteransConsoleCommand
 {
-    public static async Task<int> RunAsync(
+    public static Task<int> RunAsync(
         string[] args)
     {
-        if (args.Length != 5 ||
+        return RunAsync(
+            args,
+            TextSummarizationConsoleRuntimeFactory.CreateAsync);
+    }
+
+    internal static async Task<int> RunAsync(
+        string[] args,
+        Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory)
+    {
+        ArgumentNullException.ThrowIfNull(runtimeFactory);
+        var summarize =
+            args.Length == 6 &&
+            args[0] == "evidence" &&
+            args[1] == "develop" &&
+            args[2] == "--summarize";
+
+        if ((!summarize && args.Length != 5) ||
             args[0] != "evidence" ||
             args[1] != "develop")
         {
@@ -19,8 +38,10 @@ public static class VeteransConsoleCommand
             return 2;
         }
 
+        var offset = summarize ? 1 : 0;
+
         var databasePath =
-            Path.GetFullPath(args[2]);
+            Path.GetFullPath(args[2 + offset]);
 
         if (!File.Exists(databasePath))
         {
@@ -31,10 +52,10 @@ public static class VeteransConsoleCommand
         }
 
         var planId =
-            new EvidenceDevelopmentPlanId(args[3]);
+            new EvidenceDevelopmentPlanId(args[3 + offset]);
 
         var evidenceGapId =
-            new EvidenceGapId(args[4]);
+            new EvidenceGapId(args[4 + offset]);
 
         var workflowRepository =
             new SqliteWorkflowRepository(databasePath);
@@ -103,6 +124,45 @@ public static class VeteransConsoleCommand
             global::System.Console.WriteLine(
                 $"Guidance    : {result.EvidenceGuidance.Count}");
 
+            if (summarize)
+            {
+                var runtime =
+                    await runtimeFactory();
+
+                var intelligenceCoordinator =
+                    new EvidenceDevelopmentIntelligenceCoordinator(
+                        developmentRepository,
+                        gapRepository,
+                        new EvidenceDevelopmentIntelligenceService(
+                            runtime.TextSummarizationCapabilityExecutor));
+
+                var intelligenceResult =
+                    await intelligenceCoordinator.SummarizeAsync(
+                        planId,
+                        evidenceGapId,
+                        new IntelligenceExecutionContext(
+                            runtime.SubjectId,
+                            new IntelligenceCorrelationId(
+                                $"veterans-{Guid.NewGuid():N}"),
+                            runtime.ClassificationId,
+                            Array.Empty<ArtifactId>()));
+
+                if (!intelligenceResult.Succeeded)
+                {
+                    global::System.Console.Error.WriteLine(
+                        intelligenceResult.Message ??
+                        "Evidence development summarization failed.");
+
+                    return 1;
+                }
+
+                global::System.Console.WriteLine();
+                global::System.Console.WriteLine("Summary");
+                global::System.Console.WriteLine("-------");
+                global::System.Console.WriteLine(
+                    intelligenceResult.Summary);
+            }
+
             return 0;
         }
         catch (Exception ex)
@@ -118,6 +178,6 @@ public static class VeteransConsoleCommand
     {
         global::System.Console.WriteLine(
             "Usage: emf veterans evidence develop " +
-            "<database-path> <plan-id> <evidence-gap-id>");
+            "[--summarize] <database-path> <plan-id> <evidence-gap-id>");
     }
 }
