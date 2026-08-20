@@ -1,0 +1,15 @@
+using EMF.Core.Models;
+using EMF.Intelligence.Agents;
+
+namespace EMF.Extensions.VeteransClaims.Orchestration;
+
+public interface IVeteransEvidenceSummaryPromotionService
+{
+    Task<Artifact> PromoteAsync(
+        string name,
+        string promotedBy,
+        string reviewedBy,
+        DateTimeOffset promotedUtc,
+        IntelligenceAgentResult<string> result,
+        CancellationToken cancellationToken = default);
+}

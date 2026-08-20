@@ -6,7 +6,8 @@ using EMF.Orchestration.Services;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
-public sealed class VeteransEvidenceSummaryPromotionService
+public sealed class VeteransEvidenceSummaryPromotionService :
+    IVeteransEvidenceSummaryPromotionService
 {
     private readonly IIntelligenceEvidencePromotionService
         _promotionService;
