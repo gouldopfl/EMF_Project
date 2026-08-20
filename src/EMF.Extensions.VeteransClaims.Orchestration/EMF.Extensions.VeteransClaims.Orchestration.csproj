@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\EMF.Extensions.VeteransClaims\EMF.Extensions.VeteransClaims.csproj" />
     <ProjectReference Include="..\EMF.Orchestration\EMF.Orchestration.csproj" />
+    <ProjectReference Include="..\EMF.Core\EMF.Core.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
