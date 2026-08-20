@@ -16,6 +16,49 @@ public sealed class EvidenceDevelopmentPlanService :
         _repository = repository;
     }
 
+
+    public async Task<EvidenceDevelopmentPlanDetails>
+        CreateEvidenceDevelopmentPlanAsync(
+            CreateEvidenceDevelopmentPlanRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var plan =
+            new EvidenceDevelopmentPlan
+            {
+                Id = request.PlanId,
+                ClaimIssueId = request.ClaimIssueId,
+                Description = request.Description
+            };
+
+        var evidenceGaps =
+            request.EvidenceGapIds
+                .Select(
+                    evidenceGapId =>
+                        new EvidenceDevelopmentPlanEvidenceGap
+                        {
+                            EvidenceDevelopmentPlanId = plan.Id,
+                            EvidenceGapId = evidenceGapId
+                        })
+                .ToArray();
+
+        await _repository.CreateEvidenceDevelopmentPlanAsync(
+            plan,
+            evidenceGaps,
+            cancellationToken);
+
+        var details =
+            await GetEvidenceDevelopmentPlanAsync(
+                plan.Id,
+                cancellationToken);
+
+        return details
+            ?? throw new InvalidOperationException(
+                "Created evidence development plan could not be read back.");
+    }
+
+
     public async Task<EvidenceDevelopmentPlanDetails?>
         GetEvidenceDevelopmentPlanAsync(
             EvidenceDevelopmentPlanId planId,

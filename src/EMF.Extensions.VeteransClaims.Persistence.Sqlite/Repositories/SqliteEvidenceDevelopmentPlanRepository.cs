@@ -32,6 +32,89 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
             .InitializeAsync(cancellationToken);
     }
 
+    public async Task CreateEvidenceDevelopmentPlanAsync(
+        EvidenceDevelopmentPlan plan,
+        IReadOnlyCollection<EvidenceDevelopmentPlanEvidenceGap> evidenceGaps,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(evidenceGaps);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var transaction = (SqliteTransaction)
+            await connection.BeginTransactionAsync(cancellationToken);
+
+        await InsertPlanAsync(
+            connection, transaction, plan, cancellationToken);
+
+        foreach (var evidenceGap in evidenceGaps)
+        {
+            await InsertGapAsync(
+                connection,
+                transaction,
+                evidenceGap,
+                cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task InsertPlanAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        EvidenceDevelopmentPlan plan,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_EvidenceDevelopmentPlans (
+                Id, ClaimIssueId, Description
+            )
+            VALUES ($id, $claimIssueId, $description);
+            """;
+
+        command.Parameters.AddWithValue("$id", plan.Id.Value);
+        command.Parameters.AddWithValue(
+            "$claimIssueId", plan.ClaimIssueId.Value);
+        command.Parameters.AddWithValue(
+            "$description", plan.Description);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task InsertGapAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        EvidenceDevelopmentPlanEvidenceGap evidenceGap,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_EvidenceDevelopmentPlanEvidenceGaps (
+                EvidenceDevelopmentPlanId, EvidenceGapId
+            )
+            VALUES ($planId, $evidenceGapId);
+            """;
+
+        command.Parameters.AddWithValue(
+            "$planId",
+            evidenceGap.EvidenceDevelopmentPlanId.Value);
+
+        command.Parameters.AddWithValue(
+            "$evidenceGapId",
+            evidenceGap.EvidenceGapId.Value);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task AddEvidenceDevelopmentPlanAsync(
         EvidenceDevelopmentPlan plan,
         CancellationToken cancellationToken = default)

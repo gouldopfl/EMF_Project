@@ -5,6 +5,11 @@ namespace EMF.Extensions.VeteransClaims.Contracts;
 
 public interface IEvidenceDevelopmentPlanRepository
 {
+    Task CreateEvidenceDevelopmentPlanAsync(
+        EvidenceDevelopmentPlan plan,
+        IReadOnlyCollection<EvidenceDevelopmentPlanEvidenceGap> evidenceGaps,
+        CancellationToken cancellationToken = default);
+
     Task AddEvidenceDevelopmentPlanAsync(
         EvidenceDevelopmentPlan plan,
         CancellationToken cancellationToken = default);
