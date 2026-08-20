@@ -147,7 +147,7 @@ public static class VeteransConsoleCommand
                             runtime.ClassificationId,
                             Array.Empty<ArtifactId>()));
 
-                if (!intelligenceResult.Succeeded)
+                if (!intelligenceResult.Success)
                 {
                     global::System.Console.Error.WriteLine(
                         intelligenceResult.Message ??
@@ -160,7 +160,7 @@ public static class VeteransConsoleCommand
                 global::System.Console.WriteLine("Summary");
                 global::System.Console.WriteLine("-------");
                 global::System.Console.WriteLine(
-                    intelligenceResult.Summary);
+                    intelligenceResult.Output);
             }
 
             return 0;

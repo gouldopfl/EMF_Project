@@ -1,5 +1,6 @@
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Identities;
+using EMF.Intelligence.Agents;
 using EMF.Intelligence.Models;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
@@ -23,7 +24,7 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinator
         _gapRepository = gapRepository;
         _service = service;
     }
-    public async Task<EvidenceDevelopmentIntelligenceResult>
+    public async Task<IntelligenceAgentResult<string>>
         SummarizeAsync(
             EvidenceDevelopmentPlanId planId,
             EvidenceGapId evidenceGapId,

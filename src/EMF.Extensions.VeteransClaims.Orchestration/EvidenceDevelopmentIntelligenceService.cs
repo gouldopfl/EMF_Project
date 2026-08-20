@@ -1,5 +1,6 @@
 using System.Text;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
+using EMF.Intelligence.Agents;
 using EMF.Intelligence.Capabilities;
 using EMF.Intelligence.Contracts;
 using EMF.Intelligence.Models;
@@ -8,10 +9,7 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 
 public sealed class EvidenceDevelopmentIntelligenceService
 {
-    private readonly
-        IIntelligenceCapabilityExecutor<
-            TextSummarizationRequest,
-            string> _summarizationExecutor;
+    private readonly TextSummarizationAgent _agent;
 
     public EvidenceDevelopmentIntelligenceService(
         IIntelligenceCapabilityExecutor<
@@ -21,11 +19,12 @@ public sealed class EvidenceDevelopmentIntelligenceService
         ArgumentNullException.ThrowIfNull(
             summarizationExecutor);
 
-        _summarizationExecutor =
-            summarizationExecutor;
+        _agent =
+            new TextSummarizationAgent(
+                summarizationExecutor);
     }
 
-    public async Task<EvidenceDevelopmentIntelligenceResult>
+    public Task<IntelligenceAgentResult<string>>
         SummarizeAsync(
             EvidenceGap gap,
             IReadOnlyList<EvidenceRequirementGuidance> guidance,
@@ -38,25 +37,55 @@ public sealed class EvidenceDevelopmentIntelligenceService
 
         var text = BuildInput(gap, guidance);
 
+        var agentContext =
+            new IntelligenceExecutionContext(
+                context.SubjectId,
+                context.CorrelationId,
+                context.ProtectionClassificationId,
+                context.InputArtifactIds,
+                _agent.Id);
+
+        return ExecuteAgentAsync(
+            text,
+            agentContext,
+            cancellationToken);
+    }
+
+    private async Task<IntelligenceAgentResult<string>>
+        ExecuteAgentAsync(
+            string text,
+            IntelligenceExecutionContext context,
+            CancellationToken cancellationToken)
+    {
         var result =
-            await _summarizationExecutor.ExecuteAsync(
-                IntelligenceCapabilityIds.TextSummarization,
+            await _agent.ExecuteAsync(
                 new TextSummarizationRequest(
                     text,
                     1000),
                 context,
                 cancellationToken);
 
-        return new EvidenceDevelopmentIntelligenceResult
+        if (!result.Success ||
+            !string.IsNullOrWhiteSpace(result.Output))
         {
-            Succeeded =
-                result.Success &&
-                !string.IsNullOrWhiteSpace(result.Output),
+            return result;
+        }
 
-            Summary = result.Output,
+        return new IntelligenceAgentResult<string>
+        {
+            Success = false,
             Message = result.Message,
-            RequiresReview = result.RequiresReview,
-            Metadata = result.Metadata
+            Output = result.Output,
+            AgentId = result.AgentId,
+            CorrelationId = result.CorrelationId,
+            StartedUtc = result.StartedUtc,
+            CompletedUtc = result.CompletedUtc,
+            CapabilityExecutions =
+                result.CapabilityExecutions,
+            SourceArtifactIds =
+                result.SourceArtifactIds,
+            Warnings = result.Warnings,
+            RequiresReview = result.RequiresReview
         };
     }
 

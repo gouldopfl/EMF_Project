@@ -44,10 +44,12 @@ public sealed class EvidenceDevelopmentIntelligenceServiceTests
                 }],
                 TestContext());
 
-        Assert.True(actual.Succeeded);
-        Assert.Equal("summary", actual.Summary);
+        Assert.True(actual.Success);
+        Assert.Equal("summary", actual.Output);
         Assert.True(actual.RequiresReview);
-        Assert.Same(result.Metadata, actual.Metadata);
+        Assert.Same(
+            result.Metadata,
+            Assert.Single(actual.CapabilityExecutions));
 
         Assert.Equal(
             IntelligenceCapabilityIds.TextSummarization,
@@ -97,7 +99,7 @@ public sealed class EvidenceDevelopmentIntelligenceServiceTests
                 }],
                 TestContext());
 
-        Assert.False(actual.Succeeded);
+        Assert.False(actual.Success);
     }
 
     [Fact]
@@ -121,7 +123,7 @@ public sealed class EvidenceDevelopmentIntelligenceServiceTests
                 Array.Empty<EvidenceRequirementGuidance>(),
                 TestContext());
 
-        Assert.False(actual.Succeeded);
+        Assert.False(actual.Success);
         Assert.Equal("Unavailable.", actual.Message);
     }
 

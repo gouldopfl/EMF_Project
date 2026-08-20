@@ -155,8 +155,8 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
                 new EvidenceGapId("gap-1"),
                 TestContext());
 
-        Assert.True(result.Succeeded);
-        Assert.Equal("summary", result.Summary);
+        Assert.True(result.Success);
+        Assert.Equal("summary", result.Output);
         Assert.Contains(
             "medical / supporting: Obtain nexus opinion.",
             executor.Request!.Text);
