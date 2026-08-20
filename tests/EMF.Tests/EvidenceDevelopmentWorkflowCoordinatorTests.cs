@@ -15,12 +15,13 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
     {
         var workflow = new FakeWorkflowService();
         var repository = new FakeRepository();
+        var runner = new FakeWorkflowRunner();
 
         var coordinator =
             new EvidenceDevelopmentWorkflowCoordinator(
                 workflow,
                 repository,
-                new FakeWorkflowRunner(),
+                runner,
                 new FakeGapRepository());
 
         var result = await coordinator.StartAsync(
@@ -29,6 +30,7 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
 
         Assert.NotNull(repository.Execution);
         Assert.Equal(result.WorkflowId, repository.Execution!.WorkflowId);
+        Assert.Equal(result.WorkflowId, runner.WorkflowId);
     }
 
 
@@ -58,13 +60,18 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
 
     private sealed class FakeWorkflowRunner : IWorkflowRunner
     {
+        public WorkflowId? WorkflowId { get; private set; }
+
         public Task ExecuteAsync(
             EMF.Orchestration.Models.WorkflowExecutionContext context,
             IEnumerable<IWorkflowActivity> activities,
             string? retryActivityId = null,
             OperationId? retryOperationId = null,
             CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        {
+            WorkflowId = context.WorkflowId;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeGapRepository : IEvidenceGapRepository
