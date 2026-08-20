@@ -5,7 +5,7 @@ using EMF.Orchestration.Models;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
-public sealed class DevelopEvidenceGapWorkflowActivity :
+internal sealed class DevelopEvidenceGapWorkflowActivity :
     IWorkflowActivity
 {
     private readonly IEvidenceGapRepository _repository;
