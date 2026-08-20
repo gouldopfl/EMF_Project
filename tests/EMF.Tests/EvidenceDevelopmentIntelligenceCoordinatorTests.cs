@@ -172,6 +172,90 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
             executor.Context!.InputArtifactIds);
     }
 
+    [Fact]
+    public async Task SummarizeAsync_PreservesContextAndGapArtifacts()
+    {
+        var repository = new FakeDevelopmentRepository
+        {
+            Execution = new EvidenceDevelopmentExecution
+            {
+                EvidenceDevelopmentPlanId =
+                    new EvidenceDevelopmentPlanId("plan-1"),
+                EvidenceGapId =
+                    new EvidenceGapId("gap-1"),
+                WorkflowId =
+                    new WorkflowId("workflow-1")
+            },
+            Result = new EvidenceDevelopmentResult
+            {
+                EvidenceGapId =
+                    new EvidenceGapId("gap-1"),
+                RequirementId =
+                    new RequirementId("req-1"),
+                EvidenceGuidance =
+                    Array.Empty<EvidenceRequirementGuidance>()
+            }
+        };
+
+        var gapRepository = new FakeGapRepository
+        {
+            Gap = new EvidenceGap
+            {
+                Id = new EvidenceGapId("gap-1"),
+                ClaimIssueId = new ClaimIssueId("issue-1"),
+                RequirementId = new RequirementId("req-1"),
+                Description = "Missing evidence."
+            },
+            Artifacts =
+            [
+                new EvidenceGapArtifact
+                {
+                    EvidenceGapId =
+                        new EvidenceGapId("gap-1"),
+                    ArtifactId =
+                        new ArtifactId("artifact-gap-1"),
+                    Role = "supporting"
+                }
+            ]
+        };
+
+        var executor = new FakeExecutor();
+
+        var coordinator =
+            new EvidenceDevelopmentIntelligenceCoordinator(
+                repository,
+                gapRepository,
+                executor);
+
+        var context = new IntelligenceExecutionContext(
+            "security-steward",
+            new IntelligenceCorrelationId("test-1"),
+            new ProtectionClassificationId("confidential"),
+            [
+                new ArtifactId("artifact-context-1")
+            ]);
+
+        var result =
+            await coordinator.SummarizeAsync(
+                new EvidenceDevelopmentPlanId("plan-1"),
+                new EvidenceGapId("gap-1"),
+                context);
+
+        Assert.True(result.Success);
+
+        Assert.Contains(
+            new ArtifactId("artifact-context-1"),
+            executor.Context!.InputArtifactIds);
+
+        Assert.Contains(
+            new ArtifactId("artifact-gap-1"),
+            executor.Context.InputArtifactIds);
+
+        Assert.Equal(
+            2,
+            executor.Context.InputArtifactIds.Count());
+    }
+
     private sealed class FakeDevelopmentRepository :
         IEvidenceDevelopmentPlanRepository
     {
