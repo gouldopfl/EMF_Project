@@ -22,7 +22,8 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
                 workflow,
                 repository,
                 runner,
-                new FakeGapRepository());
+                new FakeGapRepository(),
+                new FakeGuidanceRepository());
 
         var result = await coordinator.StartAsync(
             new EvidenceDevelopmentPlanId("plan-1"),
@@ -45,7 +46,8 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
                 workflow,
                 repository,
                 new FakeWorkflowRunner(),
-                new FakeGapRepository());
+                new FakeGapRepository(),
+                new FakeGuidanceRepository());
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => coordinator.StartAsync(
@@ -72,6 +74,29 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
             WorkflowId = context.WorkflowId;
             return Task.CompletedTask;
         }
+    }
+
+
+    private sealed class FakeGuidanceRepository :
+        IEvidenceRequirementGuidanceRepository
+    {
+        public Task<IReadOnlyList<EvidenceRequirementGuidance>>
+            GetEvidenceRequirementGuidanceAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<EvidenceRequirementGuidance>>(
+                Array.Empty<EvidenceRequirementGuidance>());
+
+        public Task AddEvidenceRequirementGuidanceAsync(
+            EvidenceRequirementGuidance guidance,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<EvidenceRequirementGuidance?>
+            GetEvidenceRequirementGuidanceAsync(
+                EvidenceRequirementGuidanceId guidanceId,
+                CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 
     private sealed class FakeGapRepository : IEvidenceGapRepository

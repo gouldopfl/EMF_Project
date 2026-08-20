@@ -12,22 +12,26 @@ public sealed class EvidenceDevelopmentWorkflowCoordinator
     private readonly IEvidenceDevelopmentPlanRepository _repository;
     private readonly IWorkflowRunner _runner;
     private readonly IEvidenceGapRepository _gapRepository;
+    private readonly IEvidenceRequirementGuidanceRepository _guidanceRepository;
 
     public EvidenceDevelopmentWorkflowCoordinator(
         IWorkflowService workflowService,
         IEvidenceDevelopmentPlanRepository repository,
         IWorkflowRunner runner,
-        IEvidenceGapRepository gapRepository)
+        IEvidenceGapRepository gapRepository,
+        IEvidenceRequirementGuidanceRepository guidanceRepository)
     {
         ArgumentNullException.ThrowIfNull(workflowService);
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(runner);
         ArgumentNullException.ThrowIfNull(gapRepository);
+        ArgumentNullException.ThrowIfNull(guidanceRepository);
 
         _workflowService = workflowService;
         _repository = repository;
         _runner = runner;
         _gapRepository = gapRepository;
+        _guidanceRepository = guidanceRepository;
     }
 
     public async Task<EvidenceDevelopmentExecution>
@@ -74,6 +78,7 @@ public sealed class EvidenceDevelopmentWorkflowCoordinator
             {
                 new DevelopEvidenceGapWorkflowActivity(
                     _gapRepository,
+                    _guidanceRepository,
                     evidenceGapId)
             },
             cancellationToken: cancellationToken);

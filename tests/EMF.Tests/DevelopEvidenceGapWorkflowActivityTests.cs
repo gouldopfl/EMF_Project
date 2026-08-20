@@ -23,6 +23,7 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
         var activity =
             new DevelopEvidenceGapWorkflowActivity(
                 new FakeRepository(gap),
+                new FakeGuidanceRepository(),
                 gap.Id);
 
         var result =
@@ -41,6 +42,7 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
         var activity =
             new DevelopEvidenceGapWorkflowActivity(
                 new FakeRepository(null),
+                new FakeGuidanceRepository(),
                 new EvidenceGapId("gap-1"));
 
         var result =
@@ -51,6 +53,29 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
                 });
 
         Assert.False(result.Succeeded);
+    }
+
+
+    private sealed class FakeGuidanceRepository :
+        IEvidenceRequirementGuidanceRepository
+    {
+        public Task<IReadOnlyList<EvidenceRequirementGuidance>>
+            GetEvidenceRequirementGuidanceAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<EvidenceRequirementGuidance>>(
+                Array.Empty<EvidenceRequirementGuidance>());
+
+        public Task AddEvidenceRequirementGuidanceAsync(
+            EvidenceRequirementGuidance guidance,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<EvidenceRequirementGuidance?>
+            GetEvidenceRequirementGuidanceAsync(
+                EvidenceRequirementGuidanceId guidanceId,
+                CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 
     private sealed class FakeRepository : IEvidenceGapRepository

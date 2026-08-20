@@ -9,15 +9,19 @@ public sealed class DevelopEvidenceGapWorkflowActivity :
     IWorkflowActivity
 {
     private readonly IEvidenceGapRepository _repository;
+    private readonly IEvidenceRequirementGuidanceRepository _guidanceRepository;
     private readonly EvidenceGapId _evidenceGapId;
 
     public DevelopEvidenceGapWorkflowActivity(
         IEvidenceGapRepository repository,
+        IEvidenceRequirementGuidanceRepository guidanceRepository,
         EvidenceGapId evidenceGapId)
     {
         ArgumentNullException.ThrowIfNull(repository);
+        ArgumentNullException.ThrowIfNull(guidanceRepository);
 
         _repository = repository;
+        _guidanceRepository = guidanceRepository;
         _evidenceGapId = evidenceGapId;
     }
 
@@ -34,12 +38,28 @@ public sealed class DevelopEvidenceGapWorkflowActivity :
                 _evidenceGapId,
                 cancellationToken);
 
+        if (gap is null)
+        {
+            return new WorkflowActivityResult
+            {
+                Succeeded = false,
+                Message = "Evidence gap was not found.",
+                CompletedUtc = DateTimeOffset.UtcNow
+            };
+        }
+
+        var guidance =
+            await _guidanceRepository
+                .GetEvidenceRequirementGuidanceAsync(
+                    gap.RequirementId,
+                    cancellationToken);
+
         return new WorkflowActivityResult
         {
-            Succeeded = gap is not null,
-            Message = gap is null
-                ? "Evidence gap was not found."
-                : gap.Description,
+            Succeeded = true,
+            Message =
+                $"Evidence gap: {gap.Description}; " +
+                $"guidance items: {guidance.Count}.",
             CompletedUtc = DateTimeOffset.UtcNow
         };
     }
