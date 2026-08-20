@@ -195,16 +195,6 @@ public static class VeteransConsoleCommand
                         intelligenceResult);
                 }
 
-                if (promote)
-                {
-                    await VeteransEvidenceSummaryPublisher.PublishAsync(
-                        databasePath,
-                        $"Evidence gap {evidenceGapId.Value} summary",
-                        runtime.SubjectId,
-                        Environment.GetEnvironmentVariable("EMF_REVIEWED_BY")!,
-                        DateTimeOffset.UtcNow,
-                        intelligenceResult);
-                }
             }
 
             return 0;
