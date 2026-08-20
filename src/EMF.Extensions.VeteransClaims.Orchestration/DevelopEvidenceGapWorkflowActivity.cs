@@ -10,18 +10,22 @@ public sealed class DevelopEvidenceGapWorkflowActivity :
 {
     private readonly IEvidenceGapRepository _repository;
     private readonly IEvidenceRequirementGuidanceRepository _guidanceRepository;
+    private readonly IEvidenceDevelopmentPlanRepository _developmentRepository;
     private readonly EvidenceGapId _evidenceGapId;
 
     public DevelopEvidenceGapWorkflowActivity(
         IEvidenceGapRepository repository,
         IEvidenceRequirementGuidanceRepository guidanceRepository,
+        IEvidenceDevelopmentPlanRepository developmentRepository,
         EvidenceGapId evidenceGapId)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(guidanceRepository);
+        ArgumentNullException.ThrowIfNull(developmentRepository);
 
         _repository = repository;
         _guidanceRepository = guidanceRepository;
+        _developmentRepository = developmentRepository;
         _evidenceGapId = evidenceGapId;
     }
 
@@ -53,6 +57,19 @@ public sealed class DevelopEvidenceGapWorkflowActivity :
                 .GetEvidenceRequirementGuidanceAsync(
                     gap.RequirementId,
                     cancellationToken);
+
+        var developmentResult =
+            new EMF.Extensions.VeteransClaims.Models.Adjudication.EvidenceDevelopmentResult
+            {
+                EvidenceGapId = gap.Id,
+                RequirementId = gap.RequirementId,
+                EvidenceGuidance = guidance
+            };
+
+        await _developmentRepository
+            .AddEvidenceDevelopmentResultAsync(
+                developmentResult,
+                cancellationToken);
 
         return new WorkflowActivityResult
         {

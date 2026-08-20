@@ -79,6 +79,7 @@ public sealed class EvidenceDevelopmentWorkflowCoordinator
                 new DevelopEvidenceGapWorkflowActivity(
                     _gapRepository,
                     _guidanceRepository,
+                    _repository,
                     evidenceGapId)
             },
             cancellationToken: cancellationToken);

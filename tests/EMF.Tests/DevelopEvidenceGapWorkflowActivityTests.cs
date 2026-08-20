@@ -20,10 +20,13 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
             Description = "Missing evidence."
         };
 
+        var development = new FakeDevelopmentRepository();
+
         var activity =
             new DevelopEvidenceGapWorkflowActivity(
                 new FakeRepository(gap),
                 new FakeGuidanceRepository(),
+                development,
                 gap.Id);
 
         var result =
@@ -34,6 +37,9 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
                 });
 
         Assert.True(result.Succeeded);
+        Assert.NotNull(development.Result);
+        Assert.Equal(gap.Id, development.Result!.EvidenceGapId);
+        Assert.Equal(gap.RequirementId, development.Result.RequirementId);
     }
 
 
@@ -54,6 +60,7 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
             new DevelopEvidenceGapWorkflowActivity(
                 new FakeRepository(gap),
                 guidance,
+                new FakeDevelopmentRepository(),
                 gap.Id);
 
         await activity.ExecuteAsync(
@@ -74,6 +81,7 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
             new DevelopEvidenceGapWorkflowActivity(
                 new FakeRepository(null),
                 new FakeGuidanceRepository(),
+                new FakeDevelopmentRepository(),
                 new EvidenceGapId("gap-1"));
 
         var result =
@@ -86,6 +94,32 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
         Assert.False(result.Succeeded);
     }
 
+
+
+    private sealed class FakeDevelopmentRepository :
+        IEvidenceDevelopmentPlanRepository
+    {
+        public EvidenceDevelopmentResult? Result { get; private set; }
+
+        public Task AddEvidenceDevelopmentResultAsync(
+            EvidenceDevelopmentResult result,
+            CancellationToken cancellationToken = default)
+        {
+            Result = result;
+            return Task.CompletedTask;
+        }
+
+        public Task CreateEvidenceDevelopmentPlanAsync(EvidenceDevelopmentPlan p, IReadOnlyCollection<EvidenceDevelopmentPlanEvidenceGap> g, CancellationToken c = default) => throw new NotSupportedException();
+        public Task AddEvidenceDevelopmentPlanAsync(EvidenceDevelopmentPlan p, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<EvidenceDevelopmentPlan?> GetEvidenceDevelopmentPlanAsync(EvidenceDevelopmentPlanId p, CancellationToken c = default) => throw new NotSupportedException();
+        public Task AddEvidenceDevelopmentPlanArtifactAsync(EvidenceDevelopmentPlanArtifact a, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<EvidenceDevelopmentPlanArtifact>> GetEvidenceDevelopmentPlanArtifactsAsync(EvidenceDevelopmentPlanId p, CancellationToken c = default) => throw new NotSupportedException();
+        public Task AddEvidenceDevelopmentPlanEvidenceGapAsync(EvidenceDevelopmentPlanEvidenceGap g, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<EvidenceDevelopmentPlanEvidenceGap>> GetEvidenceDevelopmentPlanEvidenceGapsAsync(EvidenceDevelopmentPlanId p, CancellationToken c = default) => throw new NotSupportedException();
+        public Task AddEvidenceDevelopmentPlanRequirementAsync(EvidenceDevelopmentPlanRequirement r, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<EvidenceDevelopmentPlanRequirement>> GetEvidenceDevelopmentPlanRequirementsAsync(EvidenceDevelopmentPlanId p, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<EvidenceDevelopmentPlan>> GetEvidenceDevelopmentPlansAsync(ClaimIssueId c, CancellationToken t = default) => throw new NotSupportedException();
+    }
 
     private sealed class FakeGuidanceRepository :
         IEvidenceRequirementGuidanceRepository
