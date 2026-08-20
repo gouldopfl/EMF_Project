@@ -20,6 +20,9 @@ public static class ConsoleCommandRouter
             "security" =>
                 SecurityConsoleCommand.RunAsync(args[1..]),
 
+            "veterans" =>
+                VeteransConsoleCommand.RunAsync(args[1..]),
+
             "help" or "--help" or "-h" =>
                 ShowHelpAsync(),
 
@@ -86,6 +89,8 @@ public static class ConsoleCommandRouter
             "  emf intelligence analyze [--promote] <text-file>");
         global::System.Console.WriteLine(
             "  emf intelligence summarize <text-file>");
+        global::System.Console.WriteLine(
+            "  emf veterans evidence develop <database-path> <plan-id> <evidence-gap-id>");
         global::System.Console.WriteLine();
         global::System.Console.WriteLine(
             "Legacy positional inventory arguments are deprecated.");
