@@ -707,12 +707,30 @@ public sealed class VeteransClaimsSqliteEvidenceDevelopmentPlanRepositoryTests
             await new SqliteEvidenceGapRepository(databasePath)
                 .AddEvidenceGapAsync(gap);
 
+            var guidance =
+                new EvidenceRequirementGuidance
+                {
+                    Id =
+                        new EvidenceRequirementGuidanceId(
+                            "guidance-result-001"),
+                    RequirementId = requirement.Id,
+                    EvidenceClassification =
+                        EvidenceClassifications.MedicalOpinion,
+                    GuidanceRole =
+                        EvidenceGuidanceRoles.SupportsRequirement,
+                    Description =
+                        "A medical opinion may help support the requirement."
+                };
+
+            await new SqliteEvidenceRequirementGuidanceRepository(
+                databasePath)
+                .AddEvidenceRequirementGuidanceAsync(guidance);
+
             var result = new EvidenceDevelopmentResult
             {
                 EvidenceGapId = gap.Id,
                 RequirementId = requirement.Id,
-                EvidenceGuidance =
-                    Array.Empty<EvidenceRequirementGuidance>()
+                EvidenceGuidance = new[] { guidance }
             };
 
             await repository
@@ -730,7 +748,17 @@ public sealed class VeteransClaimsSqliteEvidenceDevelopmentPlanRepositoryTests
             Assert.Equal(
                 result.RequirementId,
                 stored.RequirementId);
-            Assert.Empty(stored.EvidenceGuidance);
+
+            var storedGuidance =
+                Assert.Single(stored.EvidenceGuidance);
+
+            Assert.Equal(
+                guidance.Id,
+                storedGuidance.Id);
+
+            Assert.Equal(
+                guidance.Description,
+                storedGuidance.Description);
         }
         finally
         {
