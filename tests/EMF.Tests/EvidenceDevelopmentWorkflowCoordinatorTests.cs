@@ -19,7 +19,9 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
         var coordinator =
             new EvidenceDevelopmentWorkflowCoordinator(
                 workflow,
-                repository);
+                repository,
+                new FakeWorkflowRunner(),
+                new FakeGapRepository());
 
         var result = await coordinator.StartAsync(
             new EvidenceDevelopmentPlanId("plan-1"),
@@ -39,7 +41,9 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
         var coordinator =
             new EvidenceDevelopmentWorkflowCoordinator(
                 workflow,
-                repository);
+                repository,
+                new FakeWorkflowRunner(),
+                new FakeGapRepository());
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => coordinator.StartAsync(
@@ -49,6 +53,30 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
         Assert.Equal(
             new WorkflowId("workflow-1"),
             workflow.FailedWorkflowId);
+    }
+
+
+    private sealed class FakeWorkflowRunner : IWorkflowRunner
+    {
+        public Task ExecuteAsync(
+            EMF.Orchestration.Models.WorkflowExecutionContext context,
+            IEnumerable<IWorkflowActivity> activities,
+            string? retryActivityId = null,
+            OperationId? retryOperationId = null,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
+
+    private sealed class FakeGapRepository : IEvidenceGapRepository
+    {
+        public Task<EvidenceGap?> GetEvidenceGapAsync(
+            EvidenceGapId id,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<EvidenceGap?>(null);
+
+        public Task AddEvidenceGapAsync(EvidenceGap gap, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<EvidenceGap>> GetEvidenceGapsAsync(ClaimIssueId id, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<EvidenceGap>> GetEvidenceGapsAsync(RequirementId id, CancellationToken c = default) => throw new NotSupportedException();
     }
 
     private sealed class FakeWorkflowService : IWorkflowService

@@ -10,16 +10,24 @@ public sealed class EvidenceDevelopmentWorkflowCoordinator
 {
     private readonly IWorkflowService _workflowService;
     private readonly IEvidenceDevelopmentPlanRepository _repository;
+    private readonly IWorkflowRunner _runner;
+    private readonly IEvidenceGapRepository _gapRepository;
 
     public EvidenceDevelopmentWorkflowCoordinator(
         IWorkflowService workflowService,
-        IEvidenceDevelopmentPlanRepository repository)
+        IEvidenceDevelopmentPlanRepository repository,
+        IWorkflowRunner runner,
+        IEvidenceGapRepository gapRepository)
     {
         ArgumentNullException.ThrowIfNull(workflowService);
         ArgumentNullException.ThrowIfNull(repository);
+        ArgumentNullException.ThrowIfNull(runner);
+        ArgumentNullException.ThrowIfNull(gapRepository);
 
         _workflowService = workflowService;
         _repository = repository;
+        _runner = runner;
+        _gapRepository = gapRepository;
     }
 
     public async Task<EvidenceDevelopmentExecution>
@@ -56,6 +64,19 @@ public sealed class EvidenceDevelopmentWorkflowCoordinator
 
             throw;
         }
+
+        await _runner.ExecuteAsync(
+            new EMF.Orchestration.Models.WorkflowExecutionContext
+            {
+                WorkflowId = workflowId
+            },
+            new IWorkflowActivity[]
+            {
+                new DevelopEvidenceGapWorkflowActivity(
+                    _gapRepository,
+                    evidenceGapId)
+            },
+            cancellationToken: cancellationToken);
 
         return execution;
     }
