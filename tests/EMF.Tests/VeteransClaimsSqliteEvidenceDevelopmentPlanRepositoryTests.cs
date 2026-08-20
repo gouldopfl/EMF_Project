@@ -489,4 +489,136 @@ public sealed class VeteransClaimsSqliteEvidenceDevelopmentPlanRepositoryTests
         }
     }
 
+
+    [Fact]
+    public async Task Repository_RoundTripsEvidenceDevelopmentExecution()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteEvidenceDevelopmentPlanRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-execution-001")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-execution-001"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-execution-001"),
+                ClaimId = claim.Id,
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var plan = new EvidenceDevelopmentPlan
+            {
+                Id = new EvidenceDevelopmentPlanId("plan-execution-001"),
+                ClaimIssueId = issue.Id,
+                Description = "Develop missing evidence."
+            };
+
+            await repository.AddEvidenceDevelopmentPlanAsync(plan);
+
+            var regulatory =
+                new SqliteRegulatoryRepository(databasePath);
+
+            var authority = new RegulatoryAuthority
+            {
+                Id = new RegulatoryAuthorityId("authority-execution-001"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Veterans Affairs"
+            };
+
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+
+            var provision = new RegulatoryProvision
+            {
+                Id = new RegulatoryProvisionId("provision-execution-001"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Requirement,
+                Citation = "38 CFR 3.303"
+            };
+
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+
+            var requirement = new Requirement
+            {
+                Id = new RequirementId("requirement-execution-001"),
+                RegulatoryProvisionId = provision.Id,
+                Description = "Required element."
+            };
+
+            await regulatory.AddRequirementAsync(requirement);
+
+            var gap = new EvidenceGap
+            {
+                Id = new EvidenceGapId("gap-execution-001"),
+                ClaimIssueId = issue.Id,
+                RequirementId = requirement.Id,
+                Description = "Missing supporting evidence."
+            };
+
+            await new SqliteEvidenceGapRepository(databasePath)
+                .AddEvidenceGapAsync(gap);
+
+            var execution =
+                new EvidenceDevelopmentExecution
+                {
+                    EvidenceDevelopmentPlanId = plan.Id,
+                    EvidenceGapId = gap.Id,
+                    WorkflowId =
+                        new EMF.Core.Models.Identities.WorkflowId(
+                            "workflow-execution-001")
+                };
+
+            await repository
+                .AddEvidenceDevelopmentExecutionAsync(execution);
+
+            var stored =
+                await repository
+                    .GetEvidenceDevelopmentExecutionAsync(
+                        plan.Id,
+                        gap.Id);
+
+            Assert.NotNull(stored);
+            Assert.Equal(
+                execution.EvidenceDevelopmentPlanId,
+                stored!.EvidenceDevelopmentPlanId);
+            Assert.Equal(
+                execution.EvidenceGapId,
+                stored.EvidenceGapId);
+            Assert.Equal(
+                execution.WorkflowId,
+                stored.WorkflowId);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
+
+
 }

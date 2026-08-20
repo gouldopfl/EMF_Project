@@ -482,4 +482,93 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
 
         return plans;
     }
+
+    public async Task AddEvidenceDevelopmentExecutionAsync(
+        EvidenceDevelopmentExecution execution,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(execution);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_EvidenceDevelopmentExecutions (
+                EvidenceDevelopmentPlanId,
+                EvidenceGapId,
+                WorkflowId
+            )
+            VALUES (
+                $planId,
+                $evidenceGapId,
+                $workflowId
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$planId",
+            execution.EvidenceDevelopmentPlanId.Value);
+
+        command.Parameters.AddWithValue(
+            "$evidenceGapId",
+            execution.EvidenceGapId.Value);
+
+        command.Parameters.AddWithValue(
+            "$workflowId",
+            execution.WorkflowId.Value);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<EvidenceDevelopmentExecution?>
+        GetEvidenceDevelopmentExecutionAsync(
+            EvidenceDevelopmentPlanId planId,
+            EvidenceGapId evidenceGapId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT
+                EvidenceDevelopmentPlanId,
+                EvidenceGapId,
+                WorkflowId
+            FROM VeteransClaims_EvidenceDevelopmentExecutions
+            WHERE EvidenceDevelopmentPlanId = $planId
+              AND EvidenceGapId = $evidenceGapId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$planId",
+            planId.Value);
+
+        command.Parameters.AddWithValue(
+            "$evidenceGapId",
+            evidenceGapId.Value);
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new EvidenceDevelopmentExecution
+        {
+            EvidenceDevelopmentPlanId =
+                new EvidenceDevelopmentPlanId(reader.GetString(0)),
+            EvidenceGapId =
+                new EvidenceGapId(reader.GetString(1)),
+            WorkflowId =
+                new EMF.Core.Models.Identities.WorkflowId(
+                    reader.GetString(2))
+        };
+    }
+
 }

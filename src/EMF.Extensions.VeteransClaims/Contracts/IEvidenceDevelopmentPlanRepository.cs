@@ -55,4 +55,22 @@ public interface IEvidenceDevelopmentPlanRepository
         GetEvidenceDevelopmentPlansAsync(
             ClaimIssueId claimIssueId,
             CancellationToken cancellationToken = default);
+
+    Task AddEvidenceDevelopmentExecutionAsync(
+        EvidenceDevelopmentExecution execution,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Evidence development executions are not supported by this repository.");
+    }
+
+    Task<EvidenceDevelopmentExecution?>
+        GetEvidenceDevelopmentExecutionAsync(
+            EvidenceDevelopmentPlanId planId,
+            EvidenceGapId evidenceGapId,
+            CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Evidence development executions are not supported by this repository.");
+    }
 }
