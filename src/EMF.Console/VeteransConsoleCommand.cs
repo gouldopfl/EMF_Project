@@ -186,13 +186,20 @@ public static class VeteransConsoleCommand
 
                 if (promote)
                 {
-                    await VeteransEvidenceSummaryPublisher.PublishAsync(
-                        databasePath,
-                        $"Evidence gap {evidenceGapId.Value} summary",
-                        runtime.SubjectId,
-                        Environment.GetEnvironmentVariable("EMF_REVIEWED_BY")!,
-                        DateTimeOffset.UtcNow,
-                        intelligenceResult);
+                    var promotedArtifact =
+                        await VeteransEvidenceSummaryPublisher.PublishAsync(
+                            databasePath,
+                            $"Evidence gap {evidenceGapId.Value} summary",
+                            runtime.SubjectId,
+                            Environment.GetEnvironmentVariable("EMF_REVIEWED_BY")!,
+                            DateTimeOffset.UtcNow,
+                            intelligenceResult);
+
+                    global::System.Console.WriteLine();
+                    global::System.Console.WriteLine("Promoted");
+                    global::System.Console.WriteLine("--------");
+                    global::System.Console.WriteLine(
+                        $"Artifact ID : {promotedArtifact.Id.Value}");
                 }
 
             }
