@@ -6,7 +6,8 @@ using EMF.Orchestration.Contracts;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
-public sealed class EvidenceDevelopmentWorkflowCoordinator
+public sealed class EvidenceDevelopmentWorkflowCoordinator :
+    IEvidenceDevelopmentWorkflowCoordinator
 {
     private readonly IWorkflowService _workflowService;
     private readonly IEvidenceDevelopmentPlanRepository _repository;
