@@ -1,6 +1,6 @@
 using EMF.Core.Models;
+using EMF.Extensions.VeteransClaims.Orchestration;
 using EMF.Intelligence.Agents;
-using EMF.Orchestration.Models;
 using EMF.Orchestration.Services;
 using EMF.Persistence.Repositories;
 
@@ -21,26 +21,14 @@ internal static class VeteransEvidenceSummaryPublisher
 
         await repository.InitializeAsync();
 
-        var artifact =
-            new TextSummaryEvidenceArtifactFactory()
-                .Create(
-                    result.Output!,
-                    name,
-                    promotedUtc);
-
-        await new IntelligenceEvidencePromotionService(
-                repository)
+        return await new VeteransEvidenceSummaryPromotionService(
+                new IntelligenceEvidencePromotionService(
+                    repository))
             .PromoteAsync(
-                new IntelligenceEvidencePromotionRequest<string>
-                {
-                    Artifact = artifact,
-                    IntelligenceResult = result,
-                    PromotedBy = promotedBy,
-                    PromotedUtc = promotedUtc,
-                    ReviewedBy = reviewedBy,
-                    ReviewedUtc = promotedUtc
-                });
-
-        return artifact;
+                name,
+                promotedBy,
+                reviewedBy,
+                promotedUtc,
+                result);
     }
 }
