@@ -186,12 +186,63 @@ public sealed class WorkflowRunner : IWorkflowRunner
                     cancellationToken);
             }
 
-            var result =
-                await ExecuteWithClaimHeartbeatAsync(
-                    context,
-                    activity,
+            WorkflowActivityResult result;
+
+            try
+            {
+                result =
+                    await ExecuteWithClaimHeartbeatAsync(
+                        context,
+                        activity,
+                        claimId,
+                        cancellationToken);
+            }
+            catch (Exception exception)
+                when (exception is not OperationCanceledException ||
+                      !cancellationToken.IsCancellationRequested)
+            {
+                var failedUtc = DateTimeOffset.UtcNow;
+
+                operation = new WorkflowOperationRecord
+                {
+                    WorkflowId = operation.WorkflowId,
+                    ActivityId = operation.ActivityId,
+                    OperationId = operation.OperationId,
+                    OperationType = operation.OperationType,
+                    Status = "Failed",
+                    CreatedUtc = operation.CreatedUtc,
+                    CompletedUtc = failedUtc
+                };
+
+                await _workflowService.UpdateOperationAsync(
+                    operation,
+                    cancellationToken);
+
+                await _workflowService.RecordCheckpointAsync(
+                    new WorkflowCheckpoint
+                    {
+                        WorkflowId = context.WorkflowId,
+                        Step = activity.Name,
+                        ActivityId = activity.Id,
+                        Status = WorkflowStatus.Failed,
+                        RecordedUtc = failedUtc,
+                        Message = exception.Message
+                    },
+                    cancellationToken);
+
+                await _workflowService.ReleaseActivityClaimAsync(
+                    context.WorkflowId,
+                    activity.Id,
                     claimId,
                     cancellationToken);
+
+                await _workflowService.FailAsync(
+                    context.WorkflowId,
+                    exception.Message,
+                    cancellationToken);
+
+                throw;
+            }
 
             operation = new WorkflowOperationRecord
             {

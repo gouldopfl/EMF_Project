@@ -656,6 +656,63 @@ public sealed class WorkflowRunnerTests
     }
 
 
+    [Fact]
+    public async Task ExecuteAsync_fails_workflow_when_activity_throws()
+    {
+        var workflowService = new FakeWorkflowService();
+        var runner = new WorkflowRunner(workflowService);
+
+        var workflowId =
+            new WorkflowId("workflow-activity-exception");
+
+        var context = new WorkflowExecutionContext
+        {
+            WorkflowId = workflowId
+        };
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => runner.ExecuteAsync(
+                    context,
+                    [new ThrowingActivity()]));
+
+        Assert.Equal(
+            "Activity failed unexpectedly.",
+            exception.Message);
+
+        Assert.True(workflowService.FailCalled);
+        Assert.False(workflowService.CompleteCalled);
+
+        var operation =
+            Assert.Single(workflowService.Operations);
+
+        Assert.Equal("Failed", operation.Status);
+
+        var checkpoint =
+            Assert.Single(workflowService.Checkpoints);
+
+        Assert.Equal(
+            WorkflowStatus.Failed,
+            checkpoint.Status);
+    }
+
+
+    private sealed class ThrowingActivity : IWorkflowActivity
+    {
+        public string Id => "Throwing";
+
+        public string Name => "Throwing";
+
+        public Task<WorkflowActivityResult> ExecuteAsync(
+            WorkflowExecutionContext context,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException(
+                "Activity failed unexpectedly.");
+        }
+    }
+
+
     private sealed class FakeActivity : IWorkflowActivity
     {
         private readonly IList<string> _executionOrder;
