@@ -29,8 +29,32 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
         Assert.Equal(result.WorkflowId, repository.Execution!.WorkflowId);
     }
 
+
+    [Fact]
+    public async Task StartAsync_FailsWorkflowWhenLinkPersistenceFails()
+    {
+        var workflow = new FakeWorkflowService();
+        var repository = new FailingRepository();
+
+        var coordinator =
+            new EvidenceDevelopmentWorkflowCoordinator(
+                workflow,
+                repository);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.StartAsync(
+                new EvidenceDevelopmentPlanId("plan-1"),
+                new EvidenceGapId("gap-1")));
+
+        Assert.Equal(
+            new WorkflowId("workflow-1"),
+            workflow.FailedWorkflowId);
+    }
+
     private sealed class FakeWorkflowService : IWorkflowService
     {
+        public WorkflowId? FailedWorkflowId { get; private set; }
+
         public Task<WorkflowId> StartAsync(
             WorkflowDefinition definition,
             CancellationToken cancellationToken = default)
@@ -42,14 +66,26 @@ public sealed class EvidenceDevelopmentWorkflowCoordinatorTests
         public Task UpdateOperationAsync(WorkflowOperationRecord o, CancellationToken c = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<WorkflowCheckpoint>> GetCheckpointsAsync(WorkflowId w, CancellationToken c = default) => throw new NotSupportedException();
         public Task CompleteAsync(WorkflowId w, CancellationToken c = default) => throw new NotSupportedException();
-        public Task FailAsync(WorkflowId w, string m, CancellationToken c = default) => throw new NotSupportedException();
+        public Task FailAsync(WorkflowId w, string m, CancellationToken c = default)
+        {
+            FailedWorkflowId = w;
+            return Task.CompletedTask;
+        }
     }
 
-    private sealed class FakeRepository : IEvidenceDevelopmentPlanRepository
+    private sealed class FailingRepository : FakeRepository
+    {
+        public override Task AddEvidenceDevelopmentExecutionAsync(
+            EvidenceDevelopmentExecution execution,
+            CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Persistence failed.");
+    }
+
+    private class FakeRepository : IEvidenceDevelopmentPlanRepository
     {
         public EvidenceDevelopmentExecution? Execution { get; private set; }
 
-        public Task AddEvidenceDevelopmentExecutionAsync(
+        public virtual Task AddEvidenceDevelopmentExecutionAsync(
             EvidenceDevelopmentExecution execution,
             CancellationToken cancellationToken = default)
         {

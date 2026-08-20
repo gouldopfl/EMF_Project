@@ -41,9 +41,21 @@ public sealed class EvidenceDevelopmentWorkflowCoordinator
                 WorkflowId = workflowId
             };
 
-        await _repository.AddEvidenceDevelopmentExecutionAsync(
-            execution,
-            cancellationToken);
+        try
+        {
+            await _repository.AddEvidenceDevelopmentExecutionAsync(
+                execution,
+                cancellationToken);
+        }
+        catch
+        {
+            await _workflowService.FailAsync(
+                workflowId,
+                "Evidence development workflow link persistence failed.",
+                cancellationToken);
+
+            throw;
+        }
 
         return execution;
     }
