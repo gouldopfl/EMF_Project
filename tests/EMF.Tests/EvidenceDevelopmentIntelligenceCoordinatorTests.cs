@@ -20,8 +20,7 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
             new EvidenceDevelopmentIntelligenceCoordinator(
                 new FakeDevelopmentRepository(),
                 new FakeGapRepository(),
-                new EvidenceDevelopmentIntelligenceService(
-                    new FakeExecutor()));
+                new FakeExecutor());
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => coordinator.SummarizeAsync(
@@ -51,8 +50,7 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
             new EvidenceDevelopmentIntelligenceCoordinator(
                 repository,
                 new FakeGapRepository(),
-                new EvidenceDevelopmentIntelligenceService(
-                    new FakeExecutor()));
+                new FakeExecutor());
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => coordinator.SummarizeAsync(
@@ -91,8 +89,7 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
             new EvidenceDevelopmentIntelligenceCoordinator(
                 repository,
                 new FakeGapRepository(),
-                new EvidenceDevelopmentIntelligenceService(
-                    new FakeExecutor()));
+                new FakeExecutor());
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => coordinator.SummarizeAsync(
@@ -156,7 +153,7 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
             new EvidenceDevelopmentIntelligenceCoordinator(
                 repository,
                 gapRepository,
-                new EvidenceDevelopmentIntelligenceService(executor));
+                executor);
 
         var result =
             await coordinator.SummarizeAsync(

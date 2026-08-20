@@ -104,12 +104,13 @@ public static class VeteransConsoleCommand
                 databasePath);
 
         var coordinator =
-            new EvidenceDevelopmentWorkflowCoordinator(
-                workflowService,
-                developmentRepository,
-                workflowRunner,
-                gapRepository,
-                guidanceRepository);
+            VeteransEvidenceOrchestrationFactory
+                .CreateEvidenceDevelopmentWorkflowCoordinator(
+                    workflowService,
+                    developmentRepository,
+                    workflowRunner,
+                    gapRepository,
+                    guidanceRepository);
 
         try
         {
@@ -152,11 +153,10 @@ public static class VeteransConsoleCommand
                     await runtimeFactory();
 
                 var intelligenceCoordinator =
-                    new EvidenceDevelopmentIntelligenceCoordinator(
+                    VeteransEvidenceOrchestrationFactory.CreateEvidenceDevelopmentIntelligenceCoordinator(
                         developmentRepository,
                         gapRepository,
-                        new EvidenceDevelopmentIntelligenceService(
-                            runtime.TextSummarizationCapabilityExecutor));
+                        runtime.TextSummarizationCapabilityExecutor);
 
                 var intelligenceResult =
                     await intelligenceCoordinator.SummarizeAsync(

@@ -1,11 +1,13 @@
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Intelligence.Agents;
+using EMF.Intelligence.Capabilities;
+using EMF.Intelligence.Contracts;
 using EMF.Intelligence.Models;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
-public sealed class EvidenceDevelopmentIntelligenceCoordinator :
+internal sealed class EvidenceDevelopmentIntelligenceCoordinator :
     IEvidenceDevelopmentIntelligenceCoordinator
 {
     private readonly IEvidenceDevelopmentPlanRepository _repository;
@@ -15,15 +17,20 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinator :
     public EvidenceDevelopmentIntelligenceCoordinator(
         IEvidenceDevelopmentPlanRepository repository,
         IEvidenceGapRepository gapRepository,
-        EvidenceDevelopmentIntelligenceService service)
+        IIntelligenceCapabilityExecutor<
+            TextSummarizationRequest,
+            string> summarizationExecutor)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(gapRepository);
-        ArgumentNullException.ThrowIfNull(service);
+        ArgumentNullException.ThrowIfNull(
+            summarizationExecutor);
 
         _repository = repository;
         _gapRepository = gapRepository;
-        _service = service;
+        _service =
+            new EvidenceDevelopmentIntelligenceService(
+                summarizationExecutor);
     }
     public async Task<IntelligenceAgentResult<string>>
         SummarizeAsync(

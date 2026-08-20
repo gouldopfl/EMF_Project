@@ -21,10 +21,13 @@ internal static class VeteransEvidenceSummaryPublisher
 
         await repository.InitializeAsync();
 
-        return await new VeteransEvidenceSummaryPromotionService(
-                new IntelligenceEvidencePromotionService(
-                    repository))
-            .PromoteAsync(
+        var promotionService =
+            VeteransEvidenceOrchestrationFactory
+                .CreateEvidenceSummaryPromotionService(
+                    new IntelligenceEvidencePromotionService(
+                        repository));
+
+        return await promotionService.PromoteAsync(
                 name,
                 promotedBy,
                 reviewedBy,
