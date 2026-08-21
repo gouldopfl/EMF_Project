@@ -1210,4 +1210,17 @@ public sealed class EvidenceLineageServiceTests
         Assert.Contains(result, artifact => artifact.Id == secondSource.Id);
     }
 
+    [Fact]
+    public async Task GetGeneratedFromRootsAsync_ReturnsEmptyWhenArtifactMissing()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var result =
+            await service.GetGeneratedFromRootsAsync(
+                new ArtifactId("roots-missing-001"));
+
+        Assert.Empty(result);
+    }
+
 }
