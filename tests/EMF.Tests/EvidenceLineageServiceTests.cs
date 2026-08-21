@@ -793,4 +793,50 @@ public sealed class EvidenceLineageServiceTests
         Assert.Equal(target.Id, result.Nodes[1].Artifact.Id);
     }
 
+    [Fact]
+    public async Task GetGeneratedFromPathAsync_ReturnsNullWhenStartArtifactMissing()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var end = new Artifact
+        {
+            Id = new ArtifactId("path-end-existing"),
+            Name = "End",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(end);
+
+        var result =
+            await service.GetGeneratedFromPathAsync(
+                new ArtifactId("path-start-missing"),
+                end.Id);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetGeneratedFromPathAsync_ReturnsNullWhenEndArtifactMissing()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var start = new Artifact
+        {
+            Id = new ArtifactId("path-start-existing"),
+            Name = "Start",
+            ArtifactType = "intelligence-output"
+        };
+
+        await repository.AddArtifactAsync(start);
+
+        var result =
+            await service.GetGeneratedFromPathAsync(
+                start.Id,
+                new ArtifactId("path-end-missing"));
+
+        Assert.Null(result);
+    }
+
 }
