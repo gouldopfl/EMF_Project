@@ -1409,4 +1409,58 @@ public sealed class EvidenceLineageServiceTests
         Assert.Empty(result);
     }
 
+    [Fact]
+    public async Task GetGeneratedFromLeavesAsync_IgnoresOtherRelationshipTypes()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var source = new Artifact
+        {
+            Id = new ArtifactId("leaves-filter-source"),
+            Name = "Source",
+            ArtifactType = "file"
+        };
+
+        var generated = new Artifact
+        {
+            Id = new ArtifactId("leaves-filter-generated"),
+            Name = "Generated",
+            ArtifactType = "intelligence-output"
+        };
+
+        var referenced = new Artifact
+        {
+            Id = new ArtifactId("leaves-filter-reference"),
+            Name = "Referenced",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(source);
+        await repository.AddArtifactAsync(generated);
+        await repository.AddArtifactAsync(referenced);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = generated.Id,
+                TargetArtifactId = source.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = referenced.Id,
+                TargetArtifactId = generated.Id,
+                RelationshipType = RelationshipTypes.References
+            });
+
+        var result =
+            await service.GetGeneratedFromLeavesAsync(source.Id);
+
+        var leaf = Assert.Single(result);
+        Assert.Equal(generated.Id, leaf.Id);
+    }
+
 }
