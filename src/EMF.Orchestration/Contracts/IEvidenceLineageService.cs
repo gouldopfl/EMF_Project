@@ -26,4 +26,10 @@ public interface IEvidenceLineageService
             ArtifactId artifactId,
             ArtifactId sourceArtifactId,
             CancellationToken cancellationToken = default);
+
+    Task<int?>
+        GetGeneratedFromDistanceAsync(
+            ArtifactId artifactId,
+            ArtifactId sourceArtifactId,
+            CancellationToken cancellationToken = default);
 }

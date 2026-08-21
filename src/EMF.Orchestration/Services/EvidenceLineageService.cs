@@ -255,4 +255,19 @@ public sealed class EvidenceLineageService : IEvidenceLineageService
         return path is not null;
     }
 
+    public async Task<int?>
+        GetGeneratedFromDistanceAsync(
+            ArtifactId artifactId,
+            ArtifactId sourceArtifactId,
+            CancellationToken cancellationToken = default)
+    {
+        var path =
+            await GetGeneratedFromPathAsync(
+                artifactId,
+                sourceArtifactId,
+                cancellationToken);
+
+        return path?.Nodes.Count;
+    }
+
 }
