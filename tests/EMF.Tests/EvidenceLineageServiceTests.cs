@@ -254,4 +254,35 @@ public sealed class EvidenceLineageServiceTests
         Assert.Equal(source.Id, ancestor.Id);
     }
 
+    [Fact]
+    public async Task GetGeneratedFromAncestorsAsync_SkipsMissingAncestors()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var generated = new Artifact
+        {
+            Id = new ArtifactId("missing-generated"),
+            Name = "Generated",
+            ArtifactType = "intelligence-output"
+        };
+
+        await repository.AddArtifactAsync(generated);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = generated.Id,
+                TargetArtifactId =
+                    new ArtifactId("missing-source"),
+                RelationshipType =
+                    RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.GetGeneratedFromAncestorsAsync(generated.Id);
+
+        Assert.Empty(result);
+    }
+
 }
