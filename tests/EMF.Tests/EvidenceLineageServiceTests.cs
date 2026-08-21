@@ -689,4 +689,108 @@ public sealed class EvidenceLineageServiceTests
         Assert.Equal(target.Id, result.EndArtifact.Id);
     }
 
+    [Fact]
+    public async Task GetGeneratedFromPathAsync_ReturnsShortestPath()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var start = new Artifact
+        {
+            Id = new ArtifactId("path-shortest-start"),
+            Name = "Start",
+            ArtifactType = "intelligence-output"
+        };
+
+        var shortMiddle = new Artifact
+        {
+            Id = new ArtifactId("path-shortest-middle"),
+            Name = "Short middle",
+            ArtifactType = "intelligence-output"
+        };
+
+        var longOne = new Artifact
+        {
+            Id = new ArtifactId("path-long-1"),
+            Name = "Long one",
+            ArtifactType = "intelligence-output"
+        };
+
+        var longTwo = new Artifact
+        {
+            Id = new ArtifactId("path-long-2"),
+            Name = "Long two",
+            ArtifactType = "intelligence-output"
+        };
+
+        var target = new Artifact
+        {
+            Id = new ArtifactId("path-shortest-target"),
+            Name = "Target",
+            ArtifactType = "file"
+        };
+
+        foreach (var artifact in new[]
+        {
+            start,
+            shortMiddle,
+            longOne,
+            longTwo,
+            target
+        })
+        {
+            await repository.AddArtifactAsync(artifact);
+        }
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = start.Id,
+                TargetArtifactId = shortMiddle.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = shortMiddle.Id,
+                TargetArtifactId = target.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = start.Id,
+                TargetArtifactId = longOne.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = longOne.Id,
+                TargetArtifactId = longTwo.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = longTwo.Id,
+                TargetArtifactId = target.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.GetGeneratedFromPathAsync(
+                start.Id,
+                target.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result!.Nodes.Count);
+        Assert.Equal(shortMiddle.Id, result.Nodes[0].Artifact.Id);
+        Assert.Equal(target.Id, result.Nodes[1].Artifact.Id);
+    }
+
 }
