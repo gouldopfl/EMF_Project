@@ -345,6 +345,21 @@ public sealed class VeteransEvidenceSummaryPromotionServiceTests
 
             var leaf = Assert.Single(leaves);
 
+
+            var path =
+                await lineageService.GetGeneratedFromPathAsync(
+                    secondGenerated.Id,
+                    source.Id);
+
+            Assert.NotNull(path);
+
+            var isGeneratedFrom =
+                await lineageService.IsGeneratedFromAsync(
+                    secondGenerated.Id,
+                    source.Id);
+
+            Assert.True(isGeneratedFrom);
+            Assert.Equal(2, path!.Nodes.Count);
             Assert.Equal(secondGenerated.Id, leaf.Id);
             Assert.Equal(source.Id, secondRoot.Id);
 
