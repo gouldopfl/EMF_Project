@@ -1,3 +1,4 @@
+using EMF.Core.Models;
 using EMF.Orchestration.Models;
 using EMF.Core.Models.Identities;
 
@@ -31,5 +32,10 @@ public interface IEvidenceLineageService
         GetGeneratedFromDistanceAsync(
             ArtifactId artifactId,
             ArtifactId sourceArtifactId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Artifact>>
+        GetGeneratedFromRootsAsync(
+            ArtifactId artifactId,
             CancellationToken cancellationToken = default);
 }

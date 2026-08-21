@@ -270,4 +270,38 @@ public sealed class EvidenceLineageService : IEvidenceLineageService
         return path?.Nodes.Count;
     }
 
+    public async Task<IReadOnlyList<Artifact>>
+        GetGeneratedFromRootsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+    {
+        var ancestors =
+            await GetGeneratedFromAncestorsAsync(
+                artifactId,
+                cancellationToken);
+
+        var roots = new List<Artifact>();
+
+        foreach (var ancestor in ancestors)
+        {
+            var relationships =
+                await _repository.GetRelationshipsAsync(
+                    ancestor.Artifact.Id,
+                    cancellationToken);
+
+            var hasGeneratedFromParent =
+                relationships.Any(
+                    relationship =>
+                        relationship.SourceArtifactId ==
+                            ancestor.Artifact.Id &&
+                        relationship.RelationshipType ==
+                            RelationshipTypes.GeneratedFrom);
+
+            if (!hasGeneratedFromParent)
+                roots.Add(ancestor.Artifact);
+        }
+
+        return roots;
+    }
+
 }
