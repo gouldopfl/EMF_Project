@@ -42,7 +42,22 @@ public sealed class EvidenceLineageServiceTests
             await service.GetGeneratedFromAncestorsAsync(generated.Id);
 
         var ancestor = Assert.Single(result);
-        Assert.Equal(source.Id, ancestor.Artifact.Id);
+
+        Assert.Equal(
+            source.Id,
+            ancestor.Artifact.Id);
+
+        Assert.Equal(
+            generated.Id,
+            ancestor.Relationship.SourceArtifactId);
+
+        Assert.Equal(
+            source.Id,
+            ancestor.Relationship.TargetArtifactId);
+
+        Assert.Equal(
+            RelationshipTypes.GeneratedFrom,
+            ancestor.Relationship.RelationshipType);
     }
     [Fact]
     public async Task GetGeneratedFromAncestorsAsync_ReturnsRecursiveAncestors()

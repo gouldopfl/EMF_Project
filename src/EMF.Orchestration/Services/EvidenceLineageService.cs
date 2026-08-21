@@ -40,20 +40,18 @@ public sealed class EvidenceLineageService : IEvidenceLineageService
                     currentId,
                     cancellationToken);
 
-            var sourceIds =
+            var generatedFromRelationships =
                 relationships
                     .Where(
                         relationship =>
                             relationship.SourceArtifactId == currentId &&
                             relationship.RelationshipType ==
-                                RelationshipTypes.GeneratedFrom)
-                    .Select(
-                        relationship =>
-                            relationship.TargetArtifactId)
-                    .Distinct();
+                                RelationshipTypes.GeneratedFrom);
 
-            foreach (var sourceId in sourceIds)
+            foreach (var relationship in generatedFromRelationships)
             {
+                var sourceId = relationship.TargetArtifactId;
+
                 if (!visited.Add(sourceId))
                     continue;
 
@@ -69,6 +67,7 @@ public sealed class EvidenceLineageService : IEvidenceLineageService
                     new EvidenceLineageNode
                     {
                         Artifact = artifact,
+                        Relationship = relationship,
                         Depth = current.Depth + 1
                     });
 
