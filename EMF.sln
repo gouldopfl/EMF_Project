@@ -47,6 +47,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMF.Intelligence.AzureOpenA
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMF.Extensions.VeteransClaims.Orchestration", "src\EMF.Extensions.VeteransClaims.Orchestration\EMF.Extensions.VeteransClaims.Orchestration.csproj", "{AF45EBB9-0BC4-4099-A0DC-BC4A82C7E1CB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMF.Intelligence.Persistence.Sqlite", "src\EMF.Intelligence.Persistence.Sqlite\EMF.Intelligence.Persistence.Sqlite.csproj", "{A3B70638-2C19-4475-B668-538BE2949C25}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -297,6 +299,18 @@ Global
 		{AF45EBB9-0BC4-4099-A0DC-BC4A82C7E1CB}.Release|x64.Build.0 = Release|Any CPU
 		{AF45EBB9-0BC4-4099-A0DC-BC4A82C7E1CB}.Release|x86.ActiveCfg = Release|Any CPU
 		{AF45EBB9-0BC4-4099-A0DC-BC4A82C7E1CB}.Release|x86.Build.0 = Release|Any CPU
+		{A3B70638-2C19-4475-B668-538BE2949C25}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3B70638-2C19-4475-B668-538BE2949C25}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3B70638-2C19-4475-B668-538BE2949C25}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A3B70638-2C19-4475-B668-538BE2949C25}.Debug|x64.Build.0 = Debug|Any CPU
+		{A3B70638-2C19-4475-B668-538BE2949C25}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A3B70638-2C19-4475-B668-538BE2949C25}.Debug|x86.Build.0 = Debug|Any CPU
+		{A3B70638-2C19-4475-B668-538BE2949C25}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3B70638-2C19-4475-B668-538BE2949C25}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3B70638-2C19-4475-B668-538BE2949C25}.Release|x64.ActiveCfg = Release|Any CPU
+		{A3B70638-2C19-4475-B668-538BE2949C25}.Release|x64.Build.0 = Release|Any CPU
+		{A3B70638-2C19-4475-B668-538BE2949C25}.Release|x86.ActiveCfg = Release|Any CPU
+		{A3B70638-2C19-4475-B668-538BE2949C25}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -322,5 +336,6 @@ Global
 		{8653ACC9-B397-4AB1-9BC9-9A649867AFEC} = {717C25BE-9B77-47FF-994F-E4F8714318A1}
 		{EA698F44-2AF8-497A-8E87-8E4BB0A127D5} = {717C25BE-9B77-47FF-994F-E4F8714318A1}
 		{AF45EBB9-0BC4-4099-A0DC-BC4A82C7E1CB} = {717C25BE-9B77-47FF-994F-E4F8714318A1}
+		{A3B70638-2C19-4475-B668-538BE2949C25} = {717C25BE-9B77-47FF-994F-E4F8714318A1}
 	EndGlobalSection
 EndGlobal

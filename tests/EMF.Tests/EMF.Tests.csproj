@@ -41,6 +41,7 @@
     <ProjectReference Include="..\..\src\EMF.Console\EMF.Console.csproj" />
     <ProjectReference Include="..\..\src\EMF.Intelligence.AzureOpenAI\EMF.Intelligence.AzureOpenAI.csproj" />
     <ProjectReference Include="..\..\src\EMF.Extensions.VeteransClaims.Orchestration\EMF.Extensions.VeteransClaims.Orchestration.csproj" />
+    <ProjectReference Include="..\..\src\EMF.Intelligence.Persistence.Sqlite\EMF.Intelligence.Persistence.Sqlite.csproj" />
   </ItemGroup>
 
 </Project>
