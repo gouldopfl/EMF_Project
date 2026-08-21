@@ -42,6 +42,36 @@ private readonly List<Provenance> _provenance = new();
         return Task.FromResult(artifact);
     }
 
+    public async Task<EvidenceAggregate?> GetEvidenceAggregateAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default)
+    {
+        var artifact =
+            await GetArtifactAsync(
+                artifactId,
+                cancellationToken);
+
+        if (artifact is null)
+            return null;
+
+        var provenance =
+            await GetProvenanceAsync(
+                artifactId,
+                cancellationToken);
+
+        var relationships =
+            await GetRelationshipsAsync(
+                artifactId,
+                cancellationToken);
+
+        return new EvidenceAggregate
+        {
+            Artifact = artifact,
+            Provenance = provenance,
+            Relationships = relationships
+        };
+    }
+
     public Task<Artifact?> FindArtifactAsync(
         string source,
         ContentFingerprint fingerprint,

@@ -195,6 +195,149 @@ public sealed class EvidenceRepositoryTests
     }
 
     [Fact]
+    public async Task Repository_GetEvidenceAggregateAsync_ReconstructsAggregate()
+    {
+        var repository = new InMemoryEvidenceRepository();
+
+        var id = new ArtifactId("aggregate-001");
+
+        var artifact = new Artifact
+        {
+            Id = id,
+            Name = "Generated evidence",
+            ArtifactType = "intelligence-output"
+        };
+
+        var provenance = new Provenance
+        {
+            ArtifactId = id,
+            Source = "EMF.Intelligence",
+            RecordedBy = "evidence-steward"
+        };
+
+        var relationship = new Relationship
+        {
+            SourceArtifactId = id,
+            TargetArtifactId = new ArtifactId("source-aggregate-001"),
+            RelationshipType = RelationshipTypes.GeneratedFrom
+        };
+
+        await repository.AddArtifactWithProvenanceAndRelationshipsAsync(
+            artifact,
+            provenance,
+            [relationship]);
+
+        var result =
+            await repository.GetEvidenceAggregateAsync(id);
+
+        Assert.NotNull(result);
+        Assert.Equal(id, result!.Artifact.Id);
+        Assert.Single(result.Provenance);
+        Assert.Single(result.Relationships);
+    }
+
+    [Fact]
+    public async Task Repository_GetEvidenceAggregateAsync_ReturnsNullWhenMissing()
+    {
+        var repository = new InMemoryEvidenceRepository();
+
+        var result =
+            await repository.GetEvidenceAggregateAsync(
+                new ArtifactId("missing-aggregate-001"));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task SqliteEvidenceRepository_GetEvidenceAggregateAsync_ReconstructsAggregate()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-evidence-aggregate-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new EMF.Persistence.Repositories.SqliteEvidenceRepository(
+                    databasePath);
+
+            await repository.InitializeAsync();
+
+            var id = new ArtifactId("sqlite-aggregate-001");
+
+            var artifact = new Artifact
+            {
+                Id = id,
+                Name = "Generated evidence",
+                ArtifactType = "intelligence-output"
+            };
+
+            var provenance = new Provenance
+            {
+                ArtifactId = id,
+                Source = "EMF.Intelligence",
+                RecordedBy = "evidence-steward"
+            };
+
+            var relationship = new Relationship
+            {
+                SourceArtifactId = id,
+                TargetArtifactId =
+                    new ArtifactId("sqlite-source-aggregate-001"),
+                RelationshipType =
+                    RelationshipTypes.GeneratedFrom
+            };
+
+            await repository
+                .AddArtifactWithProvenanceAndRelationshipsAsync(
+                    artifact,
+                    provenance,
+                    [relationship]);
+
+            var result =
+                await repository.GetEvidenceAggregateAsync(id);
+
+            Assert.NotNull(result);
+            Assert.Equal(id, result!.Artifact.Id);
+            Assert.Single(result.Provenance);
+            Assert.Single(result.Relationships);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+                File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task SqliteEvidenceRepository_GetEvidenceAggregateAsync_ReturnsNullWhenMissing()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-evidence-aggregate-missing-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new EMF.Persistence.Repositories.SqliteEvidenceRepository(
+                    databasePath);
+
+            await repository.InitializeAsync();
+
+            var result =
+                await repository.GetEvidenceAggregateAsync(
+                    new ArtifactId("missing-sqlite-aggregate-001"));
+
+            Assert.Null(result);
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+                File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task Repository_StoresAndRetrievesArtifact()
     {
         var repository = new InMemoryEvidenceRepository();

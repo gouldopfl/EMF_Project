@@ -18,6 +18,10 @@ public interface IEvidenceRepository
         ArtifactId artifactId,
         CancellationToken cancellationToken = default);
 
+    Task<EvidenceAggregate?> GetEvidenceAggregateAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default);
+
     Task<Artifact?> FindArtifactAsync(
         string source,
         ContentFingerprint fingerprint,
