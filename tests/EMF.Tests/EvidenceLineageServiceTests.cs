@@ -482,6 +482,38 @@ public sealed class EvidenceLineageServiceTests
     }
 
     [Fact]
+    public async Task GetGeneratedFromDescendantsAsync_SkipsMissingDescendants()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var source = new Artifact
+        {
+            Id = new ArtifactId("desc-missing-source"),
+            Name = "Source",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(source);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId =
+                    new ArtifactId("missing-descendant"),
+                TargetArtifactId = source.Id,
+                RelationshipType =
+                    RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.GetGeneratedFromDescendantsAsync(
+                source.Id);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
     public async Task GetGeneratedFromPathAsync_ReturnsDirectPath()
     {
         var repository = new InMemoryEvidenceRepository();
@@ -1461,6 +1493,163 @@ public sealed class EvidenceLineageServiceTests
 
         var leaf = Assert.Single(result);
         Assert.Equal(generated.Id, leaf.Id);
+    }
+
+    [Fact]
+    public async Task GetGeneratedFromRootsAsync_IgnoresOtherRelationshipTypes()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var generated = new Artifact
+        {
+            Id = new ArtifactId("roots-filter-generated"),
+            Name = "Generated",
+            ArtifactType = "intelligence-output"
+        };
+
+        var source = new Artifact
+        {
+            Id = new ArtifactId("roots-filter-source"),
+            Name = "Source",
+            ArtifactType = "file"
+        };
+
+        var referenced = new Artifact
+        {
+            Id = new ArtifactId("roots-filter-reference"),
+            Name = "Referenced",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(generated);
+        await repository.AddArtifactAsync(source);
+        await repository.AddArtifactAsync(referenced);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = generated.Id,
+                TargetArtifactId = source.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = source.Id,
+                TargetArtifactId = referenced.Id,
+                RelationshipType = RelationshipTypes.References
+            });
+
+        var result =
+            await service.GetGeneratedFromRootsAsync(generated.Id);
+
+        var root = Assert.Single(result);
+        Assert.Equal(source.Id, root.Id);
+    }
+
+    [Fact]
+    public async Task GetGeneratedFromLeavesAsync_ReturnsEmptyWhenArtifactMissing()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var result =
+            await service.GetGeneratedFromLeavesAsync(
+                new ArtifactId("leaves-missing-001"));
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetGeneratedFromRootsAsync_ReturnsEmptyForCycle()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var first = new Artifact
+        {
+            Id = new ArtifactId("roots-cycle-001"),
+            Name = "First",
+            ArtifactType = "intelligence-output"
+        };
+
+        var second = new Artifact
+        {
+            Id = new ArtifactId("roots-cycle-002"),
+            Name = "Second",
+            ArtifactType = "intelligence-output"
+        };
+
+        await repository.AddArtifactAsync(first);
+        await repository.AddArtifactAsync(second);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = first.Id,
+                TargetArtifactId = second.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = second.Id,
+                TargetArtifactId = first.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.GetGeneratedFromRootsAsync(first.Id);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetGeneratedFromLeavesAsync_ReturnsEmptyForCycle()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var first = new Artifact
+        {
+            Id = new ArtifactId("leaves-cycle-001"),
+            Name = "First",
+            ArtifactType = "intelligence-output"
+        };
+
+        var second = new Artifact
+        {
+            Id = new ArtifactId("leaves-cycle-002"),
+            Name = "Second",
+            ArtifactType = "intelligence-output"
+        };
+
+        await repository.AddArtifactAsync(first);
+        await repository.AddArtifactAsync(second);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = first.Id,
+                TargetArtifactId = second.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = second.Id,
+                TargetArtifactId = first.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.GetGeneratedFromLeavesAsync(first.Id);
+
+        Assert.Empty(result);
     }
 
 }
