@@ -112,10 +112,11 @@ public Task AddArtifactWithProvenanceAsync(
     Provenance provenance,
     CancellationToken cancellationToken = default)
 {
-    _artifacts[artifact.Id.Value] = artifact;
-    _provenance.Add(provenance);
-
-    return Task.CompletedTask;
+    return AddArtifactWithProvenanceAndRelationshipsAsync(
+        artifact,
+        provenance,
+        Array.Empty<Relationship>(),
+        cancellationToken);
 }
 
 public Task AddArtifactWithProvenanceAndRelationshipsAsync(
@@ -124,6 +125,9 @@ public Task AddArtifactWithProvenanceAndRelationshipsAsync(
     IReadOnlyCollection<Relationship> relationships,
     CancellationToken cancellationToken = default)
 {
+    if (_artifacts.ContainsKey(artifact.Id.Value))
+        return Task.CompletedTask;
+
     _artifacts[artifact.Id.Value] = artifact;
     _provenance.Add(provenance);
     _relationships.AddRange(relationships);

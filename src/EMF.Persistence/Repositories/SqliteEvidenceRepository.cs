@@ -390,6 +390,33 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
 
         try
         {
+            await using (var existingArtifactCommand =
+                connection.CreateCommand())
+            {
+                existingArtifactCommand.Transaction =
+                    (SqliteTransaction)transaction;
+
+                existingArtifactCommand.CommandText =
+                    "SELECT 1 FROM Artifacts " +
+                    "WHERE Id = $id LIMIT 1;";
+
+                existingArtifactCommand.Parameters.AddWithValue(
+                    "$id",
+                    artifact.Id.Value);
+
+                var existingArtifact =
+                    await existingArtifactCommand.ExecuteScalarAsync(
+                        cancellationToken);
+
+                if (existingArtifact is not null)
+                {
+                    await transaction.CommitAsync(
+                        cancellationToken);
+
+                    return;
+                }
+            }
+
             if (artifact.Fingerprint is not null)
             {
                 await using var existingCommand = connection.CreateCommand();
@@ -431,7 +458,7 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
             {
                 artifactCommand.Transaction = (SqliteTransaction)transaction;
                 artifactCommand.CommandText =
-                    "INSERT OR REPLACE INTO Artifacts " +
+                    "INSERT INTO Artifacts " +
                     "(Id, Name, ArtifactType, CreatedUtc, FingerprintAlgorithm, FingerprintValue, MetadataJson) " +
                     "VALUES ($id, $name, $artifactType, $createdUtc, $fingerprintAlgorithm, $fingerprintValue, $metadataJson);";
 

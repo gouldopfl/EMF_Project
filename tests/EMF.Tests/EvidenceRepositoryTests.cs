@@ -79,6 +79,122 @@ public sealed class EvidenceRepositoryTests
     }
 
     [Fact]
+    public async Task Repository_DuplicateArtifactId_DoesNotDuplicateEvidenceAggregate()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var id = new ArtifactId("generated-idempotent-001");
+
+        var artifact = new Artifact
+        {
+            Id = id,
+            Name = "Generated summary",
+            ArtifactType = "intelligence-output"
+        };
+
+        var provenance = new Provenance
+        {
+            ArtifactId = id,
+            Source = "EMF.Intelligence",
+            RecordedBy = "evidence-steward"
+        };
+
+        var relationships = new[]
+        {
+            new Relationship
+            {
+                SourceArtifactId = id,
+                TargetArtifactId = new ArtifactId("source-idempotent-001"),
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            }
+        };
+
+        await repository.AddArtifactWithProvenanceAndRelationshipsAsync(
+            artifact,
+            provenance,
+            relationships);
+
+        await repository.AddArtifactWithProvenanceAndRelationshipsAsync(
+            artifact,
+            provenance,
+            relationships);
+
+        Assert.NotNull(await repository.GetArtifactAsync(id));
+        Assert.Single(await repository.GetProvenanceAsync(id));
+        Assert.Single(await repository.GetRelationshipsAsync(id));
+    }
+
+    [Fact]
+    public async Task SqliteEvidenceRepository_DuplicateArtifactId_DoesNotDuplicateEvidenceAggregate()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-evidence-idempotent-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new EMF.Persistence.Repositories.SqliteEvidenceRepository(
+                    databasePath);
+
+            await repository.InitializeAsync();
+
+            var id = new ArtifactId("generated-idempotent-001");
+
+            var artifact = new Artifact
+            {
+                Id = id,
+                Name = "Generated summary",
+                ArtifactType = "intelligence-output"
+            };
+
+            var provenance = new Provenance
+            {
+                ArtifactId = id,
+                Source = "EMF.Intelligence",
+                RecordedBy = "evidence-steward"
+            };
+
+            var relationships = new[]
+            {
+                new Relationship
+                {
+                    SourceArtifactId = id,
+                    TargetArtifactId =
+                        new ArtifactId("source-idempotent-001"),
+                    RelationshipType =
+                        RelationshipTypes.GeneratedFrom
+                }
+            };
+
+            await repository
+                .AddArtifactWithProvenanceAndRelationshipsAsync(
+                    artifact,
+                    provenance,
+                    relationships);
+
+            await repository
+                .AddArtifactWithProvenanceAndRelationshipsAsync(
+                    artifact,
+                    provenance,
+                    relationships);
+
+            Assert.NotNull(
+                await repository.GetArtifactAsync(id));
+
+            Assert.Single(
+                await repository.GetProvenanceAsync(id));
+
+            Assert.Single(
+                await repository.GetRelationshipsAsync(id));
+        }
+        finally
+        {
+            if (File.Exists(databasePath))
+                File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task Repository_StoresAndRetrievesArtifact()
     {
         var repository = new InMemoryEvidenceRepository();
