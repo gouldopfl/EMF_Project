@@ -140,4 +140,94 @@ public sealed class EvidenceLineageService : IEvidenceLineageService
         return descendants;
     }
 
+    public async Task<EvidenceLineagePath?>
+        GetGeneratedFromPathAsync(
+            ArtifactId startArtifactId,
+            ArtifactId endArtifactId,
+            CancellationToken cancellationToken = default)
+    {
+        var startArtifact =
+            await _repository.GetArtifactAsync(
+                startArtifactId,
+                cancellationToken);
+
+        if (startArtifact is null)
+            return null;
+
+        var endArtifact =
+            await _repository.GetArtifactAsync(
+                endArtifactId,
+                cancellationToken);
+
+        if (endArtifact is null)
+            return null;
+
+        var visited = new HashSet<ArtifactId>();
+        var pending =
+            new Queue<(ArtifactId Id, List<EvidenceLineageNode> Path)>();
+
+        visited.Add(startArtifactId);
+        pending.Enqueue(
+            (startArtifactId, new List<EvidenceLineageNode>()));
+
+        while (pending.Count > 0)
+        {
+            var current = pending.Dequeue();
+
+            var relationships =
+                await _repository.GetRelationshipsAsync(
+                    current.Id,
+                    cancellationToken);
+
+            var generatedFromRelationships =
+                relationships.Where(
+                    relationship =>
+                        relationship.SourceArtifactId == current.Id &&
+                        relationship.RelationshipType ==
+                            RelationshipTypes.GeneratedFrom);
+
+            foreach (var relationship in generatedFromRelationships)
+            {
+                var nextId = relationship.TargetArtifactId;
+
+                if (!visited.Add(nextId))
+                    continue;
+
+                var artifact =
+                    await _repository.GetArtifactAsync(
+                        nextId,
+                        cancellationToken);
+
+                if (artifact is null)
+                    continue;
+
+                var nextPath =
+                    new List<EvidenceLineageNode>(
+                        current.Path)
+                    {
+                        new EvidenceLineageNode
+                        {
+                            Artifact = artifact,
+                            Relationship = relationship,
+                            Depth = current.Path.Count + 1
+                        }
+                    };
+
+                if (nextId == endArtifactId)
+                {
+                    return new EvidenceLineagePath
+                    {
+                        StartArtifact = startArtifact,
+                        EndArtifact = endArtifact,
+                        Nodes = nextPath
+                    };
+                }
+
+                pending.Enqueue((nextId, nextPath));
+            }
+        }
+
+        return null;
+    }
+
 }

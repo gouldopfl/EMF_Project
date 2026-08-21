@@ -14,4 +14,10 @@ public interface IEvidenceLineageService
         GetGeneratedFromDescendantsAsync(
             ArtifactId artifactId,
             CancellationToken cancellationToken = default);
+
+    Task<EvidenceLineagePath?>
+        GetGeneratedFromPathAsync(
+            ArtifactId startArtifactId,
+            ArtifactId endArtifactId,
+            CancellationToken cancellationToken = default);
 }

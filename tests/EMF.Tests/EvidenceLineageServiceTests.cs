@@ -481,4 +481,212 @@ public sealed class EvidenceLineageServiceTests
             descendant.Artifact.Id);
     }
 
+    [Fact]
+    public async Task GetGeneratedFromPathAsync_ReturnsDirectPath()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var generated = new Artifact
+        {
+            Id = new ArtifactId("path-generated-001"),
+            Name = "Generated",
+            ArtifactType = "intelligence-output"
+        };
+
+        var source = new Artifact
+        {
+            Id = new ArtifactId("path-source-001"),
+            Name = "Source",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(generated);
+        await repository.AddArtifactAsync(source);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = generated.Id,
+                TargetArtifactId = source.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.GetGeneratedFromPathAsync(
+                generated.Id,
+                source.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(generated.Id, result!.StartArtifact.Id);
+        Assert.Equal(source.Id, result.EndArtifact.Id);
+
+        var node = Assert.Single(result.Nodes);
+        Assert.Equal(source.Id, node.Artifact.Id);
+        Assert.Equal(1, node.Depth);
+    }
+
+    [Fact]
+    public async Task GetGeneratedFromPathAsync_ReturnsRecursivePath()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var generated = new Artifact
+        {
+            Id = new ArtifactId("path-generated-002"),
+            Name = "Generated",
+            ArtifactType = "intelligence-output"
+        };
+
+        var intermediate = new Artifact
+        {
+            Id = new ArtifactId("path-intermediate-002"),
+            Name = "Intermediate",
+            ArtifactType = "intelligence-output"
+        };
+
+        var source = new Artifact
+        {
+            Id = new ArtifactId("path-source-002"),
+            Name = "Source",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(generated);
+        await repository.AddArtifactAsync(intermediate);
+        await repository.AddArtifactAsync(source);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = generated.Id,
+                TargetArtifactId = intermediate.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = intermediate.Id,
+                TargetArtifactId = source.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.GetGeneratedFromPathAsync(
+                generated.Id,
+                source.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result!.Nodes.Count);
+
+        Assert.Equal(
+            intermediate.Id,
+            result.Nodes[0].Artifact.Id);
+
+        Assert.Equal(
+            source.Id,
+            result.Nodes[1].Artifact.Id);
+
+        Assert.Equal(1, result.Nodes[0].Depth);
+        Assert.Equal(2, result.Nodes[1].Depth);
+    }
+
+    [Fact]
+    public async Task GetGeneratedFromPathAsync_ReturnsNullWhenNoPathExists()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var first = new Artifact
+        {
+            Id = new ArtifactId("path-unconnected-001"),
+            Name = "First",
+            ArtifactType = "file"
+        };
+
+        var second = new Artifact
+        {
+            Id = new ArtifactId("path-unconnected-002"),
+            Name = "Second",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(first);
+        await repository.AddArtifactAsync(second);
+
+        var result =
+            await service.GetGeneratedFromPathAsync(
+                first.Id,
+                second.Id);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetGeneratedFromPathAsync_HandlesCycles()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var first = new Artifact
+        {
+            Id = new ArtifactId("path-cycle-001"),
+            Name = "First",
+            ArtifactType = "intelligence-output"
+        };
+
+        var second = new Artifact
+        {
+            Id = new ArtifactId("path-cycle-002"),
+            Name = "Second",
+            ArtifactType = "intelligence-output"
+        };
+
+        var target = new Artifact
+        {
+            Id = new ArtifactId("path-cycle-target"),
+            Name = "Target",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(first);
+        await repository.AddArtifactAsync(second);
+        await repository.AddArtifactAsync(target);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = first.Id,
+                TargetArtifactId = second.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = second.Id,
+                TargetArtifactId = first.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = second.Id,
+                TargetArtifactId = target.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.GetGeneratedFromPathAsync(
+                first.Id,
+                target.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result!.Nodes.Count);
+        Assert.Equal(target.Id, result.EndArtifact.Id);
+    }
+
 }
