@@ -9,4 +9,9 @@ public interface IEvidenceLineageService
         GetGeneratedFromAncestorsAsync(
             ArtifactId artifactId,
             CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<EvidenceLineageNode>>
+        GetGeneratedFromDescendantsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default);
 }

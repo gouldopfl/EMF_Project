@@ -78,4 +78,66 @@ public sealed class EvidenceLineageService : IEvidenceLineageService
 
         return ancestors;
     }
+    public async Task<IReadOnlyList<EvidenceLineageNode>>
+        GetGeneratedFromDescendantsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+    {
+        var visited = new HashSet<ArtifactId>();
+        var descendants = new List<EvidenceLineageNode>();
+        var pending = new Queue<(ArtifactId Id, int Depth)>();
+
+        pending.Enqueue((artifactId, 0));
+        visited.Add(artifactId);
+
+        while (pending.Count > 0)
+        {
+            var current = pending.Dequeue();
+            var currentId = current.Id;
+
+            var relationships =
+                await _repository.GetRelationshipsAsync(
+                    currentId,
+                    cancellationToken);
+
+            var generatedFromRelationships =
+                relationships
+                    .Where(
+                        relationship =>
+                            relationship.TargetArtifactId == currentId &&
+                            relationship.RelationshipType ==
+                                RelationshipTypes.GeneratedFrom);
+
+            foreach (var relationship in generatedFromRelationships)
+            {
+                var descendantId =
+                    relationship.SourceArtifactId;
+
+                if (!visited.Add(descendantId))
+                    continue;
+
+                var artifact =
+                    await _repository.GetArtifactAsync(
+                        descendantId,
+                        cancellationToken);
+
+                if (artifact is null)
+                    continue;
+
+                descendants.Add(
+                    new EvidenceLineageNode
+                    {
+                        Artifact = artifact,
+                        Relationship = relationship,
+                        Depth = current.Depth + 1
+                    });
+
+                pending.Enqueue(
+                    (descendantId, current.Depth + 1));
+            }
+        }
+
+        return descendants;
+    }
+
 }
