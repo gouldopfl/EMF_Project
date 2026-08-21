@@ -228,6 +228,66 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
         };
     }
 
+    public async Task<IReadOnlyList<Artifact>> GetArtifactsByMetadataAsync(
+        string key,
+        string value,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT Id, Name, ArtifactType, CreatedUtc,
+                   FingerprintAlgorithm, FingerprintValue, MetadataJson
+            FROM Artifacts
+            WHERE json_extract(
+                MetadataJson,
+                '$.' || $key) = $value
+            ORDER BY CreatedUtc, Id;
+            """;
+
+        command.Parameters.AddWithValue("$key", key);
+        command.Parameters.AddWithValue("$value", value);
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        var results = new List<Artifact>();
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(
+                new Artifact
+                {
+                    Id = new ArtifactId(reader.GetString(0)),
+                    Name = reader.GetString(1),
+                    ArtifactType = reader.GetString(2),
+                    CreatedUtc =
+                        DateTimeOffset.Parse(reader.GetString(3)),
+                    Fingerprint =
+                        reader.IsDBNull(4) || reader.IsDBNull(5)
+                            ? null
+                            : new ContentFingerprint
+                            {
+                                Algorithm = reader.GetString(4),
+                                Value = reader.GetString(5)
+                            },
+                    Metadata =
+                        JsonSerializer.Deserialize<
+                            Dictionary<string, object>>(
+                                reader.GetString(6))
+                        ?? new Dictionary<string, object>()
+                });
+        }
+
+        return results;
+    }
+
     public async Task<IReadOnlyList<Relationship>> GetRelationshipsAsync(
         ArtifactId artifactId,
         CancellationToken cancellationToken = default)

@@ -23,6 +23,11 @@ public interface IEvidenceRepository
         ContentFingerprint fingerprint,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<Artifact>> GetArtifactsByMetadataAsync(
+        string key,
+        string value,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<Relationship>> GetRelationshipsAsync(
         ArtifactId artifactId,
         CancellationToken cancellationToken = default);

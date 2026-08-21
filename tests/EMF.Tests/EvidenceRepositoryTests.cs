@@ -206,4 +206,139 @@ public sealed class EvidenceRepositoryTests
         }
     }
 
+
+    [Fact]
+    public async Task Repository_GetsArtifactsByMetadata()
+    {
+        var repository = new InMemoryEvidenceRepository();
+
+        var first = new Artifact
+        {
+            Id = new ArtifactId("artifact-meta-001"),
+            Name = "first",
+            ArtifactType = "intelligence-output",
+            CreatedUtc = new DateTimeOffset(
+                2026, 8, 20, 20, 0, 0,
+                TimeSpan.Zero),
+            Metadata = new Dictionary<string, object>
+            {
+                ["evidenceGapId"] = "gap-1"
+            }
+        };
+
+        var second = new Artifact
+        {
+            Id = new ArtifactId("artifact-meta-002"),
+            Name = "second",
+            ArtifactType = "intelligence-output",
+            CreatedUtc = new DateTimeOffset(
+                2026, 8, 20, 20, 0, 1,
+                TimeSpan.Zero),
+            Metadata = new Dictionary<string, object>
+            {
+                ["evidenceGapId"] = "gap-1"
+            }
+        };
+
+        var other = new Artifact
+        {
+            Id = new ArtifactId("artifact-meta-003"),
+            Name = "other",
+            ArtifactType = "intelligence-output",
+            Metadata = new Dictionary<string, object>
+            {
+                ["evidenceGapId"] = "gap-2"
+            }
+        };
+
+        await repository.AddArtifactAsync(first);
+        await repository.AddArtifactAsync(second);
+        await repository.AddArtifactAsync(other);
+
+        var results =
+            await repository.GetArtifactsByMetadataAsync(
+                "evidenceGapId",
+                "gap-1");
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal(first.Id, results[0].Id);
+        Assert.Equal(second.Id, results[1].Id);
+    }
+
+    [Fact]
+    public async Task SqliteEvidenceRepository_GetsArtifactsByMetadata()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-evidence-metadata-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var repository =
+                new EMF.Persistence.Repositories.SqliteEvidenceRepository(
+                    databasePath);
+
+            await repository.InitializeAsync();
+
+            var first = new Artifact
+            {
+                Id = new ArtifactId("sqlite-meta-001"),
+                Name = "first",
+                ArtifactType = "intelligence-output",
+                CreatedUtc = new DateTimeOffset(
+                    2026, 8, 20, 21, 0, 0,
+                    TimeSpan.Zero),
+                Metadata = new Dictionary<string, object>
+                {
+                    ["requirementId"] = "req-1"
+                }
+            };
+
+            var second = new Artifact
+            {
+                Id = new ArtifactId("sqlite-meta-002"),
+                Name = "second",
+                ArtifactType = "intelligence-output",
+                CreatedUtc = new DateTimeOffset(
+                    2026, 8, 20, 21, 0, 1,
+                    TimeSpan.Zero),
+                Metadata = new Dictionary<string, object>
+                {
+                    ["requirementId"] = "req-1"
+                }
+            };
+
+            var other = new Artifact
+            {
+                Id = new ArtifactId("sqlite-meta-003"),
+                Name = "other",
+                ArtifactType = "intelligence-output",
+                Metadata = new Dictionary<string, object>
+                {
+                    ["requirementId"] = "req-2"
+                }
+            };
+
+            await repository.AddArtifactAsync(first);
+            await repository.AddArtifactAsync(second);
+            await repository.AddArtifactAsync(other);
+
+            var results =
+                await repository.GetArtifactsByMetadataAsync(
+                    "requirementId",
+                    "req-1");
+
+            Assert.Equal(2, results.Count);
+            Assert.Equal(first.Id, results[0].Id);
+            Assert.Equal(second.Id, results[1].Id);
+            Assert.Equal(
+                "req-1",
+                results[0].Metadata["requirementId"].ToString());
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
 }

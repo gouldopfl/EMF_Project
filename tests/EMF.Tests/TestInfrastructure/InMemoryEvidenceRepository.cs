@@ -59,6 +59,31 @@ private readonly List<Provenance> _provenance = new();
         return Task.FromResult(artifact);
     }
 
+    public Task<IReadOnlyList<Artifact>> GetArtifactsByMetadataAsync(
+        string key,
+        string value,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+
+        var results = _artifacts.Values
+            .Where(
+                artifact =>
+                    artifact.Metadata.TryGetValue(
+                        key,
+                        out var metadataValue) &&
+                    string.Equals(
+                        metadataValue?.ToString(),
+                        value,
+                        StringComparison.Ordinal))
+            .OrderBy(artifact => artifact.CreatedUtc)
+            .ThenBy(artifact => artifact.Id.Value)
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<Artifact>>(results);
+    }
+
     public Task<IReadOnlyList<Relationship>> GetRelationshipsAsync(
         ArtifactId artifactId,
         CancellationToken cancellationToken = default)
