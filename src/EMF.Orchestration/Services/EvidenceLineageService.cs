@@ -154,6 +154,16 @@ public sealed class EvidenceLineageService : IEvidenceLineageService
         if (startArtifact is null)
             return null;
 
+        if (startArtifactId == endArtifactId)
+        {
+            return new EvidenceLineagePath
+            {
+                StartArtifact = startArtifact,
+                EndArtifact = startArtifact,
+                Nodes = Array.Empty<EvidenceLineageNode>()
+            };
+        }
+
         var endArtifact =
             await _repository.GetArtifactAsync(
                 endArtifactId,

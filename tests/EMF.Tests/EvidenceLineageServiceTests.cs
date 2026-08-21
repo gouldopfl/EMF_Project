@@ -839,4 +839,30 @@ public sealed class EvidenceLineageServiceTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public async Task GetGeneratedFromPathAsync_ReturnsZeroHopPathWhenEndpointsMatch()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId("path-same-001"),
+            Name = "Same artifact",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(artifact);
+
+        var result =
+            await service.GetGeneratedFromPathAsync(
+                artifact.Id,
+                artifact.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(artifact.Id, result!.StartArtifact.Id);
+        Assert.Equal(artifact.Id, result.EndArtifact.Id);
+        Assert.Empty(result.Nodes);
+    }
+
 }
