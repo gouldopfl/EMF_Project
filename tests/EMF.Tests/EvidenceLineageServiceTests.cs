@@ -1372,4 +1372,41 @@ public sealed class EvidenceLineageServiceTests
         Assert.Contains(result, artifact => artifact.Id == second.Id);
     }
 
+    [Fact]
+    public async Task GetGeneratedFromDescendantsAsync_IgnoresOtherRelationshipTypes()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var source = new Artifact
+        {
+            Id = new ArtifactId("desc-type-source"),
+            Name = "Source",
+            ArtifactType = "file"
+        };
+
+        var other = new Artifact
+        {
+            Id = new ArtifactId("desc-type-other"),
+            Name = "Other",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(source);
+        await repository.AddArtifactAsync(other);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = other.Id,
+                TargetArtifactId = source.Id,
+                RelationshipType = RelationshipTypes.References
+            });
+
+        var result =
+            await service.GetGeneratedFromDescendantsAsync(source.Id);
+
+        Assert.Empty(result);
+    }
+
 }
