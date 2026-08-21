@@ -1,3 +1,4 @@
+using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Intelligence.Agents;
@@ -186,4 +187,112 @@ public sealed class VeteransEvidenceSummaryPromotionServiceTests
             File.Delete(databasePath);
         }
     }
+
+    [Fact]
+    public async Task PromoteAsync_PersistsLineageQueryableByEvidenceLineageService()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteEvidenceRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var source =
+                new Artifact
+                {
+                    Id = new ArtifactId("lineage-source-001"),
+                    Name = "Source evidence",
+                    ArtifactType = "file"
+                };
+
+            await repository.AddArtifactAsync(source);
+
+            var occurredUtc =
+                new DateTimeOffset(
+                    2026, 8, 21, 14, 0, 0,
+                    TimeSpan.Zero);
+
+            var result =
+                new IntelligenceAgentResult<string>
+                {
+                    Success = true,
+                    Output = "Lineage summary.",
+                    AgentId =
+                        new AgentId("summary-agent"),
+                    CorrelationId =
+                        new IntelligenceCorrelationId(
+                            "lineage-operation"),
+                    StartedUtc = occurredUtc,
+                    CompletedUtc =
+                        occurredUtc.AddSeconds(1),
+                    RequiresReview = true,
+                    SourceArtifactIds =
+                    [
+                        source.Id
+                    ],
+                    CapabilityExecutions =
+                    [
+                        new IntelligenceExecutionMetadata
+                        {
+                            CapabilityId =
+                                new IntelligenceCapabilityId(
+                                    "summarize"),
+                            ProviderId =
+                                new IntelligenceProviderId(
+                                    "test"),
+                            CorrelationId =
+                                new IntelligenceCorrelationId(
+                                    "lineage-operation"),
+                            EngineName = "test",
+                            StartedUtc = occurredUtc,
+                            CompletedUtc =
+                                occurredUtc.AddSeconds(1)
+                        }
+                    ]
+                };
+
+            var service =
+                new VeteransEvidenceSummaryPromotionService(
+                    new IntelligenceEvidencePromotionService(
+                        repository));
+
+            var generated =
+                await service.PromoteAsync(
+                    "Lineage summary",
+                    "console-test",
+                    "reviewer-test",
+                    occurredUtc.AddSeconds(2),
+                    new EvidenceGapId("lineage-gap"),
+                    new RequirementId("lineage-requirement"),
+                    result);
+
+            var lineageService =
+                new EvidenceLineageService(repository);
+
+            var roots =
+                await lineageService.GetGeneratedFromRootsAsync(
+                    generated.Id);
+
+            var root = Assert.Single(roots);
+
+            Assert.Equal(
+                source.Id,
+                root.Id);
+
+            var distance =
+                await lineageService.GetGeneratedFromDistanceAsync(
+                    generated.Id,
+                    source.Id);
+
+            Assert.Equal(1, distance);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
 }
