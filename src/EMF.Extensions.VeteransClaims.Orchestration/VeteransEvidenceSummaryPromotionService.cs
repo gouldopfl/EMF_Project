@@ -1,3 +1,4 @@
+using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Core.Models;
 using EMF.Intelligence.Agents;
 using EMF.Orchestration.Contracts;
@@ -25,6 +26,8 @@ internal sealed class VeteransEvidenceSummaryPromotionService :
         string promotedBy,
         string reviewedBy,
         DateTimeOffset promotedUtc,
+        EvidenceGapId evidenceGapId,
+        RequirementId requirementId,
         IntelligenceAgentResult<string> result,
         CancellationToken cancellationToken = default)
     {
@@ -34,6 +37,20 @@ internal sealed class VeteransEvidenceSummaryPromotionService :
                     result.Output!,
                     name,
                     promotedUtc);
+
+        artifact = new Artifact
+        {
+            Id = artifact.Id,
+            Name = artifact.Name,
+            ArtifactType = artifact.ArtifactType,
+            Fingerprint = artifact.Fingerprint,
+            CreatedUtc = artifact.CreatedUtc,
+            Metadata = new Dictionary<string, object>(artifact.Metadata)
+            {
+                ["evidenceGapId"] = evidenceGapId.Value,
+                ["requirementId"] = requirementId.Value
+            }
+        };
 
         await _promotionService.PromoteAsync(
             new IntelligenceEvidencePromotionRequest<string>

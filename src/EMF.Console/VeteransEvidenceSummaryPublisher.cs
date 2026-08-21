@@ -1,5 +1,6 @@
 using EMF.Core.Models;
 using EMF.Extensions.VeteransClaims.Orchestration;
+using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Intelligence.Agents;
 using EMF.Orchestration.Services;
 using EMF.Persistence.Repositories;
@@ -14,6 +15,8 @@ internal static class VeteransEvidenceSummaryPublisher
         string promotedBy,
         string reviewedBy,
         DateTimeOffset promotedUtc,
+        EvidenceGapId evidenceGapId,
+        RequirementId requirementId,
         IntelligenceAgentResult<string> result)
     {
         var repository =
@@ -32,6 +35,8 @@ internal static class VeteransEvidenceSummaryPublisher
                 promotedBy,
                 reviewedBy,
                 promotedUtc,
+                evidenceGapId,
+                requirementId,
                 result);
     }
 }

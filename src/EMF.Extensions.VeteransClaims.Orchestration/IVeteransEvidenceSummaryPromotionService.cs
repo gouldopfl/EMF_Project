@@ -1,3 +1,4 @@
+using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Core.Models;
 using EMF.Intelligence.Agents;
 
@@ -10,6 +11,8 @@ public interface IVeteransEvidenceSummaryPromotionService
         string promotedBy,
         string reviewedBy,
         DateTimeOffset promotedUtc,
+        EvidenceGapId evidenceGapId,
+        RequirementId requirementId,
         IntelligenceAgentResult<string> result,
         CancellationToken cancellationToken = default);
 }

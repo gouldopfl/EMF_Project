@@ -193,6 +193,8 @@ public static class VeteransConsoleCommand
                             runtime.SubjectId,
                             Environment.GetEnvironmentVariable("EMF_REVIEWED_BY")!,
                             DateTimeOffset.UtcNow,
+                            evidenceGapId,
+                            result.RequirementId,
                             intelligenceResult);
 
                     global::System.Console.WriteLine();

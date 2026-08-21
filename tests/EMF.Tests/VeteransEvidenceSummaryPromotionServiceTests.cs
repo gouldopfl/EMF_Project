@@ -1,4 +1,5 @@
 using EMF.Core.Models.Identities;
+using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Intelligence.Agents;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
@@ -78,11 +79,21 @@ public sealed class VeteransEvidenceSummaryPromotionServiceTests
                     "console-test",
                     "reviewer-test",
                     occurredUtc.AddSeconds(2),
+                    new EvidenceGapId("gap-1"),
+                    new RequirementId("req-1"),
                     result);
 
-            Assert.NotNull(
+            var stored =
                 await repository.GetArtifactAsync(
-                    artifact.Id));
+                    artifact.Id);
+
+            Assert.NotNull(stored);
+            Assert.Equal(
+                "gap-1",
+                stored!.Metadata["evidenceGapId"].ToString());
+            Assert.Equal(
+                "req-1",
+                stored.Metadata["requirementId"].ToString());
 
             Assert.Single(
                 await repository.GetProvenanceAsync(
@@ -166,6 +177,8 @@ public sealed class VeteransEvidenceSummaryPromotionServiceTests
                     "console-test",
                     "",
                     occurredUtc.AddSeconds(2),
+                    new EvidenceGapId("gap-1"),
+                    new RequirementId("req-1"),
                     result));
         }
         finally
