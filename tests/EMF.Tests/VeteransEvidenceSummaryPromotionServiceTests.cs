@@ -288,6 +288,72 @@ public sealed class VeteransEvidenceSummaryPromotionServiceTests
                     source.Id);
 
             Assert.Equal(1, distance);
+
+            var secondResult =
+                new IntelligenceAgentResult<string>
+                {
+                    Success = true,
+                    Output = "Second lineage summary.",
+                    AgentId =
+                        new AgentId("summary-agent"),
+                    CorrelationId =
+                        new IntelligenceCorrelationId(
+                            "lineage-operation-2"),
+                    StartedUtc =
+                        occurredUtc.AddSeconds(10),
+                    CompletedUtc =
+                        occurredUtc.AddSeconds(11),
+                    RequiresReview = true,
+                    SourceArtifactIds =
+                    [
+                        generated.Id
+                    ],
+                    CapabilityExecutions =
+                        result.CapabilityExecutions
+                };
+
+            var secondGenerated =
+                await service.PromoteAsync(
+                    "Second lineage summary",
+                    "console-test",
+                    "reviewer-test",
+                    occurredUtc.AddSeconds(12),
+                    new EvidenceGapId("lineage-gap-2"),
+                    new RequirementId("lineage-requirement-2"),
+                    secondResult);
+
+            var secondRoots =
+                await lineageService.GetGeneratedFromRootsAsync(
+                    secondGenerated.Id);
+
+            var secondRoot = Assert.Single(secondRoots);
+
+            var descendants =
+                await lineageService.GetGeneratedFromDescendantsAsync(
+                    source.Id);
+
+            Assert.Equal(2, descendants.Count);
+            Assert.Contains(descendants,
+                node => node.Artifact.Id == generated.Id);
+            Assert.Contains(descendants,
+                node => node.Artifact.Id == secondGenerated.Id);
+
+
+            var leaves =
+                await lineageService.GetGeneratedFromLeavesAsync(
+                    source.Id);
+
+            var leaf = Assert.Single(leaves);
+
+            Assert.Equal(secondGenerated.Id, leaf.Id);
+            Assert.Equal(source.Id, secondRoot.Id);
+
+            var secondDistance =
+                await lineageService.GetGeneratedFromDistanceAsync(
+                    secondGenerated.Id,
+                    source.Id);
+
+            Assert.Equal(2, secondDistance);
         }
         finally
         {
