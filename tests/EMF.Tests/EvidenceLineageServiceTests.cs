@@ -145,4 +145,113 @@ public sealed class EvidenceLineageServiceTests
         Assert.Equal(second.Id, ancestor.Id);
     }
 
+    [Fact]
+    public async Task GetGeneratedFromAncestorsAsync_ReturnsBranchingAncestors()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var generated = new Artifact
+        {
+            Id = new ArtifactId("branch-generated"),
+            Name = "Generated",
+            ArtifactType = "intelligence-output"
+        };
+
+        var firstSource = new Artifact
+        {
+            Id = new ArtifactId("branch-source-1"),
+            Name = "First source",
+            ArtifactType = "file"
+        };
+
+        var secondSource = new Artifact
+        {
+            Id = new ArtifactId("branch-source-2"),
+            Name = "Second source",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(generated);
+        await repository.AddArtifactAsync(firstSource);
+        await repository.AddArtifactAsync(secondSource);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = generated.Id,
+                TargetArtifactId = firstSource.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = generated.Id,
+                TargetArtifactId = secondSource.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.GetGeneratedFromAncestorsAsync(generated.Id);
+
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, artifact => artifact.Id == firstSource.Id);
+        Assert.Contains(result, artifact => artifact.Id == secondSource.Id);
+    }
+
+    [Fact]
+    public async Task GetGeneratedFromAncestorsAsync_IgnoresOtherRelationshipTypes()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var generated = new Artifact
+        {
+            Id = new ArtifactId("mixed-generated"),
+            Name = "Generated",
+            ArtifactType = "intelligence-output"
+        };
+
+        var source = new Artifact
+        {
+            Id = new ArtifactId("mixed-source"),
+            Name = "Source",
+            ArtifactType = "file"
+        };
+
+        var referenced = new Artifact
+        {
+            Id = new ArtifactId("mixed-reference"),
+            Name = "Reference",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(generated);
+        await repository.AddArtifactAsync(source);
+        await repository.AddArtifactAsync(referenced);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = generated.Id,
+                TargetArtifactId = source.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = generated.Id,
+                TargetArtifactId = referenced.Id,
+                RelationshipType = RelationshipTypes.References
+            });
+
+        var result =
+            await service.GetGeneratedFromAncestorsAsync(generated.Id);
+
+        var ancestor = Assert.Single(result);
+        Assert.Equal(source.Id, ancestor.Id);
+    }
+
 }
