@@ -376,4 +376,116 @@ public sealed class VeteransEvidenceSummaryPromotionServiceTests
         }
     }
 
+    [Fact]
+    public async Task PromoteAsync_PersistsMultipleSourceLineage()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteEvidenceRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var sourceOne =
+                new Artifact
+                {
+                    Id = new ArtifactId("multi-source-001"),
+                    Name = "Source one",
+                    ArtifactType = "file"
+                };
+
+            var sourceTwo =
+                new Artifact
+                {
+                    Id = new ArtifactId("multi-source-002"),
+                    Name = "Source two",
+                    ArtifactType = "file"
+                };
+
+            await repository.AddArtifactAsync(sourceOne);
+            await repository.AddArtifactAsync(sourceTwo);
+
+            var occurredUtc =
+                new DateTimeOffset(
+                    2026, 8, 21, 16, 0, 0,
+                    TimeSpan.Zero);
+
+            var result =
+                new IntelligenceAgentResult<string>
+                {
+                    Success = true,
+                    Output = "Multi-source summary.",
+                    AgentId =
+                        new AgentId("summary-agent"),
+                    CorrelationId =
+                        new IntelligenceCorrelationId(
+                            "multi-source-operation"),
+                    StartedUtc = occurredUtc,
+                    CompletedUtc =
+                        occurredUtc.AddSeconds(1),
+                    RequiresReview = true,
+                    SourceArtifactIds =
+                    [
+                        sourceOne.Id,
+                        sourceTwo.Id
+                    ],
+                    CapabilityExecutions =
+                    [
+                        new IntelligenceExecutionMetadata
+                        {
+                            CapabilityId =
+                                new IntelligenceCapabilityId(
+                                    "summarize"),
+                            ProviderId =
+                                new IntelligenceProviderId("test"),
+                            CorrelationId =
+                                new IntelligenceCorrelationId(
+                                    "multi-source-operation"),
+                            EngineName = "test",
+                            StartedUtc = occurredUtc,
+                            CompletedUtc =
+                                occurredUtc.AddSeconds(1)
+                        }
+                    ]
+                };
+
+            var service =
+                new VeteransEvidenceSummaryPromotionService(
+                    new IntelligenceEvidencePromotionService(
+                        repository));
+
+            var generated =
+                await service.PromoteAsync(
+                    "Multi-source summary",
+                    "console-test",
+                    "reviewer-test",
+                    occurredUtc.AddSeconds(2),
+                    new EvidenceGapId("multi-source-gap"),
+                    new RequirementId("multi-source-requirement"),
+                    result);
+
+            var lineageService =
+                new EvidenceLineageService(repository);
+
+            var roots =
+                await lineageService.GetGeneratedFromRootsAsync(
+                    generated.Id);
+
+            Assert.Equal(2, roots.Count);
+
+            Assert.Contains(
+                roots,
+                root => root.Id == sourceOne.Id);
+
+            Assert.Contains(
+                roots,
+                root => root.Id == sourceTwo.Id);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
 }
