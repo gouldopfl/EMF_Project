@@ -38,4 +38,9 @@ public interface IEvidenceLineageService
         GetGeneratedFromRootsAsync(
             ArtifactId artifactId,
             CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Artifact>>
+        GetGeneratedFromLeavesAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default);
 }

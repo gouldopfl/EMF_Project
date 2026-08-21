@@ -1223,4 +1223,153 @@ public sealed class EvidenceLineageServiceTests
         Assert.Empty(result);
     }
 
+    [Fact]
+    public async Task GetGeneratedFromLeavesAsync_ReturnsDirectLeaf()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var source = new Artifact
+        {
+            Id = new ArtifactId("leaves-source-001"),
+            Name = "Source",
+            ArtifactType = "file"
+        };
+
+        var generated = new Artifact
+        {
+            Id = new ArtifactId("leaves-generated-001"),
+            Name = "Generated",
+            ArtifactType = "intelligence-output"
+        };
+
+        await repository.AddArtifactAsync(source);
+        await repository.AddArtifactAsync(generated);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = generated.Id,
+                TargetArtifactId = source.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.GetGeneratedFromLeavesAsync(
+                source.Id);
+
+        var leaf = Assert.Single(result);
+        Assert.Equal(generated.Id, leaf.Id);
+    }
+
+    [Fact]
+    public async Task GetGeneratedFromLeavesAsync_ReturnsUltimateLeaf()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var source = new Artifact
+        {
+            Id = new ArtifactId("leaves-source-002"),
+            Name = "Source",
+            ArtifactType = "file"
+        };
+
+        var intermediate = new Artifact
+        {
+            Id = new ArtifactId("leaves-intermediate-002"),
+            Name = "Intermediate",
+            ArtifactType = "intelligence-output"
+        };
+
+        var generated = new Artifact
+        {
+            Id = new ArtifactId("leaves-generated-002"),
+            Name = "Generated",
+            ArtifactType = "intelligence-output"
+        };
+
+        await repository.AddArtifactAsync(source);
+        await repository.AddArtifactAsync(intermediate);
+        await repository.AddArtifactAsync(generated);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = intermediate.Id,
+                TargetArtifactId = source.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = generated.Id,
+                TargetArtifactId = intermediate.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.GetGeneratedFromLeavesAsync(
+                source.Id);
+
+        var leaf = Assert.Single(result);
+        Assert.Equal(generated.Id, leaf.Id);
+    }
+
+    [Fact]
+    public async Task GetGeneratedFromLeavesAsync_ReturnsBranchingLeaves()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var source = new Artifact
+        {
+            Id = new ArtifactId("leaves-source-003"),
+            Name = "Source",
+            ArtifactType = "file"
+        };
+
+        var first = new Artifact
+        {
+            Id = new ArtifactId("leaves-generated-003-a"),
+            Name = "First generated",
+            ArtifactType = "intelligence-output"
+        };
+
+        var second = new Artifact
+        {
+            Id = new ArtifactId("leaves-generated-003-b"),
+            Name = "Second generated",
+            ArtifactType = "intelligence-output"
+        };
+
+        await repository.AddArtifactAsync(source);
+        await repository.AddArtifactAsync(first);
+        await repository.AddArtifactAsync(second);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = first.Id,
+                TargetArtifactId = source.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = second.Id,
+                TargetArtifactId = source.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.GetGeneratedFromLeavesAsync(source.Id);
+
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, artifact => artifact.Id == first.Id);
+        Assert.Contains(result, artifact => artifact.Id == second.Id);
+    }
+
 }
