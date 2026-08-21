@@ -20,4 +20,10 @@ public interface IEvidenceLineageService
             ArtifactId startArtifactId,
             ArtifactId endArtifactId,
             CancellationToken cancellationToken = default);
+
+    Task<bool>
+        IsGeneratedFromAsync(
+            ArtifactId artifactId,
+            ArtifactId sourceArtifactId,
+            CancellationToken cancellationToken = default);
 }

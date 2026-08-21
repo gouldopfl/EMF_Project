@@ -865,4 +865,74 @@ public sealed class EvidenceLineageServiceTests
         Assert.Empty(result.Nodes);
     }
 
+    [Fact]
+    public async Task IsGeneratedFromAsync_ReturnsTrueWhenPathExists()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var generated = new Artifact
+        {
+            Id = new ArtifactId("is-generated-001"),
+            Name = "Generated",
+            ArtifactType = "intelligence-output"
+        };
+
+        var source = new Artifact
+        {
+            Id = new ArtifactId("is-source-001"),
+            Name = "Source",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(generated);
+        await repository.AddArtifactAsync(source);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = generated.Id,
+                TargetArtifactId = source.Id,
+                RelationshipType = RelationshipTypes.GeneratedFrom
+            });
+
+        var result =
+            await service.IsGeneratedFromAsync(
+                generated.Id,
+                source.Id);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public async Task IsGeneratedFromAsync_ReturnsFalseWhenNoPathExists()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service = new EvidenceLineageService(repository);
+
+        var first = new Artifact
+        {
+            Id = new ArtifactId("is-first-001"),
+            Name = "First",
+            ArtifactType = "file"
+        };
+
+        var second = new Artifact
+        {
+            Id = new ArtifactId("is-second-001"),
+            Name = "Second",
+            ArtifactType = "file"
+        };
+
+        await repository.AddArtifactAsync(first);
+        await repository.AddArtifactAsync(second);
+
+        var result =
+            await service.IsGeneratedFromAsync(
+                first.Id,
+                second.Id);
+
+        Assert.False(result);
+    }
+
 }
