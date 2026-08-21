@@ -2,6 +2,7 @@ using EMF.Core.Contracts;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Orchestration.Contracts;
+using EMF.Orchestration.Models;
 
 namespace EMF.Orchestration.Services;
 
@@ -17,21 +18,22 @@ public sealed class EvidenceLineageService : IEvidenceLineageService
         _repository = repository;
     }
 
-    public async Task<IReadOnlyList<Artifact>>
+    public async Task<IReadOnlyList<EvidenceLineageNode>>
         GetGeneratedFromAncestorsAsync(
             ArtifactId artifactId,
             CancellationToken cancellationToken = default)
     {
         var visited = new HashSet<ArtifactId>();
-        var ancestors = new List<Artifact>();
-        var pending = new Queue<ArtifactId>();
+        var ancestors = new List<EvidenceLineageNode>();
+        var pending = new Queue<(ArtifactId Id, int Depth)>();
 
-        pending.Enqueue(artifactId);
+        pending.Enqueue((artifactId, 0));
         visited.Add(artifactId);
 
         while (pending.Count > 0)
         {
-            var currentId = pending.Dequeue();
+            var current = pending.Dequeue();
+            var currentId = current.Id;
 
             var relationships =
                 await _repository.GetRelationshipsAsync(
@@ -63,8 +65,15 @@ public sealed class EvidenceLineageService : IEvidenceLineageService
                 if (artifact is null)
                     continue;
 
-                ancestors.Add(artifact);
-                pending.Enqueue(sourceId);
+                ancestors.Add(
+                    new EvidenceLineageNode
+                    {
+                        Artifact = artifact,
+                        Depth = current.Depth + 1
+                    });
+
+                pending.Enqueue(
+                    (sourceId, current.Depth + 1));
             }
         }
 

@@ -42,7 +42,7 @@ public sealed class EvidenceLineageServiceTests
             await service.GetGeneratedFromAncestorsAsync(generated.Id);
 
         var ancestor = Assert.Single(result);
-        Assert.Equal(source.Id, ancestor.Id);
+        Assert.Equal(source.Id, ancestor.Artifact.Id);
     }
     [Fact]
     public async Task GetGeneratedFromAncestorsAsync_ReturnsRecursiveAncestors()
@@ -95,8 +95,21 @@ public sealed class EvidenceLineageServiceTests
             await service.GetGeneratedFromAncestorsAsync(generated.Id);
 
         Assert.Equal(2, result.Count);
-        Assert.Contains(result, artifact => artifact.Id == intermediate.Id);
-        Assert.Contains(result, artifact => artifact.Id == source.Id);
+
+        var intermediateNode =
+            Assert.Single(
+                result.Where(
+                    node =>
+                        node.Artifact.Id == intermediate.Id));
+
+        var sourceNode =
+            Assert.Single(
+                result.Where(
+                    node =>
+                        node.Artifact.Id == source.Id));
+
+        Assert.Equal(1, intermediateNode.Depth);
+        Assert.Equal(2, sourceNode.Depth);
     }
 
     [Fact]
@@ -142,7 +155,7 @@ public sealed class EvidenceLineageServiceTests
             await service.GetGeneratedFromAncestorsAsync(first.Id);
 
         var ancestor = Assert.Single(result);
-        Assert.Equal(second.Id, ancestor.Id);
+        Assert.Equal(second.Id, ancestor.Artifact.Id);
     }
 
     [Fact]
@@ -196,8 +209,8 @@ public sealed class EvidenceLineageServiceTests
             await service.GetGeneratedFromAncestorsAsync(generated.Id);
 
         Assert.Equal(2, result.Count);
-        Assert.Contains(result, artifact => artifact.Id == firstSource.Id);
-        Assert.Contains(result, artifact => artifact.Id == secondSource.Id);
+        Assert.Contains(result, node => node.Artifact.Id == firstSource.Id);
+        Assert.Contains(result, node => node.Artifact.Id == secondSource.Id);
     }
 
     [Fact]
@@ -251,7 +264,7 @@ public sealed class EvidenceLineageServiceTests
             await service.GetGeneratedFromAncestorsAsync(generated.Id);
 
         var ancestor = Assert.Single(result);
-        Assert.Equal(source.Id, ancestor.Id);
+        Assert.Equal(source.Id, ancestor.Artifact.Id);
     }
 
     [Fact]

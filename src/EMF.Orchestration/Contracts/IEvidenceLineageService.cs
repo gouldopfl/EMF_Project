@@ -1,11 +1,11 @@
-using EMF.Core.Models;
+using EMF.Orchestration.Models;
 using EMF.Core.Models.Identities;
 
 namespace EMF.Orchestration.Contracts;
 
 public interface IEvidenceLineageService
 {
-    Task<IReadOnlyList<Artifact>>
+    Task<IReadOnlyList<EvidenceLineageNode>>
         GetGeneratedFromAncestorsAsync(
             ArtifactId artifactId,
             CancellationToken cancellationToken = default);
