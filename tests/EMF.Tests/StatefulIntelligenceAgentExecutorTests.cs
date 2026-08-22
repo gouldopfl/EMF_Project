@@ -2,12 +2,30 @@ using EMF.Intelligence.Agents;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
 using EMF.Intelligence.State;
+using EMF.Security.Auditing;
+using EMF.Security.Auditing.Models;
 using EMF.Security.Models.Identities;
 
 namespace EMF.Tests;
 
 public sealed class StatefulIntelligenceAgentExecutorTests
 {
+    [Fact]
+    public void Constructor_RequiresAuditSink()
+    {
+        var constructor =
+            typeof(StatefulIntelligenceAgentExecutor<string,string>)
+                .GetConstructors()
+                .Single();
+
+        var parameters = constructor.GetParameters();
+
+        Assert.Equal(3, parameters.Length);
+        Assert.Equal(
+            typeof(EMF.Security.Auditing.ISecurityAuditSink),
+            parameters[2].ParameterType);
+    }
+
     [Fact]
     public async Task ExecuteAsync_RejectsIncompatibleStoredState()
     {
@@ -37,7 +55,8 @@ public sealed class StatefulIntelligenceAgentExecutorTests
                 string,
                 string>(
                 agent,
-                store);
+                store,
+                new RecordingAuditSink());
 
         var context =
             new IntelligenceExecutionContext(
@@ -100,7 +119,8 @@ public sealed class StatefulIntelligenceAgentExecutorTests
             }
         };
         var store = new RecordingStateStore(stored);
-        var executor = new StatefulIntelligenceAgentExecutor<string,string>(agent, store);
+        var audit = new RecordingAuditSink();
+        var executor = new StatefulIntelligenceAgentExecutor<string,string>(agent, store, audit);
         var context = new IntelligenceExecutionContext(
             "security-steward",
             new("operation-002"),
@@ -115,6 +135,12 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         Assert.Equal(7, store.LastSavedState.Revision);
         Assert.Equal(updated.Payload, store.LastSavedState.Payload);
         Assert.Equal(1, store.SaveCount);
+
+        var record = Assert.Single(audit.Records);
+        Assert.Equal(
+            EMF.Security.Auditing.Models.SecurityAuditOutcome.Succeeded,
+            record.Outcome);
+        Assert.Equal(id.Value, record.ResourceId);
     }
 
 
@@ -154,7 +180,7 @@ public sealed class StatefulIntelligenceAgentExecutorTests
             }
         };
         var store = new RecordingStateStore(stored);
-        var executor = new StatefulIntelligenceAgentExecutor<string,string>(agent, store);
+        var executor = new StatefulIntelligenceAgentExecutor<string,string>(agent, store, new RecordingAuditSink());
         var context = new IntelligenceExecutionContext(
             "security-steward",
             new("operation-003"),
@@ -205,7 +231,7 @@ public sealed class StatefulIntelligenceAgentExecutorTests
             }
         };
         var store = new RecordingStateStore(stored);
-        var executor = new StatefulIntelligenceAgentExecutor<string,string>(agent, store);
+        var executor = new StatefulIntelligenceAgentExecutor<string,string>(agent, store, new RecordingAuditSink());
         var context = new IntelligenceExecutionContext(
             "security-steward",
             new("operation-004"),
@@ -229,7 +255,8 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         var executor =
             new StatefulIntelligenceAgentExecutor<string,string>(
                 agent,
-                store);
+                store,
+                new RecordingAuditSink());
         var context = new IntelligenceExecutionContext(
             "security-steward",
             new("operation-005"),
@@ -288,7 +315,8 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         var executor =
             new StatefulIntelligenceAgentExecutor<string,string>(
                 agent,
-                store);
+                store,
+                new RecordingAuditSink());
         var context = new IntelligenceExecutionContext(
             "security-steward",
             new("operation-006"),
@@ -344,6 +372,21 @@ public sealed class StatefulIntelligenceAgentExecutorTests
                     "Agent should not execute.");
 
             return Task.FromResult(Result);
+        }
+    }
+
+
+    private sealed class RecordingAuditSink :
+        ISecurityAuditSink
+    {
+        public List<SecurityAuditRecord> Records { get; } = [];
+
+        public Task WriteAsync(
+            SecurityAuditRecord record,
+            CancellationToken cancellationToken = default)
+        {
+            Records.Add(record);
+            return Task.CompletedTask;
         }
     }
 

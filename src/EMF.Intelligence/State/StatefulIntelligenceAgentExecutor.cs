@@ -1,4 +1,6 @@
+using EMF.Intelligence.Agents;
 using EMF.Intelligence.Models;
+using EMF.Security.Auditing;
 
 namespace EMF.Intelligence.State;
 
@@ -16,17 +18,25 @@ public sealed class StatefulIntelligenceAgentExecutor<
     private readonly
         IIntelligenceAgentStateStore _stateStore;
 
+    private readonly
+        IntelligenceAgentAuditWriter _auditWriter;
+
     public StatefulIntelligenceAgentExecutor(
         IStatefulIntelligenceAgent<
             TObjective,
             TResult> agent,
-        IIntelligenceAgentStateStore stateStore)
+        IIntelligenceAgentStateStore stateStore,
+        ISecurityAuditSink auditSink)
     {
         ArgumentNullException.ThrowIfNull(agent);
         ArgumentNullException.ThrowIfNull(stateStore);
+        ArgumentNullException.ThrowIfNull(auditSink);
 
         _agent = agent;
         _stateStore = stateStore;
+        _auditWriter =
+            new IntelligenceAgentAuditWriter(
+                auditSink);
     }
 
     public async Task<
@@ -104,6 +114,13 @@ public sealed class StatefulIntelligenceAgentExecutor<
         await _stateStore.SaveAsync(
             stateToSave,
             cancellationToken);
+
+        await _auditWriter.WriteAsync(
+            _agent.Id,
+            context,
+            result.Result,
+            EMF.Security.Auditing.Models.SecurityAuditOutcome.Succeeded,
+            DateTimeOffset.UtcNow);
 
         return result;
     }
