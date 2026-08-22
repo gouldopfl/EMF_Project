@@ -74,23 +74,35 @@ public sealed class StatefulIntelligenceAgentExecutor<
             cancellationToken.ThrowIfCancellationRequested();
         }
 
-        var state =
-            await _stateStore.GetAsync(
-                _agent.Id,
-                stateId,
-                cancellationToken);
+        IntelligenceAgentState state;
 
-        if (state is null)
+        try
         {
-            throw new InvalidOperationException(
-                $"State '{stateId}' was not found " +
-                $"for agent '{_agent.Id.Value}'.");
-        }
+            state =
+                await _stateStore.GetAsync(
+                    _agent.Id,
+                    stateId,
+                    cancellationToken)
+                ?? throw new InvalidOperationException(
+                    $"State '{stateId}' was not found " +
+                    $"for agent '{_agent.Id.Value}'.");
 
-        IntelligenceAgentStateCompatibility
-            .EnsureSupported(
-                _agent,
-                state);
+            IntelligenceAgentStateCompatibility
+                .EnsureSupported(
+                    _agent,
+                    state);
+        }
+        catch (Exception)
+        {
+            await _auditWriter.WriteAsync<TResult>(
+                _agent.Id,
+                context,
+                null,
+                EMF.Security.Auditing.Models.SecurityAuditOutcome.Failed,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
 
         StatefulIntelligenceAgentResult<TResult> result;
 

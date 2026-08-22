@@ -50,13 +50,15 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         var store =
             new RecordingStateStore(state);
 
+        var audit = new RecordingAuditSink();
+
         var executor =
             new StatefulIntelligenceAgentExecutor<
                 string,
                 string>(
                 agent,
                 store,
-                new RecordingAuditSink());
+                audit);
 
         var context =
             new IntelligenceExecutionContext(
@@ -78,6 +80,12 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         Assert.False(agent.Executed);
         Assert.Equal(1, store.GetCount);
         Assert.Equal(0, store.SaveCount);
+
+        var record = Assert.Single(audit.Records);
+
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            record.Outcome);
     }
 
 
@@ -264,11 +272,13 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         var id = new AgentId("stateful-agent");
         var agent = new TestStatefulAgent(id, 2);
         var store = new RecordingStateStore(null);
+        var audit = new RecordingAuditSink();
+
         var executor =
             new StatefulIntelligenceAgentExecutor<string,string>(
                 agent,
                 store,
-                new RecordingAuditSink());
+                audit);
         var context = new IntelligenceExecutionContext(
             "security-steward",
             new("operation-005"),
@@ -285,6 +295,12 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         Assert.False(agent.Executed);
         Assert.Equal(1, store.GetCount);
         Assert.Equal(0, store.SaveCount);
+
+        var record = Assert.Single(audit.Records);
+
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            record.Outcome);
     }
 
 
