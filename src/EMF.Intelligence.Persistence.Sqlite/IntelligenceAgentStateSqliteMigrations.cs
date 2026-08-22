@@ -29,6 +29,13 @@ internal static class IntelligenceAgentStateSqliteMigrations
                     AgentId,
                     UpdatedUtc
                 );
+                """),
+            new IntelligenceAgentStateSqliteMigration(
+                2,
+                "AddIntelligenceAgentStateRevision",
+                """
+                ALTER TABLE IntelligenceAgentStates
+                ADD COLUMN Revision INTEGER NOT NULL DEFAULT 0;
                 """)
         };
 }

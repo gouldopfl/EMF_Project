@@ -42,6 +42,7 @@ public sealed class IntelligenceAgentStateSqliteTests
                         "state-agent"),
                 StateId = "session-001",
                 Version = 1,
+                Revision = 3,
                 Payload = """{"step":1}""",
                 UpdatedUtc =
                     new DateTimeOffset(
@@ -60,8 +61,55 @@ public sealed class IntelligenceAgentStateSqliteTests
             Assert.Equal(state.AgentId, loaded.AgentId);
             Assert.Equal(state.StateId, loaded.StateId);
             Assert.Equal(state.Version, loaded.Version);
+            Assert.Equal(state.Revision, loaded.Revision);
             Assert.Equal(state.Payload, loaded.Payload);
             Assert.Equal(state.UpdatedUtc, loaded.UpdatedUtc);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
+    [Fact]
+    public async Task SaveAsync_RejectsStaleRevision()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var store =
+                new SqliteIntelligenceAgentStateStore(databasePath);
+
+            await store.InitializeAsync();
+
+            var state = new EMF.Intelligence.State.IntelligenceAgentState
+            {
+                AgentId = new("state-agent"),
+                StateId = "session-stale",
+                Version = 1,
+                Revision = 1,
+                Payload = "{}",
+                UpdatedUtc = DateTimeOffset.UtcNow
+            };
+
+            await store.SaveAsync(state);
+
+            var updated = new EMF.Intelligence.State.IntelligenceAgentState
+            {
+                AgentId = state.AgentId,
+                StateId = state.StateId,
+                Version = state.Version,
+                Revision = 2,
+                Payload = """{"updated":true}""",
+                UpdatedUtc = DateTimeOffset.UtcNow
+            };
+
+            await store.SaveAsync(updated);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => store.SaveAsync(state));
         }
         finally
         {

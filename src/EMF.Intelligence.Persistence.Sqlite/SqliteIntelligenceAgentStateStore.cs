@@ -48,7 +48,7 @@ public sealed class SqliteIntelligenceAgentStateStore :
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT AgentId, StateId, Version, Payload, UpdatedUtc
+            SELECT AgentId, StateId, Version, Revision, Payload, UpdatedUtc
             FROM IntelligenceAgentStates
             WHERE AgentId = $agentId AND StateId = $stateId;
             """;
@@ -67,8 +67,9 @@ public sealed class SqliteIntelligenceAgentStateStore :
             AgentId = new AgentId(reader.GetString(0)),
             StateId = reader.GetString(1),
             Version = reader.GetInt32(2),
-            Payload = reader.GetString(3),
-            UpdatedUtc = DateTimeOffset.Parse(reader.GetString(4))
+            Revision = reader.GetInt32(3),
+            Payload = reader.GetString(4),
+            UpdatedUtc = DateTimeOffset.Parse(reader.GetString(5))
         };
     }
 
@@ -94,6 +95,7 @@ public sealed class SqliteIntelligenceAgentStateStore :
                 AgentId,
                 StateId,
                 Version,
+                Revision,
                 Payload,
                 UpdatedUtc
             )
@@ -101,24 +103,37 @@ public sealed class SqliteIntelligenceAgentStateStore :
                 $agentId,
                 $stateId,
                 $version,
+                $revision,
                 $payload,
                 $updatedUtc
             )
             ON CONFLICT (AgentId, StateId)
             DO UPDATE SET
                 Version = excluded.Version,
+                Revision = excluded.Revision,
                 Payload = excluded.Payload,
-                UpdatedUtc = excluded.UpdatedUtc;
+                UpdatedUtc = excluded.UpdatedUtc
+            WHERE excluded.Revision >
+                IntelligenceAgentStates.Revision;
             """;
 
         command.Parameters.AddWithValue("$agentId", state.AgentId.Value);
         command.Parameters.AddWithValue("$stateId", state.StateId);
         command.Parameters.AddWithValue("$version", state.Version);
+        command.Parameters.AddWithValue("$revision", state.Revision);
         command.Parameters.AddWithValue("$payload", state.Payload);
         command.Parameters.AddWithValue(
             "$updatedUtc",
             state.UpdatedUtc.ToString("O"));
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        var affected =
+            await command.ExecuteNonQueryAsync(
+                cancellationToken);
+
+        if (affected == 0)
+        {
+            throw new InvalidOperationException(
+                "Intelligence agent state revision conflict.");
+        }
     }
 }

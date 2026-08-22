@@ -10,6 +10,8 @@ public sealed class IntelligenceAgentState
 
     public required int Version { get; init; }
 
+    public int Revision { get; init; }
+
     public required string Payload { get; init; }
 
     public required DateTimeOffset UpdatedUtc { get; init; }
