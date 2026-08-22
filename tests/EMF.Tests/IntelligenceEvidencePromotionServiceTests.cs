@@ -225,4 +225,184 @@ public sealed class IntelligenceEvidencePromotionServiceTests
             await repository.GetArtifactAsync(artifact.Id));
     }
 
+    [Fact]
+    public async Task PromoteAsync_RejectsMissingSourceLineage()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service =
+            new IntelligenceEvidencePromotionService(repository);
+
+        var occurredUtc =
+            new DateTimeOffset(
+                2026, 8, 22, 12, 0, 0,
+                TimeSpan.Zero);
+
+        var correlationId =
+            new IntelligenceCorrelationId(
+                "operation-missing-lineage");
+
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId("generated-missing-lineage"),
+            Name = "Generated summary",
+            ArtifactType = "intelligence-output"
+        };
+
+        var result = new IntelligenceAgentResult<string>
+        {
+            Success = true,
+            Output = "Summary",
+            AgentId = new AgentId("summary-agent"),
+            CorrelationId = correlationId,
+            StartedUtc = occurredUtc,
+            CompletedUtc = occurredUtc.AddSeconds(1),
+            SourceArtifactIds = [],
+            CapabilityExecutions =
+            [
+                new IntelligenceExecutionMetadata
+                {
+                    CapabilityId =
+                        new IntelligenceCapabilityId("summarize"),
+                    ProviderId =
+                        new IntelligenceProviderId("development"),
+                    CorrelationId = correlationId,
+                    EngineName = "deterministic",
+                    StartedUtc = occurredUtc,
+                    CompletedUtc = occurredUtc.AddSeconds(1)
+                }
+            ]
+        };
+
+        await Assert.ThrowsAsync<
+            IntelligenceEvidencePromotionException>(
+            () => service.PromoteAsync(
+                new IntelligenceEvidencePromotionRequest<string>
+                {
+                    Artifact = artifact,
+                    IntelligenceResult = result,
+                    PromotedBy = "evidence-steward",
+                    PromotedUtc = occurredUtc.AddSeconds(2)
+                }));
+
+        Assert.Null(
+            await repository.GetArtifactAsync(artifact.Id));
+    }
+
+    [Fact]
+    public async Task PromoteAsync_RejectsMissingCapabilityMetadata()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service =
+            new IntelligenceEvidencePromotionService(repository);
+
+        var occurredUtc =
+            new DateTimeOffset(
+                2026, 8, 22, 12, 30, 0,
+                TimeSpan.Zero);
+
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId("generated-missing-capability"),
+            Name = "Generated summary",
+            ArtifactType = "intelligence-output"
+        };
+
+        var result = new IntelligenceAgentResult<string>
+        {
+            Success = true,
+            Output = "Summary",
+            AgentId = new AgentId("summary-agent"),
+            CorrelationId =
+                new IntelligenceCorrelationId(
+                    "operation-missing-capability"),
+            StartedUtc = occurredUtc,
+            CompletedUtc = occurredUtc.AddSeconds(1),
+            SourceArtifactIds =
+                [new ArtifactId("source-001")],
+            CapabilityExecutions = []
+        };
+
+        await Assert.ThrowsAsync<
+            IntelligenceEvidencePromotionException>(
+            () => service.PromoteAsync(
+                new IntelligenceEvidencePromotionRequest<string>
+                {
+                    Artifact = artifact,
+                    IntelligenceResult = result,
+                    PromotedBy = "evidence-steward",
+                    PromotedUtc = occurredUtc.AddSeconds(2)
+                }));
+
+        Assert.Null(
+            await repository.GetArtifactAsync(artifact.Id));
+    }
+
+    [Fact]
+    public async Task PromoteAsync_RejectsReviewBeforeCompletion()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var service =
+            new IntelligenceEvidencePromotionService(repository);
+
+        var occurredUtc =
+            new DateTimeOffset(
+                2026, 8, 22, 13, 0, 0,
+                TimeSpan.Zero);
+
+        var correlationId =
+            new IntelligenceCorrelationId(
+                "operation-review-before-completion");
+
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId(
+                "generated-review-before-completion"),
+            Name = "Generated summary",
+            ArtifactType = "intelligence-output"
+        };
+
+        var result = new IntelligenceAgentResult<string>
+        {
+            Success = true,
+            Output = "Summary",
+            AgentId = new AgentId("summary-agent"),
+            CorrelationId = correlationId,
+            StartedUtc = occurredUtc,
+            CompletedUtc = occurredUtc.AddSeconds(10),
+            RequiresReview = true,
+            SourceArtifactIds =
+                [new ArtifactId("source-review-time")],
+            CapabilityExecutions =
+            [
+                new IntelligenceExecutionMetadata
+                {
+                    CapabilityId =
+                        new IntelligenceCapabilityId("summarize"),
+                    ProviderId =
+                        new IntelligenceProviderId("development"),
+                    CorrelationId = correlationId,
+                    EngineName = "deterministic",
+                    StartedUtc = occurredUtc,
+                    CompletedUtc = occurredUtc.AddSeconds(5)
+                }
+            ]
+        };
+
+        await Assert.ThrowsAsync<
+            IntelligenceEvidencePromotionException>(
+            () => service.PromoteAsync(
+                new IntelligenceEvidencePromotionRequest<string>
+                {
+                    Artifact = artifact,
+                    IntelligenceResult = result,
+                    PromotedBy = "evidence-steward",
+                    PromotedUtc = occurredUtc.AddSeconds(12),
+                    ReviewedBy = "reviewer",
+                    ReviewedUtc = occurredUtc.AddSeconds(5)
+                }));
+
+        Assert.Null(
+            await repository.GetArtifactAsync(artifact.Id));
+    }
+
 }
