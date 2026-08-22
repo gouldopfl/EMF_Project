@@ -180,7 +180,13 @@ public sealed class StatefulIntelligenceAgentExecutorTests
             }
         };
         var store = new RecordingStateStore(stored);
-        var executor = new StatefulIntelligenceAgentExecutor<string,string>(agent, store, new RecordingAuditSink());
+        var audit = new RecordingAuditSink();
+
+        var executor =
+            new StatefulIntelligenceAgentExecutor<string,string>(
+                agent,
+                store,
+                audit);
         var context = new IntelligenceExecutionContext(
             "security-steward",
             new("operation-003"),
@@ -192,6 +198,12 @@ public sealed class StatefulIntelligenceAgentExecutorTests
             () => executor.ExecuteAsync("objective", context, "state-003"));
 
         Assert.Equal(0, store.SaveCount);
+
+        var record = Assert.Single(audit.Records);
+
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            record.Outcome);
     }
 
 

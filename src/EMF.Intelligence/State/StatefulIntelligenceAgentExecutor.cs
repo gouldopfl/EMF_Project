@@ -126,18 +126,32 @@ public sealed class StatefulIntelligenceAgentExecutor<
             throw;
         }
 
-        if (result.State.AgentId != _agent.Id ||
-            result.State.StateId != stateId)
+        try
         {
-            throw new InvalidOperationException(
-                "Stateful agent returned state for " +
-                "a different agent or state ID.");
-        }
+            if (result.State.AgentId != _agent.Id ||
+                result.State.StateId != stateId)
+            {
+                throw new InvalidOperationException(
+                    "Stateful agent returned state for " +
+                    "a different agent or state ID.");
+            }
 
-        IntelligenceAgentStateCompatibility
-            .EnsureSupported(
-                _agent,
-                result.State);
+            IntelligenceAgentStateCompatibility
+                .EnsureSupported(
+                    _agent,
+                    result.State);
+        }
+        catch (Exception)
+        {
+            await _auditWriter.WriteAsync(
+                _agent.Id,
+                context,
+                result.Result,
+                EMF.Security.Auditing.Models.SecurityAuditOutcome.Failed,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
 
         var stateToSave =
             new IntelligenceAgentState
