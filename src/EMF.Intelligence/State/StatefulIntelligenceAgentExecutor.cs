@@ -80,12 +80,28 @@ public sealed class StatefulIntelligenceAgentExecutor<
                 _agent,
                 state);
 
-        var result =
-            await _agent.ExecuteAsync(
-                objective,
+        StatefulIntelligenceAgentResult<TResult> result;
+
+        try
+        {
+            result =
+                await _agent.ExecuteAsync(
+                    objective,
+                    context,
+                    state,
+                    cancellationToken);
+        }
+        catch (Exception)
+        {
+            await _auditWriter.WriteAsync<TResult>(
+                _agent.Id,
                 context,
-                state,
-                cancellationToken);
+                null,
+                EMF.Security.Auditing.Models.SecurityAuditOutcome.Failed,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
 
         if (result.State.AgentId != _agent.Id ||
             result.State.StateId != stateId)

@@ -451,6 +451,63 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         Assert.Empty(audit.Records);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_AuditsAgentFailure()
+    {
+        var id = new AgentId("stateful-agent");
+        var stored = new IntelligenceAgentState
+        {
+            AgentId = id,
+            StateId = "state-009",
+            Version = 2,
+            Revision = 1,
+            Payload = "{}",
+            UpdatedUtc = DateTimeOffset.UtcNow
+        };
+
+        var failure =
+            new InvalidOperationException("agent failed");
+
+        var agent = new TestStatefulAgent(id, 2)
+        {
+            Failure = failure
+        };
+
+        var store = new RecordingStateStore(stored);
+        var audit = new RecordingAuditSink();
+
+        var executor =
+            new StatefulIntelligenceAgentExecutor<string,string>(
+                agent,
+                store,
+                audit);
+
+        var context = new IntelligenceExecutionContext(
+            "security-steward",
+            new("operation-009"),
+            new("confidential"),
+            [],
+            id);
+
+        var thrown =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => executor.ExecuteAsync(
+                    "objective",
+                    context,
+                    "state-009"));
+
+        Assert.Same(failure, thrown);
+
+        var record = Assert.Single(audit.Records);
+
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            record.Outcome);
+
+        Assert.Equal(0, store.SaveCount);
+    }
+
     private sealed class TestStatefulAgent :
         IStatefulIntelligenceAgent<string, string>
     {
@@ -473,6 +530,8 @@ public sealed class StatefulIntelligenceAgentExecutorTests
 
         public StatefulIntelligenceAgentResult<string>? Result { get; set; }
 
+        public Exception? Failure { get; set; }
+
         public Task<
             StatefulIntelligenceAgentResult<string>>
             ExecuteAsync(
@@ -484,6 +543,11 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         {
             Executed = true;
             LastState = state;
+
+            if (Failure is not null)
+                return Task.FromException<
+                    StatefulIntelligenceAgentResult<string>>(
+                    Failure);
 
             if (Result is null)
                 throw new InvalidOperationException(
