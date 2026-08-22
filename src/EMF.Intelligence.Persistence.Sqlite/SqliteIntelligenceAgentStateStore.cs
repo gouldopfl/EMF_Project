@@ -103,17 +103,18 @@ public sealed class SqliteIntelligenceAgentStateStore :
                 $agentId,
                 $stateId,
                 $version,
-                $revision,
+                1,
                 $payload,
                 $updatedUtc
             )
             ON CONFLICT (AgentId, StateId)
             DO UPDATE SET
                 Version = excluded.Version,
-                Revision = excluded.Revision,
+                Revision =
+                    IntelligenceAgentStates.Revision + 1,
                 Payload = excluded.Payload,
                 UpdatedUtc = excluded.UpdatedUtc
-            WHERE excluded.Revision >
+            WHERE $revision =
                 IntelligenceAgentStates.Revision;
             """;
 

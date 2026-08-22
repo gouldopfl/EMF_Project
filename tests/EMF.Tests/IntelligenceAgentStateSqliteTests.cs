@@ -42,7 +42,7 @@ public sealed class IntelligenceAgentStateSqliteTests
                         "state-agent"),
                 StateId = "session-001",
                 Version = 1,
-                Revision = 3,
+                Revision = 0,
                 Payload = """{"step":1}""",
                 UpdatedUtc =
                     new DateTimeOffset(
@@ -61,7 +61,7 @@ public sealed class IntelligenceAgentStateSqliteTests
             Assert.Equal(state.AgentId, loaded.AgentId);
             Assert.Equal(state.StateId, loaded.StateId);
             Assert.Equal(state.Version, loaded.Version);
-            Assert.Equal(state.Revision, loaded.Revision);
+            Assert.Equal(1, loaded.Revision);
             Assert.Equal(state.Payload, loaded.Payload);
             Assert.Equal(state.UpdatedUtc, loaded.UpdatedUtc);
         }
@@ -101,7 +101,7 @@ public sealed class IntelligenceAgentStateSqliteTests
                 AgentId = state.AgentId,
                 StateId = state.StateId,
                 Version = state.Version,
-                Revision = 2,
+                Revision = 1,
                 Payload = """{"updated":true}""",
                 UpdatedUtc = DateTimeOffset.UtcNow
             };
