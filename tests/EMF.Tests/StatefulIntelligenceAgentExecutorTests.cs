@@ -71,6 +71,7 @@ public sealed class StatefulIntelligenceAgentExecutorTests
             AgentId = id,
             StateId = "state-002",
             Version = 2,
+            Revision = 7,
             Payload = "{}",
             UpdatedUtc = DateTimeOffset.UtcNow
         };
@@ -110,7 +111,9 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         await executor.ExecuteAsync("objective", context, "state-002");
 
         Assert.Same(stored, agent.LastState);
-        Assert.Same(updated, store.LastSavedState);
+        Assert.NotNull(store.LastSavedState);
+        Assert.Equal(7, store.LastSavedState.Revision);
+        Assert.Equal(updated.Payload, store.LastSavedState.Payload);
         Assert.Equal(1, store.SaveCount);
     }
 

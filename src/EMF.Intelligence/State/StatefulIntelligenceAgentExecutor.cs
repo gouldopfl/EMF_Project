@@ -90,8 +90,19 @@ public sealed class StatefulIntelligenceAgentExecutor<
                 _agent,
                 result.State);
 
+        var stateToSave =
+            new IntelligenceAgentState
+            {
+                AgentId = result.State.AgentId,
+                StateId = result.State.StateId,
+                Version = result.State.Version,
+                Revision = state.Revision,
+                Payload = result.State.Payload,
+                UpdatedUtc = result.State.UpdatedUtc
+            };
+
         await _stateStore.SaveAsync(
-            result.State,
+            stateToSave,
             cancellationToken);
 
         return result;
