@@ -83,11 +83,14 @@ public sealed class SqliteArtifactDiscoveryProviderTests
 
             var inventory =
                 Assert.IsType<
-                    EMF.Inventory.Models.DatabaseInventory>(
-                    result.Metadata["databaseInventory"]);
+                    EMF.Inventory.Models.DatabaseStructure>(
+                    result.Metadata["databaseStructure"]);
+
+            var schema =
+                Assert.Single(inventory.Schemas);
 
             var table =
-                Assert.Single(inventory.Tables);
+                Assert.Single(schema.Tables);
 
             Assert.Equal(
                 "evidence",
@@ -98,8 +101,9 @@ public sealed class SqliteArtifactDiscoveryProviderTests
                 table.RowCount);
 
             Assert.Contains(
-                "id",
-                table.PrimaryKeys);
+                table.Columns,
+                column => column.Name == "id" &&
+                          column.IsPrimaryKey);
         }
         finally
         {

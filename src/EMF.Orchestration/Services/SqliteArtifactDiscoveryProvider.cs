@@ -10,7 +10,7 @@ public sealed class SqliteArtifactDiscoveryProvider :
     IArtifactDiscoveryProvider
 {
     private readonly IArtifactContentStore _contentStore;
-    private readonly SqliteInventoryProvider _inventoryProvider;
+    private readonly SqliteDatabaseStructureProvider _structureProvider;
 
     public SqliteArtifactDiscoveryProvider(
         IArtifactContentStore contentStore)
@@ -18,7 +18,7 @@ public sealed class SqliteArtifactDiscoveryProvider :
         ArgumentNullException.ThrowIfNull(contentStore);
 
         _contentStore = contentStore;
-        _inventoryProvider = new SqliteInventoryProvider();
+        _structureProvider = new SqliteDatabaseStructureProvider();
     }
 
     public bool CanDiscover(string contentType) =>
@@ -51,8 +51,8 @@ public sealed class SqliteArtifactDiscoveryProvider :
                 content,
                 cancellationToken);
 
-            var inventory =
-                await _inventoryProvider.CreateInventoryAsync(
+            var structure =
+                await _structureProvider.DiscoverAsync(
                     path,
                     cancellationToken);
 
@@ -63,7 +63,7 @@ public sealed class SqliteArtifactDiscoveryProvider :
                 Confidence = 1.0,
                 Metadata = new Dictionary<string, object>
                 {
-                    ["databaseInventory"] = inventory
+                    ["databaseStructure"] = structure
                 }
             };
         }
