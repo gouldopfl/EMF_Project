@@ -6,7 +6,8 @@ using EMF.Core.Models.Identities;
 namespace EMF.Orchestration.Services;
 
 public sealed class Utf8ArtifactTextExtractor :
-    IArtifactTextExtractor
+    IArtifactTextExtractor,
+    IArtifactTextExtractionProvider
 {
     private readonly IArtifactContentStore _contentStore;
 
@@ -16,6 +17,12 @@ public sealed class Utf8ArtifactTextExtractor :
         ArgumentNullException.ThrowIfNull(contentStore);
         _contentStore = contentStore;
     }
+
+    public bool CanExtract(string contentType) =>
+        string.Equals(
+            contentType,
+            "text/plain",
+            StringComparison.OrdinalIgnoreCase);
 
     public async Task<string?> ExtractTextAsync(
         ArtifactId artifactId,
