@@ -190,9 +190,16 @@ public sealed class WorkflowRunner : IWorkflowRunner
 
             try
             {
+                var activityContext =
+                    new WorkflowExecutionContext
+                    {
+                        WorkflowId = context.WorkflowId,
+                        OperationId = operation.OperationId
+                    };
+
                 result =
                     await ExecuteWithClaimHeartbeatAsync(
-                        context,
+                        activityContext,
                         activity,
                         claimId,
                         cancellationToken);

@@ -519,16 +519,30 @@ public sealed class WorkflowRunnerTests
             WorkflowId = workflowId
         };
 
-        var activities = new[]
+        var activity =
+            new ContextRecordingActivity("First");
+
+        var activities = new IWorkflowActivity[]
         {
-            new FakeActivity("First", executionOrder)
+            activity
         };
 
-        await runner.ExecuteAsync(context, activities);
+        await runner.ExecuteAsync(
+            context,
+            activities,
+            retryActivityId: "First",
+            retryOperationId: new OperationId("operation-001"));
 
+        Assert.NotNull(activity.LastContext);
         Assert.Equal(
-            new[] { "First" },
-            executionOrder);
+            new OperationId("operation-001"),
+            activity.LastContext.OperationId);
+
+        Assert.Contains(
+            workflowService.Operations,
+            operation =>
+                operation.ActivityId == "First" &&
+                operation.Status == "Completed");
 
         Assert.Contains(
             workflowService.Operations,
@@ -745,6 +759,60 @@ public sealed class WorkflowRunnerTests
                 {
                     Succeeded = _succeeded,
                     Message = "Completed",
+                    CompletedUtc = DateTimeOffset.UtcNow
+                });
+        }
+    }
+
+
+    [Fact]
+    public async Task ExecuteAsync_passes_operation_id_to_activity()
+    {
+        var service = new FakeWorkflowService();
+        var runner = new WorkflowRunner(service);
+        var activity = new ContextRecordingActivity();
+
+        var context = new WorkflowExecutionContext
+        {
+            WorkflowId = new("workflow-operation-context")
+        };
+
+        await runner.ExecuteAsync(context, [activity]);
+
+        var operation = Assert.Single(service.Operations);
+
+        Assert.NotNull(activity.LastContext);
+        Assert.Equal(
+            operation.OperationId,
+            activity.LastContext.OperationId);
+    }
+
+    private sealed class ContextRecordingActivity :
+        IWorkflowActivity
+    {
+        public ContextRecordingActivity(
+            string id = "ContextRecording")
+        {
+            Id = id;
+        }
+
+        public string Id { get; }
+
+        public string Name => Id;
+
+        public WorkflowExecutionContext? LastContext
+        { get; private set; }
+
+        public Task<WorkflowActivityResult> ExecuteAsync(
+            WorkflowExecutionContext context,
+            CancellationToken cancellationToken = default)
+        {
+            LastContext = context;
+
+            return Task.FromResult(
+                new WorkflowActivityResult
+                {
+                    Succeeded = true,
                     CompletedUtc = DateTimeOffset.UtcNow
                 });
         }
