@@ -390,6 +390,67 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         Assert.Empty(audit.Records);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_DoesNotHideAuditFailure()
+    {
+        var id = new AgentId("stateful-agent");
+        var stored = new IntelligenceAgentState
+        {
+            AgentId = id,
+            StateId = "state-008",
+            Version = 2,
+            Revision = 1,
+            Payload = "{}",
+            UpdatedUtc = DateTimeOffset.UtcNow
+        };
+        var agent = new TestStatefulAgent(id, 2)
+        {
+            Result = new StatefulIntelligenceAgentResult<string>
+            {
+                Result = new IntelligenceAgentResult<string>
+                {
+                    Success = true,
+                    Output = "done",
+                    AgentId = id,
+                    CorrelationId = new("operation-008"),
+                    StartedUtc = DateTimeOffset.UtcNow,
+                    CompletedUtc = DateTimeOffset.UtcNow
+                },
+                State = stored
+            }
+        };
+        var store = new RecordingStateStore(stored);
+        var auditFailure =
+            new InvalidOperationException("audit failed");
+        var audit = new RecordingAuditSink
+        {
+            Failure = auditFailure
+        };
+        var executor =
+            new StatefulIntelligenceAgentExecutor<string,string>(
+                agent,
+                store,
+                audit);
+        var context = new IntelligenceExecutionContext(
+            "security-steward",
+            new("operation-008"),
+            new("confidential"),
+            [],
+            id);
+
+        var thrown =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => executor.ExecuteAsync(
+                    "objective",
+                    context,
+                    "state-008"));
+
+        Assert.Same(auditFailure, thrown);
+        Assert.Equal(1, store.SaveCount);
+        Assert.Empty(audit.Records);
+    }
+
     private sealed class TestStatefulAgent :
         IStatefulIntelligenceAgent<string, string>
     {
@@ -438,10 +499,15 @@ public sealed class StatefulIntelligenceAgentExecutorTests
     {
         public List<SecurityAuditRecord> Records { get; } = [];
 
+        public Exception? Failure { get; set; }
+
         public Task WriteAsync(
             SecurityAuditRecord record,
             CancellationToken cancellationToken = default)
         {
+            if (Failure is not null)
+                return Task.FromException(Failure);
+
             Records.Add(record);
             return Task.CompletedTask;
         }
