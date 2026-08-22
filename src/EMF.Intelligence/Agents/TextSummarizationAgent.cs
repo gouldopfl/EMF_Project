@@ -61,6 +61,12 @@ public sealed class TextSummarizationAgent :
                 context,
                 cancellationToken);
 
+        var sourceArtifactIds =
+            context.InputArtifactIds.ToHashSet();
+
+        sourceArtifactIds.UnionWith(
+            capabilityResult.SourceArtifactIds);
+
         return new IntelligenceAgentResult<string>
         {
             Success = capabilityResult.Success,
@@ -75,8 +81,7 @@ public sealed class TextSummarizationAgent :
             CapabilityExecutions =
                 [capabilityResult.Metadata],
             SourceArtifactIds =
-                capabilityResult.SourceArtifactIds
-                    .ToArray(),
+                sourceArtifactIds.ToArray(),
             Warnings =
                 capabilityResult.Warnings.ToArray(),
             RequiresReview =

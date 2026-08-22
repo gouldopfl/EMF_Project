@@ -106,6 +106,82 @@ public sealed class TextSummarizationAgentTests
             capabilityExecutor.Context);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_PreservesContextInputArtifactsAsSources()
+    {
+        var contextArtifact =
+            new ArtifactId("artifact-context-001");
+
+        var capabilityArtifact =
+            new ArtifactId("artifact-capability-001");
+
+        var metadata =
+            new IntelligenceExecutionMetadata
+            {
+                CapabilityId =
+                    IntelligenceCapabilityIds
+                        .TextSummarization,
+                ProviderId =
+                    new IntelligenceProviderId(
+                        "development.local"),
+                CorrelationId =
+                    new IntelligenceCorrelationId(
+                        "operation-provenance-001"),
+                EngineName =
+                    "deterministic-extractive",
+                StartedUtc =
+                    DateTimeOffset.UtcNow,
+                CompletedUtc =
+                    DateTimeOffset.UtcNow
+            };
+
+        var capabilityResult =
+            new IntelligenceCapabilityResult<string>
+            {
+                Success = true,
+                Output = "summary",
+                Metadata = metadata,
+                SourceArtifactIds =
+                    [capabilityArtifact]
+            };
+
+        var agent =
+            new TextSummarizationAgent(
+                new RecordingCapabilityExecutor(
+                    capabilityResult));
+
+        var context =
+            new IntelligenceExecutionContext(
+                "security-steward",
+                new IntelligenceCorrelationId(
+                    "operation-provenance-001"),
+                new ProtectionClassificationId(
+                    "confidential"),
+                [contextArtifact],
+                agent.Id);
+
+        var result =
+            await agent.ExecuteAsync(
+                new TextSummarizationRequest(
+                    "Source document.",
+                    100),
+                context);
+
+        Assert.Equal(
+            2,
+            result.SourceArtifactIds.Count);
+
+        Assert.Contains(
+            contextArtifact,
+            result.SourceArtifactIds);
+
+        Assert.Contains(
+            capabilityArtifact,
+            result.SourceArtifactIds);
+    }
+
+
     private sealed class RecordingCapabilityExecutor :
         IIntelligenceCapabilityExecutor<
             TextSummarizationRequest,
