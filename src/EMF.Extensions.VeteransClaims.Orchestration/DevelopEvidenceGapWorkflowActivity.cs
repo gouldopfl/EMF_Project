@@ -11,6 +11,7 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
     private readonly IEvidenceGapRepository _repository;
     private readonly IEvidenceRequirementGuidanceRepository _guidanceRepository;
     private readonly IEvidenceDevelopmentPlanRepository _developmentRepository;
+    private readonly IEvidenceRecognitionCoordinator _recognitionCoordinator;
     private readonly EvidenceGapId _evidenceGapId;
 
     public DevelopEvidenceGapWorkflowActivity(
@@ -18,14 +19,31 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
         IEvidenceRequirementGuidanceRepository guidanceRepository,
         IEvidenceDevelopmentPlanRepository developmentRepository,
         EvidenceGapId evidenceGapId)
+        : this(
+            repository,
+            guidanceRepository,
+            developmentRepository,
+            new EmptyEvidenceRecognitionCoordinator(),
+            evidenceGapId)
+    {
+    }
+
+    public DevelopEvidenceGapWorkflowActivity(
+        IEvidenceGapRepository repository,
+        IEvidenceRequirementGuidanceRepository guidanceRepository,
+        IEvidenceDevelopmentPlanRepository developmentRepository,
+        IEvidenceRecognitionCoordinator recognitionCoordinator,
+        EvidenceGapId evidenceGapId)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(guidanceRepository);
         ArgumentNullException.ThrowIfNull(developmentRepository);
+        ArgumentNullException.ThrowIfNull(recognitionCoordinator);
 
         _repository = repository;
         _guidanceRepository = guidanceRepository;
         _developmentRepository = developmentRepository;
+        _recognitionCoordinator = recognitionCoordinator;
         _evidenceGapId = evidenceGapId;
     }
 
@@ -58,12 +76,18 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
                     gap.RequirementId,
                     cancellationToken);
 
+        var recognitions =
+            await _recognitionCoordinator.RecognizeAsync(
+                gap.Id,
+                cancellationToken);
+
         var developmentResult =
             new EMF.Extensions.VeteransClaims.Models.Adjudication.EvidenceDevelopmentResult
             {
                 EvidenceGapId = gap.Id,
                 RequirementId = gap.RequirementId,
-                EvidenceGuidance = guidance
+                EvidenceGuidance = guidance,
+                RecognitionMatches = recognitions
             };
 
         await _developmentRepository

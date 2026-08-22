@@ -123,6 +123,76 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
 
 
 
+    [Fact]
+    public async Task ExecuteAsync_PersistsRecognitionMatches()
+    {
+        var gap = new EvidenceGap
+        {
+            Id = new EvidenceGapId("gap-recognition-1"),
+            ClaimIssueId = new ClaimIssueId("issue-recognition-1"),
+            RequirementId = new RequirementId("req-recognition-1"),
+            Description = "Missing evidence."
+        };
+
+        var recognition =
+            new EvidenceRecognitionMatch
+            {
+                TermId =
+                    new EvidenceRecognitionTermId("term-1"),
+                Term = "instability",
+                RecognitionRole =
+                    EvidenceRecognitionRoles.SeverityCriterion,
+                AuthoritySource = "38 CFR"
+            };
+
+        var development =
+            new FakeDevelopmentRepository();
+
+        var activity =
+            new DevelopEvidenceGapWorkflowActivity(
+                new FakeRepository(gap),
+                new FakeGuidanceRepository(),
+                development,
+                new FakeRecognitionCoordinator(recognition),
+                gap.Id);
+
+        await activity.ExecuteAsync(
+            new WorkflowExecutionContext
+            {
+                WorkflowId =
+                    new WorkflowId("workflow-recognition-1")
+            });
+
+        var stored =
+            Assert.Single(
+                development.Result!.RecognitionMatches);
+
+        Assert.Equal(recognition.TermId, stored.TermId);
+        Assert.Equal(recognition.Term, stored.Term);
+    }
+
+
+
+    private sealed class FakeRecognitionCoordinator :
+        IEvidenceRecognitionCoordinator
+    {
+        private readonly
+            IReadOnlyList<EvidenceRecognitionMatch> _matches;
+
+        public FakeRecognitionCoordinator(
+            params EvidenceRecognitionMatch[] matches)
+        {
+            _matches = matches;
+        }
+
+        public Task<IReadOnlyList<EvidenceRecognitionMatch>>
+            RecognizeAsync(
+                EvidenceGapId evidenceGapId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult(_matches);
+    }
+
+
     private sealed class FailingDevelopmentRepository :
         FakeDevelopmentRepository
     {

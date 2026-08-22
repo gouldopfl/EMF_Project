@@ -1,3 +1,4 @@
+using EMF.Core.Contracts;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Intelligence.Capabilities;
 using EMF.Intelligence.Contracts;
@@ -36,7 +37,42 @@ public static class VeteransEvidenceOrchestrationFactory
             developmentRepository,
             workflowRunner,
             gapRepository,
-            guidanceRepository);
+            guidanceRepository,
+            new EmptyEvidenceRecognitionCoordinator());
+    }
+
+
+    public static IEvidenceDevelopmentWorkflowCoordinator
+        CreateEvidenceDevelopmentWorkflowCoordinator(
+            IWorkflowService workflowService,
+            IEvidenceDevelopmentPlanRepository developmentRepository,
+            IWorkflowRunner workflowRunner,
+            IEvidenceGapRepository gapRepository,
+            IEvidenceRequirementGuidanceRepository guidanceRepository,
+            IArtifactTextExtractor textExtractor,
+            IEvidenceRecognitionTermRepository recognitionTermRepository)
+    {
+        ArgumentNullException.ThrowIfNull(workflowService);
+        ArgumentNullException.ThrowIfNull(developmentRepository);
+        ArgumentNullException.ThrowIfNull(workflowRunner);
+        ArgumentNullException.ThrowIfNull(gapRepository);
+        ArgumentNullException.ThrowIfNull(guidanceRepository);
+        ArgumentNullException.ThrowIfNull(textExtractor);
+        ArgumentNullException.ThrowIfNull(recognitionTermRepository);
+
+        var recognitionCoordinator =
+            new EvidenceRecognitionCoordinator(
+                gapRepository,
+                textExtractor,
+                recognitionTermRepository);
+
+        return new EvidenceDevelopmentWorkflowCoordinator(
+            workflowService,
+            developmentRepository,
+            workflowRunner,
+            gapRepository,
+            guidanceRepository,
+            recognitionCoordinator);
     }
 
     public static IEvidenceDevelopmentIntelligenceCoordinator

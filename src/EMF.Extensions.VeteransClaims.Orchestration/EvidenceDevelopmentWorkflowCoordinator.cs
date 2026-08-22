@@ -14,6 +14,7 @@ internal sealed class EvidenceDevelopmentWorkflowCoordinator :
     private readonly IWorkflowRunner _runner;
     private readonly IEvidenceGapRepository _gapRepository;
     private readonly IEvidenceRequirementGuidanceRepository _guidanceRepository;
+    private readonly IEvidenceRecognitionCoordinator _recognitionCoordinator;
 
     public EvidenceDevelopmentWorkflowCoordinator(
         IWorkflowService workflowService,
@@ -21,18 +22,37 @@ internal sealed class EvidenceDevelopmentWorkflowCoordinator :
         IWorkflowRunner runner,
         IEvidenceGapRepository gapRepository,
         IEvidenceRequirementGuidanceRepository guidanceRepository)
+        : this(
+            workflowService,
+            repository,
+            runner,
+            gapRepository,
+            guidanceRepository,
+            new EmptyEvidenceRecognitionCoordinator())
+    {
+    }
+
+    public EvidenceDevelopmentWorkflowCoordinator(
+        IWorkflowService workflowService,
+        IEvidenceDevelopmentPlanRepository repository,
+        IWorkflowRunner runner,
+        IEvidenceGapRepository gapRepository,
+        IEvidenceRequirementGuidanceRepository guidanceRepository,
+        IEvidenceRecognitionCoordinator recognitionCoordinator)
     {
         ArgumentNullException.ThrowIfNull(workflowService);
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(runner);
         ArgumentNullException.ThrowIfNull(gapRepository);
         ArgumentNullException.ThrowIfNull(guidanceRepository);
+        ArgumentNullException.ThrowIfNull(recognitionCoordinator);
 
         _workflowService = workflowService;
         _repository = repository;
         _runner = runner;
         _gapRepository = gapRepository;
         _guidanceRepository = guidanceRepository;
+        _recognitionCoordinator = recognitionCoordinator;
     }
 
     public async Task<EvidenceDevelopmentExecution>
@@ -81,6 +101,7 @@ internal sealed class EvidenceDevelopmentWorkflowCoordinator :
                     _gapRepository,
                     _guidanceRepository,
                     _repository,
+                    _recognitionCoordinator,
                     evidenceGapId)
             },
             cancellationToken: cancellationToken);
