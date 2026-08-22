@@ -591,6 +591,59 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         Assert.False(agent.Executed);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_AuditsUnsuccessfulResultAsFailed()
+    {
+        var id = new AgentId("stateful-agent");
+        var state = new IntelligenceAgentState
+        {
+            AgentId = id,
+            StateId = "state-012",
+            Version = 2,
+            Revision = 1,
+            Payload = "{}",
+            UpdatedUtc = DateTimeOffset.UtcNow
+        };
+        var agent = new TestStatefulAgent(id, 2)
+        {
+            Result = new StatefulIntelligenceAgentResult<string>
+            {
+                Result = new IntelligenceAgentResult<string>
+                {
+                    Success = false,
+                    AgentId = id,
+                    CorrelationId = new("operation-012"),
+                    StartedUtc = DateTimeOffset.UtcNow,
+                    CompletedUtc = DateTimeOffset.UtcNow
+                },
+                State = state
+            }
+        };
+        var audit = new RecordingAuditSink();
+        var executor =
+            new StatefulIntelligenceAgentExecutor<string,string>(
+                agent,
+                new RecordingStateStore(state),
+                audit);
+        var context = new IntelligenceExecutionContext(
+            "security-steward",
+            new("operation-012"),
+            new("confidential"),
+            [],
+            id);
+
+        await executor.ExecuteAsync(
+            "objective",
+            context,
+            "state-012");
+
+        var record = Assert.Single(audit.Records);
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            record.Outcome);
+    }
+
     private sealed class TestStatefulAgent :
         IStatefulIntelligenceAgent<string, string>
     {

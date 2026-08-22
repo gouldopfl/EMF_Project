@@ -158,7 +158,9 @@ public sealed class StatefulIntelligenceAgentExecutor<
             _agent.Id,
             context,
             result.Result,
-            EMF.Security.Auditing.Models.SecurityAuditOutcome.Succeeded,
+            result.Result.Success
+                ? EMF.Security.Auditing.Models.SecurityAuditOutcome.Succeeded
+                : EMF.Security.Auditing.Models.SecurityAuditOutcome.Failed,
             DateTimeOffset.UtcNow);
 
         return result;
