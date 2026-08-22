@@ -553,6 +553,44 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         Assert.Equal(0, store.SaveCount);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_AuditsPreCancelledExecution()
+    {
+        var id = new AgentId("stateful-agent");
+        var agent = new TestStatefulAgent(id, 2);
+        var store = new RecordingStateStore(null);
+        var audit = new RecordingAuditSink();
+        var executor =
+            new StatefulIntelligenceAgentExecutor<string,string>(
+                agent,
+                store,
+                audit);
+        var context = new IntelligenceExecutionContext(
+            "security-steward",
+            new("operation-011"),
+            new("confidential"),
+            [],
+            id);
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => executor.ExecuteAsync(
+                "objective",
+                context,
+                "state-011",
+                cancellation.Token));
+
+        var record = Assert.Single(audit.Records);
+        Assert.Equal(
+            SecurityAuditOutcome.Cancelled,
+            record.Outcome);
+        Assert.Equal(0, store.GetCount);
+        Assert.False(agent.Executed);
+    }
+
     private sealed class TestStatefulAgent :
         IStatefulIntelligenceAgent<string, string>
     {

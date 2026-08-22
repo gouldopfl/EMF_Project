@@ -62,6 +62,18 @@ public sealed class StatefulIntelligenceAgentExecutor<
                 nameof(context));
         }
 
+        if (cancellationToken.IsCancellationRequested)
+        {
+            await _auditWriter.WriteAsync<TResult>(
+                _agent.Id,
+                context,
+                null,
+                EMF.Security.Auditing.Models.SecurityAuditOutcome.Cancelled,
+                DateTimeOffset.UtcNow);
+
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
         var state =
             await _stateStore.GetAsync(
                 _agent.Id,
