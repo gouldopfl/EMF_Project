@@ -183,6 +183,16 @@ public sealed class IntelligenceAgentStateSqliteTests
 
             Assert.NotNull(loaded);
             Assert.Equal(0, loaded.Revision);
+
+            await store.SaveAsync(loaded);
+
+            var updated =
+                await store.GetAsync(
+                    loaded.AgentId,
+                    loaded.StateId);
+
+            Assert.NotNull(updated);
+            Assert.Equal(1, updated.Revision);
         }
         finally
         {
