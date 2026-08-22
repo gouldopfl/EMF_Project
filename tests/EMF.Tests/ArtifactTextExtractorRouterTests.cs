@@ -77,6 +77,49 @@ public sealed class ArtifactTextExtractorRouterTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RoutesPdfToPdfProvider()
+    {
+        var repository =
+            new InMemoryEvidenceRepository();
+
+        var artifact =
+            CreateArtifact(
+                "artifact-pdf-001",
+                ".pdf");
+
+        await repository.AddArtifactAsync(artifact);
+
+        var pdfPath =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.pdf");
+
+        var content =
+            await File.ReadAllBytesAsync(pdfPath);
+
+        var router =
+            new ArtifactTextExtractorRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [
+                    new PdfArtifactTextExtractionProvider(
+                        new StubContentStore(content))
+                ]);
+
+        var text =
+            await router.ExtractTextAsync(artifact.Id);
+
+        Assert.NotNull(text);
+        Assert.Contains(
+            "Veteran has chronic instability.",
+            text);
+        Assert.Contains(
+            "MRI confirms lumbar degenerative changes.",
+            text);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_ThrowsWhenKnownTypeUnsupported()
     {
         var repository =
@@ -113,6 +156,33 @@ public sealed class ArtifactTextExtractorRouterTests
                     extension
             }
         };
+
+    private sealed class StubContentStore :
+        EMF.Core.Contracts.Storage.IArtifactContentStore
+    {
+        private readonly byte[] _content;
+
+        public StubContentStore(byte[] content)
+        {
+            _content = content;
+        }
+
+        public Task<byte[]?> ReadAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<byte[]?>(_content);
+
+        public Task WriteAsync(
+            ArtifactId artifactId,
+            ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task DeleteAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
 
     private sealed class StubProvider :
         IArtifactTextExtractionProvider
