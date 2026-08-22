@@ -216,6 +216,35 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         Assert.Equal(0, store.SaveCount);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_RejectsMissingStoredState()
+    {
+        var id = new AgentId("stateful-agent");
+        var agent = new TestStatefulAgent(id, 2);
+        var store = new RecordingStateStore(null);
+        var executor =
+            new StatefulIntelligenceAgentExecutor<string,string>(
+                agent,
+                store);
+        var context = new IntelligenceExecutionContext(
+            "security-steward",
+            new("operation-005"),
+            new("confidential"),
+            [],
+            id);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(
+                "objective",
+                context,
+                "state-005"));
+
+        Assert.False(agent.Executed);
+        Assert.Equal(1, store.GetCount);
+        Assert.Equal(0, store.SaveCount);
+    }
+
     private sealed class TestStatefulAgent :
         IStatefulIntelligenceAgent<string, string>
     {
