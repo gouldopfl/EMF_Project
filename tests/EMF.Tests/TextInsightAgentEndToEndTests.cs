@@ -124,6 +124,11 @@ public sealed partial class
             result.CapabilityExecutions.Count);
 
         Assert.Equal(
+            new ArtifactId("artifact-001"),
+            Assert.Single(
+                result.SourceArtifactIds));
+
+        Assert.Equal(
             2,
             authorizationPolicy.Requests.Count);
 
