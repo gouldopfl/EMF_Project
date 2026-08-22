@@ -150,9 +150,23 @@ public sealed class StatefulIntelligenceAgentExecutor<
                 UpdatedUtc = result.State.UpdatedUtc
             };
 
-        await _stateStore.SaveAsync(
-            stateToSave,
-            cancellationToken);
+        try
+        {
+            await _stateStore.SaveAsync(
+                stateToSave,
+                cancellationToken);
+        }
+        catch
+        {
+            await _auditWriter.WriteAsync(
+                _agent.Id,
+                context,
+                result.Result,
+                EMF.Security.Auditing.Models.SecurityAuditOutcome.Failed,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
 
         await _auditWriter.WriteAsync(
             _agent.Id,

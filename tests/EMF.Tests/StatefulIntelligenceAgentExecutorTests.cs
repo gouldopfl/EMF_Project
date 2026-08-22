@@ -387,7 +387,11 @@ public sealed class StatefulIntelligenceAgentExecutorTests
                 context,
                 "state-007"));
 
-        Assert.Empty(audit.Records);
+        var record = Assert.Single(audit.Records);
+
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            record.Outcome);
     }
 
 
