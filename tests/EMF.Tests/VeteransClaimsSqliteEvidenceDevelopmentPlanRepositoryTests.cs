@@ -726,11 +726,43 @@ public sealed class VeteransClaimsSqliteEvidenceDevelopmentPlanRepositoryTests
                 databasePath)
                 .AddEvidenceRequirementGuidanceAsync(guidance);
 
+            var recognitionTerm =
+                new EvidenceRecognitionTerm
+                {
+                    Id =
+                        new EvidenceRecognitionTermId(
+                            "term-result-001"),
+                    RequirementId = requirement.Id,
+                    Term = "chronic",
+                    TermType =
+                        EvidenceRecognitionTermTypes.Keyword,
+                    RecognitionRole =
+                        EvidenceRecognitionRoles.SeverityCriterion,
+                    AuthoritySource = "38 CFR"
+                };
+
+            await new SqliteEvidenceRecognitionTermRepository(
+                databasePath)
+                .AddEvidenceRecognitionTermAsync(
+                    recognitionTerm);
+
             var result = new EvidenceDevelopmentResult
             {
                 EvidenceGapId = gap.Id,
                 RequirementId = requirement.Id,
-                EvidenceGuidance = new[] { guidance }
+                EvidenceGuidance = new[] { guidance },
+                RecognitionMatches =
+                [
+                    new EvidenceRecognitionMatch
+                    {
+                        TermId = recognitionTerm.Id,
+                        Term = recognitionTerm.Term,
+                        RecognitionRole =
+                            recognitionTerm.RecognitionRole,
+                        AuthoritySource =
+                            recognitionTerm.AuthoritySource
+                    }
+                ]
             };
 
             await repository
@@ -759,6 +791,26 @@ public sealed class VeteransClaimsSqliteEvidenceDevelopmentPlanRepositoryTests
             Assert.Equal(
                 guidance.Description,
                 storedGuidance.Description);
+
+            var storedRecognition =
+                Assert.Single(
+                    stored.RecognitionMatches);
+
+            Assert.Equal(
+                recognitionTerm.Id,
+                storedRecognition.TermId);
+
+            Assert.Equal(
+                recognitionTerm.Term,
+                storedRecognition.Term);
+
+            Assert.Equal(
+                recognitionTerm.RecognitionRole,
+                storedRecognition.RecognitionRole);
+
+            Assert.Equal(
+                recognitionTerm.AuthoritySource,
+                storedRecognition.AuthoritySource);
         }
         finally
         {

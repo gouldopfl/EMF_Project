@@ -18,5 +18,6 @@ public sealed class EvidenceDevelopmentResultTests
         Assert.Equal("gap-1", result.EvidenceGapId.Value);
         Assert.Equal("req-1", result.RequirementId.Value);
         Assert.Empty(result.EvidenceGuidance);
+        Assert.Empty(result.RecognitionMatches);
     }
 }

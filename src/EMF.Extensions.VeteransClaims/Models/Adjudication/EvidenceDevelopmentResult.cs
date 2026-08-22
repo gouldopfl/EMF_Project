@@ -10,4 +10,8 @@ public sealed class EvidenceDevelopmentResult
 
     public required IReadOnlyList<EvidenceRequirementGuidance>
         EvidenceGuidance { get; init; }
+
+    public IReadOnlyList<EvidenceRecognitionMatch>
+        RecognitionMatches { get; init; }
+            = Array.Empty<EvidenceRecognitionMatch>();
 }

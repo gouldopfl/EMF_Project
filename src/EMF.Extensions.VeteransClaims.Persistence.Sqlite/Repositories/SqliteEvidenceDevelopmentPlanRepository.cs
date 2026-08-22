@@ -638,6 +638,34 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
+        foreach (var recognition in result.RecognitionMatches)
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+
+            command.CommandText =
+                """
+                INSERT INTO VeteransClaims_EvidenceDevelopmentResultRecognitionMatches (
+                    EvidenceGapId,
+                    RecognitionTermId
+                )
+                VALUES (
+                    $evidenceGapId,
+                    $recognitionTermId
+                );
+                """;
+
+            command.Parameters.AddWithValue(
+                "$evidenceGapId",
+                result.EvidenceGapId.Value);
+
+            command.Parameters.AddWithValue(
+                "$recognitionTermId",
+                recognition.TermId.Value);
+
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
         await transaction.CommitAsync(cancellationToken);
     }
 
@@ -725,11 +753,56 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
             }
         }
 
+        var recognitions =
+            new List<EvidenceRecognitionMatch>();
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText =
+                """
+                SELECT
+                    t.Id,
+                    t.Term,
+                    t.RecognitionRole,
+                    t.AuthoritySource
+                FROM VeteransClaims_EvidenceDevelopmentResultRecognitionMatches rm
+                JOIN VeteransClaims_EvidenceRecognitionTerms t
+                  ON t.Id = rm.RecognitionTermId
+                WHERE rm.EvidenceGapId = $evidenceGapId
+                ORDER BY t.Id;
+                """;
+
+            command.Parameters.AddWithValue(
+                "$evidenceGapId",
+                evidenceGapId.Value);
+
+            await using var reader =
+                await command.ExecuteReaderAsync(cancellationToken);
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                recognitions.Add(
+                    new EvidenceRecognitionMatch
+                    {
+                        TermId =
+                            new EvidenceRecognitionTermId(
+                                reader.GetString(0)),
+                        Term =
+                            reader.GetString(1),
+                        RecognitionRole =
+                            reader.GetString(2),
+                        AuthoritySource =
+                            reader.GetString(3)
+                    });
+            }
+        }
+
         return new EvidenceDevelopmentResult
         {
             EvidenceGapId = evidenceGapId,
             RequirementId = requirementId.Value,
-            EvidenceGuidance = guidance
+            EvidenceGuidance = guidance,
+            RecognitionMatches = recognitions
         };
     }
 
