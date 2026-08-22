@@ -117,6 +117,79 @@ public sealed class IntelligenceAgentStateSqliteTests
         }
     }
 
+
+    [Fact]
+    public async Task InitializeAsync_UpgradesVersionOneStateSchema()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await using var connection =
+                new Microsoft.Data.Sqlite.SqliteConnection(
+                    $"Data Source={databasePath}");
+
+            await connection.OpenAsync();
+
+            await using var command =
+                connection.CreateCommand();
+
+            command.CommandText =
+                """
+                CREATE TABLE IntelligenceAgentState_SchemaMigrations (
+                    Version INTEGER PRIMARY KEY,
+                    Name TEXT NOT NULL,
+                    AppliedUtc TEXT NOT NULL
+                );
+
+                INSERT INTO IntelligenceAgentState_SchemaMigrations
+                VALUES (
+                    1,
+                    'InitialIntelligenceAgentStateSchema',
+                    '2026-08-21T20:00:00+00:00'
+                );
+
+                CREATE TABLE IntelligenceAgentStates (
+                    AgentId TEXT NOT NULL,
+                    StateId TEXT NOT NULL,
+                    Version INTEGER NOT NULL,
+                    Payload TEXT NOT NULL,
+                    UpdatedUtc TEXT NOT NULL,
+                    PRIMARY KEY (AgentId, StateId)
+                );
+
+                INSERT INTO IntelligenceAgentStates
+                VALUES (
+                    'state-agent',
+                    'session-old',
+                    1,
+                    '{}',
+                    '2026-08-21T20:00:00+00:00'
+                );
+                """;
+
+            await command.ExecuteNonQueryAsync();
+
+            var store =
+                new SqliteIntelligenceAgentStateStore(
+                    databasePath);
+
+            await store.InitializeAsync();
+
+            var loaded =
+                await store.GetAsync(
+                    new("state-agent"),
+                    "session-old");
+
+            Assert.NotNull(loaded);
+            Assert.Equal(0, loaded.Revision);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
     [Fact]
     public async Task InitializeAsync_RejectsUnsupportedSchemaVersion()
     {
