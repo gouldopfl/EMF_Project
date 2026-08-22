@@ -15,6 +15,9 @@ public sealed class DefaultArtifactContentTypeResolverTests
     [InlineData(".json", "application/json")]
     [InlineData(".csv", "text/csv")]
     [InlineData(".xml", "application/xml")]
+    [InlineData(".db", "application/x-sqlite3")]
+    [InlineData(".sqlite", "application/x-sqlite3")]
+    [InlineData(".sqlite3", "application/x-sqlite3")]
     public void ResolveContentType_MapsKnownExtensions(
         string extension,
         string expected)

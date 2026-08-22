@@ -29,6 +29,9 @@ public sealed class DefaultArtifactContentTypeResolver :
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ".xlsx" =>
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".db" => "application/x-sqlite3",
+            ".sqlite" => "application/x-sqlite3",
+            ".sqlite3" => "application/x-sqlite3",
             ".json" => "application/json",
             ".csv" => "text/csv",
             ".xml" => "application/xml",
