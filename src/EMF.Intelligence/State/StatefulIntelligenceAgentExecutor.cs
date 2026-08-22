@@ -56,6 +56,13 @@ public sealed class StatefulIntelligenceAgentExecutor<
         if (!context.AgentId.HasValue ||
             context.AgentId.Value != _agent.Id)
         {
+            await _auditWriter.WriteAsync<TResult>(
+                _agent.Id,
+                context,
+                null,
+                EMF.Security.Auditing.Models.SecurityAuditOutcome.Failed,
+                DateTimeOffset.UtcNow);
+
             throw new ArgumentException(
                 "Execution context Agent ID must " +
                 "match the stateful agent.",

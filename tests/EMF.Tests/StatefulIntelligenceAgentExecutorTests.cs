@@ -27,6 +27,45 @@ public sealed class StatefulIntelligenceAgentExecutorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_AuditsMismatchedContextAgentId()
+    {
+        var id = new AgentId("stateful-agent");
+        var agent = new TestStatefulAgent(id, 2);
+        var store = new RecordingStateStore(null);
+        var audit = new RecordingAuditSink();
+
+        var executor =
+            new StatefulIntelligenceAgentExecutor<string,string>(
+                agent,
+                store,
+                audit);
+
+        var context = new IntelligenceExecutionContext(
+            "security-steward",
+            new("operation-context-mismatch"),
+            new("confidential"),
+            [],
+            new AgentId("other-agent"));
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => executor.ExecuteAsync(
+                "objective",
+                context,
+                "state-context-mismatch"));
+
+        Assert.False(agent.Executed);
+        Assert.Equal(0, store.GetCount);
+        Assert.Equal(0, store.SaveCount);
+
+        var record = Assert.Single(audit.Records);
+
+        Assert.Equal(
+            SecurityAuditOutcome.Failed,
+            record.Outcome);
+    }
+
+
+    [Fact]
     public async Task ExecuteAsync_RejectsIncompatibleStoredState()
     {
         var agentId =
