@@ -14,4 +14,8 @@ public sealed class EvidenceDevelopmentResult
     public IReadOnlyList<EvidenceRecognitionMatch>
         RecognitionMatches { get; init; }
             = Array.Empty<EvidenceRecognitionMatch>();
+
+    public IReadOnlyList<EvidenceRecognitionMatchArtifact>
+        RecognitionMatchArtifacts { get; init; }
+            = Array.Empty<EvidenceRecognitionMatchArtifact>();
 }

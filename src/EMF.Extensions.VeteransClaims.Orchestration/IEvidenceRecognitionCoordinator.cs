@@ -5,7 +5,7 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 
 internal interface IEvidenceRecognitionCoordinator
 {
-    Task<IReadOnlyList<EvidenceRecognitionMatch>>
+    Task<EvidenceRecognitionResult>
         RecognizeAsync(
             EvidenceGapId evidenceGapId,
             CancellationToken cancellationToken = default);

@@ -19,5 +19,6 @@ public sealed class EvidenceDevelopmentResultTests
         Assert.Equal("req-1", result.RequirementId.Value);
         Assert.Empty(result.EvidenceGuidance);
         Assert.Empty(result.RecognitionMatches);
+        Assert.Empty(result.RecognitionMatchArtifacts);
     }
 }

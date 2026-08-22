@@ -1,15 +1,16 @@
-using EMF.Extensions.VeteransClaims.Models.Adjudication;
-using EMF.Extensions.VeteransClaims.Models.Identities;
-
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
 internal sealed class EmptyEvidenceRecognitionCoordinator :
     IEvidenceRecognitionCoordinator
 {
-    public Task<IReadOnlyList<EvidenceRecognitionMatch>>
+    public Task<EvidenceRecognitionResult>
         RecognizeAsync(
-            EvidenceGapId evidenceGapId,
+            Models.Identities.EvidenceGapId evidenceGapId,
             CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<EvidenceRecognitionMatch>>(
-            Array.Empty<EvidenceRecognitionMatch>());
+        Task.FromResult(
+            new EvidenceRecognitionResult
+            {
+                Matches = [],
+                MatchArtifacts = []
+            });
 }

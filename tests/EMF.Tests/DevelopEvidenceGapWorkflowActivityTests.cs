@@ -185,11 +185,16 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
             _matches = matches;
         }
 
-        public Task<IReadOnlyList<EvidenceRecognitionMatch>>
+        public Task<EvidenceRecognitionResult>
             RecognizeAsync(
                 EvidenceGapId evidenceGapId,
                 CancellationToken cancellationToken = default) =>
-            Task.FromResult(_matches);
+            Task.FromResult(
+                new EvidenceRecognitionResult
+                {
+                    Matches = _matches,
+                    MatchArtifacts = []
+                });
     }
 
 

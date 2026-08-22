@@ -26,7 +26,7 @@ internal sealed class EvidenceRecognitionCoordinator :
         _matcher = new EvidenceRecognitionMatcher(termRepository);
     }
 
-    public async Task<IReadOnlyList<EvidenceRecognitionMatch>>
+    public async Task<EvidenceRecognitionResult>
         RecognizeAsync(
             Models.Identities.EvidenceGapId evidenceGapId,
             CancellationToken cancellationToken = default)
@@ -48,6 +48,9 @@ internal sealed class EvidenceRecognitionCoordinator :
                 Models.Identities.EvidenceRecognitionTermId,
                 EvidenceRecognitionMatch>();
 
+        var matchArtifacts =
+            new List<EvidenceRecognitionMatchArtifact>();
+
         foreach (var artifact in artifacts)
         {
             var text =
@@ -65,11 +68,31 @@ internal sealed class EvidenceRecognitionCoordinator :
                     cancellationToken);
 
             foreach (var match in artifactMatches)
+            {
                 matches.TryAdd(match.TermId, match);
+
+                matchArtifacts.Add(
+                    new EvidenceRecognitionMatchArtifact
+                    {
+                        RecognitionTermId = match.TermId,
+                        ArtifactId = artifact.ArtifactId,
+                        Role = artifact.Role
+                    });
+            }
         }
 
-        return matches.Values
-            .OrderBy(match => match.TermId.Value)
-            .ToArray();
+        return new EvidenceRecognitionResult
+        {
+            Matches =
+                matches.Values
+                    .OrderBy(match => match.TermId.Value)
+                    .ToArray(),
+
+            MatchArtifacts =
+                matchArtifacts
+                    .OrderBy(link => link.RecognitionTermId.Value)
+                    .ThenBy(link => link.ArtifactId.Value)
+                    .ToArray()
+        };
     }
 }

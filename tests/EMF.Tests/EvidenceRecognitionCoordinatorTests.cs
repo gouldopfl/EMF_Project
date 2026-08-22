@@ -60,9 +60,16 @@ public sealed class EvidenceRecognitionCoordinatorTests
         var result =
             await coordinator.RecognizeAsync(gapId);
 
-        var match = Assert.Single(result);
+        var match = Assert.Single(result.Matches);
         Assert.Equal("term-001", match.TermId.Value);
         Assert.Equal("instability", match.Term);
+
+        var link =
+            Assert.Single(result.MatchArtifacts);
+
+        Assert.Equal(match.TermId, link.RecognitionTermId);
+        Assert.Equal("artifact-001", link.ArtifactId.Value);
+        Assert.Equal("primary", link.Role);
     }
 
     [Fact]
@@ -122,7 +129,7 @@ public sealed class EvidenceRecognitionCoordinatorTests
         var result =
             await coordinator.RecognizeAsync(gapId);
 
-        Assert.Single(result);
+        Assert.Single(result.Matches);
     }
 
 

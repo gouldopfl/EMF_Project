@@ -76,7 +76,7 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
                     gap.RequirementId,
                     cancellationToken);
 
-        var recognitions =
+        var recognition =
             await _recognitionCoordinator.RecognizeAsync(
                 gap.Id,
                 cancellationToken);
@@ -87,7 +87,9 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
                 EvidenceGapId = gap.Id,
                 RequirementId = gap.RequirementId,
                 EvidenceGuidance = guidance,
-                RecognitionMatches = recognitions
+                RecognitionMatches = recognition.Matches,
+                RecognitionMatchArtifacts =
+                    recognition.MatchArtifacts
             };
 
         await _developmentRepository
