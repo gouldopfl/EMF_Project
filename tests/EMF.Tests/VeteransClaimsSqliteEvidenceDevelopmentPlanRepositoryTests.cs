@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Claims;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -746,6 +747,21 @@ public sealed class VeteransClaimsSqliteEvidenceDevelopmentPlanRepositoryTests
                 .AddEvidenceRecognitionTermAsync(
                     recognitionTerm);
 
+            var recognitionArtifact =
+                new EvidenceGapArtifact
+                {
+                    EvidenceGapId = gap.Id,
+                    ArtifactId =
+                        new ArtifactId(
+                            "artifact-result-001"),
+                    Role = "primary"
+                };
+
+            await new SqliteEvidenceGapRepository(
+                databasePath)
+                .AddEvidenceGapArtifactAsync(
+                    recognitionArtifact);
+
             var result = new EvidenceDevelopmentResult
             {
                 EvidenceGapId = gap.Id,
@@ -761,6 +777,18 @@ public sealed class VeteransClaimsSqliteEvidenceDevelopmentPlanRepositoryTests
                             recognitionTerm.RecognitionRole,
                         AuthoritySource =
                             recognitionTerm.AuthoritySource
+                    }
+                ],
+                RecognitionMatchArtifacts =
+                [
+                    new EvidenceRecognitionMatchArtifact
+                    {
+                        RecognitionTermId =
+                            recognitionTerm.Id,
+                        ArtifactId =
+                            recognitionArtifact.ArtifactId,
+                        Role =
+                            recognitionArtifact.Role
                     }
                 ]
             };
@@ -811,6 +839,22 @@ public sealed class VeteransClaimsSqliteEvidenceDevelopmentPlanRepositoryTests
             Assert.Equal(
                 recognitionTerm.AuthoritySource,
                 storedRecognition.AuthoritySource);
+
+            var storedLink =
+                Assert.Single(
+                    stored.RecognitionMatchArtifacts);
+
+            Assert.Equal(
+                recognitionTerm.Id,
+                storedLink.RecognitionTermId);
+
+            Assert.Equal(
+                recognitionArtifact.ArtifactId,
+                storedLink.ArtifactId);
+
+            Assert.Equal(
+                recognitionArtifact.Role,
+                storedLink.Role);
         }
         finally
         {

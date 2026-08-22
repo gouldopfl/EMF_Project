@@ -666,6 +666,46 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
+        foreach (var link in result.RecognitionMatchArtifacts)
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+
+            command.CommandText =
+                """
+                INSERT INTO VeteransClaims_EvidenceDevelopmentResultRecognitionMatchArtifacts (
+                    EvidenceGapId,
+                    RecognitionTermId,
+                    ArtifactId,
+                    Role
+                )
+                VALUES (
+                    $evidenceGapId,
+                    $recognitionTermId,
+                    $artifactId,
+                    $role
+                );
+                """;
+
+            command.Parameters.AddWithValue(
+                "$evidenceGapId",
+                result.EvidenceGapId.Value);
+
+            command.Parameters.AddWithValue(
+                "$recognitionTermId",
+                link.RecognitionTermId.Value);
+
+            command.Parameters.AddWithValue(
+                "$artifactId",
+                link.ArtifactId.Value);
+
+            command.Parameters.AddWithValue(
+                "$role",
+                link.Role);
+
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
         await transaction.CommitAsync(cancellationToken);
     }
 
@@ -797,12 +837,54 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
             }
         }
 
+        var recognitionArtifacts =
+            new List<EvidenceRecognitionMatchArtifact>();
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText =
+                """
+                SELECT
+                    RecognitionTermId,
+                    ArtifactId,
+                    Role
+                FROM VeteransClaims_EvidenceDevelopmentResultRecognitionMatchArtifacts
+                WHERE EvidenceGapId = $evidenceGapId
+                ORDER BY RecognitionTermId, ArtifactId, Role;
+                """;
+
+            command.Parameters.AddWithValue(
+                "$evidenceGapId",
+                evidenceGapId.Value);
+
+            await using var reader =
+                await command.ExecuteReaderAsync(cancellationToken);
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                recognitionArtifacts.Add(
+                    new EvidenceRecognitionMatchArtifact
+                    {
+                        RecognitionTermId =
+                            new EvidenceRecognitionTermId(
+                                reader.GetString(0)),
+                        ArtifactId =
+                            new EMF.Core.Models.Identities.ArtifactId(
+                                reader.GetString(1)),
+                        Role =
+                            reader.GetString(2)
+                    });
+            }
+        }
+
         return new EvidenceDevelopmentResult
         {
             EvidenceGapId = evidenceGapId,
             RequirementId = requirementId.Value,
             EvidenceGuidance = guidance,
-            RecognitionMatches = recognitions
+            RecognitionMatches = recognitions,
+            RecognitionMatchArtifacts =
+                recognitionArtifacts
         };
     }
 
