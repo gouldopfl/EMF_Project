@@ -245,6 +245,63 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         Assert.Equal(0, store.SaveCount);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_RejectsReturnedStateWithUnsupportedVersion()
+    {
+        var id = new AgentId("stateful-agent");
+        var stored = new IntelligenceAgentState
+        {
+            AgentId = id,
+            StateId = "state-006",
+            Version = 2,
+            Payload = "{}",
+            UpdatedUtc = DateTimeOffset.UtcNow
+        };
+        var agent = new TestStatefulAgent(id, 2)
+        {
+            Result = new StatefulIntelligenceAgentResult<string>
+            {
+                Result = new IntelligenceAgentResult<string>
+                {
+                    Success = true,
+                    Output = "done",
+                    AgentId = id,
+                    CorrelationId = new("operation-006"),
+                    StartedUtc = DateTimeOffset.UtcNow,
+                    CompletedUtc = DateTimeOffset.UtcNow
+                },
+                State = new IntelligenceAgentState
+                {
+                    AgentId = id,
+                    StateId = "state-006",
+                    Version = 3,
+                    Payload = "{}",
+                    UpdatedUtc = DateTimeOffset.UtcNow
+                }
+            }
+        };
+        var store = new RecordingStateStore(stored);
+        var executor =
+            new StatefulIntelligenceAgentExecutor<string,string>(
+                agent,
+                store);
+        var context = new IntelligenceExecutionContext(
+            "security-steward",
+            new("operation-006"),
+            new("confidential"),
+            [],
+            id);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(
+                "objective",
+                context,
+                "state-006"));
+
+        Assert.Equal(0, store.SaveCount);
+    }
+
     private sealed class TestStatefulAgent :
         IStatefulIntelligenceAgent<string, string>
     {

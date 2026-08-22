@@ -85,6 +85,11 @@ public sealed class StatefulIntelligenceAgentExecutor<
                 "a different agent or state ID.");
         }
 
+        IntelligenceAgentStateCompatibility
+            .EnsureSupported(
+                _agent,
+                result.State);
+
         await _stateStore.SaveAsync(
             result.State,
             cancellationToken);
