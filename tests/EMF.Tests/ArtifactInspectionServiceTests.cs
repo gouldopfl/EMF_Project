@@ -253,4 +253,51 @@ public sealed class ArtifactInspectionServiceTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public async Task InspectAsync_RoutesEmlToEmlInspector()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-email-{Guid.NewGuid():N}.eml");
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                path,
+                """
+                From: sender@example.com
+                To: recipient@example.com
+                Subject: Evidence
+                Date: Sat, 22 Aug 2026 18:00:00 -0400
+
+                Evidence message.
+                """);
+
+            var service =
+                new ArtifactInspectionService(
+                    [],
+                    [new EmlContentInspector()]);
+
+            var result =
+                await service.InspectAsync(path);
+
+            Assert.Equal(
+                "message/rfc822",
+                result.DetectedContentType);
+
+            Assert.True(
+                (bool)result.Metadata["emailHasFrom"]);
+
+            Assert.True(
+                (bool)result.Metadata["emailHasTo"]);
+
+            Assert.True(
+                (bool)result.Metadata["emailHasSubject"]);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }

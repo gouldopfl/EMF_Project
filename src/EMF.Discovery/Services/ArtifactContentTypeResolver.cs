@@ -13,6 +13,7 @@ public sealed class ArtifactContentTypeResolver
             ".html" => "text/html",
             ".htm" => "text/html",
             ".txt" => "text/plain",
+            ".eml" => "message/rfc822",
             _ => null
         };
     }
