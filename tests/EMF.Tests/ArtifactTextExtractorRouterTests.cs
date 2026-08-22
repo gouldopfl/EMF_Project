@@ -120,6 +120,58 @@ public sealed class ArtifactTextExtractorRouterTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RoutesXlsxToXlsxProvider()
+    {
+        var repository =
+            new InMemoryEvidenceRepository();
+
+        var artifact =
+            CreateArtifact(
+                "artifact-xlsx-001",
+                ".xlsx");
+
+        await repository.AddArtifactAsync(artifact);
+
+        var xlsxPath =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.xlsx");
+
+        var content =
+            await File.ReadAllBytesAsync(xlsxPath);
+
+        var router =
+            new ArtifactTextExtractorRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [
+                    new XlsxArtifactTextExtractionProvider(
+                        new StubContentStore(content))
+                ]);
+
+        var text =
+            await router.ExtractTextAsync(artifact.Id);
+
+        Assert.NotNull(text);
+        Assert.Contains(
+            "[Worksheet: Evidence]",
+            text);
+        Assert.Contains(
+            "B1: MRI confirms lumbar changes.",
+            text);
+        Assert.Contains(
+            "C1: Shared string evidence value",
+            text);
+        Assert.Contains(
+            "[Worksheet: Medications]",
+            text);
+        Assert.Contains(
+            "B1: Pantoprazole",
+            text);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_ThrowsWhenKnownTypeUnsupported()
     {
         var repository =

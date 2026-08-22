@@ -27,6 +27,8 @@ public sealed class DefaultArtifactContentTypeResolver :
             ".pdf" => "application/pdf",
             ".docx" =>
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".xlsx" =>
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             ".json" => "application/json",
             ".csv" => "text/csv",
             ".xml" => "application/xml",
