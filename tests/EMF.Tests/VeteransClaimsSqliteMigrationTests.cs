@@ -636,6 +636,30 @@ public sealed class VeteransClaimsSqliteMigrationTests
                     reader.GetString(2),
                     out _));
 
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(45, reader.GetInt32(0));
+
+            Assert.Equal(
+                "AddEvidenceRecognitionTerms",
+                reader.GetString(1));
+
+            Assert.True(
+                DateTimeOffset.TryParse(
+                    reader.GetString(2),
+                    out _));
+
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(46, reader.GetInt32(0));
+
+            Assert.Equal(
+                "AddEvidenceDevelopmentResultRecognitionMatches",
+                reader.GetString(1));
+
+            Assert.True(
+                DateTimeOffset.TryParse(
+                    reader.GetString(2),
+                    out _));
+
             Assert.False(await reader.ReadAsync());
         }
         finally
