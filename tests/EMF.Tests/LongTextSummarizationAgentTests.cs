@@ -149,6 +149,81 @@ public sealed class LongTextSummarizationAgentTests
                 request.MaximumCharacters));
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_PreservesContextInputArtifactsAsSources()
+    {
+        var artifactId =
+            new ArtifactId("artifact-context-long-001");
+
+        var segmentationExecutor =
+            new StubCapabilityExecutor<
+                TextSegmentationRequest,
+                IReadOnlyList<TextSegment>>(
+                _ =>
+                    new IntelligenceCapabilityResult<
+                        IReadOnlyList<TextSegment>>
+                    {
+                        Success = true,
+                        Output =
+                        [
+                            new TextSegment(
+                                0,
+                                0,
+                                "Only segment")
+                        ],
+                        Metadata =
+                            CreateMetadata(
+                                IntelligenceCapabilityIds
+                                    .TextSegmentation)
+                    });
+
+        var summarizationExecutor =
+            new StubCapabilityExecutor<
+                TextSummarizationRequest,
+                string>(
+                _ =>
+                    new IntelligenceCapabilityResult<string>
+                    {
+                        Success = true,
+                        Output = "summary",
+                        Metadata =
+                            CreateMetadata(
+                                IntelligenceCapabilityIds
+                                    .TextSummarization)
+                    });
+
+        var agent =
+            new LongTextSummarizationAgent(
+                segmentationExecutor,
+                summarizationExecutor);
+
+        var context =
+            new IntelligenceExecutionContext(
+                "security-steward",
+                new IntelligenceCorrelationId(
+                    "operation-long-provenance-001"),
+                new ProtectionClassificationId(
+                    "confidential"),
+                [artifactId],
+                agent.Id);
+
+        var result =
+            await agent.ExecuteAsync(
+                new LongTextSummarizationRequest(
+                    "Only segment",
+                    100,
+                    0,
+                    50),
+                context);
+
+        Assert.Equal(
+            artifactId,
+            Assert.Single(
+                result.SourceArtifactIds));
+    }
+
+
     private static IntelligenceExecutionMetadata
         CreateMetadata(
             IntelligenceCapabilityId capabilityId)
