@@ -333,6 +333,63 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         Assert.Equal(0, store.SaveCount);
     }
 
+
+    [Fact]
+    public async Task ExecuteAsync_DoesNotAuditSuccessWhenStateSaveFails()
+    {
+        var id = new AgentId("stateful-agent");
+        var stored = new IntelligenceAgentState
+        {
+            AgentId = id,
+            StateId = "state-007",
+            Version = 2,
+            Revision = 1,
+            Payload = "{}",
+            UpdatedUtc = DateTimeOffset.UtcNow
+        };
+        var agent = new TestStatefulAgent(id, 2)
+        {
+            Result = new StatefulIntelligenceAgentResult<string>
+            {
+                Result = new IntelligenceAgentResult<string>
+                {
+                    Success = true,
+                    Output = "done",
+                    AgentId = id,
+                    CorrelationId = new("operation-007"),
+                    StartedUtc = DateTimeOffset.UtcNow,
+                    CompletedUtc = DateTimeOffset.UtcNow
+                },
+                State = stored
+            }
+        };
+        var store = new RecordingStateStore(stored)
+        {
+            SaveFailure =
+                new InvalidOperationException("save failed")
+        };
+        var audit = new RecordingAuditSink();
+        var executor =
+            new StatefulIntelligenceAgentExecutor<string,string>(
+                agent,
+                store,
+                audit);
+        var context = new IntelligenceExecutionContext(
+            "security-steward",
+            new("operation-007"),
+            new("confidential"),
+            [],
+            id);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(
+                "objective",
+                context,
+                "state-007"));
+
+        Assert.Empty(audit.Records);
+    }
+
     private sealed class TestStatefulAgent :
         IStatefulIntelligenceAgent<string, string>
     {
@@ -406,6 +463,8 @@ public sealed class StatefulIntelligenceAgentExecutorTests
 
         public int SaveCount { get; private set; }
 
+        public Exception? SaveFailure { get; set; }
+
         public IntelligenceAgentState? LastSavedState
         { get; private set; }
 
@@ -427,6 +486,9 @@ public sealed class StatefulIntelligenceAgentExecutorTests
         {
             SaveCount++;
             LastSavedState = state;
+
+            if (SaveFailure is not null)
+                return Task.FromException(SaveFailure);
 
             return Task.CompletedTask;
         }
