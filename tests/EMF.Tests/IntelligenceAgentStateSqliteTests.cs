@@ -118,4 +118,54 @@ public sealed class IntelligenceAgentStateSqliteTests
             File.Delete(databasePath);
         }
     }
+
+    [Fact]
+    public async Task InitializeAsync_CreatesOnlyOwnedTables()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var store =
+                new SqliteIntelligenceAgentStateStore(databasePath);
+
+            await store.InitializeAsync();
+
+            await using var connection =
+                new Microsoft.Data.Sqlite.SqliteConnection(
+                    $"Data Source={databasePath}");
+
+            await connection.OpenAsync();
+
+            await using var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                SELECT name
+                FROM sqlite_master
+                WHERE type = 'table'
+                  AND name NOT LIKE 'sqlite_%'
+                ORDER BY name;
+                """;
+
+            var tables = new List<string>();
+
+            await using var reader =
+                await command.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+                tables.Add(reader.GetString(0));
+
+            Assert.Equal(
+                new[]
+                {
+                    "IntelligenceAgentState_SchemaMigrations",
+                    "IntelligenceAgentStates"
+                },
+                tables);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
 }
