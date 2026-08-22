@@ -19,18 +19,32 @@ ContentFingerprint? fingerprint)
         var metadata = new Dictionary<string, object>(
             item.Metadata)
         {
-            ["sourcePath"] = item.SourcePath,
-            ["sourceType"] = item.SourceType
+            [ArtifactMetadataKeys.SourcePath] = item.SourcePath,
+            [ArtifactMetadataKeys.SourceType] = item.SourceType
         };
 
         if (item.SizeBytes is not null)
         {
-            metadata["sizeBytes"] = item.SizeBytes.Value;
+            metadata[ArtifactMetadataKeys.SizeBytes] = item.SizeBytes.Value;
         }
 
         if (item.ModifiedUtc is not null)
         {
-            metadata["modifiedUtc"] = item.ModifiedUtc.Value;
+            metadata[ArtifactMetadataKeys.ModifiedUtc] = item.ModifiedUtc.Value;
+        }
+
+        if (!metadata.ContainsKey(
+                ArtifactMetadataKeys.FileExtension))
+        {
+            var extension =
+                Path.GetExtension(item.Name);
+
+            if (!string.IsNullOrWhiteSpace(extension))
+            {
+                metadata[
+                    ArtifactMetadataKeys.FileExtension] =
+                    extension;
+            }
         }
 
         var artifact = new Artifact
@@ -50,7 +64,7 @@ Fingerprint = fingerprint,
             RecordedBy = "EMF.Discovery",
             Properties = new Dictionary<string, object>
             {
-                ["sourceType"] = item.SourceType
+                [ArtifactMetadataKeys.SourceType] = item.SourceType
             }
         };
 

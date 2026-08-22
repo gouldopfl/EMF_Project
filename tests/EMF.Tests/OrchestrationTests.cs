@@ -489,7 +489,7 @@ public void ArtifactFactory_MapsDiscoveredItemToArtifactAndProvenance()
         ModifiedUtc = modifiedUtc,
         Metadata = new Dictionary<string, object>
         {
-            ["extension"] = ".db"
+            [ArtifactMetadataKeys.FileExtension] = ".db"
         }
     };
 
@@ -519,11 +519,35 @@ new EMF.Core.Models.Integrity.ContentFingerprint
 
     Assert.Equal(
         ".db",
-        result.Artifact.Metadata["extension"]);
+        result.Artifact.Metadata[
+            ArtifactMetadataKeys.FileExtension]);
 
     Assert.Equal(
         1276899328L,
         result.Artifact.Metadata["sizeBytes"]);
+}
+
+
+[Fact]
+public void ArtifactFactory_DerivesFileExtension()
+{
+    var item = new DiscoveredItem
+    {
+        Name = "claim-evidence.pdf",
+        SourcePath = "/evidence/claim-evidence.pdf",
+        SourceType = "file"
+    };
+
+    var result =
+        new ArtifactFactory().Create(
+            item,
+            new ArtifactId("artifact-pdf-001"),
+            null);
+
+    Assert.Equal(
+        ".pdf",
+        result.Artifact.Metadata[
+            ArtifactMetadataKeys.FileExtension]);
 }
 
 
