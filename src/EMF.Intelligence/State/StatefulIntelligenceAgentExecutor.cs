@@ -77,6 +77,14 @@ public sealed class StatefulIntelligenceAgentExecutor<
                 state,
                 cancellationToken);
 
+        if (result.State.AgentId != _agent.Id ||
+            result.State.StateId != stateId)
+        {
+            throw new InvalidOperationException(
+                "Stateful agent returned state for " +
+                "a different agent or state ID.");
+        }
+
         await _stateStore.SaveAsync(
             result.State,
             cancellationToken);
