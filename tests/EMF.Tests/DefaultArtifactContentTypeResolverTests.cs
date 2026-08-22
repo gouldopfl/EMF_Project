@@ -14,6 +14,7 @@ public sealed class DefaultArtifactContentTypeResolverTests
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
     [InlineData(".json", "application/json")]
     [InlineData(".csv", "text/csv")]
+    [InlineData(".eml", "message/rfc822")]
     [InlineData(".xml", "application/xml")]
     [InlineData(".db", "application/x-sqlite3")]
     [InlineData(".sqlite", "application/x-sqlite3")]

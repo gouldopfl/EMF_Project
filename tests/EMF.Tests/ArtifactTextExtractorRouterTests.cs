@@ -172,6 +172,44 @@ public sealed class ArtifactTextExtractorRouterTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RoutesEmlToEmlProvider()
+    {
+        var repository =
+            new InMemoryEvidenceRepository();
+
+        var artifact =
+            CreateArtifact(
+                "artifact-eml-001",
+                ".eml");
+
+        await repository.AddArtifactAsync(artifact);
+
+        var content =
+            "From: sender@example.com\r\n" +
+            "To: recipient@example.com\r\n" +
+            "Subject: Evidence\r\n" +
+            "\r\n" +
+            "Veteran has chronic instability.";
+
+        var router =
+            new ArtifactTextExtractorRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [
+                    new EmlArtifactTextExtractionProvider(
+                        new StubContentStore(
+                            System.Text.Encoding.UTF8.GetBytes(content)))
+                ]);
+
+        var text =
+            await router.ExtractTextAsync(artifact.Id);
+
+        Assert.Equal(
+            "Veteran has chronic instability.",
+            text);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_ThrowsWhenKnownTypeUnsupported()
     {
         var repository =

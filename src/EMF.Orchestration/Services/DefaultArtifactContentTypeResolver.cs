@@ -34,6 +34,7 @@ public sealed class DefaultArtifactContentTypeResolver :
             ".sqlite3" => "application/x-sqlite3",
             ".json" => "application/json",
             ".csv" => "text/csv",
+            ".eml" => "message/rfc822",
             ".xml" => "application/xml",
             _ => null
         };
