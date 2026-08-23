@@ -172,6 +172,55 @@ public sealed class ArtifactTextExtractorRouterTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RoutesXlsToXlsProvider()
+    {
+        var repository =
+            new InMemoryEvidenceRepository();
+
+        var artifact =
+            CreateArtifact(
+                "artifact-xls-001",
+                ".xls");
+
+        await repository.AddArtifactAsync(artifact);
+
+        var xlsPath =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.xls");
+
+        var content =
+            await File.ReadAllBytesAsync(xlsPath);
+
+        var router =
+            new ArtifactTextExtractorRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [
+                    new XlsArtifactTextExtractionProvider(
+                        new StubContentStore(content))
+                ]);
+
+        var text =
+            await router.ExtractTextAsync(artifact.Id);
+
+        Assert.NotNull(text);
+        Assert.Contains(
+            "ATTENDANCE (Pg 5)",
+            text);
+        Assert.Contains(
+            "125 Strange, Bill",
+            text);
+        Assert.Contains(
+            "148 Wright, T.J.",
+            text);
+        Assert.Contains(
+            "Total in Attendance",
+            text);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_RoutesEmlToEmlProvider()
     {
         var repository =

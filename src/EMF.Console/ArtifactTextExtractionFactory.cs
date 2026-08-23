@@ -35,6 +35,7 @@ internal static class ArtifactTextExtractionFactory
                     new PdfToImagePageRenderer(),
                     ocrService),
                 new XlsxArtifactTextExtractionProvider(contentStore),
+                new XlsArtifactTextExtractionProvider(contentStore),
                 new EmlArtifactTextExtractionProvider(contentStore),
                 new MsgArtifactTextExtractionProvider(
                     contentStore,

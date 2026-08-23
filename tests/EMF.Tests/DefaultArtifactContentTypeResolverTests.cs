@@ -12,6 +12,9 @@ public sealed class DefaultArtifactContentTypeResolverTests
     [InlineData(
         ".xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
+    [InlineData(
+        ".xls",
+        "application/vnd.ms-excel")]
     [InlineData(".json", "application/json")]
     [InlineData(".csv", "text/csv")]
     [InlineData(".eml", "message/rfc822")]
