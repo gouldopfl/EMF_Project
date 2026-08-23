@@ -1,5 +1,8 @@
 using EMF.Core.Contracts.Storage;
+using EMF.Core.Contracts;
+using EMF.Core.Models;
 using EMF.Core.Models.Identities;
+using SkiaSharp;
 using EMF.Orchestration.Services;
 
 namespace EMF.Tests;
@@ -84,6 +87,133 @@ public sealed class PdfArtifactTextExtractionProviderTests
         await Assert.ThrowsAnyAsync<Exception>(
             () => provider.ExtractTextAsync(
                 new ArtifactId("pdf-invalid")));
+    }
+
+
+    [Fact]
+    public async Task ExtractTextAsync_DoesNotOcrEmbeddedTextPage()
+    {
+        var path =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.pdf");
+
+        var content =
+            await File.ReadAllBytesAsync(path);
+
+        var renderer = new StubPageRenderer();
+        var ocr = new StubOcrService("should not appear");
+
+        var provider =
+            new PdfArtifactTextExtractionProvider(
+                new StubContentStore(content),
+                renderer,
+                ocr);
+
+        var text =
+            await provider.ExtractTextAsync(
+                new ArtifactId("pdf-text"));
+
+        Assert.Contains(
+            "Veteran has chronic instability.",
+            text);
+
+        Assert.Equal(0, renderer.CallCount);
+        Assert.Equal(0, ocr.CallCount);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_OcrsTextlessPage()
+    {
+        var renderer = new StubPageRenderer();
+        var ocr =
+            new StubOcrService(
+                "Scanned veteran evidence.");
+
+        var provider =
+            new PdfArtifactTextExtractionProvider(
+                new StubContentStore(
+                    CreateTextlessPdf()),
+                renderer,
+                ocr);
+
+        var text =
+            await provider.ExtractTextAsync(
+                new ArtifactId("pdf-scan"));
+
+        Assert.Equal(
+            "Scanned veteran evidence.",
+            text);
+
+        Assert.Equal(1, renderer.CallCount);
+        Assert.Equal(1, ocr.CallCount);
+    }
+
+    [Fact]
+    public void Constructor_RejectsIncompleteOcrFallback()
+    {
+        Assert.Throws<ArgumentException>(
+            () => new PdfArtifactTextExtractionProvider(
+                new StubContentStore(
+                    Array.Empty<byte>()),
+                new StubPageRenderer()));
+    }
+
+    private static byte[] CreateTextlessPdf()
+    {
+        using var output = new MemoryStream();
+
+        using (var document =
+            SKDocument.CreatePdf(output))
+        {
+            document.BeginPage(612, 792);
+            document.EndPage();
+            document.Close();
+        }
+
+        return output.ToArray();
+    }
+
+    private sealed class StubPageRenderer :
+        IPdfPageImageRenderer
+    {
+        public int CallCount { get; private set; }
+
+        public Task<byte[]> RenderPageAsync(
+            ReadOnlyMemory<byte> pdf,
+            int pageIndex,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CallCount++;
+
+            return Task.FromResult(
+                new byte[] { 1, 2, 3 });
+        }
+    }
+
+    private sealed class StubOcrService :
+        IImageOcrService
+    {
+        private readonly string? _text;
+
+        public StubOcrService(string? text)
+        {
+            _text = text;
+        }
+
+        public int CallCount { get; private set; }
+
+        public Task<string?> RecognizeTextAsync(
+            OcrRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CallCount++;
+
+            return Task.FromResult(_text);
+        }
     }
 
     private sealed class StubContentStore :

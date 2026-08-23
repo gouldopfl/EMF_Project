@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using EMF.Core.Contracts;
 using EMF.Core.Contracts.Storage;
 using EMF.Orchestration.Services;
@@ -6,12 +7,18 @@ namespace EMF.ConsoleApplication;
 
 internal static class ArtifactTextExtractionFactory
 {
+    [SupportedOSPlatform("windows")]
+    [SupportedOSPlatform("linux")]
+    [SupportedOSPlatform("macos")]
     public static IArtifactTextExtractor Create(
         IEvidenceRepository repository,
         IArtifactContentStore contentStore)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(contentStore);
+
+        var ocrService =
+            new PaddleImageOcrService();
 
         return new ArtifactTextExtractorRouter(
             repository,
@@ -23,7 +30,10 @@ internal static class ArtifactTextExtractionFactory
                 new JsonArtifactTextExtractionProvider(contentStore),
                 new XmlArtifactTextExtractionProvider(contentStore),
                 new DocxArtifactTextExtractionProvider(contentStore),
-                new PdfArtifactTextExtractionProvider(contentStore),
+                new PdfArtifactTextExtractionProvider(
+                    contentStore,
+                    new PdfToImagePageRenderer(),
+                    ocrService),
                 new XlsxArtifactTextExtractionProvider(contentStore),
                 new EmlArtifactTextExtractionProvider(contentStore),
                 new MsgArtifactTextExtractionProvider(
@@ -31,7 +41,7 @@ internal static class ArtifactTextExtractionFactory
                     new OutlookMessageDecoder()),
                 new ImageArtifactTextExtractionProvider(
                     contentStore,
-                    new PaddleImageOcrService())
+                    ocrService)
             });
     }
 }

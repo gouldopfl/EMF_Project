@@ -35,6 +35,7 @@ public sealed class PaddleImageOcrServiceTests
             "Veteran Evidence Review",
             120,
             180,
+            SKTextAlign.Left,
             font,
             paint);
 
