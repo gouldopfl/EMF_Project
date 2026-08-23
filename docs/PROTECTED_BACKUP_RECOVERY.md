@@ -136,3 +136,31 @@ The following remain unresolved and block production readiness:
 - [Azure Key Vault backup and restore](https://learn.microsoft.com/azure/key-vault/general/backup)
 - [Azure Key Vault reliability](https://learn.microsoft.com/azure/reliability/reliability-key-vault)
 - [Azure Backup security](https://learn.microsoft.com/azure/backup/security-overview)
+
+
+## Source Repository Backup
+
+The EMF Git repository shall be protected independently of both the Azure VM
+working copy and the primary GitHub remote.
+
+Minimum protection:
+
+- Azure VM working repository
+- GitHub primary remote
+- independent Git mirror backup
+- second copy of that mirror on separate storage
+
+Create the initial mirror with `git clone --mirror`.
+
+Refresh an existing mirror with `git remote update --prune`.
+
+Verify the mirror with:
+
+- `git fsck --full`
+- `git show-ref`
+
+The verified mirror should then be copied or synchronized to independently
+protected storage such as the NAS.
+
+A successful GitHub push is source control, but it does not by itself satisfy
+the independent-backup requirement.
