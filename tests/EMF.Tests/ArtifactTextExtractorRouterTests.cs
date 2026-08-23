@@ -117,6 +117,32 @@ public sealed class ArtifactTextExtractorRouterTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RoutesHtmlToHtmlProvider()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var artifact = CreateArtifact("artifact-html-001", ".html");
+        await repository.AddArtifactAsync(artifact);
+
+        const string html =
+            "<html><body><p>HTML evidence text</p></body></html>";
+
+        var router =
+            new ArtifactTextExtractorRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [
+                    new HtmlArtifactTextExtractionProvider(
+                        new StubContentStore(
+                            System.Text.Encoding.UTF8.GetBytes(html)))
+                ]);
+
+        var text =
+            await router.ExtractTextAsync(artifact.Id);
+
+        Assert.Contains("HTML evidence text", text);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_RoutesPdfToPdfProvider()
     {
         var repository =
