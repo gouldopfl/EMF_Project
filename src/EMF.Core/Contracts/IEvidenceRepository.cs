@@ -32,6 +32,11 @@ public interface IEvidenceRepository
         string value,
         CancellationToken cancellationToken = default);
 
+    Task MergeArtifactMetadataAsync(
+        ArtifactId artifactId,
+        IReadOnlyDictionary<string, object> metadata,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<Relationship>> GetRelationshipsAsync(
         ArtifactId artifactId,
         CancellationToken cancellationToken = default);

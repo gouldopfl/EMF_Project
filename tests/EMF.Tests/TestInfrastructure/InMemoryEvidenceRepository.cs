@@ -89,6 +89,42 @@ private readonly List<Provenance> _provenance = new();
         return Task.FromResult(artifact);
     }
 
+    public Task MergeArtifactMetadataAsync(
+        ArtifactId artifactId,
+        IReadOnlyDictionary<string, object> metadata,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        if (!_artifacts.TryGetValue(
+                artifactId.Value,
+                out var artifact))
+        {
+            throw new InvalidOperationException(
+                $"Artifact '{artifactId.Value}' does not exist.");
+        }
+
+        var merged =
+            new Dictionary<string, object>(
+                artifact.Metadata);
+
+        foreach (var pair in metadata)
+            merged[pair.Key] = pair.Value;
+
+        _artifacts[artifactId.Value] =
+            new Artifact
+            {
+                Id = artifact.Id,
+                Name = artifact.Name,
+                ArtifactType = artifact.ArtifactType,
+                Fingerprint = artifact.Fingerprint,
+                CreatedUtc = artifact.CreatedUtc,
+                Metadata = merged
+            };
+
+        return Task.CompletedTask;
+    }
+
     public Task<IReadOnlyList<Artifact>> GetArtifactsByMetadataAsync(
         string key,
         string value,

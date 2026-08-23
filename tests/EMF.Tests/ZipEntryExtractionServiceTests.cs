@@ -243,6 +243,12 @@ public sealed class ZipEntryExtractionServiceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task MergeArtifactMetadataAsync(
+            ArtifactId artifactId,
+            IReadOnlyDictionary<string, object> metadata,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<Artifact>> GetArtifactsByMetadataAsync(
             string key,
             string value,

@@ -290,6 +290,12 @@ public sealed class EmailMessageWorkflowActivityTests
             ArtifactId id, CancellationToken c = default) =>
             _inner.GetEvidenceAggregateAsync(id, c);
 
+        public Task MergeArtifactMetadataAsync(
+            ArtifactId id,
+            IReadOnlyDictionary<string, object> metadata,
+            CancellationToken c = default) =>
+            _inner.MergeArtifactMetadataAsync(id, metadata, c);
+
         public Task<IReadOnlyList<Artifact>> GetArtifactsByMetadataAsync(
             string k, string v, CancellationToken c = default) =>
             _inner.GetArtifactsByMetadataAsync(k, v, c);

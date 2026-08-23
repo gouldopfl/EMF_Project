@@ -258,6 +258,54 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
         };
     }
 
+    public async Task MergeArtifactMetadataAsync(
+        ArtifactId artifactId,
+        IReadOnlyDictionary<string, object> metadata,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        var artifact =
+            await GetArtifactAsync(
+                artifactId,
+                cancellationToken);
+
+        if (artifact is null)
+        {
+            throw new InvalidOperationException(
+                $"Artifact '{artifactId.Value}' does not exist.");
+        }
+
+        var merged =
+            new Dictionary<string, object>(
+                artifact.Metadata);
+
+        foreach (var pair in metadata)
+            merged[pair.Key] = pair.Value;
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE Artifacts
+            SET MetadataJson = $metadataJson
+            WHERE Id = $id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$metadataJson",
+            JsonSerializer.Serialize(merged));
+
+        command.Parameters.AddWithValue(
+            "$id",
+            artifactId.Value);
+
+        await command.ExecuteNonQueryAsync(
+            cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Artifact>> GetArtifactsByMetadataAsync(
         string key,
         string value,

@@ -142,19 +142,30 @@ public static class InventoryConsoleCommand
                 sourcePath,
                 new DiscoveryOptions());
 
+        var inspectionActivity =
+            new ArtifactInspectionWorkflowActivity(
+                discovery,
+                ArtifactInspectionFactory.Create(),
+                evidenceRepository,
+                fingerprintService,
+                sourcePath,
+                new DiscoveryOptions());
+
         var activities =
             new List<IWorkflowActivity>
             {
-                inventoryActivity
+                inventoryActivity,
+                inspectionActivity
             };
 
         var activityIds =
             new List<string>
             {
-                "inventory"
+                "inventory",
+                "artifact-inspection"
             };
 
-        var definitionVersion = "1";
+        var definitionVersion = "2";
 
         if (contentStore is not null)
         {
@@ -222,7 +233,7 @@ public static class InventoryConsoleCommand
             activityIds.Add("email-attachments");
             activityIds.Add("outlook-attachments");
             activityIds.Add("zip-archives");
-            definitionVersion = "4";
+            definitionVersion = "5";
         }
 
         var activityResolver =
