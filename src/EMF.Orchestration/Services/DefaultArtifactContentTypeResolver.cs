@@ -37,6 +37,11 @@ public sealed class DefaultArtifactContentTypeResolver :
             ".eml" => "message/rfc822",
             ".msg" => "application/vnd.ms-outlook",
             ".xml" => "application/xml",
+            ".jpg" => "image/jpeg",
+            ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".tif" => "image/tiff",
+            ".tiff" => "image/tiff",
             _ => null
         };
     }

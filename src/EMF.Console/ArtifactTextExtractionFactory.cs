@@ -28,7 +28,10 @@ internal static class ArtifactTextExtractionFactory
                 new EmlArtifactTextExtractionProvider(contentStore),
                 new MsgArtifactTextExtractionProvider(
                     contentStore,
-                    new OutlookMessageDecoder())
+                    new OutlookMessageDecoder()),
+                new ImageArtifactTextExtractionProvider(
+                    contentStore,
+                    new PaddleImageOcrService())
             });
     }
 }

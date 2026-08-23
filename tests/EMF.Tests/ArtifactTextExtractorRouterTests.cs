@@ -322,6 +322,38 @@ public sealed class ArtifactTextExtractorRouterTests
         Assert.False(string.IsNullOrWhiteSpace(text));
     }
 
+
+    [Fact]
+    public async Task ExtractTextAsync_RoutesPngToImageProvider()
+    {
+        var repository =
+            new InMemoryEvidenceRepository();
+
+        var artifact =
+            CreateArtifact(
+                "artifact-image-001",
+                ".png");
+
+        await repository.AddArtifactAsync(artifact);
+
+        var router =
+            new ArtifactTextExtractorRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [
+                    new ImageArtifactTextExtractionProvider(
+                        new StubContentStore([1, 2, 3]),
+                        new StubOcrService("recognized image text"))
+                ]);
+
+        var text =
+            await router.ExtractTextAsync(artifact.Id);
+
+        Assert.Equal(
+            "recognized image text",
+            text);
+    }
+
     [Fact]
     public async Task ExtractTextAsync_ThrowsWhenKnownTypeUnsupported()
     {
@@ -385,6 +417,23 @@ public sealed class ArtifactTextExtractorRouterTests
             ArtifactId artifactId,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+
+    private sealed class StubOcrService :
+        IImageOcrService
+    {
+        private readonly string _text;
+
+        public StubOcrService(string text)
+        {
+            _text = text;
+        }
+
+        public Task<string?> RecognizeTextAsync(
+            OcrRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(_text);
     }
 
     private sealed class StubProvider :
