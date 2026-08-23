@@ -46,12 +46,42 @@ public sealed class EmailAttachmentExtractionService :
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
-        var artifactId = _artifactIdGenerator.Generate();
+        var source =
+            $"{emailArtifactId.Value}/{fileName}";
 
         var fingerprint =
             await _fingerprintService.ComputeAsync(
                 content,
                 cancellationToken);
+
+        var existing =
+            await _repository.FindArtifactAsync(
+                source,
+                fingerprint,
+                cancellationToken);
+
+        if (existing is not null)
+        {
+            var provenance =
+                await _repository.GetProvenanceAsync(
+                    existing.Id,
+                    cancellationToken);
+
+            var existingRelationships =
+                await _repository.GetRelationshipsAsync(
+                    existing.Id,
+                    cancellationToken);
+
+            return new EmailAttachmentExtractionResult
+            {
+                Artifact = existing,
+                Provenance = provenance.First(
+                    item => item.Source == source),
+                Relationships = existingRelationships
+            };
+        }
+
+        var artifactId = _artifactIdGenerator.Generate();
 
         var metadata =
             new Dictionary<string, object>();
@@ -63,8 +93,7 @@ public sealed class EmailAttachmentExtractionService :
             new DiscoveredItem
             {
                 Name = fileName,
-                SourcePath =
-                    $"{emailArtifactId.Value}/{fileName}",
+                SourcePath = source,
                 SourceType = "email-attachment",
                 SizeBytes = content.Length,
                 Metadata = metadata

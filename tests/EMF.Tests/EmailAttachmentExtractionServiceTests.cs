@@ -76,6 +76,46 @@ public sealed class EmailAttachmentExtractionServiceTests
         Assert.Equal(2, exception.InnerExceptions.Count);
     }
 
+    [Fact]
+    public async Task ExtractAsync_ReusesExistingAttachment()
+    {
+        var repository =
+            new TestInfrastructure.InMemoryEvidenceRepository();
+
+        var existing = new Artifact
+        {
+            Id = new ArtifactId("existing-attachment"),
+            Name = "record.txt",
+            ArtifactType = "email-attachment",
+            Fingerprint = new ContentFingerprint
+            {
+                Algorithm = "SHA256",
+                Value = "test-fingerprint"
+            }
+        };
+
+        await repository.AddArtifactWithProvenanceAsync(
+            existing,
+            new Provenance
+            {
+                ArtifactId = existing.Id,
+                Source = "email-005/record.txt",
+                RecordedBy = "EMF.Discovery"
+            });
+
+        var store = new RecordingContentStore();
+        var service = CreateService(repository, store);
+
+        var result = await service.ExtractAsync(
+            new ArtifactId("email-005"),
+            "record.txt",
+            "text/plain",
+            "content"u8.ToArray());
+
+        Assert.Equal(existing.Id, result.Artifact.Id);
+        Assert.Empty(store.Written);
+    }
+
     private static EmailAttachmentExtractionService CreateService(
         IEvidenceRepository repository,
         IArtifactContentStore store) =>
@@ -193,7 +233,7 @@ public sealed class EmailAttachmentExtractionServiceTests
             string source,
             ContentFingerprint fingerprint,
             CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            Task.FromResult<Artifact?>(null);
 
         public Task AddArtifactWithProvenanceAsync(
             Artifact artifact,
