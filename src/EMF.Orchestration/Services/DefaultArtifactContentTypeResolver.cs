@@ -26,6 +26,8 @@ public sealed class DefaultArtifactContentTypeResolver :
             ".txt" => "text/plain",
             ".rtf" => "application/rtf",
             ".pdf" => "application/pdf",
+            ".pptx" =>
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             ".docx" =>
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ".doc" =>

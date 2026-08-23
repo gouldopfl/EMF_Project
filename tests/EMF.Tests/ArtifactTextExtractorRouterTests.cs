@@ -339,6 +339,68 @@ public sealed class ArtifactTextExtractorRouterTests
 
 
     [Fact]
+    public async Task ExtractTextAsync_RoutesPptxToPptxProvider()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var artifact = CreateArtifact("artifact-pptx-001", ".pptx");
+        await repository.AddArtifactAsync(artifact);
+
+        using var stream = new MemoryStream();
+
+        using (var doc =
+            DocumentFormat.OpenXml.Packaging.PresentationDocument.Create(
+                stream,
+                DocumentFormat.OpenXml.PresentationDocumentType.Presentation))
+        {
+            var part = doc.AddPresentationPart();
+            part.Presentation =
+                new DocumentFormat.OpenXml.Presentation.Presentation(
+                    new DocumentFormat.OpenXml.Presentation.SlideIdList());
+
+            var slidePart = part.AddNewPart<
+                DocumentFormat.OpenXml.Packaging.SlidePart>();
+
+            slidePart.Slide =
+                new DocumentFormat.OpenXml.Presentation.Slide(
+                    new DocumentFormat.OpenXml.Presentation.CommonSlideData(
+                        new DocumentFormat.OpenXml.Presentation.ShapeTree(
+                            new DocumentFormat.OpenXml.Presentation.NonVisualGroupShapeProperties(),
+                            new DocumentFormat.OpenXml.Presentation.GroupShapeProperties(),
+                            new DocumentFormat.OpenXml.Presentation.Shape(
+                                new DocumentFormat.OpenXml.Presentation.NonVisualShapeProperties(),
+                                new DocumentFormat.OpenXml.Presentation.ShapeProperties(),
+                                new DocumentFormat.OpenXml.Presentation.TextBody(
+                                    new DocumentFormat.OpenXml.Drawing.BodyProperties(),
+                                    new DocumentFormat.OpenXml.Drawing.ListStyle(),
+                                    new DocumentFormat.OpenXml.Drawing.Paragraph(
+                                        new DocumentFormat.OpenXml.Drawing.Run(
+                                            new DocumentFormat.OpenXml.Drawing.Text(
+                                                "PPTX routed evidence"))))))));
+
+            slidePart.Slide.Save();
+
+            part.Presentation.SlideIdList!.Append(
+                new DocumentFormat.OpenXml.Presentation.SlideId
+                {
+                    Id = 256U,
+                    RelationshipId = part.GetIdOfPart(slidePart)
+                });
+
+            part.Presentation.Save();
+        }
+
+        var router = new ArtifactTextExtractorRouter(
+            repository,
+            new DefaultArtifactContentTypeResolver(),
+            [new PptxArtifactTextExtractionProvider(
+                new StubContentStore(stream.ToArray()))]);
+
+        var text = await router.ExtractTextAsync(artifact.Id);
+
+        Assert.Contains("PPTX routed evidence", text);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_RoutesDocxToDocxProvider()
     {
         var repository = new InMemoryEvidenceRepository();
