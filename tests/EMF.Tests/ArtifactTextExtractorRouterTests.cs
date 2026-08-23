@@ -209,6 +209,86 @@ public sealed class ArtifactTextExtractorRouterTests
             text);
     }
 
+
+    [Theory]
+    [InlineData(".csv", "text/csv", "a,b")]
+    [InlineData(".json", "application/json", "{\"status\":\"ready\"}")]
+    [InlineData(".xml", "application/xml", "<status>ready</status>")]
+    public async Task ExtractTextAsync_RoutesUtf8Formats(
+        string extension,
+        string contentType,
+        string expected)
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var artifact = CreateArtifact("artifact-utf8", extension);
+        await repository.AddArtifactAsync(artifact);
+
+        IArtifactTextExtractionProvider provider =
+            contentType switch
+            {
+                "text/csv" =>
+                    new CsvArtifactTextExtractionProvider(
+                        new StubContentStore(System.Text.Encoding.UTF8.GetBytes(expected))),
+                "application/json" =>
+                    new JsonArtifactTextExtractionProvider(
+                        new StubContentStore(System.Text.Encoding.UTF8.GetBytes(expected))),
+                _ =>
+                    new XmlArtifactTextExtractionProvider(
+                        new StubContentStore(System.Text.Encoding.UTF8.GetBytes(expected)))
+            };
+
+        var router =
+            new ArtifactTextExtractorRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [provider]);
+
+        Assert.Equal(
+            expected,
+            await router.ExtractTextAsync(artifact.Id));
+    }
+
+
+    [Fact]
+    public async Task ExtractTextAsync_RoutesDocxToDocxProvider()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var artifact = CreateArtifact("artifact-docx-001", ".docx");
+        await repository.AddArtifactAsync(artifact);
+
+        using var stream = new MemoryStream();
+
+        using (var document =
+            DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Create(
+                stream,
+                DocumentFormat.OpenXml.WordprocessingDocumentType.Document))
+        {
+            var part = document.AddMainDocumentPart();
+
+            part.Document =
+                new DocumentFormat.OpenXml.Wordprocessing.Document(
+                    new DocumentFormat.OpenXml.Wordprocessing.Body(
+                        new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
+                            new DocumentFormat.OpenXml.Wordprocessing.Run(
+                                new DocumentFormat.OpenXml.Wordprocessing.Text(
+                                    "Required evidence")))));
+        }
+
+        var router =
+            new ArtifactTextExtractorRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [
+                    new DocxArtifactTextExtractionProvider(
+                        new StubContentStore(stream.ToArray()))
+                ]);
+
+        var text =
+            await router.ExtractTextAsync(artifact.Id);
+
+        Assert.Contains("Required evidence", text);
+    }
+
     [Fact]
     public async Task ExtractTextAsync_ThrowsWhenKnownTypeUnsupported()
     {
