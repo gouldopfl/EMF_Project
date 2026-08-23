@@ -289,6 +289,39 @@ public sealed class ArtifactTextExtractorRouterTests
         Assert.Contains("Required evidence", text);
     }
 
+
+    [Fact]
+    public async Task ExtractTextAsync_RoutesMsgToMsgProvider()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var artifact = CreateArtifact("artifact-msg-001", ".msg");
+        await repository.AddArtifactAsync(artifact);
+
+        var path =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "TxtSampleEmail.msg");
+
+        var content =
+            await File.ReadAllBytesAsync(path);
+
+        var router =
+            new ArtifactTextExtractorRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [
+                    new MsgArtifactTextExtractionProvider(
+                        new StubContentStore(content),
+                        new OutlookMessageDecoder())
+                ]);
+
+        var text =
+            await router.ExtractTextAsync(artifact.Id);
+
+        Assert.False(string.IsNullOrWhiteSpace(text));
+    }
+
     [Fact]
     public async Task ExtractTextAsync_ThrowsWhenKnownTypeUnsupported()
     {

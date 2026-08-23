@@ -35,6 +35,7 @@ public sealed class DefaultArtifactContentTypeResolver :
             ".json" => "application/json",
             ".csv" => "text/csv",
             ".eml" => "message/rfc822",
+            ".msg" => "application/vnd.ms-outlook",
             ".xml" => "application/xml",
             _ => null
         };

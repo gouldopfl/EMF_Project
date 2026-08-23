@@ -188,6 +188,17 @@ public static class InventoryConsoleCommand
                     contentStore,
                     processingService));
 
+            var outlookProcessingService =
+                new OutlookAttachmentProcessingService(
+                    new OutlookMessageDecoder(),
+                    extractionService);
+
+            activities.Add(
+                new OutlookAttachmentWorkflowActivity(
+                    evidenceRepository,
+                    contentStore,
+                    outlookProcessingService));
+
             var zipExtractionService =
                 new ZipEntryExtractionService(
                     evidenceRepository,
@@ -209,8 +220,9 @@ public static class InventoryConsoleCommand
 
             activityIds.Add("email-messages");
             activityIds.Add("email-attachments");
+            activityIds.Add("outlook-attachments");
             activityIds.Add("zip-archives");
-            definitionVersion = "3";
+            definitionVersion = "4";
         }
 
         var activityResolver =

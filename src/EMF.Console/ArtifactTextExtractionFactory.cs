@@ -25,7 +25,10 @@ internal static class ArtifactTextExtractionFactory
                 new DocxArtifactTextExtractionProvider(contentStore),
                 new PdfArtifactTextExtractionProvider(contentStore),
                 new XlsxArtifactTextExtractionProvider(contentStore),
-                new EmlArtifactTextExtractionProvider(contentStore)
+                new EmlArtifactTextExtractionProvider(contentStore),
+                new MsgArtifactTextExtractionProvider(
+                    contentStore,
+                    new OutlookMessageDecoder())
             });
     }
 }
