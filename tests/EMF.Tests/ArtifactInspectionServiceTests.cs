@@ -72,6 +72,34 @@ public sealed class ArtifactInspectionServiceTests
     }
 
     [Fact]
+    public async Task InspectAsync_DetectsOfficePackageBeforeGenericZip()
+    {
+        var path =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.xlsx");
+
+        var service =
+            new ArtifactInspectionService(
+                [
+                    new OfficePackageSignatureProvider(),
+                    new ZipSignatureProvider()
+                ]);
+
+        var result =
+            await service.InspectAsync(path);
+
+        Assert.Equal(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            result.DetectedContentType);
+
+        Assert.Equal(
+            "XLSX",
+            result.DetectedFormat);
+    }
+
+    [Fact]
     public async Task InspectAsync_DetectsSqliteFromContent()
     {
         var path = Path.Combine(
