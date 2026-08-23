@@ -26,6 +26,9 @@ public sealed class DefaultArtifactContentTypeResolver :
             ".txt" => "text/plain",
             ".md" => "text/markdown",
             ".markdown" => "text/markdown",
+            ".yaml" => "application/yaml",
+            ".yml" => "application/yaml",
+            ".log" => "text/plain",
             ".rtf" => "application/rtf",
             ".odt" => "application/vnd.oasis.opendocument.text",
             ".ods" => "application/vnd.oasis.opendocument.spreadsheet",
@@ -59,6 +62,9 @@ public sealed class DefaultArtifactContentTypeResolver :
             ".png" => "image/png",
             ".tif" => "image/tiff",
             ".tiff" => "image/tiff",
+            ".bmp" => "image/bmp",
+            ".gif" => "image/gif",
+            ".webp" => "image/webp",
             _ => null
         };
     }

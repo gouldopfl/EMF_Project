@@ -25,7 +25,10 @@ public sealed class ImageArtifactTextExtractionProvider :
     public bool CanExtract(string contentType) =>
         contentType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase) ||
         contentType.Equals("image/png", StringComparison.OrdinalIgnoreCase) ||
-        contentType.Equals("image/tiff", StringComparison.OrdinalIgnoreCase);
+        contentType.Equals("image/tiff", StringComparison.OrdinalIgnoreCase) ||
+        contentType.Equals("image/bmp", StringComparison.OrdinalIgnoreCase) ||
+        contentType.Equals("image/gif", StringComparison.OrdinalIgnoreCase) ||
+        contentType.Equals("image/webp", StringComparison.OrdinalIgnoreCase);
 
     public async Task<string?> ExtractTextAsync(
         ArtifactId artifactId,

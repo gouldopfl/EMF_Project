@@ -26,6 +26,10 @@ public sealed class Utf8ArtifactTextExtractor :
         string.Equals(
             contentType,
             "text/markdown",
+            StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(
+            contentType,
+            "application/yaml",
             StringComparison.OrdinalIgnoreCase);
 
     public async Task<string?> ExtractTextAsync(
