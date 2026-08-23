@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\EMF.Common\EMF.Common.csproj" />
     <ProjectReference Include="..\EMF.Extensions.VeteransClaims\EMF.Extensions.VeteransClaims.csproj" />
     <ProjectReference Include="..\EMF.Orchestration\EMF.Orchestration.csproj" />
     <ProjectReference Include="..\EMF.Core\EMF.Core.csproj" />
