@@ -26,6 +26,7 @@ internal static class ArtifactTextExtractionFactory
             new IArtifactTextExtractionProvider[]
             {
                 new Utf8ArtifactTextExtractor(contentStore),
+                new RtfArtifactTextExtractionProvider(contentStore),
                 new CsvArtifactTextExtractionProvider(contentStore),
                 new JsonArtifactTextExtractionProvider(contentStore),
                 new XmlArtifactTextExtractionProvider(contentStore),

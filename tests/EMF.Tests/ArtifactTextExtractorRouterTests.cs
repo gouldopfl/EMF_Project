@@ -77,6 +77,46 @@ public sealed class ArtifactTextExtractorRouterTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RoutesRtfToRtfProvider()
+    {
+        var repository =
+            new InMemoryEvidenceRepository();
+
+        var artifact =
+            CreateArtifact(
+                "artifact-rtf-001",
+                ".rtf");
+
+        await repository.AddArtifactAsync(artifact);
+
+        const string rtf =
+            @"{\rtf1\ansi " +
+            @"EMF RTF Evidence Test\par " +
+            @"MRI confirms lumbar changes.}";
+
+        var router =
+            new ArtifactTextExtractorRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [
+                    new RtfArtifactTextExtractionProvider(
+                        new StubContentStore(
+                            System.Text.Encoding.ASCII.GetBytes(rtf)))
+                ]);
+
+        var text =
+            await router.ExtractTextAsync(artifact.Id);
+
+        Assert.NotNull(text);
+        Assert.Contains(
+            "EMF RTF Evidence Test",
+            text);
+        Assert.Contains(
+            "MRI confirms lumbar changes.",
+            text);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_RoutesPdfToPdfProvider()
     {
         var repository =

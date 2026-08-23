@@ -24,6 +24,7 @@ public sealed class DefaultArtifactContentTypeResolver :
         return extension?.ToLowerInvariant() switch
         {
             ".txt" => "text/plain",
+            ".rtf" => "application/rtf",
             ".pdf" => "application/pdf",
             ".docx" =>
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

@@ -8,6 +8,7 @@ public sealed class DefaultArtifactContentTypeResolverTests
 {
     [Theory]
     [InlineData(".txt", "text/plain")]
+    [InlineData(".rtf", "application/rtf")]
     [InlineData(".pdf", "application/pdf")]
     [InlineData(".doc", "application/msword")]
     [InlineData(
