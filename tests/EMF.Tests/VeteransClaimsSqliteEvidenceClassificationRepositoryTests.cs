@@ -150,4 +150,57 @@ public sealed class VeteransClaimsSqliteEvidenceClassificationRepositoryTests
             File.Delete(databasePath);
         }
     }
+    [Fact]
+    public async Task Repository_RejectsDuplicateSemanticClassification()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteEvidenceClassificationRepository(
+                    databasePath);
+
+            await repository.InitializeAsync();
+
+            var first =
+                new EvidenceClassification
+                {
+                    Id =
+                        new EvidenceClassificationId(
+                            "classification-dup-1"),
+                    ArtifactId =
+                        new ArtifactId("artifact-dup"),
+                    Classification =
+                        EvidenceClassifications.MedicalEvidence
+                };
+
+            var second =
+                new EvidenceClassification
+                {
+                    Id =
+                        new EvidenceClassificationId(
+                            "classification-dup-2"),
+                    ArtifactId =
+                        first.ArtifactId,
+                    Classification =
+                        first.Classification
+                };
+
+            await repository
+                .AddEvidenceClassificationAsync(first);
+
+            await Assert.ThrowsAsync<
+                Microsoft.Data.Sqlite.SqliteException>(
+                () =>
+                    repository
+                        .AddEvidenceClassificationAsync(
+                            second));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
 }

@@ -48,6 +48,40 @@ public sealed class EvidenceClassificationServiceTests
         Assert.Equal(claimIssueId, result.ClaimIssueId);
     }
 
+
+    [Fact]
+    public async Task ClassifyAsync_ReturnsExistingClassification()
+    {
+        var repository = new RecordingRepository();
+
+        var existing =
+            new EvidenceClassification
+            {
+                Id =
+                    new EvidenceClassificationId(
+                        "classification-existing"),
+                ArtifactId =
+                    new ArtifactId("artifact-1"),
+                Classification =
+                    EvidenceClassifications.MedicalEvidence
+            };
+
+        repository.Existing = existing;
+
+        var service =
+            new EvidenceClassificationService(
+                repository,
+                new GuidIdGenerator());
+
+        var result =
+            await service.ClassifyAsync(
+                existing.ArtifactId,
+                existing.Classification);
+
+        Assert.Same(existing, result);
+        Assert.Null(repository.Classification);
+    }
+
     [Fact]
     public async Task ClassifyAsync_RejectsUnsupportedClassification()
     {
@@ -66,6 +100,8 @@ public sealed class EvidenceClassificationServiceTests
     {
         public EvidenceClassification? Classification { get; private set; }
 
+        public EvidenceClassification? Existing { get; set; }
+
         public Task AddEvidenceClassificationAsync(
             EvidenceClassification classification,
             CancellationToken cancellationToken = default)
@@ -73,6 +109,14 @@ public sealed class EvidenceClassificationServiceTests
             Classification = classification;
             return Task.CompletedTask;
         }
+
+        public Task<EvidenceClassification?>
+            FindEvidenceClassificationAsync(
+                ArtifactId artifactId,
+                ClaimIssueId? claimIssueId,
+                string classification,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult(Existing);
 
         public Task<EvidenceClassification?>
             GetEvidenceClassificationAsync(

@@ -113,6 +113,58 @@ public sealed class SqliteEvidenceClassificationRepository :
         return ReadEvidenceClassification(reader);
     }
 
+    public async Task<EvidenceClassification?>
+        FindEvidenceClassificationAsync(
+            ArtifactId artifactId,
+            ClaimIssueId? claimIssueId,
+            string classification,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(classification);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT Id, ArtifactId, ClaimIssueId, Classification
+            FROM VeteransClaims_EvidenceClassifications
+            WHERE ArtifactId = $artifactId
+              AND Classification = $classification
+              AND (
+                    ClaimIssueId = $claimIssueId
+                    OR (
+                        ClaimIssueId IS NULL
+                        AND $claimIssueId IS NULL
+                    )
+                  )
+            LIMIT 1;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            artifactId.Value);
+
+        command.Parameters.AddWithValue(
+            "$classification",
+            classification);
+
+        command.Parameters.AddWithValue(
+            "$claimIssueId",
+            claimIssueId.HasValue
+                ? claimIssueId.Value.Value
+                : DBNull.Value);
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+            return null;
+
+        return ReadEvidenceClassification(reader);
+    }
+
     public async Task<IReadOnlyList<EvidenceClassification>>
         GetEvidenceClassificationsAsync(
             ArtifactId artifactId,

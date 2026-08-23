@@ -44,6 +44,16 @@ public sealed class EvidenceClassificationService :
                 nameof(classification));
         }
 
+        var existing =
+            await _repository.FindEvidenceClassificationAsync(
+                artifactId,
+                claimIssueId,
+                classification,
+                cancellationToken);
+
+        if (existing is not null)
+            return existing;
+
         var result = new EvidenceClassification
         {
             Id = new EvidenceClassificationId(_idGenerator.Generate()),

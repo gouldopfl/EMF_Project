@@ -19,6 +19,12 @@ public interface IEvidenceClassificationRepository
             ArtifactId artifactId,
             CancellationToken cancellationToken = default);
 
+    Task<EvidenceClassification?> FindEvidenceClassificationAsync(
+        ArtifactId artifactId,
+        ClaimIssueId? claimIssueId,
+        string classification,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<EvidenceClassification>>
         GetEvidenceClassificationsAsync(
             ClaimIssueId claimIssueId,

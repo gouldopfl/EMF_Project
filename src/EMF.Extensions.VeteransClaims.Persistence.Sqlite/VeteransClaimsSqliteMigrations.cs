@@ -1494,6 +1494,18 @@ internal static class VeteransClaimsSqliteMigrations
                             Role
                         )
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                48,
+                "EnforceEvidenceClassificationUniqueness",
+                """
+                CREATE UNIQUE INDEX
+                    UX_VeteransClaims_EvidenceClassifications_Unique
+                ON VeteransClaims_EvidenceClassifications (
+                    ArtifactId,
+                    IFNULL(ClaimIssueId, ''),
+                    Classification
+                );
                 """)
         };
 }
