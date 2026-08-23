@@ -1506,6 +1506,13 @@ internal static class VeteransClaimsSqliteMigrations
                     IFNULL(ClaimIssueId, ''),
                     Classification
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                49,
+                "AddEvidenceRecognitionTermClassification",
+                """
+                ALTER TABLE VeteransClaims_EvidenceRecognitionTerms
+                ADD COLUMN EvidenceClassification TEXT NULL;
                 """)
         };
 }

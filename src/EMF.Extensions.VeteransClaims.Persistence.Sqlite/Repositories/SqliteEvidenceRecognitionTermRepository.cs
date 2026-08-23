@@ -36,8 +36,10 @@ public sealed class SqliteEvidenceRecognitionTermRepository :
 
         command.CommandText = """
             INSERT INTO VeteransClaims_EvidenceRecognitionTerms
-            (Id, RequirementId, Term, TermType, RecognitionRole, AuthoritySource)
-            VALUES ($id, $requirementId, $term, $type, $role, $authority);
+            (Id, RequirementId, Term, TermType, RecognitionRole,
+             EvidenceClassification, AuthoritySource)
+            VALUES ($id, $requirementId, $term, $type, $role,
+                    $classification, $authority);
             """;
 
         command.Parameters.AddWithValue("$id", term.Id.Value);
@@ -45,6 +47,9 @@ public sealed class SqliteEvidenceRecognitionTermRepository :
         command.Parameters.AddWithValue("$term", term.Term);
         command.Parameters.AddWithValue("$type", term.TermType);
         command.Parameters.AddWithValue("$role", term.RecognitionRole);
+        command.Parameters.AddWithValue(
+            "$classification",
+            (object?)term.EvidenceClassification ?? DBNull.Value);
         command.Parameters.AddWithValue("$authority", term.AuthoritySource);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
@@ -61,7 +66,8 @@ public sealed class SqliteEvidenceRecognitionTermRepository :
 
         command.CommandText = """
             SELECT Id, RequirementId, Term, TermType,
-                   RecognitionRole, AuthoritySource
+                   RecognitionRole, EvidenceClassification,
+                   AuthoritySource
             FROM VeteransClaims_EvidenceRecognitionTerms
             WHERE Id = $id;
             """;
@@ -87,7 +93,8 @@ public sealed class SqliteEvidenceRecognitionTermRepository :
 
         command.CommandText = """
             SELECT Id, RequirementId, Term, TermType,
-                   RecognitionRole, AuthoritySource
+                   RecognitionRole, EvidenceClassification,
+                   AuthoritySource
             FROM VeteransClaims_EvidenceRecognitionTerms
             WHERE RequirementId = $requirementId
             ORDER BY Id;
@@ -117,6 +124,10 @@ public sealed class SqliteEvidenceRecognitionTermRepository :
             Term = reader.GetString(2),
             TermType = reader.GetString(3),
             RecognitionRole = reader.GetString(4),
-            AuthoritySource = reader.GetString(5)
+            EvidenceClassification =
+                reader.IsDBNull(5)
+                    ? null
+                    : reader.GetString(5),
+            AuthoritySource = reader.GetString(6)
         };
 }

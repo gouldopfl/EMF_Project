@@ -14,5 +14,7 @@ public sealed class EvidenceRecognitionTerm
 
     public required string RecognitionRole { get; init; }
 
+    public string? EvidenceClassification { get; init; }
+
     public required string AuthoritySource { get; init; }
 }

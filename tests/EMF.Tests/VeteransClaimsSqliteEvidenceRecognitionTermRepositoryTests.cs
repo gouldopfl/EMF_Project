@@ -43,6 +43,9 @@ public sealed class VeteransClaimsSqliteEvidenceRecognitionTermRepositoryTests
             Assert.Equal(term.Term, stored.Term);
             Assert.Equal(term.TermType, stored.TermType);
             Assert.Equal(term.RecognitionRole, stored.RecognitionRole);
+            Assert.Equal(
+                term.EvidenceClassification,
+                stored.EvidenceClassification);
             Assert.Equal(term.AuthoritySource, stored.AuthoritySource);
         }
         finally
@@ -111,6 +114,8 @@ public sealed class VeteransClaimsSqliteEvidenceRecognitionTermRepositoryTests
                 EvidenceRecognitionTermTypes.Phrase,
             RecognitionRole =
                 EvidenceRecognitionRoles.EvidenceType,
+            EvidenceClassification =
+                EvidenceClassifications.MedicalEvidence,
             AuthoritySource = "38 CFR"
         };
     }
