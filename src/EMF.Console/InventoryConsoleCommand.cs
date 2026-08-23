@@ -188,9 +188,29 @@ public static class InventoryConsoleCommand
                     contentStore,
                     processingService));
 
+            var zipExtractionService =
+                new ZipEntryExtractionService(
+                    evidenceRepository,
+                    contentStore,
+                    fingerprintService,
+                    new GuidArtifactIdGenerator(),
+                    new ArtifactFactory());
+
+            var zipProcessingService =
+                new ZipArchiveProcessingService(
+                    new ZipArchiveDecoder(),
+                    zipExtractionService);
+
+            activities.Add(
+                new ZipArchiveWorkflowActivity(
+                    evidenceRepository,
+                    contentStore,
+                    zipProcessingService));
+
             activityIds.Add("email-messages");
             activityIds.Add("email-attachments");
-            definitionVersion = "2";
+            activityIds.Add("zip-archives");
+            definitionVersion = "3";
         }
 
         var activityResolver =
