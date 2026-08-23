@@ -23,6 +23,7 @@ public sealed class DefaultArtifactContentTypeResolverTests
         "application/vnd.ms-excel")]
     [InlineData(".json", "application/json")]
     [InlineData(".csv", "text/csv")]
+    [InlineData(".tsv", "text/csv")]
     [InlineData(".eml", "message/rfc822")]
     [InlineData(".xml", "application/xml")]
     [InlineData(".jpg", "image/jpeg")]
