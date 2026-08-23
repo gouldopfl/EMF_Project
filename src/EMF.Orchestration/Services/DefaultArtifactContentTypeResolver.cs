@@ -28,6 +28,8 @@ public sealed class DefaultArtifactContentTypeResolver :
             ".pdf" => "application/pdf",
             ".pptx" =>
                 "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ".ppt" =>
+                "application/vnd.ms-powerpoint",
             ".docx" =>
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ".doc" =>

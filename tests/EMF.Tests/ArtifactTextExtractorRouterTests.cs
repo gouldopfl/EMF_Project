@@ -401,6 +401,33 @@ public sealed class ArtifactTextExtractorRouterTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RoutesPptToPptProvider()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var artifact = CreateArtifact("artifact-ppt-001", ".ppt");
+        await repository.AddArtifactAsync(artifact);
+
+        var path = Path.Combine(
+            AppContext.BaseDirectory,
+            "TestData",
+            "evidence-sample.ppt");
+
+        var content = await File.ReadAllBytesAsync(path);
+
+        var router = new ArtifactTextExtractorRouter(
+            repository,
+            new DefaultArtifactContentTypeResolver(),
+            [new PptArtifactTextExtractionProvider(
+                new StubContentStore(content))]);
+
+        var text = await router.ExtractTextAsync(artifact.Id);
+
+        Assert.Contains(
+            "EMF Legacy PowerPoint Evidence Test",
+            text);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_RoutesDocxToDocxProvider()
     {
         var repository = new InMemoryEvidenceRepository();
