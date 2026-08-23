@@ -11,6 +11,7 @@ using EMF.Discovery.Models;
 using EMF.Discovery.Services;
 using EMF.Inventory.Providers;
 using EMF.Integrity;
+using EMF.Orchestration.Contracts;
 using EMF.Orchestration.Models;
 using EMF.Orchestration.Services;
 using EMF.Persistence.Repositories;
@@ -141,24 +142,74 @@ public static class InventoryConsoleCommand
                 sourcePath,
                 new DiscoveryOptions());
 
+        var activities =
+            new List<IWorkflowActivity>
+            {
+                inventoryActivity
+            };
+
+        var activityIds =
+            new List<string>
+            {
+                "inventory"
+            };
+
+        var definitionVersion = "1";
+
+        if (contentStore is not null)
+        {
+            var extractionService =
+                new EmailAttachmentExtractionService(
+                    evidenceRepository,
+                    contentStore,
+                    fingerprintService,
+                    new GuidArtifactIdGenerator(),
+                    new ArtifactFactory());
+
+            var processingService =
+                new EmailAttachmentProcessingService(
+                    new MimeKitEmailAttachmentDecoder(),
+                    extractionService);
+
+            activities.Add(
+                new EmailMessageWorkflowActivity(
+                    discovery,
+                    evidenceRepository,
+                    contentStore,
+                    fingerprintService,
+                    new GuidArtifactIdGenerator(),
+                    new ArtifactFactory(),
+                    sourcePath,
+                    new DiscoveryOptions()));
+
+            activities.Add(
+                new EmailAttachmentWorkflowActivity(
+                    evidenceRepository,
+                    contentStore,
+                    processingService));
+
+            activityIds.Add("email-messages");
+            activityIds.Add("email-attachments");
+            definitionVersion = "2";
+        }
+
         var activityResolver =
-        new WorkflowActivityResolver(
-        new[] { inventoryActivity });
+            new WorkflowActivityResolver(activities);
 
         var executionCoordinator =
-        new WorkflowExecutionCoordinator(
-        workflowService,
-        recoveryCoordinator,
-        activityResolver,
-        workflowRunner);
+            new WorkflowExecutionCoordinator(
+                workflowService,
+                recoveryCoordinator,
+                activityResolver,
+                workflowRunner);
 
         var currentDefinition =
             new WorkflowDefinition
             {
                 Id = "inventory-processing",
                 Name = "Inventory Processing",
-                Version = "1",
-                ActivityIds = new[] { "inventory" }
+                Version = definitionVersion,
+                ActivityIds = activityIds
             };
 
         var storedCurrentDefinition =
