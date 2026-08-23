@@ -27,6 +27,18 @@ internal static class ArtifactTextExtractionFactory
             {
                 new Utf8ArtifactTextExtractor(contentStore),
                 new RtfArtifactTextExtractionProvider(contentStore),
+                new OpenDocumentArtifactTextExtractionProvider(
+                    contentStore,
+                    "application/vnd.oasis.opendocument.text",
+                    "evidence.odt"),
+                new OpenDocumentArtifactTextExtractionProvider(
+                    contentStore,
+                    "application/vnd.oasis.opendocument.spreadsheet",
+                    "evidence.ods"),
+                new OpenDocumentArtifactTextExtractionProvider(
+                    contentStore,
+                    "application/vnd.oasis.opendocument.presentation",
+                    "evidence.odp"),
                 new CsvArtifactTextExtractionProvider(contentStore),
                 new JsonArtifactTextExtractionProvider(contentStore),
                 new XmlArtifactTextExtractionProvider(contentStore),

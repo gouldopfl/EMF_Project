@@ -6,6 +6,7 @@
     <PackageReference Include="GHSoftware.WordDocTextExtractor" Version="1.0.4" />
     <PackageReference Include="MimeKit" Version="4.17.0" />
     <PackageReference Include="MsgReader" Version="6.1.0" />
+    <PackageReference Include="OfficeIMO.Reader.OpenDocument" Version="3.2.6" />
     <PackageReference Include="OfficeIMO.Reader.PowerPoint" Version="3.2.6" />
     <PackageReference Include="OfficeIMO.Rtf" Version="3.2.6" />
     <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260627" />

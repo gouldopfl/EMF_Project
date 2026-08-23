@@ -25,6 +25,9 @@ public sealed class DefaultArtifactContentTypeResolver :
         {
             ".txt" => "text/plain",
             ".rtf" => "application/rtf",
+            ".odt" => "application/vnd.oasis.opendocument.text",
+            ".ods" => "application/vnd.oasis.opendocument.spreadsheet",
+            ".odp" => "application/vnd.oasis.opendocument.presentation",
             ".pdf" => "application/pdf",
             ".pptx" =>
                 "application/vnd.openxmlformats-officedocument.presentationml.presentation",

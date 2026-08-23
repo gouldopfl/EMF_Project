@@ -117,6 +117,36 @@ public sealed class ArtifactTextExtractorRouterTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RoutesOdtToOpenDocumentProvider()
+    {
+        var repository = new InMemoryEvidenceRepository();
+        var artifact = CreateArtifact("artifact-odt-001", ".odt");
+        await repository.AddArtifactAsync(artifact);
+
+        var content = System.IO.File.ReadAllBytes(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.odt"));
+
+        var router =
+            new ArtifactTextExtractorRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [
+                    new OpenDocumentArtifactTextExtractionProvider(
+                        new StubContentStore(content),
+                        "application/vnd.oasis.opendocument.text",
+                        "evidence.odt")
+                ]);
+
+        var text =
+            await router.ExtractTextAsync(artifact.Id);
+
+        Assert.NotNull(text);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_RoutesHtmlToHtmlProvider()
     {
         var repository = new InMemoryEvidenceRepository();
