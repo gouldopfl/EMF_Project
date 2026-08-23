@@ -340,6 +340,50 @@ public sealed class ArtifactTextExtractorRouterTests
 
 
     [Fact]
+    public async Task ExtractTextAsync_RoutesDocToDocProvider()
+    {
+        var repository =
+            new InMemoryEvidenceRepository();
+
+        var artifact =
+            CreateArtifact(
+                "artifact-doc-001",
+                ".doc");
+
+        await repository.AddArtifactAsync(artifact);
+
+        var path =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.doc");
+
+        var content =
+            await File.ReadAllBytesAsync(path);
+
+        var router =
+            new ArtifactTextExtractorRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [
+                    new DocArtifactTextExtractionProvider(
+                        new StubContentStore(content))
+                ]);
+
+        var text =
+            await router.ExtractTextAsync(artifact.Id);
+
+        Assert.NotNull(text);
+        Assert.Contains(
+            "VA-Blue-Button-report-Michael-Gould-7-30-2026_1225pm(5).pdf",
+            text);
+        Assert.Contains(
+            "Excellent. We now have the two cornerstone documents",
+            text);
+    }
+
+
+    [Fact]
     public async Task ExtractTextAsync_RoutesMsgToMsgProvider()
     {
         var repository = new InMemoryEvidenceRepository();

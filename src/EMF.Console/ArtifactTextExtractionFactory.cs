@@ -30,6 +30,7 @@ internal static class ArtifactTextExtractionFactory
                 new JsonArtifactTextExtractionProvider(contentStore),
                 new XmlArtifactTextExtractionProvider(contentStore),
                 new DocxArtifactTextExtractionProvider(contentStore),
+                new DocArtifactTextExtractionProvider(contentStore),
                 new PdfArtifactTextExtractionProvider(
                     contentStore,
                     new PdfToImagePageRenderer(),

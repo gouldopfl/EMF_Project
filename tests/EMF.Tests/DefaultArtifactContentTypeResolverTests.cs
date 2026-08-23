@@ -9,6 +9,7 @@ public sealed class DefaultArtifactContentTypeResolverTests
     [Theory]
     [InlineData(".txt", "text/plain")]
     [InlineData(".pdf", "application/pdf")]
+    [InlineData(".doc", "application/msword")]
     [InlineData(
         ".xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
