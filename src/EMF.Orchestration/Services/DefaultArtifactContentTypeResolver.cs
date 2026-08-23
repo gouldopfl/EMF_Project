@@ -24,6 +24,8 @@ public sealed class DefaultArtifactContentTypeResolver :
         return extension?.ToLowerInvariant() switch
         {
             ".txt" => "text/plain",
+            ".md" => "text/markdown",
+            ".markdown" => "text/markdown",
             ".rtf" => "application/rtf",
             ".odt" => "application/vnd.oasis.opendocument.text",
             ".ods" => "application/vnd.oasis.opendocument.spreadsheet",

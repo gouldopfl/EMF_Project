@@ -8,6 +8,8 @@ public sealed class DefaultArtifactContentTypeResolverTests
 {
     [Theory]
     [InlineData(".txt", "text/plain")]
+    [InlineData(".md", "text/markdown")]
+    [InlineData(".markdown", "text/markdown")]
     [InlineData(".rtf", "application/rtf")]
     [InlineData(".odt", "application/vnd.oasis.opendocument.text")]
     [InlineData(".ods", "application/vnd.oasis.opendocument.spreadsheet")]
