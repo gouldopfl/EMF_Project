@@ -31,6 +31,24 @@ public sealed class VeteransEvidenceOrchestrationFactoryTests
     }
 
     [Fact]
+    public void CreateEvidenceDevelopmentWorkflowCoordinator_RequiresRequirementEvidenceService()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () =>
+                VeteransEvidenceOrchestrationFactory
+                    .CreateEvidenceDevelopmentWorkflowCoordinator(
+                        null!,
+                        null!,
+                        null!,
+                        null!,
+                        null!,
+                        null!,
+                        null!,
+                        null!,
+                        null!));
+    }
+
+    [Fact]
     public void CreateEvidenceDevelopmentIntelligenceCoordinator_RequiresDependencies()
     {
         Assert.Throws<ArgumentNullException>(

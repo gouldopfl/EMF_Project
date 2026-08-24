@@ -78,6 +78,46 @@ public static class VeteransEvidenceOrchestrationFactory
             classificationService);
     }
 
+
+    public static IEvidenceDevelopmentWorkflowCoordinator
+        CreateEvidenceDevelopmentWorkflowCoordinator(
+            IWorkflowService workflowService,
+            IEvidenceDevelopmentPlanRepository developmentRepository,
+            IWorkflowRunner workflowRunner,
+            IEvidenceGapRepository gapRepository,
+            IEvidenceRequirementGuidanceRepository guidanceRepository,
+            IArtifactTextExtractor textExtractor,
+            IEvidenceRecognitionTermRepository recognitionTermRepository,
+            IEvidenceClassificationService classificationService,
+            IRequirementEvidenceService requirementEvidenceService)
+    {
+        ArgumentNullException.ThrowIfNull(workflowService);
+        ArgumentNullException.ThrowIfNull(developmentRepository);
+        ArgumentNullException.ThrowIfNull(workflowRunner);
+        ArgumentNullException.ThrowIfNull(gapRepository);
+        ArgumentNullException.ThrowIfNull(guidanceRepository);
+        ArgumentNullException.ThrowIfNull(textExtractor);
+        ArgumentNullException.ThrowIfNull(recognitionTermRepository);
+        ArgumentNullException.ThrowIfNull(classificationService);
+        ArgumentNullException.ThrowIfNull(requirementEvidenceService);
+
+        var recognitionCoordinator =
+            new EvidenceRecognitionCoordinator(
+                gapRepository,
+                textExtractor,
+                recognitionTermRepository);
+
+        return new EvidenceDevelopmentWorkflowCoordinator(
+            workflowService,
+            developmentRepository,
+            workflowRunner,
+            gapRepository,
+            guidanceRepository,
+            recognitionCoordinator,
+            classificationService,
+            requirementEvidenceService);
+    }
+
     public static IEvidenceDevelopmentIntelligenceCoordinator
         CreateEvidenceDevelopmentIntelligenceCoordinator(
             IEvidenceDevelopmentPlanRepository developmentRepository,

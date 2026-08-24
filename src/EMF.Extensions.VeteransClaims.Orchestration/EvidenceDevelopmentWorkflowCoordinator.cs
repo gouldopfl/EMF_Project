@@ -16,6 +16,7 @@ internal sealed class EvidenceDevelopmentWorkflowCoordinator :
     private readonly IEvidenceRequirementGuidanceRepository _guidanceRepository;
     private readonly IEvidenceRecognitionCoordinator _recognitionCoordinator;
     private readonly IEvidenceClassificationService? _classificationService;
+    private readonly IRequirementEvidenceService? _requirementEvidenceService;
 
     public EvidenceDevelopmentWorkflowCoordinator(
         IWorkflowService workflowService,
@@ -47,6 +48,7 @@ internal sealed class EvidenceDevelopmentWorkflowCoordinator :
             gapRepository,
             guidanceRepository,
             recognitionCoordinator,
+            null,
             null)
     {
     }
@@ -59,6 +61,27 @@ internal sealed class EvidenceDevelopmentWorkflowCoordinator :
         IEvidenceRequirementGuidanceRepository guidanceRepository,
         IEvidenceRecognitionCoordinator recognitionCoordinator,
         IEvidenceClassificationService? classificationService)
+        : this(
+            workflowService,
+            repository,
+            runner,
+            gapRepository,
+            guidanceRepository,
+            recognitionCoordinator,
+            classificationService,
+            null)
+    {
+    }
+
+    public EvidenceDevelopmentWorkflowCoordinator(
+        IWorkflowService workflowService,
+        IEvidenceDevelopmentPlanRepository repository,
+        IWorkflowRunner runner,
+        IEvidenceGapRepository gapRepository,
+        IEvidenceRequirementGuidanceRepository guidanceRepository,
+        IEvidenceRecognitionCoordinator recognitionCoordinator,
+        IEvidenceClassificationService? classificationService,
+        IRequirementEvidenceService? requirementEvidenceService)
     {
         ArgumentNullException.ThrowIfNull(workflowService);
         ArgumentNullException.ThrowIfNull(repository);
@@ -74,6 +97,7 @@ internal sealed class EvidenceDevelopmentWorkflowCoordinator :
         _guidanceRepository = guidanceRepository;
         _recognitionCoordinator = recognitionCoordinator;
         _classificationService = classificationService;
+        _requirementEvidenceService = requirementEvidenceService;
     }
 
     public async Task<EvidenceDevelopmentExecution>
@@ -124,6 +148,7 @@ internal sealed class EvidenceDevelopmentWorkflowCoordinator :
                     _repository,
                     _recognitionCoordinator,
                     _classificationService,
+                    _requirementEvidenceService,
                     evidenceGapId)
             },
             cancellationToken: cancellationToken);

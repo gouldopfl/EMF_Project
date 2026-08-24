@@ -270,6 +270,14 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
         Assert.Contains(
             "evidence present: True",
             result.Message);
+
+        Assert.Contains(
+            "matching guidance items: 1",
+            result.Message);
+
+        Assert.Contains(
+            "missing guidance items: 0",
+            result.Message);
     }
 
     private sealed class FakeRequirementEvidenceService :
@@ -325,8 +333,41 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
         public Task<RequirementEvidenceResponsivenessAssessment>
             AssessResponsivenessAsync(
                 RequirementId requirementId,
-                CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+                CancellationToken cancellationToken = default)
+        {
+            RequirementId = requirementId;
+
+            return Task.FromResult(
+                new RequirementEvidenceResponsivenessAssessment
+                {
+                    RequirementId = requirementId,
+                    Items =
+                        _hasEvidence
+                            ? new[]
+                            {
+                                new RequirementEvidenceResponsivenessItem
+                                {
+                                    Guidance =
+                                        new EvidenceRequirementGuidance
+                                        {
+                                            Id =
+                                                new EvidenceRequirementGuidanceId(
+                                                    "guidance-assessment-1"),
+                                            RequirementId = requirementId,
+                                            EvidenceClassification =
+                                                EvidenceClassifications.MedicalEvidence,
+                                            GuidanceRole =
+                                                EvidenceGuidanceRoles.SupportsRequirement,
+                                            Description =
+                                                "Matching evidence guidance."
+                                        },
+                                    HasMatchingEvidence = true
+                                }
+                            }
+                            : Array.Empty<
+                                RequirementEvidenceResponsivenessItem>()
+                });
+        }
     }
 
     private sealed class FakeRecognitionCoordinator :

@@ -167,6 +167,7 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
                 cancellationToken);
 
         RequirementEvidenceAssessment? assessment = null;
+        RequirementEvidenceResponsivenessAssessment? responsiveness = null;
 
         if (_requirementEvidenceService is not null)
         {
@@ -174,6 +175,12 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
                 await _requirementEvidenceService.AssessAsync(
                     gap.RequirementId,
                     cancellationToken);
+
+            responsiveness =
+                await _requirementEvidenceService
+                    .AssessResponsivenessAsync(
+                        gap.RequirementId,
+                        cancellationToken);
         }
 
         return new WorkflowActivityResult
@@ -184,7 +191,11 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
                 $"guidance items: {guidance.Count}" +
                 (assessment is null
                     ? "."
-                    : $"; evidence present: {assessment.HasEvidence}."),
+                    : $"; evidence present: {assessment.HasEvidence}; " +
+                      $"matching guidance items: " +
+                      $"{responsiveness!.MatchingItemCount}; " +
+                      $"missing guidance items: " +
+                      $"{responsiveness.MissingItemCount}."),
             CompletedUtc = DateTimeOffset.UtcNow
         };
     }
