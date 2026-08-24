@@ -149,5 +149,13 @@ public sealed class EvidenceClassificationServiceTests
                 CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<EvidenceClassification>>(
                 Array.Empty<EvidenceClassification>());
+
+
+        public Task<IReadOnlyList<EvidenceClassification>>
+            GetEvidenceClassificationsAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<EvidenceClassification>>(
+                Array.Empty<EvidenceClassification>());
     }
 }

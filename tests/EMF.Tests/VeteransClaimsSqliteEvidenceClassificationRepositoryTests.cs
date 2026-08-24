@@ -295,6 +295,11 @@ public sealed class VeteransClaimsSqliteEvidenceClassificationRepositoryTests
                     .GetEvidenceClassificationRequirementsAsync(
                         classification.Id);
 
+            var byRequirement =
+                await repository
+                    .GetEvidenceClassificationsAsync(
+                        requirement.Id);
+
             var association = Assert.Single(stored);
 
             Assert.Equal(
@@ -303,6 +308,10 @@ public sealed class VeteransClaimsSqliteEvidenceClassificationRepositoryTests
             Assert.Equal(
                 requirement.Id,
                 association.RequirementId);
+
+            Assert.Equal(
+                classification.Id,
+                Assert.Single(byRequirement).Id);
         }
         finally
         {

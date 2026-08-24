@@ -36,6 +36,11 @@ public interface IEvidenceClassificationRepository
 
     Task<IReadOnlyList<EvidenceClassification>>
         GetEvidenceClassificationsAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<EvidenceClassification>>
+        GetEvidenceClassificationsAsync(
             ClaimIssueId claimIssueId,
             CancellationToken cancellationToken = default);
 }

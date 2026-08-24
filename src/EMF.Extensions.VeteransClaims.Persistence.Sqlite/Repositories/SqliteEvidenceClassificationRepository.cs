@@ -245,6 +245,34 @@ public sealed class SqliteEvidenceClassificationRepository :
 
     public async Task<IReadOnlyList<EvidenceClassification>>
         GetEvidenceClassificationsAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT c.Id, c.ArtifactId, c.ClaimIssueId, c.Classification
+            FROM VeteransClaims_EvidenceClassifications c
+            INNER JOIN VeteransClaims_EvidenceClassificationRequirements r
+                ON r.EvidenceClassificationId = c.Id
+            WHERE r.RequirementId = $requirementId
+            ORDER BY c.Id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$requirementId",
+            requirementId.Value);
+
+        return await ReadEvidenceClassificationsAsync(
+            command,
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EvidenceClassification>>
+        GetEvidenceClassificationsAsync(
             ArtifactId artifactId,
             CancellationToken cancellationToken = default)
     {
