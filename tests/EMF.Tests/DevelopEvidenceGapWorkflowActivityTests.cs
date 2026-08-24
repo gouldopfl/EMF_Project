@@ -226,6 +226,9 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
             EvidenceClassifications.MedicalOpinion,
             classifier.Classification);
         Assert.Equal(gap.ClaimIssueId, classifier.ClaimIssueId);
+        Assert.Equal(
+            gap.RequirementId,
+            classifier.RequirementId);
     }
 
     private sealed class FakeRecognitionCoordinator :
@@ -271,6 +274,17 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
         public ArtifactId? ArtifactId { get; private set; }
         public string? Classification { get; private set; }
         public ClaimIssueId? ClaimIssueId { get; private set; }
+
+        public RequirementId? RequirementId { get; private set; }
+
+        public Task AssociateRequirementAsync(
+            EvidenceClassificationId classificationId,
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default)
+        {
+            RequirementId = requirementId;
+            return Task.CompletedTask;
+        }
 
         public Task<EvidenceClassification> ClassifyAsync(
             ArtifactId artifactId,

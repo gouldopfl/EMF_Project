@@ -25,6 +25,15 @@ public interface IEvidenceClassificationRepository
         string classification,
         CancellationToken cancellationToken = default);
 
+    Task AddEvidenceClassificationRequirementAsync(
+        EvidenceClassificationRequirement association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<EvidenceClassificationRequirement>>
+        GetEvidenceClassificationRequirementsAsync(
+            EvidenceClassificationId classificationId,
+            CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<EvidenceClassification>>
         GetEvidenceClassificationsAsync(
             ClaimIssueId claimIssueId,

@@ -165,6 +165,84 @@ public sealed class SqliteEvidenceClassificationRepository :
         return ReadEvidenceClassification(reader);
     }
 
+    public async Task AddEvidenceClassificationRequirementAsync(
+        EvidenceClassificationRequirement association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT OR IGNORE INTO
+                VeteransClaims_EvidenceClassificationRequirements (
+                    EvidenceClassificationId,
+                    RequirementId
+                )
+            VALUES (
+                $classificationId,
+                $requirementId
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$classificationId",
+            association.EvidenceClassificationId.Value);
+
+        command.Parameters.AddWithValue(
+            "$requirementId",
+            association.RequirementId.Value);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EvidenceClassificationRequirement>>
+        GetEvidenceClassificationRequirementsAsync(
+            EvidenceClassificationId classificationId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT EvidenceClassificationId, RequirementId
+            FROM VeteransClaims_EvidenceClassificationRequirements
+            WHERE EvidenceClassificationId = $classificationId
+            ORDER BY RequirementId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$classificationId",
+            classificationId.Value);
+
+        var results =
+            new List<EvidenceClassificationRequirement>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(
+                new EvidenceClassificationRequirement
+                {
+                    EvidenceClassificationId =
+                        new EvidenceClassificationId(
+                            reader.GetString(0)),
+                    RequirementId =
+                        new RequirementId(
+                            reader.GetString(1))
+                });
+        }
+
+        return results;
+    }
+
     public async Task<IReadOnlyList<EvidenceClassification>>
         GetEvidenceClassificationsAsync(
             ArtifactId artifactId,

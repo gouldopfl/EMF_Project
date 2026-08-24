@@ -11,4 +11,9 @@ public interface IEvidenceClassificationService
         string classification,
         ClaimIssueId? claimIssueId = null,
         CancellationToken cancellationToken = default);
+    Task AssociateRequirementAsync(
+        EvidenceClassificationId classificationId,
+        RequirementId requirementId,
+        CancellationToken cancellationToken = default);
+
 }

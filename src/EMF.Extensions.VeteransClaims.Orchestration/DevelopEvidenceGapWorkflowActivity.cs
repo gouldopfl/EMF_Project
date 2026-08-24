@@ -111,11 +111,18 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
                 foreach (var link in recognition.MatchArtifacts
                     .Where(x => x.RecognitionTermId == match.TermId))
                 {
-                    await _classificationService.ClassifyAsync(
-                        link.ArtifactId,
-                        match.EvidenceClassification,
-                        gap.ClaimIssueId,
-                        cancellationToken);
+                    var classification =
+                        await _classificationService.ClassifyAsync(
+                            link.ArtifactId,
+                            match.EvidenceClassification,
+                            gap.ClaimIssueId,
+                            cancellationToken);
+
+                    await _classificationService
+                        .AssociateRequirementAsync(
+                            classification.Id,
+                            gap.RequirementId,
+                            cancellationToken);
                 }
             }
         }

@@ -2,6 +2,7 @@ using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Claims;
 using EMF.Extensions.VeteransClaims.Models.Identities;
+using EMF.Extensions.VeteransClaims.Regulatory;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
 
 namespace EMF.Tests;
@@ -202,5 +203,112 @@ public sealed class VeteransClaimsSqliteEvidenceClassificationRepositoryTests
             File.Delete(databasePath);
         }
     }
+
+    [Fact]
+    public async Task Repository_RoundTripsClassificationRequirement()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteEvidenceClassificationRepository(
+                    databasePath);
+
+            await repository.InitializeAsync();
+
+            var classification =
+                new EvidenceClassification
+                {
+                    Id =
+                        new EvidenceClassificationId(
+                            "classification-requirement-1"),
+                    ArtifactId =
+                        new ArtifactId(
+                            "artifact-requirement-1"),
+                    Classification =
+                        EvidenceClassifications.MedicalEvidence
+                };
+
+            await repository
+                .AddEvidenceClassificationAsync(
+                    classification);
+
+            var regulatory =
+                new SqliteRegulatoryRepository(
+                    databasePath);
+
+            var authority =
+                new RegulatoryAuthority
+                {
+                    Id =
+                        new RegulatoryAuthorityId(
+                            "authority-requirement-1"),
+                    AuthorityType = "Regulation",
+                    Citation = "38 CFR",
+                    Title = "Test Regulation"
+                };
+
+            await regulatory.AddRegulatoryAuthorityAsync(
+                authority);
+
+            var provision =
+                new RegulatoryProvision
+                {
+                    Id =
+                        new RegulatoryProvisionId(
+                            "provision-requirement-1"),
+                    RegulatoryAuthorityId = authority.Id,
+                    ProvisionType =
+                        RegulatoryProvisionTypes.Requirement,
+                    Citation = "38 CFR"
+                };
+
+            await regulatory.AddRegulatoryProvisionAsync(
+                provision);
+
+            var requirement =
+                new Requirement
+                {
+                    Id =
+                        new RequirementId(
+                            "requirement-trace-1"),
+                    RegulatoryProvisionId = provision.Id,
+                    Description = "Required evidence."
+                };
+
+            await regulatory.AddRequirementAsync(
+                requirement);
+
+            await repository
+                .AddEvidenceClassificationRequirementAsync(
+                    new EvidenceClassificationRequirement
+                    {
+                        EvidenceClassificationId =
+                            classification.Id,
+                        RequirementId =
+                            requirement.Id
+                    });
+
+            var stored =
+                await repository
+                    .GetEvidenceClassificationRequirementsAsync(
+                        classification.Id);
+
+            var association = Assert.Single(stored);
+
+            Assert.Equal(
+                classification.Id,
+                association.EvidenceClassificationId);
+            Assert.Equal(
+                requirement.Id,
+                association.RequirementId);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
 
 }

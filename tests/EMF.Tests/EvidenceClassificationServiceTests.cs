@@ -110,6 +110,18 @@ public sealed class EvidenceClassificationServiceTests
             return Task.CompletedTask;
         }
 
+        public Task AddEvidenceClassificationRequirementAsync(
+            EvidenceClassificationRequirement association,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<IReadOnlyList<EvidenceClassificationRequirement>>
+            GetEvidenceClassificationRequirementsAsync(
+                EvidenceClassificationId classificationId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<EvidenceClassificationRequirement>>(
+                Array.Empty<EvidenceClassificationRequirement>());
+
         public Task<EvidenceClassification?>
             FindEvidenceClassificationAsync(
                 ArtifactId artifactId,

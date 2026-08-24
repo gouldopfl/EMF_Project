@@ -68,4 +68,20 @@ public sealed class EvidenceClassificationService :
 
         return result;
     }
+
+    public Task AssociateRequirementAsync(
+        EvidenceClassificationId classificationId,
+        RequirementId requirementId,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.AddEvidenceClassificationRequirementAsync(
+            new EvidenceClassificationRequirement
+            {
+                EvidenceClassificationId = classificationId,
+                RequirementId = requirementId
+            },
+            cancellationToken);
+    }
+
+
 }
