@@ -92,6 +92,110 @@ public sealed class RequirementEvidenceServiceTests
         Assert.Empty(result.Evidence);
     }
 
+    [Fact]
+    public async Task AssessResponsivenessAsync_ComparesGuidanceToEvidence()
+    {
+        var requirementId =
+            new RequirementId("requirement-responsive-1");
+
+        var classification =
+            new EvidenceClassification
+            {
+                Id =
+                    new EvidenceClassificationId(
+                        "classification-responsive-1"),
+                ArtifactId =
+                    new ArtifactId("artifact-responsive-1"),
+                Classification =
+                    EvidenceClassifications.MedicalOpinion
+            };
+
+        var matchingGuidance =
+            new EvidenceRequirementGuidance
+            {
+                Id =
+                    new EvidenceRequirementGuidanceId(
+                        "guidance-responsive-1"),
+                RequirementId = requirementId,
+                EvidenceClassification =
+                    EvidenceClassifications.MedicalOpinion,
+                GuidanceRole =
+                    EvidenceGuidanceRoles.EstablishesElement,
+                Description = "Medical opinion evidence."
+            };
+
+        var missingGuidance =
+            new EvidenceRequirementGuidance
+            {
+                Id =
+                    new EvidenceRequirementGuidanceId(
+                        "guidance-responsive-2"),
+                RequirementId = requirementId,
+                EvidenceClassification =
+                    EvidenceClassifications.ServiceRecord,
+                GuidanceRole =
+                    EvidenceGuidanceRoles.Corroborates,
+                Description = "Service record evidence."
+            };
+
+        var service =
+            new RequirementEvidenceService(
+                new RecordingRepository(classification),
+                new RecordingGuidanceRepository(
+                    matchingGuidance,
+                    missingGuidance));
+
+        var result =
+            await service.AssessResponsivenessAsync(
+                requirementId);
+
+        Assert.Equal(requirementId, result.RequirementId);
+        Assert.Equal(2, result.Items.Count);
+        Assert.Equal(1, result.MatchingItemCount);
+        Assert.Equal(1, result.MissingItemCount);
+
+        Assert.True(result.Items[0].HasMatchingEvidence);
+        Assert.False(result.Items[1].HasMatchingEvidence);
+
+        Assert.Equal(
+            EvidenceGuidanceRoles.EstablishesElement,
+            result.Items[0].Guidance.GuidanceRole);
+
+        Assert.Equal(
+            EvidenceGuidanceRoles.Corroborates,
+            result.Items[1].Guidance.GuidanceRole);
+    }
+
+    private sealed class RecordingGuidanceRepository :
+        IEvidenceRequirementGuidanceRepository
+    {
+        private readonly IReadOnlyList<EvidenceRequirementGuidance>
+            _guidance;
+
+        public RecordingGuidanceRepository(
+            params EvidenceRequirementGuidance[] guidance)
+        {
+            _guidance = guidance;
+        }
+
+        public Task<IReadOnlyList<EvidenceRequirementGuidance>>
+            GetEvidenceRequirementGuidanceAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult(_guidance);
+
+        public Task AddEvidenceRequirementGuidanceAsync(
+            EvidenceRequirementGuidance guidance,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<EvidenceRequirementGuidance?>
+            GetEvidenceRequirementGuidanceAsync(
+                EvidenceRequirementGuidanceId guidanceId,
+                CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
     private sealed class RecordingRepository :
         IEvidenceClassificationRepository
     {

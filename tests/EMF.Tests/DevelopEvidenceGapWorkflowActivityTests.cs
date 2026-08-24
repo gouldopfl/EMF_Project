@@ -320,6 +320,13 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
                             : Array.Empty<EvidenceClassification>()
                 });
         }
+
+
+        public Task<RequirementEvidenceResponsivenessAssessment>
+            AssessResponsivenessAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FakeRecognitionCoordinator :

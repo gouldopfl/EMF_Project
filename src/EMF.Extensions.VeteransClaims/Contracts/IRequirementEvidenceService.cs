@@ -14,4 +14,9 @@ public interface IRequirementEvidenceService
         AssessAsync(
             RequirementId requirementId,
             CancellationToken cancellationToken = default);
+
+    Task<RequirementEvidenceResponsivenessAssessment>
+        AssessResponsivenessAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default);
 }
