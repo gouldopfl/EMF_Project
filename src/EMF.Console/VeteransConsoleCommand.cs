@@ -26,6 +26,27 @@ public static class VeteransConsoleCommand
         Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory)
     {
         ArgumentNullException.ThrowIfNull(runtimeFactory);
+
+        if (args.Length == 4 &&
+            args[0] == "evidence" &&
+            args[1] == "checklist")
+        {
+            var checklistDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(checklistDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {checklistDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunChecklistAsync(
+                checklistDatabasePath,
+                new ClaimIssueId(args[3]));
+        }
+
         var summarize =
             args.Length >= 6 &&
             args[0] == "evidence" &&
@@ -264,11 +285,62 @@ public static class VeteransConsoleCommand
         }
     }
 
+    private static async Task<int> RunChecklistAsync(
+        string databasePath,
+        ClaimIssueId claimIssueId)
+    {
+        var gaps =
+            new SqliteEvidenceGapRepository(databasePath);
+
+        var guidance =
+            new SqliteEvidenceRequirementGuidanceRepository(
+                databasePath);
+
+        var classifications =
+            new SqliteEvidenceClassificationRepository(
+                databasePath);
+
+        var requirements =
+            new RequirementEvidenceService(
+                classifications,
+                guidance);
+
+        var service =
+            new ClaimIssueEvidenceChecklistService(
+                gaps,
+                requirements);
+
+        var checklist =
+            await service.CreateChecklistAsync(claimIssueId);
+
+        global::System.Console.WriteLine(
+            $"Claim Issue: {claimIssueId.Value}");
+
+        foreach (var requirement in checklist.RequirementChecklists)
+        {
+            global::System.Console.WriteLine(
+                $"Requirement: {requirement.RequirementId.Value}");
+
+            foreach (var item in requirement.Items)
+            {
+                global::System.Console.WriteLine(
+                    $"- {item.EvidenceClassification} / " +
+                    $"{item.GuidanceRole}: {item.Description}");
+            }
+        }
+
+        return 0;
+    }
+
     private static void ShowUsage()
     {
         global::System.Console.WriteLine(
             "Usage: emf veterans evidence develop " +
             "[--summarize [--promote]] " +
             "<database-path> <plan-id> <evidence-gap-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence checklist " +
+            "<database-path> <claim-issue-id>");
     }
 }

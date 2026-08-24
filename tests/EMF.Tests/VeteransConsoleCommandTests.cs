@@ -5,6 +5,7 @@ using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Claims;
 using EMF.Extensions.VeteransClaims.Models.Identities;
+using EMF.Extensions.VeteransClaims.Persistence.Sqlite;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
 using EMF.Extensions.VeteransClaims.Regulatory;
 using EMF.Intelligence.Capabilities;
@@ -26,6 +27,22 @@ public sealed class VeteransConsoleCommandTests
 
         Assert.Equal(2, exitCode);
     }
+
+    [Fact]
+    public async Task EvidenceChecklist_RejectsMissingDatabase()
+    {
+        var exitCode =
+            await VeteransConsoleCommand.RunAsync(
+                [
+                    "evidence",
+                    "checklist",
+                    "/tmp/emf-missing-veterans-checklist.db",
+                    "issue-1"
+                ]);
+
+        Assert.Equal(2, exitCode);
+    }
+
     [Fact]
     public async Task EvidenceDevelop_RejectsMissingDatabase()
     {
@@ -322,6 +339,141 @@ public sealed class VeteransConsoleCommandTests
                 "EMF_REVIEWED_BY",
                 previousReviewer);
 
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task EvidenceChecklist_ReadsOutstandingItems()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(
+                databasePath)
+                .InitializeAsync();
+
+            var issueId =
+                new ClaimIssueId("issue-checklist-console-1");
+
+            var requirementId =
+                new RequirementId("requirement-checklist-console-1");
+
+            var veteran =
+                new Veteran
+                {
+                    Id = new VeteranId("veteran-checklist-console-1")
+                };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim =
+                new Claim
+                {
+                    Id = new ClaimId("claim-checklist-console-1"),
+                    VeteranId = veteran.Id
+                };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(
+                    new ClaimIssue
+                    {
+                        Id = issueId,
+                        ClaimId = claim.Id,
+                        ClaimIssueType =
+                            ClaimIssueTypes.ServiceConnection
+                    });
+
+            var regulatory =
+                new SqliteRegulatoryRepository(databasePath);
+
+            var authority =
+                new RegulatoryAuthority
+                {
+                    Id =
+                        new RegulatoryAuthorityId(
+                            "authority-checklist-console-1"),
+                    AuthorityType = "Regulation",
+                    Citation = "38 CFR",
+                    Title = "Veterans Affairs"
+                };
+
+            await regulatory.AddRegulatoryAuthorityAsync(
+                authority);
+
+            var provision =
+                new RegulatoryProvision
+                {
+                    Id =
+                        new RegulatoryProvisionId(
+                            "provision-checklist-console-1"),
+                    RegulatoryAuthorityId = authority.Id,
+                    ProvisionType =
+                        RegulatoryProvisionTypes.Requirement,
+                    Citation = "38 CFR"
+                };
+
+            await regulatory.AddRegulatoryProvisionAsync(
+                provision);
+
+            await regulatory.AddRequirementAsync(
+                new Requirement
+                {
+                    Id = requirementId,
+                    RegulatoryProvisionId = provision.Id,
+                    Description = "Required element."
+                });
+
+            var gapRepository =
+                new SqliteEvidenceGapRepository(databasePath);
+
+            await gapRepository.InitializeAsync();
+
+            await gapRepository.AddEvidenceGapAsync(
+                new EvidenceGap
+                {
+                    Id =
+                        new EvidenceGapId(
+                            "gap-checklist-console-1"),
+                    ClaimIssueId = issueId,
+                    RequirementId = requirementId,
+                    Description = "Missing evidence."
+                });
+
+            await new SqliteEvidenceRequirementGuidanceRepository(
+                databasePath)
+                .AddEvidenceRequirementGuidanceAsync(
+                    new EvidenceRequirementGuidance
+                    {
+                        Id =
+                            new EvidenceRequirementGuidanceId(
+                                "guidance-checklist-console-1"),
+                        RequirementId = requirementId,
+                        EvidenceClassification =
+                            EvidenceClassifications.MedicalOpinion,
+                        GuidanceRole =
+                            EvidenceGuidanceRoles.SupportsRequirement,
+                        Description = "Medical opinion evidence."
+                    });
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "checklist",
+                        databasePath,
+                        issueId.Value
+                    ]);
+
+            Assert.Equal(0, exitCode);
+        }
+        finally
+        {
             File.Delete(databasePath);
         }
     }
