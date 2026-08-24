@@ -1,4 +1,5 @@
 using EMF.Extensions.VeteransClaims.Contracts;
+using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Orchestration.Contracts;
 using EMF.Orchestration.Models;
@@ -13,6 +14,7 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
     private readonly IEvidenceDevelopmentPlanRepository _developmentRepository;
     private readonly IEvidenceRecognitionCoordinator _recognitionCoordinator;
     private readonly IEvidenceClassificationService? _classificationService;
+    private readonly IRequirementEvidenceService? _requirementEvidenceService;
     private readonly EvidenceGapId _evidenceGapId;
 
     public DevelopEvidenceGapWorkflowActivity(
@@ -41,6 +43,7 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
             developmentRepository,
             recognitionCoordinator,
             null,
+            null,
             evidenceGapId)
     {
     }
@@ -51,6 +54,25 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
         IEvidenceDevelopmentPlanRepository developmentRepository,
         IEvidenceRecognitionCoordinator recognitionCoordinator,
         IEvidenceClassificationService? classificationService,
+        EvidenceGapId evidenceGapId)
+        : this(
+            repository,
+            guidanceRepository,
+            developmentRepository,
+            recognitionCoordinator,
+            classificationService,
+            null,
+            evidenceGapId)
+    {
+    }
+
+    public DevelopEvidenceGapWorkflowActivity(
+        IEvidenceGapRepository repository,
+        IEvidenceRequirementGuidanceRepository guidanceRepository,
+        IEvidenceDevelopmentPlanRepository developmentRepository,
+        IEvidenceRecognitionCoordinator recognitionCoordinator,
+        IEvidenceClassificationService? classificationService,
+        IRequirementEvidenceService? requirementEvidenceService,
         EvidenceGapId evidenceGapId)
     {
         ArgumentNullException.ThrowIfNull(repository);
@@ -63,6 +85,7 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
         _developmentRepository = developmentRepository;
         _recognitionCoordinator = recognitionCoordinator;
         _classificationService = classificationService;
+        _requirementEvidenceService = requirementEvidenceService;
         _evidenceGapId = evidenceGapId;
     }
 
@@ -143,12 +166,25 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
                 developmentResult,
                 cancellationToken);
 
+        RequirementEvidenceAssessment? assessment = null;
+
+        if (_requirementEvidenceService is not null)
+        {
+            assessment =
+                await _requirementEvidenceService.AssessAsync(
+                    gap.RequirementId,
+                    cancellationToken);
+        }
+
         return new WorkflowActivityResult
         {
             Succeeded = true,
             Message =
                 $"Evidence gap: {gap.Description}; " +
-                $"guidance items: {guidance.Count}.",
+                $"guidance items: {guidance.Count}" +
+                (assessment is null
+                    ? "."
+                    : $"; evidence present: {assessment.HasEvidence}."),
             CompletedUtc = DateTimeOffset.UtcNow
         };
     }

@@ -231,6 +231,97 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
             classifier.RequirementId);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ReportsRequirementEvidencePresence()
+    {
+        var gap = new EvidenceGap
+        {
+            Id = new EvidenceGapId("gap-assessment-1"),
+            ClaimIssueId = new ClaimIssueId("issue-assessment-1"),
+            RequirementId = new RequirementId("req-assessment-1"),
+            Description = "Missing evidence."
+        };
+
+        var evidenceService =
+            new FakeRequirementEvidenceService(true);
+
+        var activity =
+            new DevelopEvidenceGapWorkflowActivity(
+                new FakeRepository(gap),
+                new FakeGuidanceRepository(),
+                new FakeDevelopmentRepository(),
+                new FakeRecognitionCoordinator(),
+                null,
+                evidenceService,
+                gap.Id);
+
+        var result =
+            await activity.ExecuteAsync(
+                new WorkflowExecutionContext
+                {
+                    WorkflowId =
+                        new WorkflowId("workflow-assessment-1")
+                });
+
+        Assert.Equal(
+            gap.RequirementId,
+            evidenceService.RequirementId);
+
+        Assert.Contains(
+            "evidence present: True",
+            result.Message);
+    }
+
+    private sealed class FakeRequirementEvidenceService :
+        IRequirementEvidenceService
+    {
+        private readonly bool _hasEvidence;
+
+        public FakeRequirementEvidenceService(bool hasEvidence)
+        {
+            _hasEvidence = hasEvidence;
+        }
+
+        public RequirementId? RequirementId { get; private set; }
+
+        public Task<IReadOnlyList<EvidenceClassification>>
+            GetEvidenceAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<RequirementEvidenceAssessment>
+            AssessAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default)
+        {
+            RequirementId = requirementId;
+
+            return Task.FromResult(
+                new RequirementEvidenceAssessment
+                {
+                    RequirementId = requirementId,
+                    Evidence =
+                        _hasEvidence
+                            ? new[]
+                            {
+                                new EvidenceClassification
+                                {
+                                    Id =
+                                        new EvidenceClassificationId(
+                                            "classification-assessment-1"),
+                                    ArtifactId =
+                                        new ArtifactId(
+                                            "artifact-assessment-1"),
+                                    Classification =
+                                        EvidenceClassifications.MedicalEvidence
+                                }
+                            }
+                            : Array.Empty<EvidenceClassification>()
+                });
+        }
+    }
+
     private sealed class FakeRecognitionCoordinator :
         IEvidenceRecognitionCoordinator
     {
