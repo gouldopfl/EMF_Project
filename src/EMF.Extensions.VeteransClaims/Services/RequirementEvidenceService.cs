@@ -96,4 +96,38 @@ public sealed class RequirementEvidenceService :
             Items = items
         };
     }
+
+    public async Task<EvidenceDevelopmentChecklist>
+        CreateChecklistAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default)
+    {
+        var assessment =
+            await AssessResponsivenessAsync(
+                requirementId,
+                cancellationToken);
+
+        var items =
+            assessment.MissingItems
+                .Select(
+                    item =>
+                        new EvidenceDevelopmentChecklistItem
+                        {
+                            RequirementId = requirementId,
+                            EvidenceClassification =
+                                item.Guidance.EvidenceClassification,
+                            GuidanceRole =
+                                item.Guidance.GuidanceRole,
+                            Description =
+                                item.Guidance.Description
+                        })
+                .ToArray();
+
+        return new EvidenceDevelopmentChecklist
+        {
+            RequirementId = requirementId,
+            Items = items
+        };
+    }
+
 }

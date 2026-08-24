@@ -166,6 +166,85 @@ public sealed class RequirementEvidenceServiceTests
             result.Items[1].Guidance.GuidanceRole);
     }
 
+    [Fact]
+    public async Task CreateChecklistAsync_ReturnsOnlyMissingGuidance()
+    {
+        var requirementId =
+            new RequirementId("requirement-checklist-1");
+
+        var classification =
+            new EvidenceClassification
+            {
+                Id =
+                    new EvidenceClassificationId(
+                        "classification-checklist-1"),
+                ArtifactId =
+                    new ArtifactId("artifact-checklist-1"),
+                Classification =
+                    EvidenceClassifications.MedicalOpinion
+            };
+
+        var matchingGuidance =
+            new EvidenceRequirementGuidance
+            {
+                Id =
+                    new EvidenceRequirementGuidanceId(
+                        "guidance-checklist-1"),
+                RequirementId = requirementId,
+                EvidenceClassification =
+                    EvidenceClassifications.MedicalOpinion,
+                GuidanceRole =
+                    EvidenceGuidanceRoles.EstablishesElement,
+                Description = "Medical opinion evidence."
+            };
+
+        var missingGuidance =
+            new EvidenceRequirementGuidance
+            {
+                Id =
+                    new EvidenceRequirementGuidanceId(
+                        "guidance-checklist-2"),
+                RequirementId = requirementId,
+                EvidenceClassification =
+                    EvidenceClassifications.ServiceRecord,
+                GuidanceRole =
+                    EvidenceGuidanceRoles.Corroborates,
+                Description = "Service record evidence."
+            };
+
+        var service =
+            new RequirementEvidenceService(
+                new RecordingRepository(classification),
+                new RecordingGuidanceRepository(
+                    matchingGuidance,
+                    missingGuidance));
+
+        var checklist =
+            await service.CreateChecklistAsync(
+                requirementId);
+
+        Assert.Equal(
+            requirementId,
+            checklist.RequirementId);
+
+        Assert.True(checklist.HasOutstandingItems);
+
+        var item =
+            Assert.Single(checklist.Items);
+
+        Assert.Equal(
+            EvidenceClassifications.ServiceRecord,
+            item.EvidenceClassification);
+
+        Assert.Equal(
+            EvidenceGuidanceRoles.Corroborates,
+            item.GuidanceRole);
+
+        Assert.Equal(
+            "Service record evidence.",
+            item.Description);
+    }
+
     private sealed class RecordingGuidanceRepository :
         IEvidenceRequirementGuidanceRepository
     {

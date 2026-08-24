@@ -368,6 +368,13 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
                                 RequirementEvidenceResponsivenessItem>()
                 });
         }
+
+        public Task<EvidenceDevelopmentChecklist>
+            CreateChecklistAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
     }
 
     private sealed class FakeRecognitionCoordinator :

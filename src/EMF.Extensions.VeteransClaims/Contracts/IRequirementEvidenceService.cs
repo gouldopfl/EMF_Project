@@ -19,4 +19,9 @@ public interface IRequirementEvidenceService
         AssessResponsivenessAsync(
             RequirementId requirementId,
             CancellationToken cancellationToken = default);
+
+    Task<EvidenceDevelopmentChecklist>
+        CreateChecklistAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default);
 }
