@@ -313,20 +313,10 @@ public static class VeteransConsoleCommand
         var checklist =
             await service.CreateChecklistAsync(claimIssueId);
 
-        global::System.Console.WriteLine(
-            $"Claim Issue: {claimIssueId.Value}");
-
-        foreach (var requirement in checklist.RequirementChecklists)
+        foreach (var line in
+            VeteransEvidenceChecklistFormatter.Format(checklist))
         {
-            global::System.Console.WriteLine(
-                $"Requirement: {requirement.RequirementId.Value}");
-
-            foreach (var item in requirement.Items)
-            {
-                global::System.Console.WriteLine(
-                    $"- {item.EvidenceClassification} / " +
-                    $"{item.GuidanceRole}: {item.Description}");
-            }
+            global::System.Console.WriteLine(line);
         }
 
         return 0;
