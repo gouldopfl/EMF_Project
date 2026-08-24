@@ -14,4 +14,16 @@ public sealed class RequirementEvidenceResponsivenessAssessment
 
     public int MissingItemCount =>
         Items.Count(x => !x.HasMatchingEvidence);
+
+    public IReadOnlyList<RequirementEvidenceResponsivenessItem>
+        MatchingItems =>
+            Items
+                .Where(x => x.HasMatchingEvidence)
+                .ToArray();
+
+    public IReadOnlyList<RequirementEvidenceResponsivenessItem>
+        MissingItems =>
+            Items
+                .Where(x => !x.HasMatchingEvidence)
+                .ToArray();
 }
