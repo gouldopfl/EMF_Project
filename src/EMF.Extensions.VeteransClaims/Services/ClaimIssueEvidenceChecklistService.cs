@@ -1,0 +1,55 @@
+using EMF.Extensions.VeteransClaims.Contracts;
+using EMF.Extensions.VeteransClaims.Models.Adjudication;
+using EMF.Extensions.VeteransClaims.Models.Identities;
+
+namespace EMF.Extensions.VeteransClaims.Services;
+
+public sealed class ClaimIssueEvidenceChecklistService :
+    IClaimIssueEvidenceChecklistService
+{
+    private readonly IEvidenceGapRepository _gaps;
+    private readonly IRequirementEvidenceService _requirements;
+
+    public ClaimIssueEvidenceChecklistService(
+        IEvidenceGapRepository gaps,
+        IRequirementEvidenceService requirements)
+    {
+        ArgumentNullException.ThrowIfNull(gaps);
+        ArgumentNullException.ThrowIfNull(requirements);
+
+        _gaps = gaps;
+        _requirements = requirements;
+    }
+
+    public async Task<ClaimIssueEvidenceChecklist>
+        CreateChecklistAsync(
+            ClaimIssueId claimIssueId,
+            CancellationToken cancellationToken = default)
+    {
+        var gaps =
+            await _gaps.GetEvidenceGapsAsync(
+                claimIssueId,
+                cancellationToken);
+
+        var results =
+            new List<EvidenceDevelopmentChecklist>();
+
+        foreach (var requirementId in
+            gaps.Select(x => x.RequirementId).Distinct())
+        {
+            var checklist =
+                await _requirements.CreateChecklistAsync(
+                    requirementId,
+                    cancellationToken);
+
+            if (checklist.HasOutstandingItems)
+                results.Add(checklist);
+        }
+
+        return new ClaimIssueEvidenceChecklist
+        {
+            ClaimIssueId = claimIssueId,
+            RequirementChecklists = results
+        };
+    }
+}
