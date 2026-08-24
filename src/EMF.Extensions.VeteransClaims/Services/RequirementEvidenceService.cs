@@ -25,4 +25,21 @@ public sealed class RequirementEvidenceService :
             requirementId,
             cancellationToken);
     }
+
+    public async Task<RequirementEvidenceAssessment>
+        AssessAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default)
+    {
+        var evidence =
+            await GetEvidenceAsync(
+                requirementId,
+                cancellationToken);
+
+        return new RequirementEvidenceAssessment
+        {
+            RequirementId = requirementId,
+            Evidence = evidence
+        };
+    }
 }

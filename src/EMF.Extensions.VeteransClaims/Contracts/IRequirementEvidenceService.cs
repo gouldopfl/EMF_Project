@@ -9,4 +9,9 @@ public interface IRequirementEvidenceService
         GetEvidenceAsync(
             RequirementId requirementId,
             CancellationToken cancellationToken = default);
+
+    Task<RequirementEvidenceAssessment>
+        AssessAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default);
 }

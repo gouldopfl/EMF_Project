@@ -44,15 +44,64 @@ public sealed class RequirementEvidenceServiceTests
             Assert.Single(result).Id);
     }
 
+    [Fact]
+    public async Task AssessAsync_ReportsEvidencePresent()
+    {
+        var requirementId =
+            new RequirementId("requirement-assessment-1");
+
+        var classification =
+            new EvidenceClassification
+            {
+                Id =
+                    new EvidenceClassificationId(
+                        "classification-assessment-1"),
+                ArtifactId =
+                    new ArtifactId("artifact-assessment-1"),
+                Classification =
+                    EvidenceClassifications.MedicalEvidence
+            };
+
+        var service =
+            new RequirementEvidenceService(
+                new RecordingRepository(classification));
+
+        var result =
+            await service.AssessAsync(requirementId);
+
+        Assert.Equal(requirementId, result.RequirementId);
+        Assert.True(result.HasEvidence);
+        Assert.Single(result.Evidence);
+    }
+
+    [Fact]
+    public async Task AssessAsync_ReportsNoEvidence()
+    {
+        var requirementId =
+            new RequirementId("requirement-assessment-2");
+
+        var service =
+            new RequirementEvidenceService(
+                new RecordingRepository());
+
+        var result =
+            await service.AssessAsync(requirementId);
+
+        Assert.Equal(requirementId, result.RequirementId);
+        Assert.False(result.HasEvidence);
+        Assert.Empty(result.Evidence);
+    }
+
     private sealed class RecordingRepository :
         IEvidenceClassificationRepository
     {
-        private readonly EvidenceClassification _classification;
+        private readonly IReadOnlyList<EvidenceClassification>
+            _classifications;
 
         public RecordingRepository(
-            EvidenceClassification classification)
+            params EvidenceClassification[] classifications)
         {
-            _classification = classification;
+            _classifications = classifications;
         }
 
         public RequirementId? RequirementId { get; private set; }
@@ -64,8 +113,8 @@ public sealed class RequirementEvidenceServiceTests
         {
             RequirementId = requirementId;
 
-            return Task.FromResult<IReadOnlyList<EvidenceClassification>>(
-                new[] { _classification });
+            return Task.FromResult(
+                _classifications);
         }
 
         public Task AddEvidenceClassificationAsync(
