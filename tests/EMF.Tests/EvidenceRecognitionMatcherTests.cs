@@ -96,6 +96,10 @@ public sealed class EvidenceRecognitionMatcherTests
         Assert.Equal(
             "chronic",
             result[0].Term);
+
+        Assert.Equal(
+            EvidenceClassifications.MedicalEvidence,
+            result[0].EvidenceClassification);
     }
 
 
@@ -120,6 +124,9 @@ public sealed class EvidenceRecognitionMatcherTests
 
             RecognitionRole =
                 EvidenceRecognitionRoles.EvidenceType,
+
+            EvidenceClassification =
+                EvidenceClassifications.MedicalEvidence,
 
             AuthoritySource =
                 "38 CFR 4.71a"

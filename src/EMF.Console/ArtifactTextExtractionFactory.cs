@@ -1,4 +1,3 @@
-using System.Runtime.Versioning;
 using EMF.Core.Contracts;
 using EMF.Core.Contracts.Storage;
 using EMF.Orchestration.Services;
@@ -7,10 +6,7 @@ namespace EMF.ConsoleApplication;
 
 internal static class ArtifactTextExtractionFactory
 {
-    [SupportedOSPlatform("windows")]
-    [SupportedOSPlatform("linux")]
-    [SupportedOSPlatform("macos")]
-    public static IArtifactTextExtractor Create(
+                public static IArtifactTextExtractor Create(
         IEvidenceRepository repository,
         IArtifactContentStore contentStore)
     {
@@ -47,10 +43,12 @@ internal static class ArtifactTextExtractionFactory
                 new DocArtifactTextExtractionProvider(contentStore),
                 new PptxArtifactTextExtractionProvider(contentStore),
                 new PptArtifactTextExtractionProvider(contentStore),
+#pragma warning disable CA1416
                 new PdfArtifactTextExtractionProvider(
                     contentStore,
                     new PdfToImagePageRenderer(),
                     ocrService),
+#pragma warning restore CA1416
                 new XlsxArtifactTextExtractionProvider(contentStore),
                 new XlsArtifactTextExtractionProvider(contentStore),
                 new EmlArtifactTextExtractionProvider(contentStore),

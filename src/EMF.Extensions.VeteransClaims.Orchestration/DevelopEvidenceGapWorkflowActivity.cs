@@ -12,6 +12,7 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
     private readonly IEvidenceRequirementGuidanceRepository _guidanceRepository;
     private readonly IEvidenceDevelopmentPlanRepository _developmentRepository;
     private readonly IEvidenceRecognitionCoordinator _recognitionCoordinator;
+    private readonly IEvidenceClassificationService? _classificationService;
     private readonly EvidenceGapId _evidenceGapId;
 
     public DevelopEvidenceGapWorkflowActivity(
@@ -34,6 +35,23 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
         IEvidenceDevelopmentPlanRepository developmentRepository,
         IEvidenceRecognitionCoordinator recognitionCoordinator,
         EvidenceGapId evidenceGapId)
+        : this(
+            repository,
+            guidanceRepository,
+            developmentRepository,
+            recognitionCoordinator,
+            null,
+            evidenceGapId)
+    {
+    }
+
+    public DevelopEvidenceGapWorkflowActivity(
+        IEvidenceGapRepository repository,
+        IEvidenceRequirementGuidanceRepository guidanceRepository,
+        IEvidenceDevelopmentPlanRepository developmentRepository,
+        IEvidenceRecognitionCoordinator recognitionCoordinator,
+        IEvidenceClassificationService? classificationService,
+        EvidenceGapId evidenceGapId)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(guidanceRepository);
@@ -44,6 +62,7 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
         _guidanceRepository = guidanceRepository;
         _developmentRepository = developmentRepository;
         _recognitionCoordinator = recognitionCoordinator;
+        _classificationService = classificationService;
         _evidenceGapId = evidenceGapId;
     }
 
@@ -80,6 +99,26 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
             await _recognitionCoordinator.RecognizeAsync(
                 gap.Id,
                 cancellationToken);
+
+        if (_classificationService is not null)
+        {
+            foreach (var match in recognition.Matches)
+            {
+                if (string.IsNullOrWhiteSpace(
+                        match.EvidenceClassification))
+                    continue;
+
+                foreach (var link in recognition.MatchArtifacts
+                    .Where(x => x.RecognitionTermId == match.TermId))
+                {
+                    await _classificationService.ClassifyAsync(
+                        link.ArtifactId,
+                        match.EvidenceClassification,
+                        gap.ClaimIssueId,
+                        cancellationToken);
+                }
+            }
+        }
 
         var developmentResult =
             new EMF.Extensions.VeteransClaims.Models.Adjudication.EvidenceDevelopmentResult

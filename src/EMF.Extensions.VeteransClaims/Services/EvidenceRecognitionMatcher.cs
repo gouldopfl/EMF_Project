@@ -44,6 +44,8 @@ public sealed class EvidenceRecognitionMatcher
                         Term = term.Term,
                         RecognitionRole =
                             term.RecognitionRole,
+                        EvidenceClassification =
+                            term.EvidenceClassification,
                         AuthoritySource =
                             term.AuthoritySource
                     });

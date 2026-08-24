@@ -1,9 +1,11 @@
+using EMF.Common;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
 using EMF.Extensions.VeteransClaims.Orchestration;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
+using EMF.Extensions.VeteransClaims.Services;
 using EMF.Orchestration.Services;
 using EMF.Persistence.Repositories;
 
@@ -103,14 +105,59 @@ public static class VeteransConsoleCommand
             new SqliteEvidenceRequirementGuidanceRepository(
                 databasePath);
 
-        var coordinator =
-            VeteransEvidenceOrchestrationFactory
-                .CreateEvidenceDevelopmentWorkflowCoordinator(
-                    workflowService,
-                    developmentRepository,
-                    workflowRunner,
-                    gapRepository,
-                    guidanceRepository);
+        var contentStore =
+            ArtifactContentStoreFactory.Create();
+
+        IEvidenceDevelopmentWorkflowCoordinator coordinator;
+
+        if (contentStore is null)
+        {
+            coordinator =
+                VeteransEvidenceOrchestrationFactory
+                    .CreateEvidenceDevelopmentWorkflowCoordinator(
+                        workflowService,
+                        developmentRepository,
+                        workflowRunner,
+                        gapRepository,
+                        guidanceRepository);
+        }
+        else
+        {
+            var evidenceRepository =
+                new SqliteEvidenceRepository(databasePath);
+
+            await evidenceRepository.InitializeAsync();
+
+            var textExtractor =
+                ArtifactTextExtractionFactory.Create(
+                    evidenceRepository,
+                    contentStore);
+
+            var recognitionTerms =
+                new SqliteEvidenceRecognitionTermRepository(
+                    databasePath);
+
+            var classifications =
+                new SqliteEvidenceClassificationRepository(
+                    databasePath);
+
+            var classificationService =
+                new EvidenceClassificationService(
+                    classifications,
+                    new GuidIdGenerator());
+
+            coordinator =
+                VeteransEvidenceOrchestrationFactory
+                    .CreateEvidenceDevelopmentWorkflowCoordinator(
+                        workflowService,
+                        developmentRepository,
+                        workflowRunner,
+                        gapRepository,
+                        guidanceRepository,
+                        textExtractor,
+                        recognitionTerms,
+                        classificationService);
+        }
 
         try
         {

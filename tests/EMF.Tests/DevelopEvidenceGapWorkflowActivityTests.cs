@@ -173,16 +173,82 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
 
 
 
+
+    [Fact]
+    public async Task ExecuteAsync_ClassifiesMatchedArtifact()
+    {
+        var gap = new EvidenceGap
+        {
+            Id = new EvidenceGapId("gap-classify-1"),
+            ClaimIssueId = new ClaimIssueId("issue-classify-1"),
+            RequirementId = new RequirementId("req-classify-1"),
+            Description = "Missing evidence."
+        };
+
+        var termId = new EvidenceRecognitionTermId("term-classify-1");
+        var artifactId = new ArtifactId("artifact-classify-1");
+
+        var classifier = new FakeClassificationService();
+
+        var activity =
+            new DevelopEvidenceGapWorkflowActivity(
+                new FakeRepository(gap),
+                new FakeGuidanceRepository(),
+                new FakeDevelopmentRepository(),
+                new FakeRecognitionCoordinator(
+                    new EvidenceRecognitionMatch
+                    {
+                        TermId = termId,
+                        Term = "medical opinion",
+                        RecognitionRole =
+                            EvidenceRecognitionRoles.EvidenceType,
+                        EvidenceClassification =
+                            EvidenceClassifications.MedicalOpinion,
+                        AuthoritySource = "38 CFR"
+                    },
+                    new EvidenceRecognitionMatchArtifact
+                    {
+                        RecognitionTermId = termId,
+                        ArtifactId = artifactId,
+                        Role = "primary"
+                    }),
+                classifier,
+                gap.Id);
+
+        await activity.ExecuteAsync(
+            new WorkflowExecutionContext
+            {
+                WorkflowId = new WorkflowId("workflow-classify-1")
+            });
+
+        Assert.Equal(artifactId, classifier.ArtifactId);
+        Assert.Equal(
+            EvidenceClassifications.MedicalOpinion,
+            classifier.Classification);
+        Assert.Equal(gap.ClaimIssueId, classifier.ClaimIssueId);
+    }
+
     private sealed class FakeRecognitionCoordinator :
         IEvidenceRecognitionCoordinator
     {
         private readonly
             IReadOnlyList<EvidenceRecognitionMatch> _matches;
+        private readonly
+            IReadOnlyList<EvidenceRecognitionMatchArtifact> _links;
 
         public FakeRecognitionCoordinator(
             params EvidenceRecognitionMatch[] matches)
         {
             _matches = matches;
+            _links = [];
+        }
+
+        public FakeRecognitionCoordinator(
+            EvidenceRecognitionMatch match,
+            EvidenceRecognitionMatchArtifact link)
+        {
+            _matches = [match];
+            _links = [link];
         }
 
         public Task<EvidenceRecognitionResult>
@@ -193,10 +259,39 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
                 new EvidenceRecognitionResult
                 {
                     Matches = _matches,
-                    MatchArtifacts = []
+                    MatchArtifacts = _links
                 });
     }
 
+
+
+    private sealed class FakeClassificationService :
+        IEvidenceClassificationService
+    {
+        public ArtifactId? ArtifactId { get; private set; }
+        public string? Classification { get; private set; }
+        public ClaimIssueId? ClaimIssueId { get; private set; }
+
+        public Task<EvidenceClassification> ClassifyAsync(
+            ArtifactId artifactId,
+            string classification,
+            ClaimIssueId? claimIssueId = null,
+            CancellationToken cancellationToken = default)
+        {
+            ArtifactId = artifactId;
+            Classification = classification;
+            ClaimIssueId = claimIssueId;
+
+            return Task.FromResult(
+                new EvidenceClassification
+                {
+                    Id = new EvidenceClassificationId("classification-1"),
+                    ArtifactId = artifactId,
+                    ClaimIssueId = claimIssueId,
+                    Classification = classification
+                });
+        }
+    }
 
     private sealed class FailingDevelopmentRepository :
         FakeDevelopmentRepository

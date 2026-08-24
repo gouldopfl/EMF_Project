@@ -47,6 +47,8 @@ public sealed class EvidenceRecognitionCoordinatorTests
                 TermType = EvidenceRecognitionTermTypes.Keyword,
                 RecognitionRole =
                     EvidenceRecognitionRoles.SeverityCriterion,
+                EvidenceClassification =
+                    EvidenceClassifications.MedicalEvidence,
                 AuthoritySource = "38 CFR"
             });
 
@@ -63,6 +65,9 @@ public sealed class EvidenceRecognitionCoordinatorTests
         var match = Assert.Single(result.Matches);
         Assert.Equal("term-001", match.TermId.Value);
         Assert.Equal("instability", match.Term);
+        Assert.Equal(
+            EvidenceClassifications.MedicalEvidence,
+            match.EvidenceClassification);
 
         var link =
             Assert.Single(result.MatchArtifacts);

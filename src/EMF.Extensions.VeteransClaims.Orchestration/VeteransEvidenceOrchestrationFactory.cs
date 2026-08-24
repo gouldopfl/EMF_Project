@@ -50,7 +50,8 @@ public static class VeteransEvidenceOrchestrationFactory
             IEvidenceGapRepository gapRepository,
             IEvidenceRequirementGuidanceRepository guidanceRepository,
             IArtifactTextExtractor textExtractor,
-            IEvidenceRecognitionTermRepository recognitionTermRepository)
+            IEvidenceRecognitionTermRepository recognitionTermRepository,
+            IEvidenceClassificationService classificationService)
     {
         ArgumentNullException.ThrowIfNull(workflowService);
         ArgumentNullException.ThrowIfNull(developmentRepository);
@@ -59,6 +60,7 @@ public static class VeteransEvidenceOrchestrationFactory
         ArgumentNullException.ThrowIfNull(guidanceRepository);
         ArgumentNullException.ThrowIfNull(textExtractor);
         ArgumentNullException.ThrowIfNull(recognitionTermRepository);
+        ArgumentNullException.ThrowIfNull(classificationService);
 
         var recognitionCoordinator =
             new EvidenceRecognitionCoordinator(
@@ -72,7 +74,8 @@ public static class VeteransEvidenceOrchestrationFactory
             workflowRunner,
             gapRepository,
             guidanceRepository,
-            recognitionCoordinator);
+            recognitionCoordinator,
+            classificationService);
     }
 
     public static IEvidenceDevelopmentIntelligenceCoordinator

@@ -34,47 +34,8 @@ public static class InventoryConsoleCommand
         Console.WriteLine($"Source   : {sourcePath}");
         Console.WriteLine();
 
-        var vaultUri = Environment.GetEnvironmentVariable("EMF_AZURE_KEY_VAULT_URI");
-        var keyName = Environment.GetEnvironmentVariable("EMF_AZURE_KEY_NAME");
-        var keyVersion = Environment.GetEnvironmentVariable("EMF_AZURE_KEY_VERSION");
-
-        AzureEnvelopeEncryptionService? encryptionService = null;
-
-        if (!string.IsNullOrWhiteSpace(vaultUri) &&
-            !string.IsNullOrWhiteSpace(keyName))
-        {
-            var options = new AzureKeyVaultOptions
-            {
-                VaultUri = vaultUri,
-                KeyName = keyName,
-                KeyVersion = keyVersion
-            };
-
-            encryptionService = new AzureEnvelopeEncryptionService(
-                new ConfiguredAzureKeyReferenceProvider(options),
-                new AzureKeyCryptographyFactory(options));
-        }
-
-        IArtifactContentStore? contentStore = null;
-
-        if (encryptionService is not null)
-        {
-            var contentPath =
-                Environment.GetEnvironmentVariable("EMF_ARTIFACT_CONTENT_PATH");
-
-            if (string.IsNullOrWhiteSpace(contentPath))
-            {
-                contentPath =
-                    Path.Combine(
-                        AppContext.BaseDirectory,
-                        "artifact-content");
-            }
-
-            contentStore =
-                new EncryptedArtifactContentStore(
-                    new FileSystemArtifactContentStore(contentPath),
-                    encryptionService);
-        }
+        var contentStore =
+            ArtifactContentStoreFactory.Create();
 
         var discovery = new FileSystemDiscoveryService();
 
