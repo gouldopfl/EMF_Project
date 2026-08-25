@@ -11,6 +11,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
     private readonly IConditionRepository _conditions;
     private readonly IServiceConnectionRepository _serviceConnections;
     private readonly IRegulatoryRepository _regulatory;
+    private readonly IRequirementEvidenceService _requirementEvidence;
     private readonly IClaimIssueEvidenceDetailsService _evidence;
 
     public ClaimIssueAdjudicationDetailsService(
@@ -18,18 +19,21 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         IConditionRepository conditions,
         IServiceConnectionRepository serviceConnections,
         IRegulatoryRepository regulatory,
+        IRequirementEvidenceService requirementEvidence,
         IClaimIssueEvidenceDetailsService evidence)
     {
         ArgumentNullException.ThrowIfNull(issues);
         ArgumentNullException.ThrowIfNull(conditions);
         ArgumentNullException.ThrowIfNull(serviceConnections);
         ArgumentNullException.ThrowIfNull(regulatory);
+        ArgumentNullException.ThrowIfNull(requirementEvidence);
         ArgumentNullException.ThrowIfNull(evidence);
 
         _issues = issues;
         _conditions = conditions;
         _serviceConnections = serviceConnections;
         _regulatory = regulatory;
+        _requirementEvidence = requirementEvidence;
         _evidence = evidence;
     }
 
@@ -108,11 +112,25 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     ?? throw new InvalidOperationException(
                         "Service-connection requirement could not be read.");
 
+                var responsiveness =
+                    await _requirementEvidence
+                        .AssessResponsivenessAsync(
+                            requirement.Id,
+                            cancellationToken);
+
+                var developmentChecklist =
+                    await _requirementEvidence
+                        .CreateChecklistAsync(
+                            requirement.Id,
+                            cancellationToken);
+
                 requirements.Add(
                     new ServiceConnectionBasisRequirementDetails
                     {
                         Basis = basis,
-                        Requirement = requirement
+                        Requirement = requirement,
+                        Responsiveness = responsiveness,
+                        DevelopmentChecklist = developmentChecklist
                     });
             }
         }

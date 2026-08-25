@@ -21,6 +21,7 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 NeverCall<IConditionRepository>(),
                 NeverCall<IServiceConnectionRepository>(),
                 NeverCall<IRegulatoryRepository>(),
+                NeverCall<IRequirementEvidenceService>(),
                 NeverCall<IClaimIssueEvidenceDetailsService>());
 
         var result =
@@ -78,6 +79,20 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 "Secondary service connection requirement"
         };
 
+        var responsiveness =
+            new RequirementEvidenceResponsivenessAssessment
+            {
+                RequirementId = requirement.Id,
+                Items = []
+            };
+
+        var developmentChecklist =
+            new EvidenceDevelopmentChecklist
+            {
+                RequirementId = requirement.Id,
+                Items = []
+            };
+
         var evidence = new ClaimIssueEvidenceDetails
         {
             ClaimIssue = issue,
@@ -122,6 +137,13 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                             ? Task.FromResult<Requirement?>(
                                 requirement)
                             : throw new NotSupportedException()),
+                Proxy<IRequirementEvidenceService>(
+                    method =>
+                        method.Name == "AssessResponsivenessAsync"
+                            ? Task.FromResult(responsiveness)
+                            : method.Name == "CreateChecklistAsync"
+                                ? Task.FromResult(developmentChecklist)
+                                : throw new NotSupportedException()),
                 Proxy<IClaimIssueEvidenceDetailsService>(
                     method =>
                         method.Name == "GetAsync"
@@ -160,6 +182,14 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         Assert.Same(
             requirement,
             resolvedRequirement.Requirement);
+
+        Assert.Same(
+            responsiveness,
+            resolvedRequirement.Responsiveness);
+
+        Assert.Same(
+            developmentChecklist,
+            resolvedRequirement.DevelopmentChecklist);
 
         Assert.Same(evidence, result.Evidence);
     }

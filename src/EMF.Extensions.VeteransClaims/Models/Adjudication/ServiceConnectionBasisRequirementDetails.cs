@@ -8,4 +8,10 @@ public sealed class ServiceConnectionBasisRequirementDetails
     public required ServiceConnectionBasis Basis { get; init; }
 
     public required Requirement Requirement { get; init; }
+
+    public required RequirementEvidenceResponsivenessAssessment
+        Responsiveness { get; init; }
+
+    public required EvidenceDevelopmentChecklist
+        DevelopmentChecklist { get; init; }
 }
