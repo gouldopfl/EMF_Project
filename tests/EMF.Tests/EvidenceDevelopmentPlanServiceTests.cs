@@ -33,6 +33,17 @@ public sealed class EvidenceDevelopmentPlanServiceTests
         Assert.Single(result.Requirements);
         Assert.Single(result.EvidenceGaps);
         Assert.Single(result.Artifacts);
+        Assert.Single(result.Executions);
+        Assert.Single(result.Results);
+        Assert.Equal(
+            new EvidenceDevelopmentPlanId("plan-001"),
+            result.Executions[0].EvidenceDevelopmentPlanId);
+        Assert.Equal(
+            new EvidenceGapId("gap-001"),
+            result.Executions[0].EvidenceGapId);
+        Assert.Equal(
+            new EvidenceGapId("gap-001"),
+            result.Results[0].EvidenceGapId);
     }
 
 
@@ -158,6 +169,34 @@ public sealed class EvidenceDevelopmentPlanServiceTests
             Task.FromResult<IReadOnlyList<EvidenceDevelopmentPlanArtifact>>(
                 Array.Empty<EvidenceDevelopmentPlanArtifact>());
 
+        public Task<EvidenceDevelopmentExecution?>
+            GetEvidenceDevelopmentExecutionAsync(
+                EvidenceDevelopmentPlanId planId,
+                EvidenceGapId evidenceGapId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult<EvidenceDevelopmentExecution?>(
+                new EvidenceDevelopmentExecution
+                {
+                    EvidenceDevelopmentPlanId = planId,
+                    EvidenceGapId = evidenceGapId,
+                    WorkflowId =
+                        new EMF.Core.Models.Identities.WorkflowId(
+                            "workflow-001")
+                });
+
+        public Task<EvidenceDevelopmentResult?>
+            GetEvidenceDevelopmentResultAsync(
+                EvidenceGapId evidenceGapId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult<EvidenceDevelopmentResult?>(
+                new EvidenceDevelopmentResult
+                {
+                    EvidenceGapId = evidenceGapId,
+                    RequirementId =
+                        new RequirementId("requirement-001"),
+                    EvidenceGuidance = []
+                });
+
         public Task<IReadOnlyList<EvidenceDevelopmentPlan>>
             GetEvidenceDevelopmentPlansAsync(
                 ClaimIssueId claimIssueId,
@@ -275,6 +314,34 @@ public sealed class EvidenceDevelopmentPlanServiceTests
                             new ArtifactId("artifact-001"),
                         Role = "Supporting"
                     }
+                });
+
+        public Task<EvidenceDevelopmentExecution?>
+            GetEvidenceDevelopmentExecutionAsync(
+                EvidenceDevelopmentPlanId planId,
+                EvidenceGapId evidenceGapId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult<EvidenceDevelopmentExecution?>(
+                new EvidenceDevelopmentExecution
+                {
+                    EvidenceDevelopmentPlanId = planId,
+                    EvidenceGapId = evidenceGapId,
+                    WorkflowId =
+                        new EMF.Core.Models.Identities.WorkflowId(
+                            "workflow-001")
+                });
+
+        public Task<EvidenceDevelopmentResult?>
+            GetEvidenceDevelopmentResultAsync(
+                EvidenceGapId evidenceGapId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult<EvidenceDevelopmentResult?>(
+                new EvidenceDevelopmentResult
+                {
+                    EvidenceGapId = evidenceGapId,
+                    RequirementId =
+                        new RequirementId("requirement-001"),
+                    EvidenceGuidance = []
                 });
 
         public Task CreateEvidenceDevelopmentPlanAsync(

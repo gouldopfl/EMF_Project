@@ -89,12 +89,37 @@ public sealed class EvidenceDevelopmentPlanService :
                 planId,
                 cancellationToken);
 
+        var executions = new List<EvidenceDevelopmentExecution>();
+        var results = new List<EvidenceDevelopmentResult>();
+
+        foreach (var evidenceGap in evidenceGaps)
+        {
+            var execution =
+                await _repository.GetEvidenceDevelopmentExecutionAsync(
+                    planId,
+                    evidenceGap.EvidenceGapId,
+                    cancellationToken);
+
+            if (execution is not null)
+                executions.Add(execution);
+
+            var result =
+                await _repository.GetEvidenceDevelopmentResultAsync(
+                    evidenceGap.EvidenceGapId,
+                    cancellationToken);
+
+            if (result is not null)
+                results.Add(result);
+        }
+
         return new EvidenceDevelopmentPlanDetails
         {
             Plan = plan,
             Requirements = requirements,
             EvidenceGaps = evidenceGaps,
-            Artifacts = artifacts
+            Artifacts = artifacts,
+            Executions = executions,
+            Results = results
         };
     }
 }

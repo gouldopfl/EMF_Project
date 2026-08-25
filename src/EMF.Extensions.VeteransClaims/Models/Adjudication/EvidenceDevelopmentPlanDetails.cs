@@ -12,4 +12,10 @@ public sealed class EvidenceDevelopmentPlanDetails
 
     public required IReadOnlyList<EvidenceDevelopmentPlanArtifact>
         Artifacts { get; init; }
+
+    public required IReadOnlyList<EvidenceDevelopmentExecution>
+        Executions { get; init; }
+
+    public required IReadOnlyList<EvidenceDevelopmentResult>
+        Results { get; init; }
 }
