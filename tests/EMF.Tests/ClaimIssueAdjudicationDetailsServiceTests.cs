@@ -103,7 +103,13 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         Assert.Same(issue, result!.ClaimIssue);
         Assert.Same(condition, Assert.Single(result.ClaimedConditions));
         Assert.Same(theory, Assert.Single(result.ServiceConnectionTheories));
+        Assert.Equal(
+            ServiceConnectionTheoryTypes.Secondary,
+            theory.TheoryType);
         Assert.Same(basis, Assert.Single(result.ServiceConnectionBases));
+        Assert.Equal(
+            theory.Id,
+            basis.ServiceConnectionTheoryId);
         Assert.Same(evidence, result.Evidence);
     }
 
