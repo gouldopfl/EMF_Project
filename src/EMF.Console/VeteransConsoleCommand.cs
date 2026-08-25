@@ -29,6 +29,26 @@ public static class VeteransConsoleCommand
 
         if (args.Length == 4 &&
             args[0] == "evidence" &&
+            args[1] == "claim")
+        {
+            var claimDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(claimDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {claimDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunClaimEvidenceAsync(
+                claimDatabasePath,
+                new ClaimId(args[3]));
+        }
+
+        if (args.Length == 4 &&
+            args[0] == "evidence" &&
             args[1] == "checklist")
         {
             var checklistDatabasePath =
@@ -284,6 +304,75 @@ public static class VeteransConsoleCommand
             return 1;
         }
     }
+
+    private static async Task<int> RunClaimEvidenceAsync(
+        string databasePath,
+        ClaimId claimId)
+    {
+        var claims =
+            new SqliteClaimRepository(databasePath);
+
+        var issues =
+            new SqliteClaimIssueRepository(databasePath);
+
+        var gaps =
+            new SqliteEvidenceGapRepository(databasePath);
+
+        var guidance =
+            new SqliteEvidenceRequirementGuidanceRepository(
+                databasePath);
+
+        var classifications =
+            new SqliteEvidenceClassificationRepository(
+                databasePath);
+
+        var requirements =
+            new RequirementEvidenceService(
+                classifications,
+                guidance);
+
+        var checklist =
+            new ClaimIssueEvidenceChecklistService(
+                gaps,
+                requirements);
+
+        var plans =
+            new EvidenceDevelopmentPlanService(
+                new SqliteEvidenceDevelopmentPlanRepository(
+                    databasePath));
+
+        var issueEvidence =
+            new ClaimIssueEvidenceDetailsService(
+                issues,
+                checklist,
+                plans);
+
+        var service =
+            new ClaimEvidenceDetailsService(
+                claims,
+                issues,
+                issueEvidence);
+
+        var details =
+            await service.GetAsync(claimId);
+
+        if (details is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Claim not found: {claimId.Value}");
+
+            return 1;
+        }
+
+        foreach (var line in
+            VeteransClaimEvidenceDetailsFormatter.Format(details))
+        {
+            global::System.Console.WriteLine(line);
+        }
+
+        return 0;
+    }
+
 
     private static async Task<int> RunChecklistAsync(
         string databasePath,

@@ -44,6 +44,21 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
+    public async Task EvidenceClaim_RejectsMissingDatabase()
+    {
+        var exitCode =
+            await VeteransConsoleCommand.RunAsync(
+                [
+                    "evidence",
+                    "claim",
+                    "/tmp/emf-missing-veterans-claim.db",
+                    "claim-1"
+                ]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
     public async Task EvidenceDevelop_RejectsMissingDatabase()
     {
         var exitCode =
@@ -339,6 +354,64 @@ public sealed class VeteransConsoleCommandTests
                 "EMF_REVIEWED_BY",
                 previousReviewer);
 
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task EvidenceClaim_ReadsClaimAndIssue()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran =
+                new Veteran
+                {
+                    Id = new VeteranId("veteran-claim-console-1")
+                };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim =
+                new Claim
+                {
+                    Id = new ClaimId("claim-console-1"),
+                    VeteranId = veteran.Id
+                };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(
+                    new ClaimIssue
+                    {
+                        Id =
+                            new ClaimIssueId(
+                                "issue-claim-console-1"),
+                        ClaimId = claim.Id,
+                        ClaimIssueType =
+                            ClaimIssueTypes.ServiceConnection
+                    });
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "claim",
+                        databasePath,
+                        claim.Id.Value
+                    ]);
+
+            Assert.Equal(0, exitCode);
+        }
+        finally
+        {
             File.Delete(databasePath);
         }
     }
