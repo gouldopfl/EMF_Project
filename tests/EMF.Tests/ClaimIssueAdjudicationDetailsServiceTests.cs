@@ -61,6 +61,12 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             ServiceConnectionTheoryId = theory.Id
         };
 
+        var serviceConnectedCondition = new MedicalCondition
+        {
+            Id = new MedicalConditionId("ptsd-001"),
+            Name = "Posttraumatic stress disorder"
+        };
+
         var evidence = new ClaimIssueEvidenceDetails
         {
             ClaimIssue = issue,
@@ -80,7 +86,10 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                         method.Name == "GetClaimedConditionsAsync"
                             ? Task.FromResult<IReadOnlyList<ClaimedCondition>>(
                                 [condition])
-                            : throw new NotSupportedException()),
+                            : method.Name == "GetMedicalConditionAsync"
+                                ? Task.FromResult<MedicalCondition?>(
+                                    serviceConnectedCondition)
+                                : throw new NotSupportedException()),
                 Proxy<IServiceConnectionRepository>(
                     method =>
                         method.Name == "GetServiceConnectionTheoriesAsync"
@@ -89,7 +98,10 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                             : method.Name == "GetServiceConnectionBasesAsync"
                                 ? Task.FromResult<IReadOnlyList<ServiceConnectionBasis>>(
                                     [basis])
-                                : throw new NotSupportedException()),
+                                : method.Name == "GetServiceConnectedConditionIdsAsync"
+                                    ? Task.FromResult<IReadOnlyList<MedicalConditionId>>(
+                                        [serviceConnectedCondition.Id])
+                                    : throw new NotSupportedException()),
                 Proxy<IClaimIssueEvidenceDetailsService>(
                     method =>
                         method.Name == "GetAsync"
@@ -110,6 +122,14 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         Assert.Equal(
             theory.Id,
             basis.ServiceConnectionTheoryId);
+        var resolved =
+            Assert.Single(result.ServiceConnectedConditions);
+
+        Assert.Same(basis, resolved.Basis);
+        Assert.Same(
+            serviceConnectedCondition,
+            resolved.ServiceConnectedCondition);
+
         Assert.Same(evidence, result.Evidence);
     }
 

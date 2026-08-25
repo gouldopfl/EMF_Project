@@ -59,6 +59,35 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     claimIssueId,
                     cancellationToken);
 
+        var serviceConnectedConditions =
+            new List<ServiceConnectionBasisConditionDetails>();
+
+        foreach (var basis in bases)
+        {
+            var conditionIds =
+                await _serviceConnections
+                    .GetServiceConnectedConditionIdsAsync(
+                        basis.Id,
+                        cancellationToken);
+
+            foreach (var conditionId in conditionIds)
+            {
+                var condition =
+                    await _conditions.GetMedicalConditionAsync(
+                        conditionId,
+                        cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        "Service-connected condition could not be read.");
+
+                serviceConnectedConditions.Add(
+                    new ServiceConnectionBasisConditionDetails
+                    {
+                        Basis = basis,
+                        ServiceConnectedCondition = condition
+                    });
+            }
+        }
+
         var evidence =
             await _evidence.GetAsync(
                 claimIssueId,
@@ -72,6 +101,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
             ClaimedConditions = claimedConditions,
             ServiceConnectionTheories = theories,
             ServiceConnectionBases = bases,
+            ServiceConnectedConditions = serviceConnectedConditions,
             Evidence = evidence
         };
     }
