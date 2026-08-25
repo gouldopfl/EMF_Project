@@ -53,4 +53,29 @@ public sealed class VeteransClaimsServiceConnectionTests
             theoryId,
             basis.ServiceConnectionTheoryId);
     }
+
+    [Fact]
+    public void SecondaryBasis_PreservesServiceConnectedConditionRelationship()
+    {
+        var basisId =
+            new ServiceConnectionBasisId("basis-secondary-001");
+
+        var conditionId =
+            new MedicalConditionId("ptsd-001");
+
+        var association =
+            new ServiceConnectionBasisServiceConnectedCondition
+            {
+                ServiceConnectionBasisId = basisId,
+                ServiceConnectedConditionId = conditionId
+            };
+
+        Assert.Equal(
+            basisId,
+            association.ServiceConnectionBasisId);
+
+        Assert.Equal(
+            conditionId,
+            association.ServiceConnectedConditionId);
+    }
 }
