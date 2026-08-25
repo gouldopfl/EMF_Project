@@ -46,6 +46,57 @@ public sealed class ClaimIssueEvidenceChecklistServiceTests
     }
 
     [Fact]
+    public async Task CreateChecklistAsync_IncludesOnlyRequirementsWithMissingEvidence()
+    {
+        var issueId = new ClaimIssueId("issue-3");
+        var matchingRequirementId =
+            new RequirementId("requirement-matching");
+        var missingRequirementId =
+            new RequirementId("requirement-missing");
+
+        var gaps =
+            new FakeGapRepository(
+                new EvidenceGap
+                {
+                    Id = new EvidenceGapId("gap-4"),
+                    ClaimIssueId = issueId,
+                    RequirementId = matchingRequirementId,
+                    Description = "Matching evidence."
+                },
+                new EvidenceGap
+                {
+                    Id = new EvidenceGapId("gap-5"),
+                    ClaimIssueId = issueId,
+                    RequirementId = missingRequirementId,
+                    Description = "Missing evidence."
+                });
+
+        var requirements =
+            new SelectiveRequirementEvidenceService(
+                matchingRequirementId);
+
+        var service =
+            new ClaimIssueEvidenceChecklistService(
+                gaps,
+                requirements);
+
+        var result =
+            await service.CreateChecklistAsync(issueId);
+
+        var checklist =
+            Assert.Single(result.RequirementChecklists);
+
+        Assert.Equal(
+            missingRequirementId,
+            checklist.RequirementId);
+        Assert.True(result.HasOutstandingItems);
+        Assert.Equal(2, requirements.Requested.Count);
+        Assert.Equal(
+            new[] { matchingRequirementId, missingRequirementId },
+            requirements.Requested);
+    }
+
+    [Fact]
     public async Task CreateChecklistAsync_OmitsCompletedRequirements()
     {
         var issueId = new ClaimIssueId("issue-2");
@@ -106,6 +157,69 @@ public sealed class ClaimIssueEvidenceChecklistServiceTests
             GetEvidenceGapsAsync(
                 RequirementId requirementId,
                 CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class SelectiveRequirementEvidenceService :
+        IRequirementEvidenceService
+    {
+        private readonly RequirementId _matchingRequirementId;
+
+        public SelectiveRequirementEvidenceService(
+            RequirementId matchingRequirementId)
+        {
+            _matchingRequirementId = matchingRequirementId;
+        }
+
+        public List<RequirementId> Requested { get; } = [];
+
+        public Task<EvidenceDevelopmentChecklist>
+            CreateChecklistAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default)
+        {
+            Requested.Add(requirementId);
+
+            var items =
+                requirementId.Value == _matchingRequirementId.Value
+                    ? Array.Empty<EvidenceDevelopmentChecklistItem>()
+                    : new[]
+                    {
+                        new EvidenceDevelopmentChecklistItem
+                        {
+                            RequirementId = requirementId,
+                            EvidenceClassification =
+                                EvidenceClassifications.MedicalOpinion,
+                            GuidanceRole =
+                                EvidenceGuidanceRoles.SupportsRequirement,
+                            Description = "Missing medical opinion."
+                        }
+                    };
+
+            return Task.FromResult(
+                new EvidenceDevelopmentChecklist
+                {
+                    RequirementId = requirementId,
+                    Items = items
+                });
+        }
+
+        public Task<IReadOnlyList<EvidenceClassification>>
+            GetEvidenceAsync(
+                RequirementId id,
+                CancellationToken c = default) =>
+            throw new NotSupportedException();
+
+        public Task<RequirementEvidenceAssessment>
+            AssessAsync(
+                RequirementId id,
+                CancellationToken c = default) =>
+            throw new NotSupportedException();
+
+        public Task<RequirementEvidenceResponsivenessAssessment>
+            AssessResponsivenessAsync(
+                RequirementId id,
+                CancellationToken c = default) =>
             throw new NotSupportedException();
     }
 

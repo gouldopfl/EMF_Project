@@ -57,6 +57,8 @@ public sealed class RequirementEvidenceResponsivenessAssessmentTests
             };
 
         Assert.Single(assessment.MatchingItems);
+        Assert.Equal(1, assessment.MatchingItemCount);
+        Assert.Equal(1, assessment.MissingItemCount);
 
         var missingItem =
             Assert.Single(assessment.MissingItems);
