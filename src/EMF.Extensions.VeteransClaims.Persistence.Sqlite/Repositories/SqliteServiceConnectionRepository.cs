@@ -1164,4 +1164,100 @@ public sealed class SqliteServiceConnectionRepository :
         return basisIds;
     }
 
+
+    public async Task AddBasisRequirementAsync(
+        ServiceConnectionBasisRequirement association,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_BasisRequirements (
+                ServiceConnectionBasisId,
+                RequirementId
+            )
+            VALUES (
+                $basisId,
+                $requirementId
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        command.Parameters.AddWithValue(
+            "$requirementId",
+            association.RequirementId.Value);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<RequirementId>>
+        GetRequirementIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT RequirementId
+            FROM VeteransClaims_BasisRequirements
+            WHERE ServiceConnectionBasisId = $basisId
+            ORDER BY RequirementId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$basisId",
+            basisId.Value);
+
+        var ids = new List<RequirementId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new RequirementId(reader.GetString(0)));
+
+        return ids;
+    }
+
+    public async Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetRequirementBasisIdsAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ServiceConnectionBasisId
+            FROM VeteransClaims_BasisRequirements
+            WHERE RequirementId = $requirementId
+            ORDER BY ServiceConnectionBasisId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$requirementId",
+            requirementId.Value);
+
+        var ids = new List<ServiceConnectionBasisId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new ServiceConnectionBasisId(reader.GetString(0)));
+
+        return ids;
+    }
+
 }

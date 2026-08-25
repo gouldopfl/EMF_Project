@@ -107,4 +107,19 @@ public interface IServiceConnectionRepository
             MedicalConditionId preexistingConditionId,
             CancellationToken cancellationToken = default);
 
+
+    Task AddBasisRequirementAsync(
+        ServiceConnectionBasisRequirement association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<RequirementId>>
+        GetRequirementIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetRequirementBasisIdsAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default);
+
 }

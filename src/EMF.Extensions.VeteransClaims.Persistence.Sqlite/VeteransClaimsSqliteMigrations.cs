@@ -1514,5 +1514,29 @@ internal static class VeteransClaimsSqliteMigrations
                 ALTER TABLE VeteransClaims_EvidenceRecognitionTerms
                 ADD COLUMN EvidenceClassification TEXT NULL;
                 """)
+,
+            new VeteransClaimsSqliteMigration(
+                50,
+                "AddBasisRequirements",
+                """
+                CREATE TABLE VeteransClaims_BasisRequirements (
+                    ServiceConnectionBasisId TEXT NOT NULL,
+                    RequirementId TEXT NOT NULL,
+                    PRIMARY KEY (
+                        ServiceConnectionBasisId,
+                        RequirementId
+                    ),
+                    FOREIGN KEY (ServiceConnectionBasisId)
+                        REFERENCES VeteransClaims_ServiceConnectionBases (Id),
+                    FOREIGN KEY (RequirementId)
+                        REFERENCES VeteransClaims_Requirements (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_BasisRequirements_Requirement
+                ON VeteransClaims_BasisRequirements (
+                    RequirementId
+                );
+                """)
         };
 }

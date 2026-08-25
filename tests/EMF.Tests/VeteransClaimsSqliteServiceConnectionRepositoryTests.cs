@@ -2,6 +2,7 @@ using EMF.Extensions.VeteransClaims.Models.Claims;
 using EMF.Extensions.VeteransClaims.Models.Conditions;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Service;
+using EMF.Extensions.VeteransClaims.Regulatory;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
 using Microsoft.Data.Sqlite;
@@ -750,6 +751,136 @@ public sealed class
             Assert.Contains(
                 "belong to the same veteran",
                 preexistingConditionException.Message);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
+    [Fact]
+    public async Task BasisRequirement_RoundTripsBothDirections()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-veterans-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(
+                databasePath)
+                .InitializeAsync();
+
+            var basisId =
+                new ServiceConnectionBasisId("basis-req-001");
+
+            var requirementId =
+                new RequirementId("requirement-001");
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-req-001")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-req-001"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-req-001"),
+                ClaimId = claim.Id,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var repository =
+                new SqliteServiceConnectionRepository(databasePath);
+
+            var theory = new ServiceConnectionTheory
+            {
+                Id = new ServiceConnectionTheoryId("theory-req-001"),
+                ClaimIssueId = issue.Id,
+                TheoryType = ServiceConnectionTheoryTypes.Secondary
+            };
+
+            await repository.AddServiceConnectionTheoryAsync(theory);
+
+            var basis = new ServiceConnectionBasis
+            {
+                Id = basisId,
+                ClaimIssueId = issue.Id,
+                ServiceConnectionTheoryId = theory.Id
+            };
+
+            await repository.AddServiceConnectionBasisAsync(basis);
+
+            var regulatory =
+                new SqliteRegulatoryRepository(databasePath);
+
+            var authority = new RegulatoryAuthority
+            {
+                Id = new RegulatoryAuthorityId("authority-req-001"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Pensions, Bonuses, and Veterans Relief"
+            };
+
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+
+            var provision = new RegulatoryProvision
+            {
+                Id = new RegulatoryProvisionId("provision-req-001"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Presumption,
+                Citation = "38 CFR 3.310"
+            };
+
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+
+            var requirement = new Requirement
+            {
+                Id = requirementId,
+                RegulatoryProvisionId = provision.Id,
+                Description = "Secondary service connection requirement"
+            };
+
+            await regulatory.AddRequirementAsync(requirement);
+
+            await repository.AddBasisRequirementAsync(
+                new ServiceConnectionBasisRequirement
+                {
+                    ServiceConnectionBasisId = basisId,
+                    RequirementId = requirementId
+                });
+
+            var requirementIds =
+                await repository.GetRequirementIdsAsync(
+                    basisId);
+
+            var basisIds =
+                await repository.GetRequirementBasisIdsAsync(
+                    requirementId);
+
+            Assert.Equal(
+                requirementId,
+                Assert.Single(requirementIds));
+
+            Assert.Equal(
+                basisId,
+                Assert.Single(basisIds));
         }
         finally
         {
