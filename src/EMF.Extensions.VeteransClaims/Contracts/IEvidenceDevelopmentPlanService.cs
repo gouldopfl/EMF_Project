@@ -16,4 +16,10 @@ public interface IEvidenceDevelopmentPlanService
         GetEvidenceDevelopmentPlanAsync(
             EvidenceDevelopmentPlanId planId,
             CancellationToken cancellationToken = default);
+
+
+    Task<IReadOnlyList<EvidenceDevelopmentPlan>>
+        GetEvidenceDevelopmentPlansAsync(
+            ClaimIssueId claimIssueId,
+            CancellationToken cancellationToken = default);
 }

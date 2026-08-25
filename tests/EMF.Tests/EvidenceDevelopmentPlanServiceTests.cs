@@ -48,6 +48,32 @@ public sealed class EvidenceDevelopmentPlanServiceTests
 
 
     [Fact]
+    public async Task GetEvidenceDevelopmentPlansAsync_ReturnsPlansForClaimIssue()
+    {
+        var issueId = new ClaimIssueId("issue-001");
+        var planId = new EvidenceDevelopmentPlanId("plan-001");
+
+        var repository = new StubRepository(
+            new EvidenceDevelopmentPlan
+            {
+                Id = planId,
+                ClaimIssueId = issueId,
+                Description = "Develop evidence."
+            });
+
+        var service =
+            new EvidenceDevelopmentPlanService(repository);
+
+        var result =
+            await service.GetEvidenceDevelopmentPlansAsync(issueId);
+
+        var plan = Assert.Single(result);
+
+        Assert.Equal(planId, plan.Id);
+        Assert.Equal(issueId, plan.ClaimIssueId);
+    }
+
+    [Fact]
     public async Task GetEvidenceDevelopmentPlanAsync_ReturnsNullWhenPlanDoesNotExist()
     {
         var service =
@@ -249,7 +275,11 @@ public sealed class EvidenceDevelopmentPlanServiceTests
             throw new NotSupportedException();
 
         public Task AddEvidenceDevelopmentPlanAsync(EvidenceDevelopmentPlan p, CancellationToken c = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<EvidenceDevelopmentPlan>> GetEvidenceDevelopmentPlansAsync(ClaimIssueId id, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<EvidenceDevelopmentPlan>>
+            GetEvidenceDevelopmentPlansAsync(
+                ClaimIssueId id,
+                CancellationToken c = default) =>
+            throw new NotSupportedException();
         public Task AddEvidenceDevelopmentPlanRequirementAsync(EvidenceDevelopmentPlanRequirement r, CancellationToken c = default) => throw new NotSupportedException();
         public Task AddEvidenceDevelopmentPlanEvidenceGapAsync(EvidenceDevelopmentPlanEvidenceGap g, CancellationToken c = default) => throw new NotSupportedException();
         public Task AddEvidenceDevelopmentPlanArtifactAsync(EvidenceDevelopmentPlanArtifact a, CancellationToken c = default) => throw new NotSupportedException();
@@ -351,7 +381,12 @@ public sealed class EvidenceDevelopmentPlanServiceTests
             throw new NotSupportedException();
 
         public Task AddEvidenceDevelopmentPlanAsync(EvidenceDevelopmentPlan p, CancellationToken c = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<EvidenceDevelopmentPlan>> GetEvidenceDevelopmentPlansAsync(ClaimIssueId id, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<EvidenceDevelopmentPlan>>
+            GetEvidenceDevelopmentPlansAsync(
+                ClaimIssueId id,
+                CancellationToken c = default) =>
+            Task.FromResult<IReadOnlyList<EvidenceDevelopmentPlan>>(
+                new[] { _plan });
         public Task AddEvidenceDevelopmentPlanRequirementAsync(EvidenceDevelopmentPlanRequirement r, CancellationToken c = default) => throw new NotSupportedException();
         public Task AddEvidenceDevelopmentPlanEvidenceGapAsync(EvidenceDevelopmentPlanEvidenceGap g, CancellationToken c = default) => throw new NotSupportedException();
         public Task AddEvidenceDevelopmentPlanArtifactAsync(EvidenceDevelopmentPlanArtifact a, CancellationToken c = default) => throw new NotSupportedException();

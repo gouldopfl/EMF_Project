@@ -59,6 +59,17 @@ public sealed class EvidenceDevelopmentPlanService :
     }
 
 
+    public Task<IReadOnlyList<EvidenceDevelopmentPlan>>
+        GetEvidenceDevelopmentPlansAsync(
+            ClaimIssueId claimIssueId,
+            CancellationToken cancellationToken = default)
+    {
+        return _repository.GetEvidenceDevelopmentPlansAsync(
+            claimIssueId,
+            cancellationToken);
+    }
+
+
     public async Task<EvidenceDevelopmentPlanDetails?>
         GetEvidenceDevelopmentPlanAsync(
             EvidenceDevelopmentPlanId planId,
