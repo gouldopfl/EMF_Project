@@ -20,5 +20,8 @@ public sealed class ClaimIssueAdjudicationDetails
     public required IReadOnlyList<ServiceConnectionBasisConditionDetails>
         ServiceConnectedConditions { get; init; }
 
+    public required IReadOnlyList<ServiceConnectionBasisRequirementDetails>
+        Requirements { get; init; }
+
     public required ClaimIssueEvidenceDetails Evidence { get; init; }
 }

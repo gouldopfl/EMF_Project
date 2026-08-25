@@ -3,6 +3,7 @@ using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Conditions;
 using EMF.Extensions.VeteransClaims.Models.Service;
+using EMF.Extensions.VeteransClaims.Regulatory;
 using EMF.Extensions.VeteransClaims.Models.Claims;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Services;
@@ -19,6 +20,7 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 new MissingClaimIssueRepository(),
                 NeverCall<IConditionRepository>(),
                 NeverCall<IServiceConnectionRepository>(),
+                NeverCall<IRegulatoryRepository>(),
                 NeverCall<IClaimIssueEvidenceDetailsService>());
 
         var result =
@@ -67,6 +69,15 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             Name = "Posttraumatic stress disorder"
         };
 
+        var requirement = new Requirement
+        {
+            Id = new RequirementId("requirement-001"),
+            RegulatoryProvisionId =
+                new RegulatoryProvisionId("provision-001"),
+            Description =
+                "Secondary service connection requirement"
+        };
+
         var evidence = new ClaimIssueEvidenceDetails
         {
             ClaimIssue = issue,
@@ -101,7 +112,16 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                 : method.Name == "GetServiceConnectedConditionIdsAsync"
                                     ? Task.FromResult<IReadOnlyList<MedicalConditionId>>(
                                         [serviceConnectedCondition.Id])
-                                    : throw new NotSupportedException()),
+                                    : method.Name == "GetRequirementIdsAsync"
+                                        ? Task.FromResult<IReadOnlyList<RequirementId>>(
+                                            [requirement.Id])
+                                        : throw new NotSupportedException()),
+                Proxy<IRegulatoryRepository>(
+                    method =>
+                        method.Name == "GetRequirementAsync"
+                            ? Task.FromResult<Requirement?>(
+                                requirement)
+                            : throw new NotSupportedException()),
                 Proxy<IClaimIssueEvidenceDetailsService>(
                     method =>
                         method.Name == "GetAsync"
@@ -129,6 +149,17 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         Assert.Same(
             serviceConnectedCondition,
             resolved.ServiceConnectedCondition);
+
+        var resolvedRequirement =
+            Assert.Single(result.Requirements);
+
+        Assert.Same(
+            basis,
+            resolvedRequirement.Basis);
+
+        Assert.Same(
+            requirement,
+            resolvedRequirement.Requirement);
 
         Assert.Same(evidence, result.Evidence);
     }

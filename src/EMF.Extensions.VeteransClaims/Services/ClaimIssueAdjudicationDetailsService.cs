@@ -10,22 +10,26 @@ public sealed class ClaimIssueAdjudicationDetailsService :
     private readonly IClaimIssueRepository _issues;
     private readonly IConditionRepository _conditions;
     private readonly IServiceConnectionRepository _serviceConnections;
+    private readonly IRegulatoryRepository _regulatory;
     private readonly IClaimIssueEvidenceDetailsService _evidence;
 
     public ClaimIssueAdjudicationDetailsService(
         IClaimIssueRepository issues,
         IConditionRepository conditions,
         IServiceConnectionRepository serviceConnections,
+        IRegulatoryRepository regulatory,
         IClaimIssueEvidenceDetailsService evidence)
     {
         ArgumentNullException.ThrowIfNull(issues);
         ArgumentNullException.ThrowIfNull(conditions);
         ArgumentNullException.ThrowIfNull(serviceConnections);
+        ArgumentNullException.ThrowIfNull(regulatory);
         ArgumentNullException.ThrowIfNull(evidence);
 
         _issues = issues;
         _conditions = conditions;
         _serviceConnections = serviceConnections;
+        _regulatory = regulatory;
         _evidence = evidence;
     }
 
@@ -62,6 +66,9 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         var serviceConnectedConditions =
             new List<ServiceConnectionBasisConditionDetails>();
 
+        var requirements =
+            new List<ServiceConnectionBasisRequirementDetails>();
+
         foreach (var basis in bases)
         {
             var conditionIds =
@@ -86,6 +93,28 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                         ServiceConnectedCondition = condition
                     });
             }
+
+            var requirementIds =
+                await _serviceConnections.GetRequirementIdsAsync(
+                    basis.Id,
+                    cancellationToken);
+
+            foreach (var requirementId in requirementIds)
+            {
+                var requirement =
+                    await _regulatory.GetRequirementAsync(
+                        requirementId,
+                        cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        "Service-connection requirement could not be read.");
+
+                requirements.Add(
+                    new ServiceConnectionBasisRequirementDetails
+                    {
+                        Basis = basis,
+                        Requirement = requirement
+                    });
+            }
         }
 
         var evidence =
@@ -102,6 +131,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
             ServiceConnectionTheories = theories,
             ServiceConnectionBases = bases,
             ServiceConnectedConditions = serviceConnectedConditions,
+            Requirements = requirements,
             Evidence = evidence
         };
     }
