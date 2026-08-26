@@ -60,6 +60,209 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
+    public async Task AdjudicationAssess_RejectsMissingDatabase()
+    {
+        var exitCode =
+            await VeteransConsoleCommand.RunAsync(
+                [
+                    "adjudication",
+                    "assess",
+                    "/tmp/emf-missing-veterans-adjudication.db",
+                    "issue-1"
+                ]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
+    public async Task AdjudicationAssess_ReportsReadyWhenNothingIsOutstanding()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-adjudication-1")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-adjudication-1"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-adjudication-1"),
+                ClaimId = claim.Id,
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "adjudication",
+                        "assess",
+                        databasePath,
+                        issue.Id.Value
+                    ]);
+
+            Assert.Equal(0, exitCode);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task AdjudicationAssess_ReportsBlockedRequirement()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-adjudication-blocked")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-adjudication-blocked"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-adjudication-blocked"),
+                ClaimId = claim.Id,
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var connections =
+                new SqliteServiceConnectionRepository(databasePath);
+
+            var theory = new ServiceConnectionTheory
+            {
+                Id = new ServiceConnectionTheoryId("theory-adjudication-blocked"),
+                ClaimIssueId = issue.Id,
+                TheoryType = ServiceConnectionTheoryTypes.Secondary
+            };
+
+            await connections.AddServiceConnectionTheoryAsync(theory);
+
+            var basis = new ServiceConnectionBasis
+            {
+                Id = new ServiceConnectionBasisId("basis-adjudication-blocked"),
+                ClaimIssueId = issue.Id,
+                ServiceConnectionTheoryId = theory.Id
+            };
+
+            await connections.AddServiceConnectionBasisAsync(basis);
+
+            var regulatory =
+                new SqliteRegulatoryRepository(databasePath);
+
+            await regulatory.InitializeAsync();
+
+            var authority = new RegulatoryAuthority
+            {
+                Id = new RegulatoryAuthorityId("authority-adjudication-blocked"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Veterans Relief"
+            };
+
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+
+            var provision = new RegulatoryProvision
+            {
+                Id = new RegulatoryProvisionId("provision-adjudication-blocked"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Presumption,
+                Citation = "38 CFR 3.310"
+            };
+
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+
+            var requirement = new Requirement
+            {
+                Id = new RequirementId("requirement-adjudication-blocked"),
+                RegulatoryProvisionId = provision.Id,
+                Description = "Secondary service connection requirement"
+            };
+
+            await regulatory.AddRequirementAsync(requirement);
+
+            await connections.AddBasisRequirementAsync(
+                new ServiceConnectionBasisRequirement
+                {
+                    ServiceConnectionBasisId = basis.Id,
+                    RequirementId = requirement.Id
+                });
+
+            await new SqliteEvidenceRequirementGuidanceRepository(
+                databasePath)
+                .AddEvidenceRequirementGuidanceAsync(
+                    new EvidenceRequirementGuidance
+                    {
+                        Id =
+                            new EvidenceRequirementGuidanceId(
+                                "guidance-adjudication-blocked"),
+                        RequirementId = requirement.Id,
+                        EvidenceClassification =
+                            EvidenceClassifications.MedicalOpinion,
+                        GuidanceRole =
+                            EvidenceGuidanceRoles.SupportsRequirement,
+                        Description = "Medical opinion evidence."
+                    });
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "adjudication",
+                        "assess",
+                        databasePath,
+                        issue.Id.Value
+                    ]);
+
+            Assert.Equal(0, exitCode);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task EvidenceExecute_RejectsMissingDatabase()
     {
         var exitCode =

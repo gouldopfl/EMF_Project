@@ -29,6 +29,26 @@ public static class VeteransConsoleCommand
         ArgumentNullException.ThrowIfNull(runtimeFactory);
 
         if (args.Length == 4 &&
+            args[0] == "adjudication" &&
+            args[1] == "assess")
+        {
+            var adjudicationDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(adjudicationDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {adjudicationDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunAdjudicationAssessmentAsync(
+                adjudicationDatabasePath,
+                new ClaimIssueId(args[3]));
+        }
+
+        if (args.Length == 4 &&
             args[0] == "evidence" &&
             args[1] == "claim")
         {
@@ -347,6 +367,101 @@ public static class VeteransConsoleCommand
         }
     }
 
+    private static async Task<int> RunAdjudicationAssessmentAsync(
+        string databasePath,
+        ClaimIssueId claimIssueId)
+    {
+        var issues =
+            new SqliteClaimIssueRepository(databasePath);
+
+        var conditions =
+            new SqliteConditionRepository(databasePath);
+
+        var serviceConnections =
+            new SqliteServiceConnectionRepository(databasePath);
+
+        var regulatory =
+            new SqliteRegulatoryRepository(databasePath);
+
+        var gaps =
+            new SqliteEvidenceGapRepository(databasePath);
+
+        var guidance =
+            new SqliteEvidenceRequirementGuidanceRepository(
+                databasePath);
+
+        var classifications =
+            new SqliteEvidenceClassificationRepository(
+                databasePath);
+
+        var requirementEvidence =
+            new RequirementEvidenceService(
+                classifications,
+                guidance);
+
+        var checklist =
+            new ClaimIssueEvidenceChecklistService(
+                gaps,
+                requirementEvidence);
+
+        var plans =
+            new EvidenceDevelopmentPlanService(
+                new SqliteEvidenceDevelopmentPlanRepository(
+                    databasePath),
+                gaps);
+
+        var evidence =
+            new ClaimIssueEvidenceDetailsService(
+                issues,
+                checklist,
+                plans);
+
+        var details =
+            new ClaimIssueAdjudicationDetailsService(
+                issues,
+                conditions,
+                serviceConnections,
+                regulatory,
+                requirementEvidence,
+                evidence);
+
+        var assessment =
+            new ClaimIssueAdjudicationAssessmentService(
+                details,
+                new ClaimIssueAdjudicationReadinessService());
+
+        var result =
+            await assessment.GetAsync(claimIssueId);
+
+        if (result is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Claim issue not found: {claimIssueId.Value}");
+
+            return 1;
+        }
+
+        global::System.Console.WriteLine(
+            $"Claim Issue : {result.Details.ClaimIssue.Id.Value}");
+
+        global::System.Console.WriteLine(
+            $"Ready       : {result.Readiness.IsReadyForAdjudication}");
+
+        global::System.Console.WriteLine(
+            $"Outstanding : {result.Readiness.OutstandingRequirementCount}");
+
+        foreach (var blocking in
+            result.Readiness.BlockingRequirements)
+        {
+            global::System.Console.WriteLine(
+                $"- {blocking.Requirement.Id.Value}: " +
+                blocking.Requirement.Description);
+        }
+
+        return 0;
+    }
+
+
     private static async Task<int> RunClaimEvidenceAsync(
         string databasePath,
         ClaimId claimId)
@@ -612,5 +727,10 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence execute " +
             "<database-path> <plan-id>");
+
+
+        global::System.Console.WriteLine(
+            "       emf veterans adjudication assess " +
+            "<database-path> <claim-issue-id>");
     }
 }
