@@ -1,5 +1,6 @@
 using EMF.Common;
 using EMF.Core.Models.Identities;
+using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
@@ -65,6 +66,27 @@ public static class VeteransConsoleCommand
             return await RunChecklistAsync(
                 checklistDatabasePath,
                 new ClaimIssueId(args[3]));
+        }
+
+        if (args.Length == 5 &&
+            args[0] == "evidence" &&
+            args[1] == "prepare")
+        {
+            var prepareDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(prepareDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {prepareDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunPrepareAsync(
+                prepareDatabasePath,
+                new ClaimIssueId(args[3]),
+                new EvidenceDevelopmentPlanId(args[4]));
         }
 
         var summarize =
@@ -374,6 +396,83 @@ public static class VeteransConsoleCommand
     }
 
 
+    private static async Task<int> RunPrepareAsync(
+        string databasePath,
+        ClaimIssueId claimIssueId,
+        EvidenceDevelopmentPlanId planId)
+    {
+        var serviceConnections =
+            new SqliteServiceConnectionRepository(databasePath);
+
+        var gapsRepository =
+            new SqliteEvidenceGapRepository(databasePath);
+
+        var guidance =
+            new SqliteEvidenceRequirementGuidanceRepository(
+                databasePath);
+
+        var classifications =
+            new SqliteEvidenceClassificationRepository(
+                databasePath);
+
+        var requirementEvidence =
+            new RequirementEvidenceService(
+                classifications,
+                guidance);
+
+        var gapService =
+            new EvidenceGapService(
+                gapsRepository,
+                requirementEvidence,
+                new GuidIdGenerator());
+
+        var serviceConnectionGaps =
+            new ServiceConnectionEvidenceGapService(
+                serviceConnections,
+                gapService);
+
+        var planRepository =
+            new SqliteEvidenceDevelopmentPlanRepository(
+                databasePath);
+
+        await planRepository.InitializeAsync();
+
+        var planService =
+            new EvidenceDevelopmentPlanService(
+                planRepository);
+
+        var preparation =
+            new EvidenceDevelopmentPreparationService(
+                serviceConnectionGaps,
+                planService);
+
+        var result =
+            await preparation.PrepareAsync(
+                planId,
+                claimIssueId,
+                "Develop missing service-connection evidence.");
+
+        if (result is null)
+        {
+            global::System.Console.WriteLine(
+                "No evidence development required.");
+
+            return 0;
+        }
+
+        global::System.Console.WriteLine(
+            $"Plan ID     : {result.Plan.Id.Value}");
+
+        global::System.Console.WriteLine(
+            $"Claim Issue : {result.Plan.ClaimIssueId.Value}");
+
+        global::System.Console.WriteLine(
+            $"Evidence Gaps: {result.EvidenceGaps.Count}");
+
+        return 0;
+    }
+
+
     private static async Task<int> RunChecklistAsync(
         string databasePath,
         ClaimIssueId claimIssueId)
@@ -421,5 +520,9 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence checklist " +
             "<database-path> <claim-issue-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence prepare " +
+            "<database-path> <claim-issue-id> <plan-id>");
     }
 }
