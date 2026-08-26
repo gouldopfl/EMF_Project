@@ -55,7 +55,8 @@ public sealed class EvidenceGapService : IEvidenceGapService
             Id = new EvidenceGapId(_idGenerator.Generate()),
             ClaimIssueId = claimIssueId,
             RequirementId = requirementId,
-            Description = "Missing supporting evidence."
+            Description = "Missing supporting evidence.",
+            Status = EvidenceGapStatuses.Open
         };
 
         await _repository.AddEvidenceGapAsync(

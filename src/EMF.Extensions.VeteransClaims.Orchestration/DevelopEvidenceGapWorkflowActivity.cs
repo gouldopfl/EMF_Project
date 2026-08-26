@@ -181,6 +181,15 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
                     .AssessResponsivenessAsync(
                         gap.RequirementId,
                         cancellationToken);
+
+
+            if (responsiveness.MissingItemCount == 0)
+            {
+                await _repository.UpdateEvidenceGapStatusAsync(
+                    gap.Id,
+                    EvidenceGapStatuses.Resolved,
+                    cancellationToken);
+            }
         }
 
         return new WorkflowActivityResult

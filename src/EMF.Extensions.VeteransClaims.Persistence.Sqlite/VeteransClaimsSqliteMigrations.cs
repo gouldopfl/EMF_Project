@@ -1538,5 +1538,13 @@ internal static class VeteransClaimsSqliteMigrations
                     RequirementId
                 );
                 """)
+,
+            new VeteransClaimsSqliteMigration(
+                51,
+                "AddEvidenceGapStatus",
+                """
+                ALTER TABLE VeteransClaims_EvidenceGaps
+                ADD COLUMN Status TEXT NOT NULL DEFAULT 'Open';
+                """)
         };
 }

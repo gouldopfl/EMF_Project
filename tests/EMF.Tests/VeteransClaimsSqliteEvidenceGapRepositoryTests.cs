@@ -91,7 +91,8 @@ public sealed class VeteransClaimsSqliteEvidenceGapRepositoryTests
                 Id = new EvidenceGapId("gap-001"),
                 ClaimIssueId = issue.Id,
                 RequirementId = requirementId,
-                Description = "Missing supporting evidence."
+                Description = "Missing supporting evidence.",
+                Status = EvidenceGapStatuses.Open
             };
 
             await repository.AddEvidenceGapAsync(gap);
@@ -112,6 +113,27 @@ public sealed class VeteransClaimsSqliteEvidenceGapRepositoryTests
             Assert.Equal(gap.ClaimIssueId, stored.ClaimIssueId);
             Assert.Equal(gap.RequirementId, stored.RequirementId);
             Assert.Equal(gap.Description, stored.Description);
+            Assert.Equal(gap.Status, stored.Status);
+
+            await repository.UpdateEvidenceGapStatusAsync(
+                gap.Id,
+                EvidenceGapStatuses.Resolved);
+
+            var resolved =
+                await repository.GetEvidenceGapAsync(gap.Id);
+
+            Assert.NotNull(resolved);
+            Assert.Equal(
+                EvidenceGapStatuses.Resolved,
+                resolved!.Status);
+
+            Assert.Equal(
+                EvidenceGapStatuses.Open,
+                Assert.Single(byIssue).Status);
+
+            Assert.Equal(
+                EvidenceGapStatuses.Open,
+                Assert.Single(byRequirement).Status);
 
             Assert.Equal(
                 gap.Id,

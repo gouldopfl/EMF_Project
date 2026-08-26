@@ -45,13 +45,15 @@ public sealed class SqliteEvidenceGapRepository :
                 Id,
                 ClaimIssueId,
                 RequirementId,
-                Description
+                Description,
+                Status
             )
             VALUES (
                 $id,
                 $claimIssueId,
                 $requirementId,
-                $description
+                $description,
+                $status
             );
             """;
 
@@ -71,6 +73,10 @@ public sealed class SqliteEvidenceGapRepository :
             "$description",
             evidenceGap.Description);
 
+        command.Parameters.AddWithValue(
+            "$status",
+            evidenceGap.Status);
+
         await command.ExecuteNonQueryAsync(
             cancellationToken);
     }
@@ -85,7 +91,7 @@ public sealed class SqliteEvidenceGapRepository :
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT Id, ClaimIssueId, RequirementId, Description
+            SELECT Id, ClaimIssueId, RequirementId, Description, Status
             FROM VeteransClaims_EvidenceGaps
             WHERE Id = $id;
             """;
@@ -109,7 +115,8 @@ public sealed class SqliteEvidenceGapRepository :
                 new ClaimIssueId(reader.GetString(1)),
             RequirementId =
                 new RequirementId(reader.GetString(2)),
-            Description = reader.GetString(3)
+            Description = reader.GetString(3),
+            Status = reader.GetString(4)
         };
     }
 
@@ -232,7 +239,7 @@ public sealed class SqliteEvidenceGapRepository :
         await using var command = connection.CreateCommand();
         command.CommandText =
             $"""
-            SELECT Id, ClaimIssueId, RequirementId, Description
+            SELECT Id, ClaimIssueId, RequirementId, Description, Status
             FROM VeteransClaims_EvidenceGaps
             WHERE {columnName} = $value
             ORDER BY Id;
@@ -258,11 +265,43 @@ public sealed class SqliteEvidenceGapRepository :
                         reader.GetString(1)),
                     RequirementId = new RequirementId(
                         reader.GetString(2)),
-                    Description = reader.GetString(3)
+                    Description = reader.GetString(3),
+                    Status = reader.GetString(4)
                 });
         }
 
         return gaps;
+    }
+
+
+    public async Task UpdateEvidenceGapStatusAsync(
+        EvidenceGapId evidenceGapId,
+        string status,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(status);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE VeteransClaims_EvidenceGaps
+            SET Status = $status
+            WHERE Id = $id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$id",
+            evidenceGapId.Value);
+
+        command.Parameters.AddWithValue(
+            "$status",
+            status);
+
+        await command.ExecuteNonQueryAsync(
+            cancellationToken);
     }
 
 }

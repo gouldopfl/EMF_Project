@@ -245,9 +245,12 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
         var evidenceService =
             new FakeRequirementEvidenceService(true);
 
+        var repository =
+            new FakeRepository(gap);
+
         var activity =
             new DevelopEvidenceGapWorkflowActivity(
-                new FakeRepository(gap),
+                repository,
                 new FakeGuidanceRepository(),
                 new FakeDevelopmentRepository(),
                 new FakeRecognitionCoordinator(),
@@ -278,6 +281,51 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
         Assert.Contains(
             "missing guidance items: 0",
             result.Message);
+
+        Assert.Equal(
+            EvidenceGapStatuses.Resolved,
+            repository.UpdatedStatus);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LeavesGapOpenWhenEvidenceIsStillMissing()
+    {
+        var gap = new EvidenceGap
+        {
+            Id = new EvidenceGapId("gap-missing-1"),
+            ClaimIssueId = new ClaimIssueId("issue-missing-1"),
+            RequirementId = new RequirementId("req-missing-1"),
+            Description = "Missing evidence."
+        };
+
+        var repository =
+            new FakeRepository(gap);
+
+        var activity =
+            new DevelopEvidenceGapWorkflowActivity(
+                repository,
+                new FakeGuidanceRepository(),
+                new FakeDevelopmentRepository(),
+                new FakeRecognitionCoordinator(),
+                null,
+                new FakeRequirementEvidenceService(false),
+                gap.Id);
+
+        var result =
+            await activity.ExecuteAsync(
+                new WorkflowExecutionContext
+                {
+                    WorkflowId =
+                        new WorkflowId("workflow-missing-1")
+                });
+
+        Assert.True(result.Succeeded);
+
+        Assert.Contains(
+            "missing guidance items: 1",
+            result.Message);
+
+        Assert.Null(repository.UpdatedStatus);
     }
 
     private sealed class FakeRequirementEvidenceService :
@@ -364,8 +412,27 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
                                     HasMatchingEvidence = true
                                 }
                             }
-                            : Array.Empty<
-                                RequirementEvidenceResponsivenessItem>()
+                            : new[]
+                            {
+                                new RequirementEvidenceResponsivenessItem
+                                {
+                                    Guidance =
+                                        new EvidenceRequirementGuidance
+                                        {
+                                            Id =
+                                                new EvidenceRequirementGuidanceId(
+                                                    "guidance-missing-1"),
+                                            RequirementId = requirementId,
+                                            EvidenceClassification =
+                                                EvidenceClassifications.MedicalEvidence,
+                                            GuidanceRole =
+                                                EvidenceGuidanceRoles.SupportsRequirement,
+                                            Description =
+                                                "Missing evidence guidance."
+                                        },
+                                    HasMatchingEvidence = false
+                                }
+                            }
                 });
         }
 
@@ -519,6 +586,8 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
     {
         private readonly EvidenceGap? _gap;
 
+        public string? UpdatedStatus { get; private set; }
+
         public FakeRepository(EvidenceGap? gap)
         {
             _gap = gap;
@@ -528,6 +597,15 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
             EvidenceGapId id,
             CancellationToken cancellationToken = default)
             => Task.FromResult(_gap);
+
+        public Task UpdateEvidenceGapStatusAsync(
+            EvidenceGapId id,
+            string status,
+            CancellationToken cancellationToken = default)
+        {
+            UpdatedStatus = status;
+            return Task.CompletedTask;
+        }
 
         public Task AddEvidenceGapAsync(EvidenceGap gap, CancellationToken c = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<EvidenceGap>> GetEvidenceGapsAsync(ClaimIssueId id, CancellationToken c = default) => throw new NotSupportedException();

@@ -11,4 +11,7 @@ public sealed class EvidenceGap
     public required RequirementId RequirementId { get; init; }
 
     public required string Description { get; init; }
+
+    public string Status { get; init; } =
+        EvidenceGapStatuses.Open;
 }

@@ -21,6 +21,15 @@ public interface IEvidenceGapRepository
         RequirementId requirementId,
         CancellationToken cancellationToken = default);
 
+    Task UpdateEvidenceGapStatusAsync(
+        EvidenceGapId evidenceGapId,
+        string status,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Evidence gap status updates are not supported by this repository.");
+    }
+
     Task AddEvidenceGapArtifactAsync(
         EvidenceGapArtifact artifact,
         CancellationToken cancellationToken = default)
