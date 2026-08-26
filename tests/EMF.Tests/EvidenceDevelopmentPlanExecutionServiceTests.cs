@@ -110,6 +110,109 @@ public sealed class EvidenceDevelopmentPlanExecutionServiceTests
         Assert.Equal(new[] { gap1, gap2 }, started);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_SkipsResolvedGaps()
+    {
+        var planId =
+            new EvidenceDevelopmentPlanId("plan-resolved");
+
+        var openGap =
+            new EvidenceGapId("gap-open");
+
+        var resolvedGap =
+            new EvidenceGapId("gap-resolved");
+
+        var details =
+            new EvidenceDevelopmentPlanDetails
+            {
+                Plan = new EvidenceDevelopmentPlan
+                {
+                    Id = planId,
+                    ClaimIssueId =
+                        new ClaimIssueId("issue-resolved"),
+                    Description = "Develop evidence."
+                },
+                Requirements = [],
+                EvidenceGaps =
+                [
+                    new EvidenceDevelopmentPlanEvidenceGap
+                    {
+                        EvidenceDevelopmentPlanId = planId,
+                        EvidenceGapId = openGap
+                    },
+                    new EvidenceDevelopmentPlanEvidenceGap
+                    {
+                        EvidenceDevelopmentPlanId = planId,
+                        EvidenceGapId = resolvedGap
+                    }
+                ],
+                GapDetails =
+                [
+                    new EvidenceGap
+                    {
+                        Id = openGap,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-resolved"),
+                        RequirementId =
+                            new RequirementId("req-open"),
+                        Description = "Open gap.",
+                        Status = EvidenceGapStatuses.Open
+                    },
+                    new EvidenceGap
+                    {
+                        Id = resolvedGap,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-resolved"),
+                        RequirementId =
+                            new RequirementId("req-resolved"),
+                        Description = "Resolved gap.",
+                        Status = EvidenceGapStatuses.Resolved
+                    }
+                ],
+                Artifacts = [],
+                Executions = [],
+                Results = []
+            };
+
+        var started = new List<EvidenceGapId>();
+
+        var plans =
+            Proxy<IEvidenceDevelopmentPlanService>(
+                (method, args) =>
+                    Task.FromResult<EvidenceDevelopmentPlanDetails?>(
+                        details));
+
+        var workflow =
+            Proxy<IEvidenceDevelopmentWorkflowCoordinator>(
+                (method, args) =>
+                {
+                    var gapId = (EvidenceGapId)args![1]!;
+                    started.Add(gapId);
+
+                    return Task.FromResult(
+                        new EvidenceDevelopmentExecution
+                        {
+                            EvidenceDevelopmentPlanId = planId,
+                            EvidenceGapId = gapId,
+                            WorkflowId =
+                                new EMF.Core.Models.Identities.WorkflowId(
+                                    $"workflow-{gapId.Value}")
+                        });
+                });
+
+        var service =
+            new EvidenceDevelopmentPlanExecutionService(
+                plans,
+                workflow);
+
+        var result =
+            await service.ExecuteAsync(planId);
+
+        Assert.NotNull(result);
+        Assert.Single(result!);
+        Assert.Equal(openGap, Assert.Single(started));
+    }
+
     private static T Proxy<T>(
         Func<MethodInfo, object?[]?, object?> handler)
         where T : class

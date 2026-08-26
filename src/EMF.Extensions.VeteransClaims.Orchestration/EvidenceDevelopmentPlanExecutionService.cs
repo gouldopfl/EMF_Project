@@ -39,6 +39,16 @@ public sealed class EvidenceDevelopmentPlanExecutionService :
 
         foreach (var gap in details.EvidenceGaps)
         {
+            var detail =
+                details.GapDetails.FirstOrDefault(
+                    x => x.Id == gap.EvidenceGapId);
+
+            if (detail is not null &&
+                detail.Status == EvidenceGapStatuses.Resolved)
+            {
+                continue;
+            }
+
             executions.Add(
                 await _workflow.StartAsync(
                     planId,
