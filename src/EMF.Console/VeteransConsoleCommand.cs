@@ -458,6 +458,17 @@ public static class VeteransConsoleCommand
                 blocking.Requirement.Description);
         }
 
+
+        global::System.Console.WriteLine(
+            $"Outstanding Items: {result.Readiness.OutstandingItemCount}");
+
+        foreach (var item in result.Readiness.BlockingItems)
+        {
+            global::System.Console.WriteLine(
+                $"  - {item.EvidenceClassification} / " +
+                $"{item.GuidanceRole}: {item.Description}");
+        }
+
         return 0;
     }
 

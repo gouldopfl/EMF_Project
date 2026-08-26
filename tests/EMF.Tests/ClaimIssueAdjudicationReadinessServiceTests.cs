@@ -54,6 +54,20 @@ public sealed class ClaimIssueAdjudicationReadinessServiceTests
             blocking.Requirement.Id,
             Assert.Single(result.BlockingRequirements)
                 .Requirement.Id);
+
+
+        Assert.Equal(1, result.OutstandingItemCount);
+
+        var item =
+            Assert.Single(result.BlockingItems);
+
+        Assert.Equal(
+            blocking.Requirement.Id,
+            item.RequirementId);
+
+        Assert.Equal(
+            EvidenceClassifications.MedicalOpinion,
+            item.EvidenceClassification);
     }
 
     private static ClaimIssueAdjudicationDetails CreateDetails(

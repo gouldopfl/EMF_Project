@@ -12,6 +12,16 @@ public sealed class ClaimIssueAdjudicationReadiness
     public int OutstandingRequirementCount =>
         BlockingRequirements.Count;
 
+    public IReadOnlyList<EvidenceDevelopmentChecklistItem>
+        BlockingItems =>
+            BlockingRequirements
+                .SelectMany(
+                    x => x.DevelopmentChecklist.Items)
+                .ToArray();
+
+    public int OutstandingItemCount =>
+        BlockingItems.Count;
+
     public bool IsReadyForAdjudication =>
         BlockingRequirements.Count == 0;
 }
