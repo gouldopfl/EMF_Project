@@ -127,6 +127,40 @@ public sealed class ClaimIssueEvidenceChecklistServiceTests
         Assert.False(result.HasOutstandingItems);
     }
 
+    [Fact]
+    public async Task CreateChecklistAsync_IgnoresResolvedGaps()
+    {
+        var issueId = new ClaimIssueId("issue-resolved");
+        var requirementId =
+            new RequirementId("requirement-resolved");
+
+        var gaps =
+            new FakeGapRepository(
+                new EvidenceGap
+                {
+                    Id = new EvidenceGapId("gap-resolved"),
+                    ClaimIssueId = issueId,
+                    RequirementId = requirementId,
+                    Description = "Resolved gap.",
+                    Status = EvidenceGapStatuses.Resolved
+                });
+
+        var requirements =
+            new FakeRequirementEvidenceService();
+
+        var service =
+            new ClaimIssueEvidenceChecklistService(
+                gaps,
+                requirements);
+
+        var result =
+            await service.CreateChecklistAsync(issueId);
+
+        Assert.Empty(result.RequirementChecklists);
+        Assert.Empty(requirements.Requested);
+        Assert.False(result.HasOutstandingItems);
+    }
+
     private sealed class FakeGapRepository :
         IEvidenceGapRepository
     {

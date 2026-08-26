@@ -35,7 +35,10 @@ public sealed class ClaimIssueEvidenceChecklistService :
             new List<EvidenceDevelopmentChecklist>();
 
         foreach (var requirementId in
-            gaps.Select(x => x.RequirementId).Distinct())
+            gaps
+                .Where(x => x.Status == EvidenceGapStatuses.Open)
+                .Select(x => x.RequirementId)
+                .Distinct())
         {
             var checklist =
                 await _requirements.CreateChecklistAsync(
