@@ -60,6 +60,21 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
+    public async Task EvidenceExecute_RejectsMissingDatabase()
+    {
+        var exitCode =
+            await VeteransConsoleCommand.RunAsync(
+                [
+                    "evidence",
+                    "execute",
+                    "/tmp/emf-missing-veterans-execute.db",
+                    "plan-1"
+                ]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
     public async Task EvidencePrepare_RejectsMissingDatabase()
     {
         var exitCode =
@@ -371,6 +386,161 @@ public sealed class VeteransConsoleCommandTests
                 "EMF_REVIEWED_BY",
                 previousReviewer);
 
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task EvidenceExecute_ExecutesPreparedPlan()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-execute-1")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-execute-1"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-execute-1"),
+                ClaimId = claim.Id,
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var regulatory =
+                new SqliteRegulatoryRepository(databasePath);
+
+            await regulatory.InitializeAsync();
+
+            var authority = new RegulatoryAuthority
+            {
+                Id = new RegulatoryAuthorityId("authority-execute-1"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Veterans Relief"
+            };
+
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+
+            var provision = new RegulatoryProvision
+            {
+                Id = new RegulatoryProvisionId("provision-execute-1"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType =
+                    RegulatoryProvisionTypes.Presumption,
+                Citation = "38 CFR 3.310"
+            };
+
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+
+            await regulatory.AddRequirementAsync(
+                new Requirement
+                {
+                    Id = new RequirementId("requirement-execute-1"),
+                    RegulatoryProvisionId = provision.Id,
+                    Description = "Execution test requirement"
+                });
+
+            var gap = new EvidenceGap
+            {
+                Id = new EvidenceGapId("gap-execute-1"),
+                ClaimIssueId = issue.Id,
+                RequirementId =
+                    new RequirementId("requirement-execute-1"),
+                Description = "Missing evidence."
+            };
+
+            var gaps =
+                new SqliteEvidenceGapRepository(databasePath);
+
+            await gaps.AddEvidenceGapAsync(gap);
+
+            var plan = new EvidenceDevelopmentPlan
+            {
+                Id =
+                    new EvidenceDevelopmentPlanId(
+                        "plan-execute-1"),
+                ClaimIssueId = issue.Id,
+                Description = "Develop evidence."
+            };
+
+            var plans =
+                new SqliteEvidenceDevelopmentPlanRepository(
+                    databasePath);
+
+            await plans.InitializeAsync();
+
+            await plans.CreateEvidenceDevelopmentPlanAsync(
+                plan,
+                [
+                    new EvidenceDevelopmentPlanEvidenceGap
+                    {
+                        EvidenceDevelopmentPlanId = plan.Id,
+                        EvidenceGapId = gap.Id
+                    }
+                ]);
+
+            var guidance =
+                new EvidenceRequirementGuidance
+                {
+                    Id = new EvidenceRequirementGuidanceId(
+                        "guidance-execute-1"),
+                    RequirementId = gap.RequirementId,
+                    EvidenceClassification =
+                        EvidenceClassifications.MedicalOpinion,
+                    GuidanceRole =
+                        EvidenceGuidanceRoles.SupportsRequirement,
+                    Description = "Medical opinion evidence."
+                };
+
+            await new SqliteEvidenceRequirementGuidanceRepository(
+                databasePath)
+                .AddEvidenceRequirementGuidanceAsync(guidance);
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "execute",
+                        databasePath,
+                        plan.Id.Value
+                    ]);
+
+            Assert.Equal(0, exitCode);
+
+            var execution =
+                await plans.GetEvidenceDevelopmentExecutionAsync(
+                    plan.Id,
+                    gap.Id);
+
+            Assert.NotNull(execution);
+            Assert.Equal(plan.Id,
+                execution!.EvidenceDevelopmentPlanId);
+            Assert.Equal(gap.Id, execution.EvidenceGapId);
+        }
+        finally
+        {
             File.Delete(databasePath);
         }
     }

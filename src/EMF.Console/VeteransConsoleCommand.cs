@@ -89,6 +89,26 @@ public static class VeteransConsoleCommand
                 new EvidenceDevelopmentPlanId(args[4]));
         }
 
+        if (args.Length == 4 &&
+            args[0] == "evidence" &&
+            args[1] == "execute")
+        {
+            var executeDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(executeDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {executeDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunExecuteAsync(
+                executeDatabasePath,
+                new EvidenceDevelopmentPlanId(args[3]));
+        }
+
         var summarize =
             args.Length >= 6 &&
             args[0] == "evidence" &&
@@ -396,6 +416,70 @@ public static class VeteransConsoleCommand
     }
 
 
+    private static async Task<int> RunExecuteAsync(
+        string databasePath,
+        EvidenceDevelopmentPlanId planId)
+    {
+        var workflowRepository =
+            new SqliteWorkflowRepository(databasePath);
+
+        await workflowRepository.InitializeAsync();
+
+        var workflowService =
+            new WorkflowService(workflowRepository);
+
+        var workflowRunner =
+            new WorkflowRunner(workflowService);
+
+        var developmentRepository =
+            new SqliteEvidenceDevelopmentPlanRepository(
+                databasePath);
+
+        await developmentRepository.InitializeAsync();
+
+        var gapRepository =
+            new SqliteEvidenceGapRepository(databasePath);
+
+        var guidanceRepository =
+            new SqliteEvidenceRequirementGuidanceRepository(
+                databasePath);
+
+        var coordinator =
+            VeteransEvidenceOrchestrationFactory
+                .CreateEvidenceDevelopmentWorkflowCoordinator(
+                    workflowService,
+                    developmentRepository,
+                    workflowRunner,
+                    gapRepository,
+                    guidanceRepository);
+
+        var plans =
+            new EvidenceDevelopmentPlanService(
+                developmentRepository);
+
+        var service =
+            new EvidenceDevelopmentPlanExecutionService(
+                plans,
+                coordinator);
+
+        var result =
+            await service.ExecuteAsync(planId);
+
+        if (result is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Evidence development plan not found: {planId.Value}");
+
+            return 1;
+        }
+
+        global::System.Console.WriteLine(
+            $"Executions: {result.Count}");
+
+        return 0;
+    }
+
+
     private static async Task<int> RunPrepareAsync(
         string databasePath,
         ClaimIssueId claimIssueId,
@@ -524,5 +608,9 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence prepare " +
             "<database-path> <claim-issue-id> <plan-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence execute " +
+            "<database-path> <plan-id>");
     }
 }
