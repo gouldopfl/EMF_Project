@@ -10,6 +10,9 @@ public sealed class EvidenceDevelopmentPlanDetails
     public required IReadOnlyList<EvidenceDevelopmentPlanEvidenceGap>
         EvidenceGaps { get; init; }
 
+    public IReadOnlyList<EvidenceGap>
+        GapDetails { get; init; } = [];
+
     public required IReadOnlyList<EvidenceDevelopmentPlanArtifact>
         Artifacts { get; init; }
 

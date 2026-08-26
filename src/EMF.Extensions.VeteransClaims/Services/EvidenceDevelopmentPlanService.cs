@@ -8,12 +8,22 @@ public sealed class EvidenceDevelopmentPlanService :
     IEvidenceDevelopmentPlanService
 {
     private readonly IEvidenceDevelopmentPlanRepository _repository;
+    private readonly IEvidenceGapRepository? _gaps;
 
     public EvidenceDevelopmentPlanService(
         IEvidenceDevelopmentPlanRepository repository)
+        : this(repository, null)
+    {
+    }
+
+    public EvidenceDevelopmentPlanService(
+        IEvidenceDevelopmentPlanRepository repository,
+        IEvidenceGapRepository? gaps)
     {
         ArgumentNullException.ThrowIfNull(repository);
+
         _repository = repository;
+        _gaps = gaps;
     }
 
 
@@ -100,11 +110,23 @@ public sealed class EvidenceDevelopmentPlanService :
                 planId,
                 cancellationToken);
 
+        var gapDetails = new List<EvidenceGap>();
         var executions = new List<EvidenceDevelopmentExecution>();
         var results = new List<EvidenceDevelopmentResult>();
 
         foreach (var evidenceGap in evidenceGaps)
         {
+            if (_gaps is not null)
+            {
+                var gap =
+                    await _gaps.GetEvidenceGapAsync(
+                        evidenceGap.EvidenceGapId,
+                        cancellationToken);
+
+                if (gap is not null)
+                    gapDetails.Add(gap);
+            }
+
             var execution =
                 await _repository.GetEvidenceDevelopmentExecutionAsync(
                     planId,
@@ -128,6 +150,7 @@ public sealed class EvidenceDevelopmentPlanService :
             Plan = plan,
             Requirements = requirements,
             EvidenceGaps = evidenceGaps,
+            GapDetails = gapDetails,
             Artifacts = artifacts,
             Executions = executions,
             Results = results

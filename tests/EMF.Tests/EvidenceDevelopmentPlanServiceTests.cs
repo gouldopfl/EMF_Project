@@ -48,6 +48,48 @@ public sealed class EvidenceDevelopmentPlanServiceTests
 
 
     [Fact]
+    public async Task GetEvidenceDevelopmentPlanAsync_IncludesGapDetails()
+    {
+        var planId =
+            new EvidenceDevelopmentPlanId("plan-gap-details");
+
+        var gap =
+            new EvidenceGap
+            {
+                Id = new EvidenceGapId("gap-001"),
+                ClaimIssueId = new ClaimIssueId("issue-001"),
+                RequirementId =
+                    new RequirementId("requirement-001"),
+                Description = "Resolved evidence gap.",
+                Status = EvidenceGapStatuses.Resolved
+            };
+
+        var service =
+            new EvidenceDevelopmentPlanService(
+                new StubRepository(
+                    new EvidenceDevelopmentPlan
+                    {
+                        Id = planId,
+                        ClaimIssueId = gap.ClaimIssueId,
+                        Description = "Develop evidence."
+                    }),
+                new StubGapRepository(gap));
+
+        var result =
+            await service.GetEvidenceDevelopmentPlanAsync(planId);
+
+        Assert.NotNull(result);
+
+        var detail =
+            Assert.Single(result!.GapDetails);
+
+        Assert.Equal(gap.Id, detail.Id);
+        Assert.Equal(
+            EvidenceGapStatuses.Resolved,
+            detail.Status);
+    }
+
+    [Fact]
     public async Task GetEvidenceDevelopmentPlansAsync_ReturnsPlansForClaimIssue()
     {
         var issueId = new ClaimIssueId("issue-001");
@@ -285,6 +327,37 @@ public sealed class EvidenceDevelopmentPlanServiceTests
         public Task AddEvidenceDevelopmentPlanArtifactAsync(EvidenceDevelopmentPlanArtifact a, CancellationToken c = default) => throw new NotSupportedException();
     }
 
+
+    private sealed class StubGapRepository :
+        IEvidenceGapRepository
+    {
+        private readonly EvidenceGap _gap;
+
+        public StubGapRepository(EvidenceGap gap)
+        {
+            _gap = gap;
+        }
+
+        public Task<EvidenceGap?> GetEvidenceGapAsync(
+            EvidenceGapId id,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<EvidenceGap?>(_gap);
+
+        public Task AddEvidenceGapAsync(
+            EvidenceGap gap,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<EvidenceGap>> GetEvidenceGapsAsync(
+            ClaimIssueId id,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<EvidenceGap>> GetEvidenceGapsAsync(
+            RequirementId id,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
 
     private sealed class StubRepository :
         IEvidenceDevelopmentPlanRepository
