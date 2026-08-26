@@ -248,11 +248,14 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
         var repository =
             new FakeRepository(gap);
 
+        var developmentRepository =
+            new FakeDevelopmentRepository();
+
         var activity =
             new DevelopEvidenceGapWorkflowActivity(
                 repository,
                 new FakeGuidanceRepository(),
-                new FakeDevelopmentRepository(),
+                developmentRepository,
                 new FakeRecognitionCoordinator(),
                 null,
                 evidenceService,
@@ -285,6 +288,20 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
         Assert.Equal(
             EvidenceGapStatuses.Resolved,
             repository.UpdatedStatus);
+
+        Assert.NotNull(developmentRepository.Result);
+
+        Assert.Equal(
+            1,
+            developmentRepository.Result!.MatchingGuidanceItemCount);
+
+        Assert.Equal(
+            0,
+            developmentRepository.Result.MissingGuidanceItemCount);
+
+        Assert.Equal(
+            EvidenceGapStatuses.Resolved,
+            developmentRepository.Result.ResultingGapStatus);
     }
 
     [Fact]
@@ -301,11 +318,14 @@ public sealed class DevelopEvidenceGapWorkflowActivityTests
         var repository =
             new FakeRepository(gap);
 
+        var developmentRepository =
+            new FakeDevelopmentRepository();
+
         var activity =
             new DevelopEvidenceGapWorkflowActivity(
                 repository,
                 new FakeGuidanceRepository(),
-                new FakeDevelopmentRepository(),
+                developmentRepository,
                 new FakeRecognitionCoordinator(),
                 null,
                 new FakeRequirementEvidenceService(false),

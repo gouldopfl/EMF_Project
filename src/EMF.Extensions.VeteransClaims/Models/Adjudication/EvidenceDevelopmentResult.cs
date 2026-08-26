@@ -18,4 +18,11 @@ public sealed class EvidenceDevelopmentResult
     public IReadOnlyList<EvidenceRecognitionMatchArtifact>
         RecognitionMatchArtifacts { get; init; }
             = Array.Empty<EvidenceRecognitionMatchArtifact>();
+
+
+    public int? MatchingGuidanceItemCount { get; init; }
+
+    public int? MissingGuidanceItemCount { get; init; }
+
+    public string? ResultingGapStatus { get; init; }
 }

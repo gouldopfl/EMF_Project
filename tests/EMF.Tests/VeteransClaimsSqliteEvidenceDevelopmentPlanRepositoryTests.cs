@@ -790,7 +790,11 @@ public sealed class VeteransClaimsSqliteEvidenceDevelopmentPlanRepositoryTests
                         Role =
                             recognitionArtifact.Role
                     }
-                ]
+                ],
+                MatchingGuidanceItemCount = 1,
+                MissingGuidanceItemCount = 0,
+                ResultingGapStatus =
+                    EvidenceGapStatuses.Resolved
             };
 
             await repository
@@ -808,6 +812,18 @@ public sealed class VeteransClaimsSqliteEvidenceDevelopmentPlanRepositoryTests
             Assert.Equal(
                 result.RequirementId,
                 stored.RequirementId);
+
+            Assert.Equal(
+                result.MatchingGuidanceItemCount,
+                stored.MatchingGuidanceItemCount);
+
+            Assert.Equal(
+                result.MissingGuidanceItemCount,
+                stored.MissingGuidanceItemCount);
+
+            Assert.Equal(
+                result.ResultingGapStatus,
+                stored.ResultingGapStatus);
 
             var storedGuidance =
                 Assert.Single(stored.EvidenceGuidance);

@@ -150,24 +150,9 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
             }
         }
 
-        var developmentResult =
-            new EMF.Extensions.VeteransClaims.Models.Adjudication.EvidenceDevelopmentResult
-            {
-                EvidenceGapId = gap.Id,
-                RequirementId = gap.RequirementId,
-                EvidenceGuidance = guidance,
-                RecognitionMatches = recognition.Matches,
-                RecognitionMatchArtifacts =
-                    recognition.MatchArtifacts
-            };
-
-        await _developmentRepository
-            .AddEvidenceDevelopmentResultAsync(
-                developmentResult,
-                cancellationToken);
-
         RequirementEvidenceAssessment? assessment = null;
         RequirementEvidenceResponsivenessAssessment? responsiveness = null;
+        string? resultingGapStatus = null;
 
         if (_requirementEvidenceService is not null)
         {
@@ -182,15 +167,41 @@ internal sealed class DevelopEvidenceGapWorkflowActivity :
                         gap.RequirementId,
                         cancellationToken);
 
+            resultingGapStatus =
+                responsiveness.MissingItemCount == 0
+                    ? EvidenceGapStatuses.Resolved
+                    : EvidenceGapStatuses.Open;
 
-            if (responsiveness.MissingItemCount == 0)
+            if (resultingGapStatus == EvidenceGapStatuses.Resolved)
             {
                 await _repository.UpdateEvidenceGapStatusAsync(
                     gap.Id,
-                    EvidenceGapStatuses.Resolved,
+                    resultingGapStatus,
                     cancellationToken);
             }
         }
+
+        var developmentResult =
+            new EvidenceDevelopmentResult
+            {
+                EvidenceGapId = gap.Id,
+                RequirementId = gap.RequirementId,
+                EvidenceGuidance = guidance,
+                RecognitionMatches = recognition.Matches,
+                RecognitionMatchArtifacts =
+                    recognition.MatchArtifacts,
+                MatchingGuidanceItemCount =
+                    responsiveness?.MatchingItemCount,
+                MissingGuidanceItemCount =
+                    responsiveness?.MissingItemCount,
+                ResultingGapStatus =
+                    resultingGapStatus
+            };
+
+        await _developmentRepository
+            .AddEvidenceDevelopmentResultAsync(
+                developmentResult,
+                cancellationToken);
 
         return new WorkflowActivityResult
         {

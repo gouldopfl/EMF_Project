@@ -1545,6 +1545,19 @@ internal static class VeteransClaimsSqliteMigrations
                 """
                 ALTER TABLE VeteransClaims_EvidenceGaps
                 ADD COLUMN Status TEXT NOT NULL DEFAULT 'Open';
+                """),
+            new VeteransClaimsSqliteMigration(
+                52,
+                "AddEvidenceDevelopmentResultAssessment",
+                """
+                ALTER TABLE VeteransClaims_EvidenceDevelopmentResults
+                    ADD COLUMN MatchingGuidanceItemCount INTEGER NULL;
+
+                ALTER TABLE VeteransClaims_EvidenceDevelopmentResults
+                    ADD COLUMN MissingGuidanceItemCount INTEGER NULL;
+
+                ALTER TABLE VeteransClaims_EvidenceDevelopmentResults
+                    ADD COLUMN ResultingGapStatus TEXT NULL;
                 """)
         };
 }

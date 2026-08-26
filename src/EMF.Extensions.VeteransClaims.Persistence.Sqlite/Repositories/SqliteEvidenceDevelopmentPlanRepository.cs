@@ -591,11 +591,17 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
                 """
                 INSERT INTO VeteransClaims_EvidenceDevelopmentResults (
                     EvidenceGapId,
-                    RequirementId
+                    RequirementId,
+                    MatchingGuidanceItemCount,
+                    MissingGuidanceItemCount,
+                    ResultingGapStatus
                 )
                 VALUES (
                     $evidenceGapId,
-                    $requirementId
+                    $requirementId,
+                    $matchingGuidanceItemCount,
+                    $missingGuidanceItemCount,
+                    $resultingGapStatus
                 );
                 """;
 
@@ -606,6 +612,21 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
             command.Parameters.AddWithValue(
                 "$requirementId",
                 result.RequirementId.Value);
+
+            command.Parameters.AddWithValue(
+                "$matchingGuidanceItemCount",
+                (object?)result.MatchingGuidanceItemCount
+                    ?? DBNull.Value);
+
+            command.Parameters.AddWithValue(
+                "$missingGuidanceItemCount",
+                (object?)result.MissingGuidanceItemCount
+                    ?? DBNull.Value);
+
+            command.Parameters.AddWithValue(
+                "$resultingGapStatus",
+                (object?)result.ResultingGapStatus
+                    ?? DBNull.Value);
 
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -719,12 +740,19 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
         await connection.OpenAsync(cancellationToken);
 
         RequirementId? requirementId = null;
+        int? matchingGuidanceItemCount = null;
+        int? missingGuidanceItemCount = null;
+        string? resultingGapStatus = null;
 
         await using (var command = connection.CreateCommand())
         {
             command.CommandText =
                 """
-                SELECT RequirementId
+                SELECT
+                    RequirementId,
+                    MatchingGuidanceItemCount,
+                    MissingGuidanceItemCount,
+                    ResultingGapStatus
                 FROM VeteransClaims_EvidenceDevelopmentResults
                 WHERE EvidenceGapId = $evidenceGapId;
                 """;
@@ -733,16 +761,32 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
                 "$evidenceGapId",
                 evidenceGapId.Value);
 
-            var value =
-                await command.ExecuteScalarAsync(cancellationToken);
+            await using var reader =
+                await command.ExecuteReaderAsync(
+                    cancellationToken);
 
-            if (value is null)
+            if (!await reader.ReadAsync(cancellationToken))
             {
                 return null;
             }
 
             requirementId =
-                new RequirementId((string)value);
+                new RequirementId(reader.GetString(0));
+
+            matchingGuidanceItemCount =
+                reader.IsDBNull(1)
+                    ? null
+                    : reader.GetInt32(1);
+
+            missingGuidanceItemCount =
+                reader.IsDBNull(2)
+                    ? null
+                    : reader.GetInt32(2);
+
+            resultingGapStatus =
+                reader.IsDBNull(3)
+                    ? null
+                    : reader.GetString(3);
         }
 
         var guidance =
@@ -884,7 +928,13 @@ public sealed class SqliteEvidenceDevelopmentPlanRepository :
             EvidenceGuidance = guidance,
             RecognitionMatches = recognitions,
             RecognitionMatchArtifacts =
-                recognitionArtifacts
+                recognitionArtifacts,
+            MatchingGuidanceItemCount =
+                matchingGuidanceItemCount,
+            MissingGuidanceItemCount =
+                missingGuidanceItemCount,
+            ResultingGapStatus =
+                resultingGapStatus
         };
     }
 
