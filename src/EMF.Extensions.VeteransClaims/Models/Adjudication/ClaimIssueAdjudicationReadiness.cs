@@ -12,11 +12,27 @@ public sealed class ClaimIssueAdjudicationReadiness
     public int OutstandingRequirementCount =>
         BlockingRequirements.Count;
 
-    public IReadOnlyList<EvidenceDevelopmentChecklistItem>
+    public IReadOnlyList<ClaimIssueAdjudicationBlocker>
         BlockingItems =>
             BlockingRequirements
                 .SelectMany(
-                    x => x.DevelopmentChecklist.Items)
+                    x =>
+                        x.DevelopmentChecklist.Items.Select(
+                            item =>
+                                new ClaimIssueAdjudicationBlocker
+                                {
+                                    BlockerType =
+                                        ClaimIssueAdjudicationBlockerTypes
+                                            .MissingEvidence,
+                                    RequirementId =
+                                        item.RequirementId,
+                                    EvidenceClassification =
+                                        item.EvidenceClassification,
+                                    GuidanceRole =
+                                        item.GuidanceRole,
+                                    Description =
+                                        item.Description
+                                }))
                 .ToArray();
 
     public int OutstandingItemCount =>

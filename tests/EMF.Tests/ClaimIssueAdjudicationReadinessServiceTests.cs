@@ -68,6 +68,11 @@ public sealed class ClaimIssueAdjudicationReadinessServiceTests
         Assert.Equal(
             EvidenceClassifications.MedicalOpinion,
             item.EvidenceClassification);
+
+
+        Assert.Equal(
+            ClaimIssueAdjudicationBlockerTypes.MissingEvidence,
+            item.BlockerType);
     }
 
     private static ClaimIssueAdjudicationDetails CreateDetails(
