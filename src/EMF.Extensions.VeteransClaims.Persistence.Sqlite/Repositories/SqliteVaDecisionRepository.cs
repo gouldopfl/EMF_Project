@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -289,6 +290,77 @@ public sealed class SqliteVaDecisionRepository :
             await command.ExecuteNonQueryAsync(
                 cancellationToken);
         }
+    }
+
+
+    public async Task AddDecisionArtifactAsync(
+        VaDecisionArtifact association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_VaDecisionArtifacts (
+                VaDecisionId,
+                ArtifactId
+            )
+            VALUES (
+                $vaDecisionId,
+                $artifactId
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$vaDecisionId",
+            association.VaDecisionId.Value);
+
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            association.ArtifactId.Value);
+
+        await command.ExecuteNonQueryAsync(
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ArtifactId>>
+        GetArtifactIdsAsync(
+            VaDecisionId vaDecisionId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ArtifactId
+            FROM VeteransClaims_VaDecisionArtifacts
+            WHERE VaDecisionId = $vaDecisionId
+            ORDER BY ArtifactId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$vaDecisionId",
+            vaDecisionId.Value);
+
+        var artifactIds = new List<ArtifactId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            artifactIds.Add(
+                new ArtifactId(reader.GetString(0)));
+        }
+
+        return artifactIds;
     }
 
     public async Task<VaDecision?> GetDecisionAsync(

@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 
@@ -29,5 +30,14 @@ public interface IVaDecisionRepository
     Task<IReadOnlyList<SubmissionId>>
         GetSubmissionIdsAsync(
             IssueDecisionId issueDecisionId,
+            CancellationToken cancellationToken = default);
+
+    Task AddDecisionArtifactAsync(
+        VaDecisionArtifact association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ArtifactId>>
+        GetArtifactIdsAsync(
+            VaDecisionId vaDecisionId,
             CancellationToken cancellationToken = default);
 }

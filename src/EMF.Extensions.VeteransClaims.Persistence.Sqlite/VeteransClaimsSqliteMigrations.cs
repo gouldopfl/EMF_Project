@@ -1559,5 +1559,27 @@ internal static class VeteransClaimsSqliteMigrations
                 ALTER TABLE VeteransClaims_EvidenceDevelopmentResults
                     ADD COLUMN ResultingGapStatus TEXT NULL;
                 """)
+,
+            new VeteransClaimsSqliteMigration(
+                53,
+                "AddVaDecisionArtifacts",
+                """
+                CREATE TABLE VeteransClaims_VaDecisionArtifacts (
+                    VaDecisionId TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    PRIMARY KEY (
+                        VaDecisionId,
+                        ArtifactId
+                    ),
+                    FOREIGN KEY (VaDecisionId)
+                        REFERENCES VeteransClaims_VaDecisions (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_VaDecisionArtifacts_Artifact
+                ON VeteransClaims_VaDecisionArtifacts (
+                    ArtifactId
+                );
+                """)
         };
 }
