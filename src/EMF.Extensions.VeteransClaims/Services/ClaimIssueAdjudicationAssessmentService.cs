@@ -8,16 +8,20 @@ public sealed class ClaimIssueAdjudicationAssessmentService
 {
     private readonly IClaimIssueAdjudicationDetailsService _details;
     private readonly ClaimIssueAdjudicationReadinessService _readiness;
+    private readonly ClaimIssueMeritsAssessmentService _merits;
 
     public ClaimIssueAdjudicationAssessmentService(
         IClaimIssueAdjudicationDetailsService details,
-        ClaimIssueAdjudicationReadinessService readiness)
+        ClaimIssueAdjudicationReadinessService readiness,
+        ClaimIssueMeritsAssessmentService merits)
     {
         ArgumentNullException.ThrowIfNull(details);
         ArgumentNullException.ThrowIfNull(readiness);
+        ArgumentNullException.ThrowIfNull(merits);
 
         _details = details;
         _readiness = readiness;
+        _merits = merits;
     }
 
     public async Task<ClaimIssueAdjudicationAssessment?> GetAsync(
@@ -32,10 +36,16 @@ public sealed class ClaimIssueAdjudicationAssessmentService
         if (details is null)
             return null;
 
+        var merits =
+            await _merits.AssessAsync(
+                claimIssueId,
+                cancellationToken);
+
         return new ClaimIssueAdjudicationAssessment
         {
             Details = details,
-            Readiness = _readiness.Assess(details)
+            Readiness = _readiness.Assess(details),
+            Merits = merits
         };
     }
 }

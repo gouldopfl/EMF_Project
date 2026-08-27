@@ -20,7 +20,8 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
         var service =
             new ClaimIssueAdjudicationAssessmentService(
                 details,
-                new ClaimIssueAdjudicationReadinessService());
+                new ClaimIssueAdjudicationReadinessService(),
+                CreateMeritsService());
 
         var result =
             await service.GetAsync(
@@ -73,7 +74,8 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
         var service =
             new ClaimIssueAdjudicationAssessmentService(
                 details,
-                new ClaimIssueAdjudicationReadinessService());
+                new ClaimIssueAdjudicationReadinessService(),
+                CreateMeritsService());
 
         var result =
             await service.GetAsync(issue.Id);
@@ -81,6 +83,39 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
         Assert.NotNull(result);
         Assert.Same(adjudicationDetails, result!.Details);
         Assert.True(result.Readiness.IsReadyForAdjudication);
+
+
+        Assert.NotNull(result.Merits);
+
+        Assert.Equal(
+            FindingOutcomes.Unresolved,
+            result.Merits!.Outcome);
+    }
+
+    private static ClaimIssueMeritsAssessmentService
+        CreateMeritsService()
+    {
+        var serviceConnections =
+            Proxy<IServiceConnectionRepository>(
+                (method, args) =>
+                    method.Name ==
+                        "GetServiceConnectionTheoriesAsync"
+                        ? Task.FromResult<
+                            IReadOnlyList<
+                                EMF.Extensions.VeteransClaims.Models.Service
+                                    .ServiceConnectionTheory>>([])
+                        : throw new NotSupportedException());
+
+        var findings =
+            Proxy<IFindingRepository>(
+                (method, args) =>
+                    method.Name == "GetFindingsAsync"
+                        ? Task.FromResult<IReadOnlyList<Finding>>([])
+                        : throw new NotSupportedException());
+
+        return new ClaimIssueMeritsAssessmentService(
+            serviceConnections,
+            findings);
     }
 
     private static T Proxy<T>(

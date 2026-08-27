@@ -425,10 +425,16 @@ public static class VeteransConsoleCommand
                 requirementEvidence,
                 evidence);
 
+        var merits =
+            new ClaimIssueMeritsAssessmentService(
+                serviceConnections,
+                new SqliteFindingRepository(databasePath));
+
         var assessment =
             new ClaimIssueAdjudicationAssessmentService(
                 details,
-                new ClaimIssueAdjudicationReadinessService());
+                new ClaimIssueAdjudicationReadinessService(),
+                merits);
 
         var result =
             await assessment.GetAsync(claimIssueId);

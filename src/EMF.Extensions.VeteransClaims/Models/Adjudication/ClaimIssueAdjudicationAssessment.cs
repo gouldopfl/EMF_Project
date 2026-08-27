@@ -5,4 +5,7 @@ public sealed class ClaimIssueAdjudicationAssessment
     public required ClaimIssueAdjudicationDetails Details { get; init; }
 
     public required ClaimIssueAdjudicationReadiness Readiness { get; init; }
+
+
+    public ClaimIssueMeritsOutcomeAssessment? Merits { get; init; }
 }
