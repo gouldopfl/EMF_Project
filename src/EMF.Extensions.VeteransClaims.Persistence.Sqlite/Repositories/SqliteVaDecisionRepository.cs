@@ -379,6 +379,56 @@ public sealed class SqliteVaDecisionRepository :
         return issueDecisions;
     }
 
+    public async Task<IReadOnlyList<IssueDecision>>
+        GetIssueDecisionsAsync(
+            ClaimIssueId claimIssueId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT Id, VaDecisionId, ClaimIssueId, Outcome
+            FROM VeteransClaims_IssueDecisions
+            WHERE ClaimIssueId = $claimIssueId
+            ORDER BY Id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$claimIssueId",
+            claimIssueId.Value);
+
+        var issueDecisions =
+            new List<IssueDecision>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            issueDecisions.Add(
+                new IssueDecision
+                {
+                    Id =
+                        new IssueDecisionId(
+                            reader.GetString(0)),
+                    VaDecisionId =
+                        new VaDecisionId(
+                            reader.GetString(1)),
+                    ClaimIssueId =
+                        new ClaimIssueId(
+                            reader.GetString(2)),
+                    Outcome =
+                        reader.GetString(3)
+                });
+        }
+
+        return issueDecisions;
+    }
+
     public async Task<IReadOnlyList<SubmissionId>>
         GetSubmissionIdsAsync(
             IssueDecisionId issueDecisionId,

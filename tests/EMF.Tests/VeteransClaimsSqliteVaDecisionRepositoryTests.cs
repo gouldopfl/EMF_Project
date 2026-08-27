@@ -7,7 +7,7 @@ using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
 
 namespace EMF.Tests;
 
-public sealed class VeteransClaimsSqliteVaDecisionRepositoryTests
+public sealed partial class VeteransClaimsSqliteVaDecisionRepositoryTests
 {
     [Fact]
     public async Task Repository_PersistsDecisionAtomically()
@@ -316,6 +316,135 @@ public sealed class VeteransClaimsSqliteVaDecisionRepositoryTests
                     decision.Id);
 
             Assert.Null(stored);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+}
+
+public sealed partial class VeteransClaimsSqliteVaDecisionRepositoryTests
+{
+    [Fact]
+    public async Task Repository_ReturnsDecisionHistoryForClaimIssue()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var schema =
+                new VeteransClaimsSqliteSchema(databasePath);
+
+            await schema.InitializeAsync();
+
+            var veteran =
+                new Veteran
+                {
+                    Id = new VeteranId("veteran-history")
+                };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim =
+                new Claim
+                {
+                    Id = new ClaimId("claim-history"),
+                    VeteranId = veteran.Id
+                };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue =
+                new ClaimIssue
+                {
+                    Id = new ClaimIssueId("issue-history"),
+                    ClaimId = claim.Id,
+                    ClaimIssueType =
+                        ClaimIssueTypes.ServiceConnection
+                };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var repository =
+                new SqliteVaDecisionRepository(databasePath);
+
+            var firstDecision =
+                new VaDecision
+                {
+                    Id = new VaDecisionId("decision-001"),
+                    DecisionDate =
+                        new DateTimeOffset(
+                            2026, 1, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                };
+
+            var secondDecision =
+                new VaDecision
+                {
+                    Id = new VaDecisionId("decision-002"),
+                    DecisionDate =
+                        new DateTimeOffset(
+                            2026, 6, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                };
+
+            await repository.AddDecisionAsync(
+                firstDecision,
+                [
+                    new IssueDecision
+                    {
+                        Id =
+                            new IssueDecisionId(
+                                "issue-decision-001"),
+                        VaDecisionId = firstDecision.Id,
+                        ClaimIssueId = issue.Id,
+                        Outcome =
+                            IssueDecisionOutcomes.Denied
+                    }
+                ],
+                []);
+
+            await repository.AddDecisionAsync(
+                secondDecision,
+                [
+                    new IssueDecision
+                    {
+                        Id =
+                            new IssueDecisionId(
+                                "issue-decision-002"),
+                        VaDecisionId = secondDecision.Id,
+                        ClaimIssueId = issue.Id,
+                        Outcome =
+                            IssueDecisionOutcomes.Granted
+                    }
+                ],
+                []);
+
+            var history =
+                await repository.GetIssueDecisionsAsync(
+                    issue.Id);
+
+            Assert.Equal(2, history.Count);
+
+            Assert.Contains(
+                history,
+                x =>
+                    x.VaDecisionId ==
+                        firstDecision.Id &&
+                    x.Outcome ==
+                        IssueDecisionOutcomes.Denied);
+
+            Assert.Contains(
+                history,
+                x =>
+                    x.VaDecisionId ==
+                        secondDecision.Id &&
+                    x.Outcome ==
+                        IssueDecisionOutcomes.Granted);
         }
         finally
         {

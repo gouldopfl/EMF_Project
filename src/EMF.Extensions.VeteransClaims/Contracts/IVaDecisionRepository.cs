@@ -21,6 +21,11 @@ public interface IVaDecisionRepository
             VaDecisionId vaDecisionId,
             CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<IssueDecision>>
+        GetIssueDecisionsAsync(
+            ClaimIssueId claimIssueId,
+            CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<SubmissionId>>
         GetSubmissionIdsAsync(
             IssueDecisionId issueDecisionId,
