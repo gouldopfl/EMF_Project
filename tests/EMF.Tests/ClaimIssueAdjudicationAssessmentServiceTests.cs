@@ -21,7 +21,8 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
             new ClaimIssueAdjudicationAssessmentService(
                 details,
                 new ClaimIssueAdjudicationReadinessService(),
-                CreateMeritsService());
+                CreateMeritsService(),
+                new ClaimIssueDecisionRecommendationService());
 
         var result =
             await service.GetAsync(
@@ -75,7 +76,8 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
             new ClaimIssueAdjudicationAssessmentService(
                 details,
                 new ClaimIssueAdjudicationReadinessService(),
-                CreateMeritsService());
+                CreateMeritsService(),
+                new ClaimIssueDecisionRecommendationService());
 
         var result =
             await service.GetAsync(issue.Id);
@@ -90,6 +92,10 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
         Assert.Equal(
             FindingOutcomes.Unresolved,
             result.Merits!.Outcome);
+
+        Assert.NotNull(result.Recommendation);
+        Assert.False(result.Recommendation!.HasRecommendation);
+        Assert.Null(result.Recommendation.RecommendedOutcome);
     }
 
     private static ClaimIssueMeritsAssessmentService

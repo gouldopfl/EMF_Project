@@ -434,7 +434,8 @@ public static class VeteransConsoleCommand
             new ClaimIssueAdjudicationAssessmentService(
                 details,
                 new ClaimIssueAdjudicationReadinessService(),
-                merits);
+                merits,
+                new ClaimIssueDecisionRecommendationService());
 
         var result =
             await assessment.GetAsync(claimIssueId);

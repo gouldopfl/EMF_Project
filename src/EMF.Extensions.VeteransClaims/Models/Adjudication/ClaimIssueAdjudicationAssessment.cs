@@ -8,4 +8,6 @@ public sealed class ClaimIssueAdjudicationAssessment
 
 
     public ClaimIssueMeritsOutcomeAssessment? Merits { get; init; }
+
+    public ClaimIssueDecisionRecommendation? Recommendation { get; init; }
 }

@@ -9,19 +9,23 @@ public sealed class ClaimIssueAdjudicationAssessmentService
     private readonly IClaimIssueAdjudicationDetailsService _details;
     private readonly ClaimIssueAdjudicationReadinessService _readiness;
     private readonly ClaimIssueMeritsAssessmentService _merits;
+    private readonly ClaimIssueDecisionRecommendationService _recommendations;
 
     public ClaimIssueAdjudicationAssessmentService(
         IClaimIssueAdjudicationDetailsService details,
         ClaimIssueAdjudicationReadinessService readiness,
-        ClaimIssueMeritsAssessmentService merits)
+        ClaimIssueMeritsAssessmentService merits,
+        ClaimIssueDecisionRecommendationService recommendations)
     {
         ArgumentNullException.ThrowIfNull(details);
         ArgumentNullException.ThrowIfNull(readiness);
         ArgumentNullException.ThrowIfNull(merits);
+        ArgumentNullException.ThrowIfNull(recommendations);
 
         _details = details;
         _readiness = readiness;
         _merits = merits;
+        _recommendations = recommendations;
     }
 
     public async Task<ClaimIssueAdjudicationAssessment?> GetAsync(
@@ -41,11 +45,21 @@ public sealed class ClaimIssueAdjudicationAssessmentService
                 claimIssueId,
                 cancellationToken);
 
+        var assessment =
+            new ClaimIssueAdjudicationAssessment
+            {
+                Details = details,
+                Readiness = _readiness.Assess(details),
+                Merits = merits
+            };
+
         return new ClaimIssueAdjudicationAssessment
         {
-            Details = details,
-            Readiness = _readiness.Assess(details),
-            Merits = merits
+            Details = assessment.Details,
+            Readiness = assessment.Readiness,
+            Merits = assessment.Merits,
+            Recommendation =
+                _recommendations.Assess(assessment)
         };
     }
 }
