@@ -34,7 +34,7 @@ public sealed class VaDecisionDocumentCoordinator
         _idGenerator = idGenerator;
     }
 
-    public async Task<VaDecision> ProcessAsync(
+    public async Task<VaDecisionDocumentProcessingResult> ProcessAsync(
         ClaimId claimId,
         VaDecisionDocumentInterpretation interpretation,
         CancellationToken cancellationToken = default)
@@ -74,8 +74,11 @@ public sealed class VaDecisionDocumentCoordinator
 
         if (unresolved.Length != 0)
         {
-            throw new InvalidOperationException(
-                "The VA decision document contains unmatched or ambiguous issues.");
+            return new VaDecisionDocumentProcessingResult
+            {
+                Decision = null,
+                Matches = matches
+            };
         }
 
         var matchedIssues =
@@ -90,15 +93,22 @@ public sealed class VaDecisionDocumentCoordinator
                         })
                 .ToArray();
 
-        return await _persistence.PersistAsync(
-            new PersistVaDecisionDocumentRequest
-            {
-                VaDecisionId =
-                    new VaDecisionId(
-                        _idGenerator.Generate()),
-                Interpretation = interpretation,
-                MatchedIssues = matchedIssues
-            },
-            cancellationToken);
+        var decision =
+            await _persistence.PersistAsync(
+                new PersistVaDecisionDocumentRequest
+                {
+                    VaDecisionId =
+                        new VaDecisionId(
+                            _idGenerator.Generate()),
+                    Interpretation = interpretation,
+                    MatchedIssues = matchedIssues
+                },
+                cancellationToken);
+
+        return new VaDecisionDocumentProcessingResult
+        {
+            Decision = decision,
+            Matches = matches
+        };
     }
 }

@@ -32,9 +32,13 @@ public sealed class VaDecisionDocumentCoordinatorTests
                 claimId,
                 CreateInterpretation("Sleep apnea"));
 
+        Assert.NotNull(result.Decision);
         Assert.Equal(
             new VaDecisionId("va-decision-1"),
-            result.Id);
+            result.Decision.Id);
+
+        Assert.True(result.Persisted);
+        Assert.False(result.HasUnresolvedIssues);
 
         Assert.NotNull(repository.Decision);
         Assert.Single(repository.IssueDecisions);
@@ -54,10 +58,14 @@ public sealed class VaDecisionDocumentCoordinatorTests
                 issueId,
                 repository);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => coordinator.ProcessAsync(
+        var result =
+            await coordinator.ProcessAsync(
                 claimId,
-                CreateInterpretation("GERD")));
+                CreateInterpretation("GERD"));
+
+        Assert.Null(result.Decision);
+        Assert.False(result.Persisted);
+        Assert.True(result.HasUnresolvedIssues);
 
         Assert.Null(repository.Decision);
         Assert.Empty(repository.IssueDecisions);
@@ -79,10 +87,14 @@ public sealed class VaDecisionDocumentCoordinatorTests
                 repository,
                 secondIssueId);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => coordinator.ProcessAsync(
+        var result =
+            await coordinator.ProcessAsync(
                 claimId,
-                CreateInterpretation("Sleep apnea")));
+                CreateInterpretation("Sleep apnea"));
+
+        Assert.Null(result.Decision);
+        Assert.False(result.Persisted);
+        Assert.True(result.HasUnresolvedIssues);
 
         Assert.Null(repository.Decision);
         Assert.Empty(repository.IssueDecisions);
