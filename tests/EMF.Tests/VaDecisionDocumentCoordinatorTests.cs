@@ -192,6 +192,40 @@ public sealed class VaDecisionDocumentCoordinatorTests
         Assert.Single(repository.Artifacts);
     }
 
+    [Fact]
+    public async Task ProcessAsync_PersistsThreeMatchedIssues()
+    {
+        var claimId = new ClaimId("claim-1");
+        var firstIssueId = new ClaimIssueId("issue-1");
+        var secondIssueId = new ClaimIssueId("issue-2");
+        var thirdIssueId = new ClaimIssueId("issue-3");
+        var repository = new RecordingVaDecisionRepository();
+
+        var coordinator =
+            CreateCoordinator(
+                claimId,
+                firstIssueId,
+                repository,
+                secondIssueId,
+                "GERD",
+                thirdIssueId,
+                "Tinnitus");
+
+        var result =
+            await coordinator.ProcessAsync(
+                claimId,
+                CreateInterpretation(
+                    "Sleep apnea",
+                    "GERD",
+                    "Tinnitus"));
+
+        Assert.True(result.Persisted);
+        Assert.False(result.HasUnresolvedIssues);
+        Assert.Equal(3, result.Matches.Count);
+        Assert.Equal(3, repository.IssueDecisions.Count);
+        Assert.Single(repository.Artifacts);
+    }
+
     private static VaDecisionDocumentInterpretation
         CreateInterpretation(params string[] descriptions) =>
         new()
@@ -250,7 +284,9 @@ public sealed class VaDecisionDocumentCoordinatorTests
             ClaimIssueId issueId,
             IVaDecisionRepository repository,
             ClaimIssueId? secondIssueId = null,
-            string? secondConditionName = null)
+            string? secondConditionName = null,
+            ClaimIssueId? thirdIssueId = null,
+            string? thirdConditionName = null)
     {
         var persistence =
             new VaDecisionDocumentPersistenceService(
@@ -261,66 +297,68 @@ public sealed class VaDecisionDocumentCoordinatorTests
         return new VaDecisionDocumentCoordinator(
             new StubClaimIssueRepository(
                 claimId,
-                issueId,
-                secondIssueId),
+                thirdIssueId is not null
+                    ? [issueId, secondIssueId!.Value, thirdIssueId.Value]
+                    : secondIssueId is not null
+                        ? [issueId, secondIssueId.Value]
+                        : [issueId]),
             ConditionRepository(
                 issueId,
                 secondIssueId,
-                secondConditionName),
+                secondConditionName,
+                thirdIssueId,
+                thirdConditionName),
             new VaDecisionDocumentIssueMatchingService(
                 new VaDecisionDocumentIssueMatcher()),
             persistence,
-            secondConditionName is null
-                ? new StubIdGenerator()
-                : new StubIdGenerator(
+            thirdConditionName is not null
+                ? new StubIdGenerator(
                     "issue-decision-1",
                     "issue-decision-2",
-                    "va-decision-1"));
+                    "issue-decision-3",
+                    "va-decision-1")
+                : secondConditionName is not null
+                    ? new StubIdGenerator(
+                        "issue-decision-1",
+                        "issue-decision-2",
+                        "va-decision-1")
+                    : new StubIdGenerator());
     }
 
     private sealed class StubClaimIssueRepository :
         IClaimIssueRepository
     {
-        private readonly ClaimIssue _issue;
-
-        private readonly ClaimIssue? _secondIssue;
+        private readonly IReadOnlyList<ClaimIssue> _issues;
 
         public StubClaimIssueRepository(
             ClaimId claimId,
-            ClaimIssueId issueId,
-            ClaimIssueId? secondIssueId)
+            params ClaimIssueId[] issueIds)
         {
-            _issue = new ClaimIssue
-            {
-                Id = issueId,
-                ClaimId = claimId,
-                ClaimIssueType = "Disability"
-            };
-
-            if (secondIssueId is not null)
-            {
-                _secondIssue = new ClaimIssue
-                {
-                    Id = secondIssueId.Value,
-                    ClaimId = claimId,
-                    ClaimIssueType = "Disability"
-                };
-            }
+            _issues =
+                issueIds
+                    .Select(
+                        issueId =>
+                            new ClaimIssue
+                            {
+                                Id = issueId,
+                                ClaimId = claimId,
+                                ClaimIssueType = "Disability"
+                            })
+                    .ToArray();
         }
 
         public Task<IReadOnlyList<ClaimIssue>>
             GetClaimIssuesAsync(
                 ClaimId claimId,
                 CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<ClaimIssue>>(
-                _secondIssue is null
-                    ? [_issue]
-                    : [_issue, _secondIssue]);
+            Task.FromResult(_issues);
 
         public Task<ClaimIssue?> GetClaimIssueAsync(
             ClaimIssueId claimIssueId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<ClaimIssue?>(_issue);
+            Task.FromResult<ClaimIssue?>(
+                _issues.SingleOrDefault(
+                    issue => issue.Id == claimIssueId));
 
         public Task AddClaimIssueAsync(
             ClaimIssue claimIssue,
@@ -332,7 +370,9 @@ public sealed class VaDecisionDocumentCoordinatorTests
         ConditionRepository(
             ClaimIssueId issueId,
             ClaimIssueId? secondIssueId = null,
-            string? secondConditionName = null) =>
+            string? secondConditionName = null,
+            ClaimIssueId? thirdIssueId = null,
+            string? thirdConditionName = null) =>
         Proxy<IConditionRepository>(
             (method, args) =>
             {
@@ -352,12 +392,17 @@ public sealed class VaDecisionDocumentCoordinatorTests
                                 ClaimIssueId =
                                     (ClaimIssueId)args![0]!,
                                 Name =
-                                    secondIssueId is not null &&
+                                    thirdIssueId is not null &&
                                     (ClaimIssueId)args![0]! ==
-                                        secondIssueId.Value
-                                        ? secondConditionName ??
+                                        thirdIssueId.Value
+                                        ? thirdConditionName ??
                                             "Sleep apnea"
-                                        : "Sleep apnea"
+                                        : secondIssueId is not null &&
+                                          (ClaimIssueId)args[0]! ==
+                                              secondIssueId.Value
+                                            ? secondConditionName ??
+                                                "Sleep apnea"
+                                            : "Sleep apnea"
                             }
                         ]);
                 }
