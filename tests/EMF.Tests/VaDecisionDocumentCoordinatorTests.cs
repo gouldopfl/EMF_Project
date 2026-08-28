@@ -67,6 +67,14 @@ public sealed class VaDecisionDocumentCoordinatorTests
         Assert.False(result.Persisted);
         Assert.True(result.HasUnresolvedIssues);
 
+        var match = Assert.Single(result.Matches);
+
+        Assert.Equal(
+            VaDecisionDocumentIssueMatchStatuses.Unmatched,
+            match.Status);
+        Assert.Null(match.ClaimIssueId);
+        Assert.Empty(match.CandidateClaimIssueIds);
+
         Assert.Null(repository.Decision);
         Assert.Empty(repository.IssueDecisions);
         Assert.Empty(repository.Artifacts);
@@ -95,6 +103,16 @@ public sealed class VaDecisionDocumentCoordinatorTests
         Assert.Null(result.Decision);
         Assert.False(result.Persisted);
         Assert.True(result.HasUnresolvedIssues);
+
+        var match = Assert.Single(result.Matches);
+
+        Assert.Equal(
+            VaDecisionDocumentIssueMatchStatuses.Ambiguous,
+            match.Status);
+        Assert.Null(match.ClaimIssueId);
+        Assert.Equal(
+            new[] { issueId, secondIssueId },
+            match.CandidateClaimIssueIds);
 
         Assert.Null(repository.Decision);
         Assert.Empty(repository.IssueDecisions);
