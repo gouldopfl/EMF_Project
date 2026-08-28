@@ -29,7 +29,12 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
+        await using var transaction =
+            (SqliteTransaction)
+            await connection.BeginTransactionAsync(cancellationToken);
+
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText =
             """
             INSERT INTO VeteransClaims_VaDecisionDocumentProcessingAttempts (
@@ -77,6 +82,7 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
 
             await using var matchCommand =
                 connection.CreateCommand();
+            matchCommand.Transaction = transaction;
 
             matchCommand.CommandText =
                 """
@@ -130,6 +136,7 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
 
             await InsertValuesAsync(
                 connection,
+                transaction,
                 matchId,
                 "FavorableFinding",
                 match.Interpretation.FavorableFindings,
@@ -137,6 +144,7 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
 
             await InsertValuesAsync(
                 connection,
+                transaction,
                 matchId,
                 "AdverseFinding",
                 match.Interpretation.AdverseFindings,
@@ -144,6 +152,7 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
 
             await InsertValuesAsync(
                 connection,
+                transaction,
                 matchId,
                 "CitedRegulation",
                 match.Interpretation.CitedRegulations,
@@ -151,6 +160,7 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
 
             await InsertValuesAsync(
                 connection,
+                transaction,
                 matchId,
                 "ReferencedEvidence",
                 match.Interpretation.ReferencedEvidence,
@@ -158,6 +168,7 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
 
             await InsertSourceExcerptsAsync(
                 connection,
+                transaction,
                 matchId,
                 match.Interpretation.SourceExcerpts,
                 cancellationToken);
@@ -168,6 +179,7 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
             {
                 await using var valueCommand =
                     connection.CreateCommand();
+                valueCommand.Transaction = transaction;
 
                 valueCommand.CommandText =
                     """
@@ -197,6 +209,8 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
                     cancellationToken);
             }
         }
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private static async Task<IReadOnlyList<DecisionDocumentSourceExcerpt>>
@@ -368,6 +382,7 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
 
     private static async Task InsertSourceExcerptsAsync(
         SqliteConnection connection,
+        SqliteTransaction transaction,
         long matchId,
         IReadOnlyList<DecisionDocumentSourceExcerpt> excerpts,
         CancellationToken cancellationToken)
@@ -377,6 +392,7 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
             var excerpt = excerpts[i];
 
             await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
             command.CommandText =
                 """
                 INSERT INTO VeteransClaims_VaDecisionDocumentSourceExcerpts (
@@ -415,6 +431,7 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
 
     private static async Task InsertValuesAsync(
         SqliteConnection connection,
+        SqliteTransaction transaction,
         long matchId,
         string kind,
         IReadOnlyList<string> values,
@@ -423,6 +440,7 @@ public sealed class SqliteVaDecisionDocumentProcessingAttemptRepository :
         for (var i = 0; i < values.Count; i++)
         {
             await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
 
             command.CommandText =
                 """

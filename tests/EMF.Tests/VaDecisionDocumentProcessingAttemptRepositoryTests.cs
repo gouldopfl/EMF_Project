@@ -178,4 +178,99 @@ public sealed class VaDecisionDocumentProcessingAttemptRepositoryTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public async Task AddAsync_rolls_back_when_nested_write_fails()
+    {
+        var path =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(path)
+                .InitializeAsync();
+
+            var veteran =
+                new Veteran
+                {
+                    Id = new VeteranId("veteran-rollback")
+                };
+
+            await new SqliteVeteranRepository(path)
+                .AddVeteranAsync(veteran);
+
+            await new SqliteClaimRepository(path)
+                .AddClaimAsync(
+                    new Claim
+                    {
+                        Id = new ClaimId("claim-rollback"),
+                        VeteranId = veteran.Id
+                    });
+
+            var repository =
+                new SqliteVaDecisionDocumentProcessingAttemptRepository(
+                    path);
+
+            var attempt =
+                new VaDecisionDocumentProcessingAttempt
+                {
+                    ClaimId = new ClaimId("claim-rollback"),
+                    ArtifactId = new ArtifactId("artifact-rollback"),
+                    ProcessedAt = DateTimeOffset.UtcNow,
+                    VaDecisionId = null,
+                    Matches =
+                    [
+                        new VaDecisionDocumentIssueMatch
+                        {
+                            Status =
+                                VaDecisionDocumentIssueMatchStatuses.Matched,
+                            ClaimIssueId = null,
+                            CandidateClaimIssueIds =
+                            [
+                                new ClaimIssueId("candidate-rollback")
+                            ],
+                            Interpretation =
+                                new VaIssueDecisionInterpretation
+                                {
+                                    IssueDescription = "Rollback issue",
+                                    Outcome = "Denied",
+                                    Rationale = "Rollback test",
+                                    FavorableFindings = [],
+                                    AdverseFindings = [],
+                                    CitedRegulations = [],
+                                    ReferencedEvidence = [],
+                                    SourceExcerpts =
+                                    [
+                                        new DecisionDocumentSourceExcerpt
+                                        {
+                                            ArtifactId =
+                                                new ArtifactId(
+                                                    "artifact-rollback"),
+                                            Text = null!,
+                                            StartOffset = null,
+                                            Length = null
+                                        }
+                                    ]
+                                }
+                        }
+                    ]
+                };
+
+            await Assert.ThrowsAnyAsync<Exception>(
+                () => repository.AddAsync(attempt));
+
+            var stored =
+                await repository.GetByClaimAsync(
+                    new ClaimId("claim-rollback"));
+
+            Assert.Empty(stored);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
 }
