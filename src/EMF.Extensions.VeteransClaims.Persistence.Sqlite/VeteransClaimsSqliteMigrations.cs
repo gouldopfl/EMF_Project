@@ -1641,6 +1641,27 @@ internal static class VeteransClaimsSqliteMigrations
                     ClaimId,
                     ProcessedAt
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                55,
+                "AddClaimIssueCourtAppeals",
+                """
+                CREATE TABLE VeteransClaims_ClaimIssueCourtAppeals (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ClaimIssueId TEXT NOT NULL,
+                    Court TEXT NOT NULL,
+                    FiledAt TEXT NOT NULL,
+                    DocketNumber TEXT NULL,
+                    Outcome TEXT NULL,
+                    DecidedAt TEXT NULL
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ClaimIssueCourtAppeals_Issue
+                ON VeteransClaims_ClaimIssueCourtAppeals (
+                    ClaimIssueId,
+                    FiledAt
+                );
                 """)
         };
 }
