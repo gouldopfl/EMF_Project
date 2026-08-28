@@ -45,7 +45,8 @@ public static class VeteransConsoleCommand
 
             return await RunAdjudicationAssessmentAsync(
                 adjudicationDatabasePath,
-                new ClaimIssueId(args[3]));
+                new ClaimIssueId(args[3]),
+                global::System.Console.Out);
         }
 
         if (args.Length == 4 &&
@@ -367,9 +368,10 @@ public static class VeteransConsoleCommand
         }
     }
 
-    private static async Task<int> RunAdjudicationAssessmentAsync(
+    internal static async Task<int> RunAdjudicationAssessmentAsync(
         string databasePath,
-        ClaimIssueId claimIssueId)
+        ClaimIssueId claimIssueId,
+        TextWriter output)
     {
         var issues =
             new SqliteClaimIssueRepository(databasePath);
@@ -460,32 +462,49 @@ public static class VeteransConsoleCommand
             return 1;
         }
 
-        global::System.Console.WriteLine(
+        ArgumentNullException.ThrowIfNull(output);
+
+        output.WriteLine(
             $"Claim Issue : {result.Details.ClaimIssue.Id.Value}");
 
-        global::System.Console.WriteLine(
+        output.WriteLine(
             $"Ready       : {result.Readiness.IsReadyForAdjudication}");
 
-        global::System.Console.WriteLine(
+        output.WriteLine(
             $"Outstanding : {result.Readiness.OutstandingRequirementCount}");
 
         foreach (var blocking in
             result.Readiness.BlockingRequirements)
         {
-            global::System.Console.WriteLine(
+            output.WriteLine(
                 $"- {blocking.Requirement.Id.Value}: " +
                 blocking.Requirement.Description);
         }
 
-
-        global::System.Console.WriteLine(
+        output.WriteLine(
             $"Outstanding Items: {result.Readiness.OutstandingItemCount}");
 
         foreach (var item in result.Readiness.BlockingItems)
         {
-            global::System.Console.WriteLine(
+            output.WriteLine(
                 $"  - {item.EvidenceClassification} / " +
                 $"{item.GuidanceRole}: {item.Description}");
+        }
+
+        output.WriteLine(
+            $"Timeline    : {result.Details.Timeline.Count}");
+
+        foreach (var item in result.Details.Timeline)
+        {
+            output.WriteLine(
+                $"- {item.OccurredAt:O} " +
+                $"{item.EventType}" +
+                (item.Outcome is null
+                    ? string.Empty
+                    : $" [{item.Outcome}]") +
+                (item.Description is null
+                    ? string.Empty
+                    : $": {item.Description}"));
         }
 
         return 0;

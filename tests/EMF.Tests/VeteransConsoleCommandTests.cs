@@ -130,6 +130,113 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
+    public async Task AdjudicationAssess_ReportsPersistedTimeline()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-timeline")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-timeline"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-timeline"),
+                ClaimId = claim.Id,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var submission = new Submission
+            {
+                Id = new SubmissionId("submission-timeline"),
+                ClaimId = claim.Id,
+                SubmissionType = SubmissionTypes.SupplementalClaim
+            };
+
+            await new SqliteSubmissionRepository(databasePath)
+                .AddSubmissionAsync(
+                    submission,
+                    new[] { issue.Id });
+
+            var decision = new VaDecision
+            {
+                Id = new VaDecisionId("decision-timeline"),
+                DecisionDate =
+                    new DateTimeOffset(
+                        2026, 8, 11,
+                        0, 0, 0,
+                        TimeSpan.Zero)
+            };
+
+            var issueDecision = new IssueDecision
+            {
+                Id = new IssueDecisionId("issue-decision-timeline"),
+                VaDecisionId = decision.Id,
+                ClaimIssueId = issue.Id,
+                Outcome = IssueDecisionOutcomes.Denied
+            };
+
+            await new SqliteVaDecisionRepository(databasePath)
+                .AddDecisionAsync(
+                    decision,
+                    new[] { issueDecision },
+                    new[]
+                    {
+                        new IssueDecisionSubmission
+                        {
+                            IssueDecisionId = issueDecision.Id,
+                            SubmissionId = submission.Id
+                        }
+                    });
+
+            using var output = new StringWriter();
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunAdjudicationAssessmentAsync(
+                        databasePath,
+                        issue.Id,
+                        output);
+
+            var rendered = output.ToString();
+
+            Assert.Equal(0, exitCode);
+
+            Assert.Contains(
+                "Timeline    : 1",
+                rendered);
+
+            Assert.Contains(
+                "VaDecision [Denied]: SupplementalClaim",
+                rendered);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task AdjudicationAssess_ReportsBlockedRequirement()
     {
         var databasePath = Path.GetTempFileName();
