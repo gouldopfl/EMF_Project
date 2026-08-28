@@ -196,3 +196,55 @@ public sealed partial class ClaimIssueAdjudicationAgingServiceTests
                             TimeSpan.Zero)));
     }
 }
+
+public sealed partial class ClaimIssueAdjudicationAgingServiceTests
+{
+    [Fact]
+    public void Assess_ages_from_court_appeal_after_va_decision()
+    {
+        var issueId =
+            new ClaimIssueId("issue-001");
+
+        var timeline =
+            new[]
+            {
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .VaDecision,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 5, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                },
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .CourtAppeal,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 6, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                }
+            };
+
+        var result =
+            new ClaimIssueAdjudicationAgingService()
+                .Assess(
+                    issueId,
+                    timeline,
+                    new DateTimeOffset(
+                        2026, 8, 28, 0, 0, 0,
+                        TimeSpan.Zero));
+
+        Assert.Equal(
+            timeline[1].OccurredAt,
+            result.PendingSince);
+
+        Assert.Equal(88, result.AgeInDays);
+    }
+}
