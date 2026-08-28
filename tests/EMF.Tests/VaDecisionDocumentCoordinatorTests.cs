@@ -162,6 +162,36 @@ public sealed class VaDecisionDocumentCoordinatorTests
         Assert.Empty(repository.Artifacts);
     }
 
+    [Fact]
+    public async Task ProcessAsync_PersistsMultipleMatchedIssues()
+    {
+        var claimId = new ClaimId("claim-1");
+        var firstIssueId = new ClaimIssueId("issue-1");
+        var secondIssueId = new ClaimIssueId("issue-2");
+        var repository = new RecordingVaDecisionRepository();
+
+        var coordinator =
+            CreateCoordinator(
+                claimId,
+                firstIssueId,
+                repository,
+                secondIssueId,
+                "GERD");
+
+        var result =
+            await coordinator.ProcessAsync(
+                claimId,
+                CreateInterpretation(
+                    "Sleep apnea",
+                    "GERD"));
+
+        Assert.True(result.Persisted);
+        Assert.False(result.HasUnresolvedIssues);
+        Assert.Equal(2, result.Matches.Count);
+        Assert.Equal(2, repository.IssueDecisions.Count);
+        Assert.Single(repository.Artifacts);
+    }
+
     private static VaDecisionDocumentInterpretation
         CreateInterpretation(params string[] descriptions) =>
         new()
@@ -200,12 +230,15 @@ public sealed class VaDecisionDocumentCoordinatorTests
 
     private sealed class StubIdGenerator : IIdGenerator
     {
-        private readonly Queue<string> _ids =
-            new(
-                [
-                    "issue-decision-1",
-                    "va-decision-1"
-                ]);
+        private readonly Queue<string> _ids;
+
+        public StubIdGenerator(params string[] ids)
+        {
+            _ids = new Queue<string>(
+                ids.Length == 0
+                    ? ["issue-decision-1", "va-decision-1"]
+                    : ids);
+        }
 
         public string Generate() =>
             _ids.Dequeue();
@@ -216,7 +249,8 @@ public sealed class VaDecisionDocumentCoordinatorTests
             ClaimId claimId,
             ClaimIssueId issueId,
             IVaDecisionRepository repository,
-            ClaimIssueId? secondIssueId = null)
+            ClaimIssueId? secondIssueId = null,
+            string? secondConditionName = null)
     {
         var persistence =
             new VaDecisionDocumentPersistenceService(
@@ -229,11 +263,19 @@ public sealed class VaDecisionDocumentCoordinatorTests
                 claimId,
                 issueId,
                 secondIssueId),
-            ConditionRepository(issueId, secondIssueId),
+            ConditionRepository(
+                issueId,
+                secondIssueId,
+                secondConditionName),
             new VaDecisionDocumentIssueMatchingService(
                 new VaDecisionDocumentIssueMatcher()),
             persistence,
-            new StubIdGenerator());
+            secondConditionName is null
+                ? new StubIdGenerator()
+                : new StubIdGenerator(
+                    "issue-decision-1",
+                    "issue-decision-2",
+                    "va-decision-1"));
     }
 
     private sealed class StubClaimIssueRepository :
@@ -289,7 +331,8 @@ public sealed class VaDecisionDocumentCoordinatorTests
     private static IConditionRepository
         ConditionRepository(
             ClaimIssueId issueId,
-            ClaimIssueId? secondIssueId = null) =>
+            ClaimIssueId? secondIssueId = null,
+            string? secondConditionName = null) =>
         Proxy<IConditionRepository>(
             (method, args) =>
             {
@@ -308,7 +351,13 @@ public sealed class VaDecisionDocumentCoordinatorTests
                                         "condition-1"),
                                 ClaimIssueId =
                                     (ClaimIssueId)args![0]!,
-                                Name = "Sleep apnea"
+                                Name =
+                                    secondIssueId is not null &&
+                                    (ClaimIssueId)args![0]! ==
+                                        secondIssueId.Value
+                                        ? secondConditionName ??
+                                            "Sleep apnea"
+                                        : "Sleep apnea"
                             }
                         ]);
                 }
