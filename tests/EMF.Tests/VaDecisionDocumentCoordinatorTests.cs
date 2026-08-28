@@ -21,11 +21,15 @@ public sealed class VaDecisionDocumentCoordinatorTests
         var repository =
             new RecordingVaDecisionRepository();
 
+        var attempts =
+            new RecordingProcessingAttemptRepository();
+
         var coordinator =
             CreateCoordinator(
                 claimId,
                 issueId,
-                repository);
+                repository,
+                attempts: attempts);
 
         var result =
             await coordinator.ProcessAsync(
@@ -43,6 +47,10 @@ public sealed class VaDecisionDocumentCoordinatorTests
         Assert.NotNull(repository.Decision);
         Assert.Single(repository.IssueDecisions);
         Assert.Single(repository.Artifacts);
+
+        var attempt = Assert.Single(attempts.Attempts);
+        Assert.True(attempt.Persisted);
+        Assert.Equal(result.Decision.Id, attempt.VaDecisionId);
     }
 
     [Fact]
@@ -51,12 +59,15 @@ public sealed class VaDecisionDocumentCoordinatorTests
         var claimId = new ClaimId("claim-1");
         var issueId = new ClaimIssueId("issue-1");
         var repository = new RecordingVaDecisionRepository();
+        var attempts =
+            new RecordingProcessingAttemptRepository();
 
         var coordinator =
             CreateCoordinator(
                 claimId,
                 issueId,
-                repository);
+                repository,
+                attempts: attempts);
 
         var result =
             await coordinator.ProcessAsync(
@@ -78,6 +89,11 @@ public sealed class VaDecisionDocumentCoordinatorTests
         Assert.Null(repository.Decision);
         Assert.Empty(repository.IssueDecisions);
         Assert.Empty(repository.Artifacts);
+
+        var attempt = Assert.Single(attempts.Attempts);
+        Assert.False(attempt.Persisted);
+        Assert.True(attempt.HasUnresolvedIssues);
+        Assert.Null(attempt.VaDecisionId);
     }
 
     [Fact]
@@ -286,7 +302,8 @@ public sealed class VaDecisionDocumentCoordinatorTests
             ClaimIssueId? secondIssueId = null,
             string? secondConditionName = null,
             ClaimIssueId? thirdIssueId = null,
-            string? thirdConditionName = null)
+            string? thirdConditionName = null,
+            RecordingProcessingAttemptRepository? attempts = null)
     {
         var persistence =
             new VaDecisionDocumentPersistenceService(
@@ -311,6 +328,9 @@ public sealed class VaDecisionDocumentCoordinatorTests
             new VaDecisionDocumentIssueMatchingService(
                 new VaDecisionDocumentIssueMatcher()),
             persistence,
+            new VaDecisionDocumentProcessingAttemptService(
+                attempts ??
+                    new RecordingProcessingAttemptRepository()),
             thirdConditionName is not null
                 ? new StubIdGenerator(
                     "issue-decision-1",
@@ -433,6 +453,28 @@ public sealed class VaDecisionDocumentCoordinatorTests
             MethodInfo? targetMethod,
             object?[]? args) =>
             Handler!(targetMethod!, args);
+    }
+
+    private sealed class RecordingProcessingAttemptRepository :
+        IVaDecisionDocumentProcessingAttemptRepository
+    {
+        public List<VaDecisionDocumentProcessingAttempt>
+            Attempts { get; } = [];
+
+        public Task AddAsync(
+            VaDecisionDocumentProcessingAttempt attempt,
+            CancellationToken cancellationToken = default)
+        {
+            Attempts.Add(attempt);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<VaDecisionDocumentProcessingAttempt>>
+            GetByClaimAsync(
+                ClaimId claimId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<VaDecisionDocumentProcessingAttempt>>(
+                []);
     }
 
     private sealed class RecordingVaDecisionRepository :

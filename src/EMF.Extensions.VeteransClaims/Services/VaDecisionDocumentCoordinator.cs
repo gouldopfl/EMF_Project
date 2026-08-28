@@ -12,6 +12,7 @@ public sealed class VaDecisionDocumentCoordinator
     private readonly IConditionRepository _conditions;
     private readonly VaDecisionDocumentIssueMatchingService _matching;
     private readonly VaDecisionDocumentPersistenceService _persistence;
+    private readonly VaDecisionDocumentProcessingAttemptService _attempts;
     private readonly IIdGenerator _idGenerator;
 
     public VaDecisionDocumentCoordinator(
@@ -19,18 +20,21 @@ public sealed class VaDecisionDocumentCoordinator
         IConditionRepository conditions,
         VaDecisionDocumentIssueMatchingService matching,
         VaDecisionDocumentPersistenceService persistence,
+        VaDecisionDocumentProcessingAttemptService attempts,
         IIdGenerator idGenerator)
     {
         ArgumentNullException.ThrowIfNull(issues);
         ArgumentNullException.ThrowIfNull(conditions);
         ArgumentNullException.ThrowIfNull(matching);
         ArgumentNullException.ThrowIfNull(persistence);
+        ArgumentNullException.ThrowIfNull(attempts);
         ArgumentNullException.ThrowIfNull(idGenerator);
 
         _issues = issues;
         _conditions = conditions;
         _matching = matching;
         _persistence = persistence;
+        _attempts = attempts;
         _idGenerator = idGenerator;
     }
 
@@ -74,11 +78,21 @@ public sealed class VaDecisionDocumentCoordinator
 
         if (unresolved.Length != 0)
         {
-            return new VaDecisionDocumentProcessingResult
-            {
-                Decision = null,
-                Matches = matches
-            };
+            var unresolvedResult =
+                new VaDecisionDocumentProcessingResult
+                {
+                    Decision = null,
+                    Matches = matches
+                };
+
+            await _attempts.RecordAsync(
+                claimId,
+                interpretation,
+                unresolvedResult,
+                DateTimeOffset.UtcNow,
+                cancellationToken);
+
+            return unresolvedResult;
         }
 
         var matchedIssues =
@@ -105,10 +119,20 @@ public sealed class VaDecisionDocumentCoordinator
                 },
                 cancellationToken);
 
-        return new VaDecisionDocumentProcessingResult
-        {
-            Decision = decision,
-            Matches = matches
-        };
+        var result =
+            new VaDecisionDocumentProcessingResult
+            {
+                Decision = decision,
+                Matches = matches
+            };
+
+        await _attempts.RecordAsync(
+            claimId,
+            interpretation,
+            result,
+            DateTimeOffset.UtcNow,
+            cancellationToken);
+
+        return result;
     }
 }
