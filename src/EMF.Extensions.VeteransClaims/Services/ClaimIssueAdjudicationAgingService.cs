@@ -21,17 +21,31 @@ public sealed class ClaimIssueAdjudicationAgingService
                 .OrderBy(x => x.OccurredAt)
                 .ToArray();
 
-        var lastEvent = ordered[^1];
+        var lastClosingIndex =
+            Array.FindLastIndex(
+                ordered,
+                x =>
+                    x.EventType ==
+                        ClaimIssueAdjudicationEventTypes.VaDecision ||
+                    x.EventType ==
+                        ClaimIssueAdjudicationEventTypes.CourtDecision);
 
-        if (lastEvent.EventType ==
-            ClaimIssueAdjudicationEventTypes.VaDecision)
+        var pendingEvents =
+            ordered
+                .Skip(lastClosingIndex + 1)
+                .ToArray();
+
+        if (pendingEvents.Length == 0)
         {
             throw new InvalidOperationException(
                 "Adjudication cycle is closed.");
         }
 
-        var pendingSince = ordered[0].OccurredAt;
-        var lastActivityAt = lastEvent.OccurredAt;
+        var pendingSince =
+            pendingEvents[0].OccurredAt;
+
+        var lastActivityAt =
+            pendingEvents[^1].OccurredAt;
 
         return new ClaimIssueAdjudicationAging
         {

@@ -4,7 +4,7 @@ using EMF.Extensions.VeteransClaims.Services;
 
 namespace EMF.Tests;
 
-public sealed class ClaimIssueAdjudicationAgingServiceTests
+public sealed partial class ClaimIssueAdjudicationAgingServiceTests
 {
     [Fact]
     public void Assess_calculates_age_from_first_event()
@@ -86,3 +86,113 @@ public sealed class ClaimIssueAdjudicationAgingServiceTests
 
 }
 
+
+public sealed partial class ClaimIssueAdjudicationAgingServiceTests
+{
+    [Fact]
+    public void Assess_ages_from_new_submission_after_decision()
+    {
+        var issueId =
+            new ClaimIssueId("issue-001");
+
+        var timeline =
+            new[]
+            {
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .SubmissionSubmitted,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 1, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                },
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .VaDecision,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 2, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                },
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .SubmissionSubmitted,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 8, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                }
+            };
+
+        var result =
+            new ClaimIssueAdjudicationAgingService()
+                .Assess(
+                    issueId,
+                    timeline,
+                    new DateTimeOffset(
+                        2026, 8, 28, 0, 0, 0,
+                        TimeSpan.Zero));
+
+        Assert.Equal(
+            timeline[2].OccurredAt,
+            result.PendingSince);
+
+        Assert.Equal(27, result.AgeInDays);
+    }
+}
+
+public sealed partial class ClaimIssueAdjudicationAgingServiceTests
+{
+    [Fact]
+    public void Assess_rejects_closed_court_cycle()
+    {
+        var issueId =
+            new ClaimIssueId("issue-001");
+
+        var timeline =
+            new[]
+            {
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .CourtAppeal,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 6, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                },
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .CourtDecision,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 8, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                }
+            };
+
+        Assert.Throws<InvalidOperationException>(
+            () =>
+                new ClaimIssueAdjudicationAgingService()
+                    .Assess(
+                        issueId,
+                        timeline,
+                        new DateTimeOffset(
+                            2026, 8, 28, 0, 0, 0,
+                            TimeSpan.Zero)));
+    }
+}
