@@ -499,6 +499,22 @@ public static class VeteransConsoleCommand
                 $"{item.GuidanceRole}: {item.Description}");
         }
 
+        if (result.Aging is not null)
+        {
+            output.WriteLine(
+                $"Pending Since: {result.Aging.Aging.PendingSince:O}");
+
+            output.WriteLine(
+                $"Age (Days)   : {result.Aging.Aging.AgeInDays}");
+
+            output.WriteLine(
+                $"Last Activity: " +
+                $"{result.Aging.Aging.LastActivityAt:O}");
+
+            output.WriteLine(
+                $"Aging Status : {result.Aging.AlertLevel}");
+        }
+
         output.WriteLine(
             $"Timeline    : {result.Details.Timeline.Count}");
 
