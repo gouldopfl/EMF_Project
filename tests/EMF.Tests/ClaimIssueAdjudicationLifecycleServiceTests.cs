@@ -15,7 +15,7 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
         var issueId = new ClaimIssueId("issue-001");
 
         var decisions = new DecisionRepository(issueId);
-        var submissions = new SubmissionRepository();
+        var submissions = new SubmissionRepository(issueId);
 
         var service =
             new ClaimIssueAdjudicationLifecycleService(
@@ -43,6 +43,34 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
             entries[1].IssueDecision.Outcome);
     }
 
+
+    [Fact]
+    public async Task GetAsync_orders_initial_hlr_and_board_decisions()
+    {
+        var issueId = new ClaimIssueId("issue-review");
+
+        var service =
+            new ClaimIssueAdjudicationLifecycleService(
+                new DecisionRepository(issueId),
+                new SubmissionRepository(issueId));
+
+        var entries = await service.GetAsync(issueId);
+
+        Assert.Equal(3, entries.Count);
+
+        Assert.Equal(
+            SubmissionTypes.InitialClaim,
+            entries[0].Submission.SubmissionType);
+
+        Assert.Equal(
+            SubmissionTypes.HigherLevelReview,
+            entries[1].Submission.SubmissionType);
+
+        Assert.Equal(
+            SubmissionTypes.BoardAppeal,
+            entries[2].Submission.SubmissionType);
+    }
+
     private sealed class DecisionRepository : IVaDecisionRepository
     {
         private readonly ClaimIssueId _issueId;
@@ -55,24 +83,37 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
         public Task<IReadOnlyList<IssueDecision>>
             GetIssueDecisionsAsync(
                 ClaimIssueId claimIssueId,
-                CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<IssueDecision>>(
+                CancellationToken cancellationToken = default)
+        {
+            if (_issueId.Value == "issue-review")
+            {
+                return Task.FromResult<IReadOnlyList<IssueDecision>>(
+                [
+                    Decision("3", "Denied"),
+                    Decision("1", "Denied"),
+                    Decision("2", "Denied")
+                ]);
+            }
+
+            return Task.FromResult<IReadOnlyList<IssueDecision>>(
             [
-                new()
-                {
-                    Id = new IssueDecisionId("issue-decision-2"),
-                    VaDecisionId = new VaDecisionId("decision-2"),
-                    ClaimIssueId = _issueId,
-                    Outcome = "Granted"
-                },
-                new()
-                {
-                    Id = new IssueDecisionId("issue-decision-1"),
-                    VaDecisionId = new VaDecisionId("decision-1"),
-                    ClaimIssueId = _issueId,
-                    Outcome = "Denied"
-                }
+                Decision("2", "Granted"),
+                Decision("1", "Denied")
             ]);
+        }
+
+        private IssueDecision Decision(
+            string suffix,
+            string outcome) =>
+            new()
+            {
+                Id = new IssueDecisionId(
+                    $"issue-decision-{suffix}"),
+                VaDecisionId = new VaDecisionId(
+                    $"decision-{suffix}"),
+                ClaimIssueId = _issueId,
+                Outcome = outcome
+            };
 
         public Task<VaDecision?> GetDecisionAsync(
             VaDecisionId id,
@@ -82,11 +123,21 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
                 {
                     Id = id,
                     DecisionDate =
-                        id.Value == "decision-1"
-                            ? new DateTimeOffset(
-                                2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
-                            : new DateTimeOffset(
-                                2026, 6, 1, 0, 0, 0, TimeSpan.Zero)
+                        id.Value switch
+                        {
+                            "decision-1" =>
+                                new DateTimeOffset(
+                                    2026, 1, 1, 0, 0, 0,
+                                    TimeSpan.Zero),
+                            "decision-2" =>
+                                new DateTimeOffset(
+                                    2026, 6, 1, 0, 0, 0,
+                                    TimeSpan.Zero),
+                            _ =>
+                                new DateTimeOffset(
+                                    2026, 9, 1, 0, 0, 0,
+                                    TimeSpan.Zero)
+                        }
                 });
 
         public Task<IReadOnlyList<SubmissionId>> GetSubmissionIdsAsync(
@@ -95,9 +146,12 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
             Task.FromResult<IReadOnlyList<SubmissionId>>(
             [
                 new SubmissionId(
-                    id.Value == "issue-decision-1"
-                        ? "submission-1"
-                        : "submission-2")
+                    id.Value switch
+                    {
+                        "issue-decision-1" => "submission-1",
+                        "issue-decision-2" => "submission-2",
+                        _ => "submission-3"
+                    })
             ]);
 
         public Task AddDecisionAsync(
@@ -127,6 +181,13 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
     private sealed class SubmissionRepository :
         ISubmissionRepository
     {
+        private readonly ClaimIssueId _issueId;
+
+        public SubmissionRepository(ClaimIssueId issueId)
+        {
+            _issueId = issueId;
+        }
+
         public Task<Submission?> GetSubmissionAsync(
             SubmissionId id,
             CancellationToken cancellationToken = default) =>
@@ -138,7 +199,11 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
                     SubmissionType =
                         id.Value == "submission-1"
                             ? SubmissionTypes.InitialClaim
-                            : SubmissionTypes.SupplementalClaim
+                            : _issueId.Value == "issue-review"
+                                ? id.Value == "submission-2"
+                                    ? SubmissionTypes.HigherLevelReview
+                                    : SubmissionTypes.BoardAppeal
+                                : SubmissionTypes.SupplementalClaim
                 });
 
         public Task AddSubmissionAsync(
