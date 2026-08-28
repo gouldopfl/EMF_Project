@@ -24,4 +24,7 @@ public sealed class ClaimIssueAdjudicationDetails
         Requirements { get; init; }
 
     public required ClaimIssueEvidenceDetails Evidence { get; init; }
+
+    public required IReadOnlyList<ClaimIssueAdjudicationEvent>
+        Timeline { get; init; }
 }

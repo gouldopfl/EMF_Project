@@ -13,6 +13,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
     private readonly IRegulatoryRepository _regulatory;
     private readonly IRequirementEvidenceService _requirementEvidence;
     private readonly IClaimIssueEvidenceDetailsService _evidence;
+    private readonly IClaimIssueAdjudicationTimelineService _timeline;
 
     public ClaimIssueAdjudicationDetailsService(
         IClaimIssueRepository issues,
@@ -20,7 +21,8 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         IServiceConnectionRepository serviceConnections,
         IRegulatoryRepository regulatory,
         IRequirementEvidenceService requirementEvidence,
-        IClaimIssueEvidenceDetailsService evidence)
+        IClaimIssueEvidenceDetailsService evidence,
+        IClaimIssueAdjudicationTimelineService timeline)
     {
         ArgumentNullException.ThrowIfNull(issues);
         ArgumentNullException.ThrowIfNull(conditions);
@@ -28,6 +30,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         ArgumentNullException.ThrowIfNull(regulatory);
         ArgumentNullException.ThrowIfNull(requirementEvidence);
         ArgumentNullException.ThrowIfNull(evidence);
+        ArgumentNullException.ThrowIfNull(timeline);
 
         _issues = issues;
         _conditions = conditions;
@@ -35,6 +38,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         _regulatory = regulatory;
         _requirementEvidence = requirementEvidence;
         _evidence = evidence;
+        _timeline = timeline;
     }
 
     public async Task<ClaimIssueAdjudicationDetails?>
@@ -142,6 +146,11 @@ public sealed class ClaimIssueAdjudicationDetailsService :
             ?? throw new InvalidOperationException(
                 "Claim issue evidence details could not be read.");
 
+        var timeline =
+            await _timeline.GetAsync(
+                claimIssueId,
+                cancellationToken);
+
         return new ClaimIssueAdjudicationDetails
         {
             ClaimIssue = issue,
@@ -150,7 +159,8 @@ public sealed class ClaimIssueAdjudicationDetailsService :
             ServiceConnectionBases = bases,
             ServiceConnectedConditions = serviceConnectedConditions,
             Requirements = requirements,
-            Evidence = evidence
+            Evidence = evidence,
+            Timeline = timeline
         };
     }
 }

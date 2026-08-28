@@ -416,6 +416,17 @@ public static class VeteransConsoleCommand
                 checklist,
                 plans);
 
+        var lifecycle =
+            new ClaimIssueAdjudicationLifecycleService(
+                new SqliteVaDecisionRepository(databasePath),
+                new SqliteSubmissionRepository(databasePath));
+
+        var timeline =
+            new ClaimIssueAdjudicationTimelineService(
+                lifecycle,
+                new SqliteClaimIssueCourtAppealRepository(
+                    databasePath));
+
         var details =
             new ClaimIssueAdjudicationDetailsService(
                 issues,
@@ -423,7 +434,8 @@ public static class VeteransConsoleCommand
                 serviceConnections,
                 regulatory,
                 requirementEvidence,
-                evidence);
+                evidence,
+                timeline);
 
         var merits =
             new ClaimIssueMeritsAssessmentService(

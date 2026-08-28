@@ -22,7 +22,8 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 NeverCall<IServiceConnectionRepository>(),
                 NeverCall<IRegulatoryRepository>(),
                 NeverCall<IRequirementEvidenceService>(),
-                NeverCall<IClaimIssueEvidenceDetailsService>());
+                NeverCall<IClaimIssueEvidenceDetailsService>(),
+                NeverCall<IClaimIssueAdjudicationTimelineService>());
 
         var result =
             await service.GetAsync(
@@ -104,6 +105,22 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             DevelopmentPlans = []
         };
 
+        var timeline =
+            new[]
+            {
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes.VaDecision,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 8, 1, 0, 0, 0,
+                            TimeSpan.Zero),
+                    Outcome = "Denied"
+                }
+            };
+
         var service =
             new ClaimIssueAdjudicationDetailsService(
                 new FakeClaimIssueRepository(issue),
@@ -149,6 +166,14 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                         method.Name == "GetAsync"
                             ? Task.FromResult<ClaimIssueEvidenceDetails?>(
                                 evidence)
+                            : throw new NotSupportedException()),
+                Proxy<IClaimIssueAdjudicationTimelineService>(
+                    method =>
+                        method.Name == "GetAsync"
+                            ? Task.FromResult<
+                                IReadOnlyList<
+                                    ClaimIssueAdjudicationEvent>>(
+                                timeline)
                             : throw new NotSupportedException()));
 
         var result = await service.GetAsync(issueId);
@@ -192,6 +217,7 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             resolvedRequirement.DevelopmentChecklist);
 
         Assert.Same(evidence, result.Evidence);
+        Assert.Same(timeline, result.Timeline);
     }
 
     private sealed class MissingClaimIssueRepository :

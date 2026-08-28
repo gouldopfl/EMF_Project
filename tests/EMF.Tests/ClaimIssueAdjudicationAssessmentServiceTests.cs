@@ -52,6 +52,7 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 ServiceConnectionBases = [],
                 ServiceConnectedConditions = [],
                 Requirements = [],
+                Timeline = [],
                 Evidence =
                     new ClaimIssueEvidenceDetails
                     {

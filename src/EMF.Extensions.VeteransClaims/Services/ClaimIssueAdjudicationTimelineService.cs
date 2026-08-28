@@ -4,7 +4,8 @@ using EMF.Extensions.VeteransClaims.Models.Identities;
 
 namespace EMF.Extensions.VeteransClaims.Services;
 
-public sealed class ClaimIssueAdjudicationTimelineService
+public sealed class ClaimIssueAdjudicationTimelineService :
+    IClaimIssueAdjudicationTimelineService
 {
     private readonly ClaimIssueAdjudicationLifecycleService? _lifecycle;
     private readonly IClaimIssueCourtAppealRepository? _courtAppeals;

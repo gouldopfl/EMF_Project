@@ -119,6 +119,7 @@ public sealed class ClaimIssueDecisionRecommendationServiceTests
                     ServiceConnectionBases = [],
                     ServiceConnectedConditions = [],
                     Requirements = [],
+                    Timeline = [],
                     Evidence =
                         new ClaimIssueEvidenceDetails
                         {
