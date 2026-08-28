@@ -248,3 +248,70 @@ public sealed partial class ClaimIssueAdjudicationAgingServiceTests
         Assert.Equal(88, result.AgeInDays);
     }
 }
+
+public sealed partial class ClaimIssueAdjudicationAgingServiceTests
+{
+    [Fact]
+    public void Assess_keeps_remanded_cycle_pending()
+    {
+        var issueId =
+            new ClaimIssueId("issue-001");
+
+        var timeline =
+            new[]
+            {
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .VaDecision,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 5, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                },
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .CourtAppeal,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 6, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                },
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .Remand,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 8, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                }
+            };
+
+        var result =
+            new ClaimIssueAdjudicationAgingService()
+                .Assess(
+                    issueId,
+                    timeline,
+                    new DateTimeOffset(
+                        2026, 8, 28, 0, 0, 0,
+                        TimeSpan.Zero));
+
+        Assert.Equal(
+            timeline[1].OccurredAt,
+            result.PendingSince);
+
+        Assert.Equal(
+            timeline[2].OccurredAt,
+            result.LastActivityAt);
+
+        Assert.Equal(88, result.AgeInDays);
+    }
+}
