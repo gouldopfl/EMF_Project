@@ -119,8 +119,51 @@ public sealed class VaDecisionDocumentCoordinatorTests
         Assert.Empty(repository.Artifacts);
     }
 
+    [Fact]
+    public async Task ProcessAsync_RejectsDocumentWithMixedMatchResults()
+    {
+        var claimId = new ClaimId("claim-1");
+        var issueId = new ClaimIssueId("issue-1");
+        var repository = new RecordingVaDecisionRepository();
+
+        var coordinator =
+            CreateCoordinator(
+                claimId,
+                issueId,
+                repository);
+
+        var result =
+            await coordinator.ProcessAsync(
+                claimId,
+                CreateInterpretation(
+                    "Sleep apnea",
+                    "GERD"));
+
+        Assert.Null(result.Decision);
+        Assert.False(result.Persisted);
+        Assert.True(result.HasUnresolvedIssues);
+
+        Assert.Equal(2, result.Matches.Count);
+
+        Assert.Equal(
+            VaDecisionDocumentIssueMatchStatuses.Matched,
+            result.Matches[0].Status);
+        Assert.Equal(
+            issueId,
+            result.Matches[0].ClaimIssueId);
+
+        Assert.Equal(
+            VaDecisionDocumentIssueMatchStatuses.Unmatched,
+            result.Matches[1].Status);
+        Assert.Null(result.Matches[1].ClaimIssueId);
+
+        Assert.Null(repository.Decision);
+        Assert.Empty(repository.IssueDecisions);
+        Assert.Empty(repository.Artifacts);
+    }
+
     private static VaDecisionDocumentInterpretation
-        CreateInterpretation(string description) =>
+        CreateInterpretation(params string[] descriptions) =>
         new()
         {
             ArtifactId = new ArtifactId("artifact-1"),
@@ -130,27 +173,29 @@ public sealed class VaDecisionDocumentCoordinatorTests
                     0, 0, 0,
                     TimeSpan.Zero),
             IssueDecisions =
-            [
-                new VaIssueDecisionInterpretation
-                {
-                    IssueDescription = description,
-                    Outcome = IssueDecisionOutcomes.Denied,
-                    Rationale = "Rationale.",
-                    FavorableFindings = [],
-                    AdverseFindings = [],
-                    CitedRegulations = [],
-                    ReferencedEvidence = [],
-                    SourceExcerpts =
-                    [
-                        new DecisionDocumentSourceExcerpt
-                        {
-                            ArtifactId =
-                                new ArtifactId("artifact-1"),
-                            Text = "Decision text."
-                        }
-                    ]
-                }
-            ]
+                descriptions
+                    .Select(
+                        description =>
+                            new VaIssueDecisionInterpretation
+                            {
+                                IssueDescription = description,
+                                Outcome = IssueDecisionOutcomes.Denied,
+                                Rationale = "Rationale.",
+                                FavorableFindings = [],
+                                AdverseFindings = [],
+                                CitedRegulations = [],
+                                ReferencedEvidence = [],
+                                SourceExcerpts =
+                                [
+                                    new DecisionDocumentSourceExcerpt
+                                    {
+                                        ArtifactId =
+                                            new ArtifactId("artifact-1"),
+                                        Text = "Decision text."
+                                    }
+                                ]
+                            })
+                    .ToArray()
         };
 
     private sealed class StubIdGenerator : IIdGenerator
