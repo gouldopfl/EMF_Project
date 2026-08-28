@@ -449,7 +449,15 @@ public static class VeteransConsoleCommand
                 details,
                 new ClaimIssueAdjudicationReadinessService(),
                 merits,
-                new ClaimIssueDecisionRecommendationService());
+                new ClaimIssueDecisionRecommendationService(),
+                new ClaimIssueAdjudicationAgingStatusService(
+                    new ClaimIssueAdjudicationAgingService(),
+                    new ClaimIssueAdjudicationAgingPolicyService()),
+                new ClaimIssueAdjudicationAgingPolicy
+                {
+                    AttentionAfterDays = 60,
+                    ConsiderFollowUpAfterDays = 90
+                });
 
         var result =
             await assessment.GetAsync(claimIssueId);

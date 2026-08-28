@@ -22,7 +22,15 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 details,
                 new ClaimIssueAdjudicationReadinessService(),
                 CreateMeritsService(),
-                new ClaimIssueDecisionRecommendationService());
+                new ClaimIssueDecisionRecommendationService(),
+                new ClaimIssueAdjudicationAgingStatusService(
+                    new ClaimIssueAdjudicationAgingService(),
+                    new ClaimIssueAdjudicationAgingPolicyService()),
+                new ClaimIssueAdjudicationAgingPolicy
+                {
+                    AttentionAfterDays = 60,
+                    ConsiderFollowUpAfterDays = 90
+                });
 
         var result =
             await service.GetAsync(
@@ -78,7 +86,15 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 details,
                 new ClaimIssueAdjudicationReadinessService(),
                 CreateMeritsService(),
-                new ClaimIssueDecisionRecommendationService());
+                new ClaimIssueDecisionRecommendationService(),
+                new ClaimIssueAdjudicationAgingStatusService(
+                    new ClaimIssueAdjudicationAgingService(),
+                    new ClaimIssueAdjudicationAgingPolicyService()),
+                new ClaimIssueAdjudicationAgingPolicy
+                {
+                    AttentionAfterDays = 60,
+                    ConsiderFollowUpAfterDays = 90
+                });
 
         var result =
             await service.GetAsync(issue.Id);
@@ -97,6 +113,87 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
         Assert.NotNull(result.Recommendation);
         Assert.False(result.Recommendation!.HasRecommendation);
         Assert.Null(result.Recommendation.RecommendedOutcome);
+    }
+
+    [Fact]
+    public async Task GetAsync_surfaces_pending_aging()
+    {
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-aging"),
+                ClaimId = new ClaimId("claim-1"),
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+        var details =
+            CreateDetails(
+                issue,
+                [
+                    new ClaimIssueAdjudicationEvent
+                    {
+                        ClaimIssueId = issue.Id,
+                        EventType =
+                            ClaimIssueAdjudicationEventTypes
+                                .SubmissionSubmitted,
+                        OccurredAt =
+                            DateTimeOffset.UtcNow.AddDays(-100)
+                    }
+                ]);
+
+        var service =
+            new ClaimIssueAdjudicationAssessmentService(
+                Proxy<IClaimIssueAdjudicationDetailsService>(
+                    (method, args) =>
+                        Task.FromResult<
+                            ClaimIssueAdjudicationDetails?>(details)),
+                new ClaimIssueAdjudicationReadinessService(),
+                CreateMeritsService(),
+                new ClaimIssueDecisionRecommendationService(),
+                new ClaimIssueAdjudicationAgingStatusService(
+                    new ClaimIssueAdjudicationAgingService(),
+                    new ClaimIssueAdjudicationAgingPolicyService()),
+                new ClaimIssueAdjudicationAgingPolicy
+                {
+                    AttentionAfterDays = 60,
+                    ConsiderFollowUpAfterDays = 90
+                });
+
+        var result =
+            await service.GetAsync(issue.Id);
+
+        Assert.NotNull(result);
+        Assert.NotNull(result!.Aging);
+    }
+
+    private static ClaimIssueAdjudicationDetails
+        CreateDetails(
+            ClaimIssue issue,
+            IReadOnlyList<ClaimIssueAdjudicationEvent> timeline)
+    {
+        return new ClaimIssueAdjudicationDetails
+        {
+            ClaimIssue = issue,
+            ClaimedConditions = [],
+            ServiceConnectionTheories = [],
+            ServiceConnectionBases = [],
+            ServiceConnectedConditions = [],
+            Requirements = [],
+            Timeline = timeline,
+            Evidence =
+                new ClaimIssueEvidenceDetails
+                {
+                    ClaimIssue = issue,
+                    Checklist =
+                        new ClaimIssueEvidenceChecklist
+                        {
+                            ClaimIssueId = issue.Id,
+                            RequirementChecklists = []
+                        },
+                    DevelopmentPlans = []
+                }
+        };
     }
 
     private static ClaimIssueMeritsAssessmentService
