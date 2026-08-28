@@ -26,11 +26,7 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
                     new ClaimIssueAdjudicationAgingPolicyService()),
-                new ClaimIssueAdjudicationAgingPolicy
-                {
-                    AttentionAfterDays = 60,
-                    ConsiderFollowUpAfterDays = 90
-                });
+                ClaimIssueAdjudicationAgingPolicies.Default);
 
         var result =
             await service.GetAsync(
@@ -90,11 +86,7 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
                     new ClaimIssueAdjudicationAgingPolicyService()),
-                new ClaimIssueAdjudicationAgingPolicy
-                {
-                    AttentionAfterDays = 60,
-                    ConsiderFollowUpAfterDays = 90
-                });
+                ClaimIssueAdjudicationAgingPolicies.Default);
 
         var result =
             await service.GetAsync(issue.Id);
@@ -154,11 +146,7 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
                     new ClaimIssueAdjudicationAgingPolicyService()),
-                new ClaimIssueAdjudicationAgingPolicy
-                {
-                    AttentionAfterDays = 60,
-                    ConsiderFollowUpAfterDays = 90
-                });
+                ClaimIssueAdjudicationAgingPolicies.Default);
 
         var result =
             await service.GetAsync(issue.Id);
