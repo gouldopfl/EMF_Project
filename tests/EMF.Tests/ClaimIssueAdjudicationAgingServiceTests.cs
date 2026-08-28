@@ -315,3 +315,59 @@ public sealed partial class ClaimIssueAdjudicationAgingServiceTests
         Assert.Equal(88, result.AgeInDays);
     }
 }
+
+public sealed partial class ClaimIssueAdjudicationAgingServiceTests
+{
+    [Fact]
+    public void Assess_tracks_received_as_latest_activity()
+    {
+        var issueId =
+            new ClaimIssueId("issue-001");
+
+        var timeline =
+            new[]
+            {
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .SubmissionSubmitted,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 5, 22, 0, 0, 0,
+                            TimeSpan.Zero)
+                },
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId = issueId,
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .SubmissionReceived,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 5, 24, 0, 0, 0,
+                            TimeSpan.Zero)
+                }
+            };
+
+        var result =
+            new ClaimIssueAdjudicationAgingService()
+                .Assess(
+                    issueId,
+                    timeline,
+                    new DateTimeOffset(
+                        2026, 8, 28, 0, 0, 0,
+                        TimeSpan.Zero));
+
+        Assert.Equal(
+            timeline[0].OccurredAt,
+            result.PendingSince);
+
+        Assert.Equal(
+            timeline[1].OccurredAt,
+            result.LastActivityAt);
+
+        Assert.Equal(98, result.AgeInDays);
+    }
+}
