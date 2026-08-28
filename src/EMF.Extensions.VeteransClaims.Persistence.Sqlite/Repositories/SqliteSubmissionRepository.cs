@@ -146,12 +146,16 @@ public sealed class SqliteSubmissionRepository :
             INSERT INTO VeteransClaims_Submissions (
                 Id,
                 ClaimId,
-                SubmissionType
+                SubmissionType,
+                SubmittedAt,
+                ReceivedAt
             )
             VALUES (
                 $id,
                 $claimId,
-                $submissionType
+                $submissionType,
+                $submittedAt,
+                $receivedAt
             );
             """;
 
@@ -166,6 +170,16 @@ public sealed class SqliteSubmissionRepository :
         command.Parameters.AddWithValue(
             "$submissionType",
             submission.SubmissionType);
+
+        command.Parameters.AddWithValue(
+            "$submittedAt",
+            submission.SubmittedAt?.ToString("O")
+                ?? (object)DBNull.Value);
+
+        command.Parameters.AddWithValue(
+            "$receivedAt",
+            submission.ReceivedAt?.ToString("O")
+                ?? (object)DBNull.Value);
 
         await command.ExecuteNonQueryAsync(
             cancellationToken);
@@ -221,7 +235,7 @@ public sealed class SqliteSubmissionRepository :
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT Id, ClaimId, SubmissionType
+            SELECT Id, ClaimId, SubmissionType, SubmittedAt, ReceivedAt
             FROM VeteransClaims_Submissions
             WHERE Id = $id;
             """;
@@ -252,7 +266,15 @@ public sealed class SqliteSubmissionRepository :
             ClaimId =
                 new ClaimId(reader.GetString(1)),
             SubmissionType =
-                reader.GetString(2)
+                reader.GetString(2),
+            SubmittedAt =
+                reader.IsDBNull(3)
+                    ? null
+                    : DateTimeOffset.Parse(reader.GetString(3)),
+            ReceivedAt =
+                reader.IsDBNull(4)
+                    ? null
+                    : DateTimeOffset.Parse(reader.GetString(4))
         };
     }
 
@@ -267,7 +289,7 @@ public sealed class SqliteSubmissionRepository :
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT Id, ClaimId, SubmissionType
+            SELECT Id, ClaimId, SubmissionType, SubmittedAt, ReceivedAt
             FROM VeteransClaims_Submissions
             WHERE ClaimId = $claimId
             ORDER BY Id;

@@ -9,4 +9,8 @@ public sealed class Submission
     public required ClaimId ClaimId { get; init; }
 
     public required string SubmissionType { get; init; }
+
+    public DateTimeOffset? SubmittedAt { get; init; }
+
+    public DateTimeOffset? ReceivedAt { get; init; }
 }

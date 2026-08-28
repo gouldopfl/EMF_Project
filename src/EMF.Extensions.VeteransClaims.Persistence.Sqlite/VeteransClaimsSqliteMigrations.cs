@@ -1662,6 +1662,16 @@ internal static class VeteransClaimsSqliteMigrations
                     ClaimIssueId,
                     FiledAt
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                56,
+                "AddSubmissionDates",
+                """
+                ALTER TABLE VeteransClaims_Submissions
+                ADD COLUMN SubmittedAt TEXT NULL;
+
+                ALTER TABLE VeteransClaims_Submissions
+                ADD COLUMN ReceivedAt TEXT NULL;
                 """)
         };
 }

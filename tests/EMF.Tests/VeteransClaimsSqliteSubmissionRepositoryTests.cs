@@ -77,7 +77,13 @@ public sealed class VeteransClaimsSqliteSubmissionRepositoryTests
                 Id = new SubmissionId("submission-001"),
                 ClaimId = claim.Id,
                 SubmissionType =
-                    SubmissionTypes.InitialClaim
+                    SubmissionTypes.InitialClaim,
+                SubmittedAt =
+                    new DateTimeOffset(
+                        2026, 1, 10, 14, 30, 0, TimeSpan.Zero),
+                ReceivedAt =
+                    new DateTimeOffset(
+                        2026, 1, 10, 15, 5, 0, TimeSpan.Zero)
             };
 
             await repository.AddSubmissionAsync(
@@ -105,6 +111,12 @@ public sealed class VeteransClaimsSqliteSubmissionRepositoryTests
             Assert.Equal(
                 SubmissionTypes.InitialClaim,
                 stored.SubmissionType);
+            Assert.Equal(
+                submission.SubmittedAt,
+                stored.SubmittedAt);
+            Assert.Equal(
+                submission.ReceivedAt,
+                stored.ReceivedAt);
 
             Assert.Single(claimSubmissions);
             Assert.Equal(2, issueIds.Count);
