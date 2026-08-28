@@ -1580,6 +1580,67 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_VaDecisionArtifacts (
                     ArtifactId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                54,
+                "AddVaDecisionDocumentProcessingAttempts",
+                """
+                CREATE TABLE VeteransClaims_VaDecisionDocumentProcessingAttempts (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ClaimId TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    ProcessedAt TEXT NOT NULL,
+                    VaDecisionId TEXT NULL,
+                    FOREIGN KEY (ClaimId)
+                        REFERENCES VeteransClaims_Claims (Id),
+                    FOREIGN KEY (VaDecisionId)
+                        REFERENCES VeteransClaims_VaDecisions (Id)
+                );
+
+                CREATE TABLE VeteransClaims_VaDecisionDocumentIssueMatches (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ProcessingAttemptId INTEGER NOT NULL,
+                    MatchOrdinal INTEGER NOT NULL,
+                    Status TEXT NOT NULL,
+                    ClaimIssueId TEXT NULL,
+                    IssueDescription TEXT NOT NULL,
+                    Outcome TEXT NOT NULL,
+                    Rationale TEXT NOT NULL,
+                    UNIQUE (ProcessingAttemptId, MatchOrdinal),
+                    FOREIGN KEY (ProcessingAttemptId)
+                        REFERENCES VeteransClaims_VaDecisionDocumentProcessingAttempts (Id)
+                        ON DELETE CASCADE
+                );
+
+                CREATE TABLE VeteransClaims_VaDecisionDocumentMatchValues (
+                    IssueMatchId INTEGER NOT NULL,
+                    ValueKind TEXT NOT NULL,
+                    ValueOrdinal INTEGER NOT NULL,
+                    Value TEXT NOT NULL,
+                    PRIMARY KEY (IssueMatchId, ValueKind, ValueOrdinal),
+                    FOREIGN KEY (IssueMatchId)
+                        REFERENCES VeteransClaims_VaDecisionDocumentIssueMatches (Id)
+                        ON DELETE CASCADE
+                );
+
+                CREATE TABLE VeteransClaims_VaDecisionDocumentSourceExcerpts (
+                    IssueMatchId INTEGER NOT NULL,
+                    ExcerptOrdinal INTEGER NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    Text TEXT NOT NULL,
+                    StartOffset INTEGER NULL,
+                    Length INTEGER NULL,
+                    PRIMARY KEY (IssueMatchId, ExcerptOrdinal),
+                    FOREIGN KEY (IssueMatchId)
+                        REFERENCES VeteransClaims_VaDecisionDocumentIssueMatches (Id)
+                        ON DELETE CASCADE
+                );
+
+                CREATE INDEX IX_VeteransClaims_VaDecisionDocumentProcessingAttempts_Claim
+                ON VeteransClaims_VaDecisionDocumentProcessingAttempts (
+                    ClaimId,
+                    ProcessedAt
+                );
                 """)
         };
 }
