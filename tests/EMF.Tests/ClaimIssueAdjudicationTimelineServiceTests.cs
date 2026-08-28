@@ -56,23 +56,32 @@ public sealed class ClaimIssueAdjudicationTimelineServiceTests
 
         var result = await service.GetAsync(issueId);
 
-        Assert.Equal(4, result.Count);
+        Assert.Equal(8, result.Count);
 
         Assert.Equal(
-            ClaimIssueAdjudicationEventTypes.VaDecision,
+            ClaimIssueAdjudicationEventTypes.SubmissionSubmitted,
             result[0].EventType);
-
+        Assert.Equal(
+            ClaimIssueAdjudicationEventTypes.SubmissionReceived,
+            result[1].EventType);
         Assert.Equal(
             ClaimIssueAdjudicationEventTypes.VaDecision,
-            result[1].EventType);
-
+            result[2].EventType);
+        Assert.Equal(
+            ClaimIssueAdjudicationEventTypes.SubmissionSubmitted,
+            result[3].EventType);
+        Assert.Equal(
+            ClaimIssueAdjudicationEventTypes.SubmissionReceived,
+            result[4].EventType);
+        Assert.Equal(
+            ClaimIssueAdjudicationEventTypes.VaDecision,
+            result[5].EventType);
         Assert.Equal(
             ClaimIssueAdjudicationEventTypes.CourtAppeal,
-            result[2].EventType);
-
+            result[6].EventType);
         Assert.Equal(
             ClaimIssueAdjudicationEventTypes.Remand,
-            result[3].EventType);
+            result[7].EventType);
     }
 
 
@@ -262,7 +271,23 @@ public sealed class ClaimIssueAdjudicationTimelineServiceTests
                     SubmissionType =
                         id.Value == "submission-1"
                             ? "InitialClaim"
-                            : "BoardAppeal"
+                            : "BoardAppeal",
+                    SubmittedAt =
+                        id.Value == "submission-1"
+                            ? new DateTimeOffset(
+                                2025, 12, 1, 0, 0, 0,
+                                TimeSpan.Zero)
+                            : new DateTimeOffset(
+                                2026, 4, 1, 0, 0, 0,
+                                TimeSpan.Zero),
+                    ReceivedAt =
+                        id.Value == "submission-1"
+                            ? new DateTimeOffset(
+                                2025, 12, 2, 0, 0, 0,
+                                TimeSpan.Zero)
+                            : new DateTimeOffset(
+                                2026, 4, 2, 0, 0, 0,
+                                TimeSpan.Zero)
                 });
 
         public Task AddSubmissionAsync(

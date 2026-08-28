@@ -74,6 +74,46 @@ public static class ClaimIssueAdjudicationEventFactory
         };
     }
 
+    public static ClaimIssueAdjudicationEvent FromSubmitted(
+        ClaimIssueAdjudicationLifecycleEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        if (entry.Submission.SubmittedAt is null)
+            throw new InvalidOperationException(
+                "Submission has no submitted date.");
+
+        return new ClaimIssueAdjudicationEvent
+        {
+            ClaimIssueId = entry.ClaimIssueId,
+            EventType =
+                ClaimIssueAdjudicationEventTypes.SubmissionSubmitted,
+            OccurredAt = entry.Submission.SubmittedAt.Value,
+            ReferenceId = entry.Submission.Id.Value,
+            Description = entry.Submission.SubmissionType
+        };
+    }
+
+    public static ClaimIssueAdjudicationEvent FromReceived(
+        ClaimIssueAdjudicationLifecycleEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        if (entry.Submission.ReceivedAt is null)
+            throw new InvalidOperationException(
+                "Submission has no received date.");
+
+        return new ClaimIssueAdjudicationEvent
+        {
+            ClaimIssueId = entry.ClaimIssueId,
+            EventType =
+                ClaimIssueAdjudicationEventTypes.SubmissionReceived,
+            OccurredAt = entry.Submission.ReceivedAt.Value,
+            ReferenceId = entry.Submission.Id.Value,
+            Description = entry.Submission.SubmissionType
+        };
+    }
+
     public static ClaimIssueAdjudicationEvent FromLifecycleEntry(
         ClaimIssueAdjudicationLifecycleEntry entry)
     {

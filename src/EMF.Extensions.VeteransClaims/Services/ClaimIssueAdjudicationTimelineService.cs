@@ -77,10 +77,31 @@ public sealed class ClaimIssueAdjudicationTimelineService :
         ArgumentNullException.ThrowIfNull(vaEntries);
         ArgumentNullException.ThrowIfNull(otherEvents);
 
-        return vaEntries
-            .Select(
+        var vaEvents =
+            new List<ClaimIssueAdjudicationEvent>();
+
+        foreach (var entry in vaEntries)
+        {
+            if (entry.Submission.SubmittedAt is not null)
+            {
+                vaEvents.Add(
+                    ClaimIssueAdjudicationEventFactory
+                        .FromSubmitted(entry));
+            }
+
+            if (entry.Submission.ReceivedAt is not null)
+            {
+                vaEvents.Add(
+                    ClaimIssueAdjudicationEventFactory
+                        .FromReceived(entry));
+            }
+
+            vaEvents.Add(
                 ClaimIssueAdjudicationEventFactory
-                    .FromLifecycleEntry)
+                    .FromLifecycleEntry(entry));
+        }
+
+        return vaEvents
             .Concat(otherEvents)
             .OrderBy(x => x.OccurredAt)
             .ToArray();

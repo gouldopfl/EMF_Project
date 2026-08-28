@@ -165,4 +165,84 @@ public sealed class ClaimIssueAdjudicationEventFactoryTests
         Assert.Equal("CAVC", result.Description);
     }
 
+    [Fact]
+    public void FromSubmitted_maps_submission_event()
+    {
+        var entry = CreateSubmissionEntry();
+
+        var result =
+            ClaimIssueAdjudicationEventFactory
+                .FromSubmitted(entry);
+
+        Assert.Equal(
+            ClaimIssueAdjudicationEventTypes.SubmissionSubmitted,
+            result.EventType);
+        Assert.Equal(entry.Submission.SubmittedAt, result.OccurredAt);
+    }
+
+    [Fact]
+    public void FromReceived_maps_submission_event()
+    {
+        var entry = CreateSubmissionEntry();
+
+        var result =
+            ClaimIssueAdjudicationEventFactory
+                .FromReceived(entry);
+
+        Assert.Equal(
+            ClaimIssueAdjudicationEventTypes.SubmissionReceived,
+            result.EventType);
+        Assert.Equal(entry.Submission.ReceivedAt, result.OccurredAt);
+    }
+
+
+    private static ClaimIssueAdjudicationLifecycleEntry
+        CreateSubmissionEntry()
+    {
+        return new ClaimIssueAdjudicationLifecycleEntry
+        {
+            ClaimIssueId =
+                new ClaimIssueId("issue-001"),
+            Submission =
+                new Submission
+                {
+                    Id =
+                        new SubmissionId("submission-1"),
+                    ClaimId =
+                        new ClaimId("claim-001"),
+                    SubmissionType =
+                        SubmissionTypes.InitialClaim,
+                    SubmittedAt =
+                        new DateTimeOffset(
+                            2026, 1, 1, 10, 0, 0,
+                            TimeSpan.Zero),
+                    ReceivedAt =
+                        new DateTimeOffset(
+                            2026, 1, 1, 11, 0, 0,
+                            TimeSpan.Zero)
+                },
+            IssueDecision =
+                new IssueDecision
+                {
+                    Id =
+                        new IssueDecisionId("issue-decision-1"),
+                    VaDecisionId =
+                        new VaDecisionId("decision-1"),
+                    ClaimIssueId =
+                        new ClaimIssueId("issue-001"),
+                    Outcome = "Denied"
+                },
+            VaDecision =
+                new VaDecision
+                {
+                    Id =
+                        new VaDecisionId("decision-1"),
+                    DecisionDate =
+                        new DateTimeOffset(
+                            2026, 2, 1, 0, 0, 0,
+                            TimeSpan.Zero)
+                }
+        };
+    }
+
 }
