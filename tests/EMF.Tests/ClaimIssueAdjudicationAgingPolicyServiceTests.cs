@@ -35,7 +35,8 @@ public sealed partial class ClaimIssueAdjudicationAgingPolicyServiceTests
                     new DateTimeOffset(
                         2026, 1, 1, 0, 0, 0,
                         TimeSpan.Zero),
-                AgeInDays = ageInDays
+                AgeInDays = ageInDays,
+                DaysSinceLastActivity = ageInDays
             };
 
         var result =
@@ -59,7 +60,8 @@ public sealed partial class ClaimIssueAdjudicationAgingPolicyServiceTests
                     new DateTimeOffset(
                         2026, 1, 1, 0, 0, 0,
                         TimeSpan.Zero),
-                AgeInDays = 30
+                AgeInDays = 30,
+                DaysSinceLastActivity = 30
             };
 
         var policy =

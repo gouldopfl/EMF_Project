@@ -55,7 +55,11 @@ public sealed class ClaimIssueAdjudicationAgingService
                 Math.Max(
                     0,
                     (int)(asOf.Date - pendingSince.Date).TotalDays),
-            LastActivityAt = lastActivityAt
+            LastActivityAt = lastActivityAt,
+            DaysSinceLastActivity =
+                Math.Max(
+                    0,
+                    (int)(asOf.Date - lastActivityAt.Date).TotalDays)
         };
     }
 }

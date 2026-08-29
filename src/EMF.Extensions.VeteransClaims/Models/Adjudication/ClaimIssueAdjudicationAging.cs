@@ -11,4 +11,6 @@ public sealed class ClaimIssueAdjudicationAging
     public required int AgeInDays { get; init; }
 
     public DateTimeOffset? LastActivityAt { get; init; }
+
+    public required int DaysSinceLastActivity { get; init; }
 }

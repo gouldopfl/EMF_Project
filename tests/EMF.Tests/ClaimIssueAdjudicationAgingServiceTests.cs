@@ -37,6 +37,7 @@ public sealed partial class ClaimIssueAdjudicationAgingServiceTests
                         TimeSpan.Zero));
 
         Assert.Equal(98, result.AgeInDays);
+        Assert.Equal(98, result.DaysSinceLastActivity);
         Assert.Equal(timeline[0].OccurredAt, result.PendingSince);
         Assert.Equal(timeline[0].OccurredAt, result.LastActivityAt);
     }
