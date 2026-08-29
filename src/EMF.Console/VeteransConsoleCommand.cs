@@ -50,6 +50,27 @@ public static class VeteransConsoleCommand
         }
 
         if (args.Length == 4 &&
+            args[0] == "adjudication" &&
+            args[1] == "claim")
+        {
+            var adjudicationClaimDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(adjudicationClaimDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {adjudicationClaimDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunClaimAdjudicationAssessmentAsync(
+                adjudicationClaimDatabasePath,
+                new ClaimId(args[3]),
+                global::System.Console.Out);
+        }
+
+        if (args.Length == 4 &&
             args[0] == "evidence" &&
             args[1] == "claim")
         {
@@ -368,10 +389,61 @@ public static class VeteransConsoleCommand
         }
     }
 
-    internal static async Task<int> RunAdjudicationAssessmentAsync(
-        string databasePath,
-        ClaimIssueId claimIssueId,
-        TextWriter output)
+    internal static async Task<int>
+        RunClaimAdjudicationAssessmentAsync(
+            string databasePath,
+            ClaimId claimId,
+            TextWriter output)
+    {
+        var claims =
+            new SqliteClaimRepository(databasePath);
+
+        var issues =
+            new SqliteClaimIssueRepository(databasePath);
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                claims,
+                issues,
+                CreateAdjudicationAssessmentService(
+                    databasePath));
+
+        var result =
+            await service.GetAsync(claimId);
+
+        if (result is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Claim not found: {claimId.Value}");
+
+            return 1;
+        }
+
+        ArgumentNullException.ThrowIfNull(output);
+
+        output.WriteLine(
+            $"Claim       : {result.Claim.Id.Value}");
+
+        output.WriteLine(
+            $"Attention   : {result.RequiresAttention}");
+
+        output.WriteLine(
+            $"Follow Up   : {result.ShouldConsiderFollowUp}");
+
+        foreach (var issue in result.Issues)
+        {
+            output.WriteLine(
+                $"Issue       : " +
+                $"{issue.Details.ClaimIssue.Id.Value}");
+        }
+
+        return 0;
+    }
+
+
+    private static ClaimIssueAdjudicationAssessmentService
+        CreateAdjudicationAssessmentService(
+            string databasePath)
     {
         var issues =
             new SqliteClaimIssueRepository(databasePath);
@@ -455,6 +527,19 @@ public static class VeteransConsoleCommand
                     new ClaimIssueAdjudicationAgingPolicyService()),
                 ClaimIssueAdjudicationAgingPolicies.Default,
                 TimeProvider.System);
+
+
+        return assessment;
+    }
+
+
+    internal static async Task<int> RunAdjudicationAssessmentAsync(
+        string databasePath,
+        ClaimIssueId claimIssueId,
+        TextWriter output)
+    {
+        var assessment =
+            CreateAdjudicationAssessmentService(databasePath);
 
         var result =
             await assessment.GetAsync(claimIssueId);
@@ -812,5 +897,9 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans adjudication assess " +
             "<database-path> <claim-issue-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans adjudication claim " +
+            "<database-path> <claim-id>");
     }
 }

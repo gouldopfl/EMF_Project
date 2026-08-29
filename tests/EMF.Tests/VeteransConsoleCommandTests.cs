@@ -1019,6 +1019,92 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
+    public async Task AdjudicationClaim_ReadsClaimAndIssues()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran =
+                new Veteran
+                {
+                    Id = new VeteranId("veteran-adjudication-claim")
+                };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim =
+                new Claim
+                {
+                    Id = new ClaimId("claim-adjudication-console"),
+                    VeteranId = veteran.Id
+                };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(
+                    new ClaimIssue
+                    {
+                        Id = new ClaimIssueId(
+                            "issue-adjudication-console"),
+                        ClaimId = claim.Id,
+                        ClaimIssueType =
+                            ClaimIssueTypes.ServiceConnection
+                    });
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "adjudication",
+                        "claim",
+                        databasePath,
+                        claim.Id.Value
+                    ]);
+
+            Assert.Equal(0, exitCode);
+
+            using var output = new StringWriter();
+
+            var renderedExitCode =
+                await VeteransConsoleCommand
+                    .RunClaimAdjudicationAssessmentAsync(
+                        databasePath,
+                        claim.Id,
+                        output);
+
+            Assert.Equal(0, renderedExitCode);
+
+            var rendered = output.ToString();
+
+            Assert.Contains(
+                $"Claim       : {claim.Id.Value}",
+                rendered);
+
+            Assert.Contains(
+                "Attention   : False",
+                rendered);
+
+            Assert.Contains(
+                "Follow Up   : False",
+                rendered);
+
+            Assert.Contains(
+                "Issue       : issue-adjudication-console",
+                rendered);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task EvidenceClaim_ReadsClaimAndIssue()
     {
         var databasePath = Path.GetTempFileName();
