@@ -96,6 +96,7 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
         Assert.NotNull(result);
         Assert.Same(adjudicationDetails, result!.Details);
         Assert.True(result.Readiness.IsReadyForAdjudication);
+        Assert.False(result.RequiresAttention);
 
 
         Assert.NotNull(result.Merits);
@@ -162,6 +163,8 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
         Assert.NotNull(result);
         Assert.NotNull(result!.Aging);
         Assert.Equal(100, result.Aging!.Aging.AgeInDays);
+        Assert.True(result.Readiness.IsReadyForAdjudication);
+        Assert.True(result.RequiresAttention);
     }
 
     private sealed class FixedTimeProvider(
