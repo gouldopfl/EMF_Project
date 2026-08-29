@@ -49,6 +49,18 @@ public sealed class VeteransEvidenceOrchestrationFactoryTests
     }
 
     [Fact]
+    public void CreateVaDecisionDocumentInterpretationCoordinator_RequiresDependencies()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () =>
+                VeteransEvidenceOrchestrationFactory
+                    .CreateVaDecisionDocumentInterpretationCoordinator(
+                        null!,
+                        null!));
+    }
+
+
+    [Fact]
     public void CreateEvidenceDevelopmentIntelligenceCoordinator_RequiresDependencies()
     {
         Assert.Throws<ArgumentNullException>(

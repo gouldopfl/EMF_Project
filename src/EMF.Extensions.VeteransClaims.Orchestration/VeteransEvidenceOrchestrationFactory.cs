@@ -118,6 +118,22 @@ public static class VeteransEvidenceOrchestrationFactory
             requirementEvidenceService);
     }
 
+    public static IVaDecisionDocumentInterpretationCoordinator
+        CreateVaDecisionDocumentInterpretationCoordinator(
+            IArtifactTextExtractor textExtractor,
+            IIntelligenceCapabilityExecutor<
+                TextStructuredExtractionRequest,
+                string> executor)
+    {
+        ArgumentNullException.ThrowIfNull(textExtractor);
+        ArgumentNullException.ThrowIfNull(executor);
+
+        return new VaDecisionDocumentInterpretationCoordinator(
+            textExtractor,
+            executor);
+    }
+
+
     public static IEvidenceDevelopmentIntelligenceCoordinator
         CreateEvidenceDevelopmentIntelligenceCoordinator(
             IEvidenceDevelopmentPlanRepository developmentRepository,

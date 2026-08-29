@@ -3,7 +3,7 @@ using EMF.Intelligence.Models;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
-internal sealed class VaDecisionDocumentInterpretationResult
+public sealed class VaDecisionDocumentInterpretationResult
 {
     public required IntelligenceCapabilityResult<string>
         IntelligenceResult { get; init; }
