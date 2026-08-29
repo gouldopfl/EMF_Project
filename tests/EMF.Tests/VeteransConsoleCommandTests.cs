@@ -239,6 +239,10 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
+                "Review History: 1",
+                rendered);
+
+            Assert.Contains(
                 "Timeline    : 1",
                 rendered);
 

@@ -611,6 +611,15 @@ public static class VeteransConsoleCommand
             $"{result.Recommendation?.RecommendedOutcome ?? "None"}");
 
         output.WriteLine(
+            $"Review History: {result.DecisionReviewHistory.Count}");
+
+        foreach (var review in result.DecisionReviewHistory)
+        {
+            output.WriteLine(
+                $"- {review.Review.Comparison.ComparisonOutcome}");
+        }
+
+        output.WriteLine(
             $"Outstanding : {result.Readiness.OutstandingRequirementCount}");
 
         foreach (var blocking in
