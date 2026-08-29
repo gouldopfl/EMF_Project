@@ -26,7 +26,8 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
                     new ClaimIssueAdjudicationAgingPolicyService()),
-                ClaimIssueAdjudicationAgingPolicies.Default);
+                ClaimIssueAdjudicationAgingPolicies.Default,
+                TimeProvider.System);
 
         var result =
             await service.GetAsync(
@@ -86,7 +87,8 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
                     new ClaimIssueAdjudicationAgingPolicyService()),
-                ClaimIssueAdjudicationAgingPolicies.Default);
+                ClaimIssueAdjudicationAgingPolicies.Default,
+                TimeProvider.System);
 
         var result =
             await service.GetAsync(issue.Id);
@@ -130,7 +132,9 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                             ClaimIssueAdjudicationEventTypes
                                 .SubmissionSubmitted,
                         OccurredAt =
-                            DateTimeOffset.UtcNow.AddDays(-100)
+                            new DateTimeOffset(
+                                2026, 5, 20, 0, 0, 0,
+                                TimeSpan.Zero)
                     }
                 ]);
 
@@ -146,13 +150,24 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
                     new ClaimIssueAdjudicationAgingPolicyService()),
-                ClaimIssueAdjudicationAgingPolicies.Default);
+                ClaimIssueAdjudicationAgingPolicies.Default,
+                new FixedTimeProvider(
+                    new DateTimeOffset(
+                        2026, 8, 28, 0, 0, 0,
+                        TimeSpan.Zero)));
 
         var result =
             await service.GetAsync(issue.Id);
 
         Assert.NotNull(result);
         Assert.NotNull(result!.Aging);
+        Assert.Equal(100, result.Aging!.Aging.AgeInDays);
+    }
+
+    private sealed class FixedTimeProvider(
+        DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
     private static ClaimIssueAdjudicationDetails

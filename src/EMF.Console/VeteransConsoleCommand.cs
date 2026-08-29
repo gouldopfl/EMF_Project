@@ -453,7 +453,8 @@ public static class VeteransConsoleCommand
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
                     new ClaimIssueAdjudicationAgingPolicyService()),
-                ClaimIssueAdjudicationAgingPolicies.Default);
+                ClaimIssueAdjudicationAgingPolicies.Default,
+                TimeProvider.System);
 
         var result =
             await assessment.GetAsync(claimIssueId);

@@ -12,6 +12,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService
     private readonly ClaimIssueDecisionRecommendationService _recommendations;
     private readonly ClaimIssueAdjudicationAgingStatusService _aging;
     private readonly ClaimIssueAdjudicationAgingPolicy _agingPolicy;
+    private readonly TimeProvider _timeProvider;
 
     public ClaimIssueAdjudicationAssessmentService(
         IClaimIssueAdjudicationDetailsService details,
@@ -19,7 +20,8 @@ public sealed class ClaimIssueAdjudicationAssessmentService
         ClaimIssueMeritsAssessmentService merits,
         ClaimIssueDecisionRecommendationService recommendations,
         ClaimIssueAdjudicationAgingStatusService aging,
-        ClaimIssueAdjudicationAgingPolicy agingPolicy)
+        ClaimIssueAdjudicationAgingPolicy agingPolicy,
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(details);
         ArgumentNullException.ThrowIfNull(readiness);
@@ -27,6 +29,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService
         ArgumentNullException.ThrowIfNull(recommendations);
         ArgumentNullException.ThrowIfNull(aging);
         ArgumentNullException.ThrowIfNull(agingPolicy);
+        ArgumentNullException.ThrowIfNull(timeProvider);
 
         _details = details;
         _readiness = readiness;
@@ -34,6 +37,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService
         _recommendations = recommendations;
         _aging = aging;
         _agingPolicy = agingPolicy;
+        _timeProvider = timeProvider;
     }
 
     public async Task<ClaimIssueAdjudicationAssessment?> GetAsync(
@@ -71,7 +75,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService
                     _aging.Assess(
                         claimIssueId,
                         details.Timeline,
-                        DateTimeOffset.UtcNow,
+                        _timeProvider.GetUtcNow(),
                         _agingPolicy);
             }
         }
