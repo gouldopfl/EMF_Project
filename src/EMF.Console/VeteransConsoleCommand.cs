@@ -620,7 +620,8 @@ public static class VeteransConsoleCommand
         foreach (var review in result.DecisionReviewHistory)
         {
             output.WriteLine(
-                $"- {review.Review.Comparison.ComparisonOutcome}");
+                $"- {review.Review.Comparison.ComparisonOutcome} " +
+                $"Review={review.Review.RequiresReview}");
         }
 
         output.WriteLine(

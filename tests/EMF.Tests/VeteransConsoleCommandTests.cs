@@ -243,6 +243,10 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
+                "- NotComparable Review=False",
+                rendered);
+
+            Assert.Contains(
                 "Timeline    : 1",
                 rendered);
 
