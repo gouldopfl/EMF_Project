@@ -1109,6 +1109,14 @@ public sealed class VeteransConsoleCommandTests
             Assert.Contains(
                 "  Follow Up : False",
                 rendered);
+
+            Assert.Contains(
+                "  Merits    : Unresolved",
+                rendered);
+
+            Assert.Contains(
+                "  Recommend : None",
+                rendered);
         }
         finally
         {

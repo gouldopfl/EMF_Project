@@ -447,6 +447,14 @@ public static class VeteransConsoleCommand
             output.WriteLine(
                 $"  Follow Up : " +
                 $"{issue.ShouldConsiderFollowUp}");
+
+            output.WriteLine(
+                $"  Merits    : " +
+                $"{issue.Merits?.Outcome ?? "None"}");
+
+            output.WriteLine(
+                $"  Recommend : " +
+                $"{issue.Recommendation?.RecommendedOutcome ?? "None"}");
         }
 
         return 0;
