@@ -435,6 +435,18 @@ public static class VeteransConsoleCommand
             output.WriteLine(
                 $"Issue       : " +
                 $"{issue.Details.ClaimIssue.Id.Value}");
+
+            output.WriteLine(
+                $"  Ready     : " +
+                $"{issue.Readiness.IsReadyForAdjudication}");
+
+            output.WriteLine(
+                $"  Attention : " +
+                $"{issue.RequiresAttention}");
+
+            output.WriteLine(
+                $"  Follow Up : " +
+                $"{issue.ShouldConsiderFollowUp}");
         }
 
         return 0;

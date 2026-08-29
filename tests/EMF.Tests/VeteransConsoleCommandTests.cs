@@ -1097,6 +1097,18 @@ public sealed class VeteransConsoleCommandTests
             Assert.Contains(
                 "Issue       : issue-adjudication-console",
                 rendered);
+
+            Assert.Contains(
+                "  Ready     : True",
+                rendered);
+
+            Assert.Contains(
+                "  Attention : False",
+                rendered);
+
+            Assert.Contains(
+                "  Follow Up : False",
+                rendered);
         }
         finally
         {
