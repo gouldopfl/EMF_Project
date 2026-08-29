@@ -60,6 +60,21 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
+    public async Task DecisionHistory_RejectsMissingDatabase()
+    {
+        var exitCode =
+            await VeteransConsoleCommand.RunAsync(
+                [
+                    "decision",
+                    "history",
+                    "/tmp/emf-missing-decision-history.db",
+                    "claim-001"
+                ]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
     public async Task DecisionInterpret_InterpretsTextArtifact()
     {
         var databasePath = Path.GetTempFileName();
@@ -182,6 +197,84 @@ public sealed class VeteransConsoleCommandTests
                 Directory.Delete(
                     contentPath,
                     recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DecisionHistory_ShowsProcessingHistory()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran =
+                new Veteran
+                {
+                    Id = new VeteranId("veteran-history-001")
+                };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim =
+                new Claim
+                {
+                    Id = new ClaimId("claim-history-001"),
+                    VeteranId = veteran.Id
+                };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var attempts =
+                new SqliteVaDecisionDocumentProcessingAttemptRepository(
+                    databasePath);
+
+            await attempts.AddAsync(
+                new VaDecisionDocumentProcessingAttempt
+                {
+                    ClaimId = claim.Id,
+                    ArtifactId =
+                        new ArtifactId("artifact-history-001"),
+                    ProcessedAt =
+                        new DateTimeOffset(
+                            2026, 8, 29, 12, 0, 0,
+                            TimeSpan.Zero),
+                    VaDecisionId = null,
+                    Matches = []
+                });
+
+            using var output = new StringWriter();
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunDecisionHistoryAsync(
+                        databasePath,
+                        claim.Id,
+                        output);
+
+            Assert.Equal(0, exitCode);
+
+            var rendered = output.ToString();
+
+            Assert.Contains(
+                "Artifact    : artifact-history-001",
+                rendered);
+
+            Assert.Contains(
+                "Persisted   : False",
+                rendered);
+
+            Assert.Contains(
+                "Matched     : 0",
+                rendered);
+        }
+        finally
+        {
+            File.Delete(databasePath);
         }
     }
 

@@ -73,6 +73,27 @@ public static class VeteransConsoleCommand
 
         if (args.Length == 4 &&
             args[0] == "decision" &&
+            args[1] == "history")
+        {
+            var decisionHistoryDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(decisionHistoryDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {decisionHistoryDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunDecisionHistoryAsync(
+                decisionHistoryDatabasePath,
+                new ClaimId(args[3]),
+                global::System.Console.Out);
+        }
+
+        if (args.Length == 4 &&
+            args[0] == "decision" &&
             args[1] == "interpret")
         {
             var decisionDatabasePath =
@@ -778,6 +799,52 @@ public static class VeteransConsoleCommand
             VeteransClaimEvidenceDetailsFormatter.Format(details))
         {
             global::System.Console.WriteLine(line);
+        }
+
+        return 0;
+    }
+
+
+    internal static async Task<int> RunDecisionHistoryAsync(
+        string databasePath,
+        ClaimId claimId,
+        TextWriter output)
+    {
+        var repository =
+            new SqliteVaDecisionDocumentProcessingAttemptRepository(
+                databasePath);
+
+        var service =
+            new VaDecisionDocumentProcessingHistoryService(
+                repository);
+
+        var history =
+            await service.GetAsync(claimId);
+
+        foreach (var entry in history)
+        {
+            output.WriteLine(
+                $"Artifact    : {entry.ArtifactId.Value}");
+
+            output.WriteLine(
+                $"Processed   : {entry.ProcessedAt:u}");
+
+            output.WriteLine(
+                $"Persisted   : {entry.Persisted}");
+
+            output.WriteLine(
+                $"Matched     : {entry.MatchedIssueCount}");
+
+            output.WriteLine(
+                $"Unmatched   : {entry.UnmatchedIssueCount}");
+
+            output.WriteLine(
+                $"Ambiguous   : {entry.AmbiguousIssueCount}");
+
+            output.WriteLine(
+                $"Unresolved  : {entry.HasUnresolvedIssues}");
+
+            output.WriteLine();
         }
 
         return 0;
