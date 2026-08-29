@@ -1,4 +1,5 @@
 using EMF.Common;
+using EMF.Core.Contracts.Storage;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -68,6 +69,28 @@ public static class VeteransConsoleCommand
                 adjudicationClaimDatabasePath,
                 new ClaimId(args[3]),
                 global::System.Console.Out);
+        }
+
+        if (args.Length == 4 &&
+            args[0] == "decision" &&
+            args[1] == "interpret")
+        {
+            var decisionDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(decisionDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {decisionDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunDecisionInterpretAsync(
+                decisionDatabasePath,
+                new ArtifactId(args[3]),
+                runtimeFactory,
+                ArtifactContentStoreFactory.Create());
         }
 
         if (args.Length == 4 &&
@@ -759,6 +782,104 @@ public static class VeteransConsoleCommand
         return 0;
     }
 
+
+    internal static async Task<int> RunDecisionInterpretAsync(
+        string databasePath,
+        ArtifactId artifactId,
+        Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory,
+        IArtifactContentStore? contentStore)
+    {
+        var evidenceRepository =
+            new SqliteEvidenceRepository(databasePath);
+
+        await evidenceRepository.InitializeAsync();
+
+        if (contentStore is null)
+        {
+            global::System.Console.Error.WriteLine(
+                "Artifact content store is not configured.");
+
+            return 2;
+        }
+
+        var textExtractor =
+            ArtifactTextExtractionFactory.Create(
+                evidenceRepository,
+                contentStore);
+
+        var text =
+            await textExtractor.ExtractTextAsync(
+                artifactId);
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            global::System.Console.Error.WriteLine(
+                $"No text could be extracted from artifact: {artifactId.Value}");
+
+            return 1;
+        }
+
+        var runtime =
+            await runtimeFactory();
+
+        var coordinator =
+            VeteransEvidenceOrchestrationFactory
+                .CreateVaDecisionDocumentInterpretationCoordinator(
+                    textExtractor,
+                    runtime.TextStructuredExtractionCapabilityExecutor);
+
+        var result =
+            await coordinator.InterpretAsync(
+                artifactId,
+                new IntelligenceExecutionContext(
+                    runtime.SubjectId,
+                    new IntelligenceCorrelationId(
+                        $"veterans-decision-{Guid.NewGuid():N}"),
+                    runtime.ClassificationId,
+                    [artifactId]));
+
+        if (!result.IntelligenceResult.Success)
+        {
+            global::System.Console.Error.WriteLine(
+                result.IntelligenceResult.Message ??
+                "VA decision document interpretation failed.");
+
+            return 1;
+        }
+
+        if (result.Interpretation is null)
+        {
+            global::System.Console.Error.WriteLine(
+                "VA decision document interpretation produced no interpretation.");
+
+            return 1;
+        }
+
+        global::System.Console.WriteLine(
+            $"Artifact    : {result.Interpretation.ArtifactId.Value}");
+
+        global::System.Console.WriteLine(
+            $"Decision Date: " +
+            $"{result.Interpretation.DecisionDate?.ToString("u") ?? "Not provided"}");
+
+        global::System.Console.WriteLine(
+            $"Issues      : {result.Interpretation.IssueDecisions.Count}");
+
+        foreach (var issue in result.Interpretation.IssueDecisions)
+        {
+            global::System.Console.WriteLine();
+            global::System.Console.WriteLine(
+                $"Issue       : {issue.IssueDescription}");
+
+            global::System.Console.WriteLine(
+                $"Outcome     : {issue.Outcome}");
+
+            global::System.Console.WriteLine(
+                $"Rationale   : {issue.Rationale}");
+        }
+
+        return 0;
+    }
 
     private static async Task<int> RunExecuteAsync(
         string databasePath,

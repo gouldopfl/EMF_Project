@@ -14,6 +14,13 @@ internal sealed class
         TextSummarizationCapabilityExecutor
     { get; init; }
 
+    public required
+        IIntelligenceCapabilityExecutor<
+            TextStructuredExtractionRequest,
+            string>
+        TextStructuredExtractionCapabilityExecutor
+    { get; init; }
+
     public required string SubjectId { get; init; }
 
     public required ProtectionClassificationId

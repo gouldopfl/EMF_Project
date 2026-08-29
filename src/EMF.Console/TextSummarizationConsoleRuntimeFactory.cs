@@ -70,6 +70,10 @@ internal static class
                 new AzureOpenAITextSummarizationExecutorAdapter(
                     composition
                         .TextSummarizationCapabilityExecutor),
+            TextStructuredExtractionCapabilityExecutor =
+                composition
+                    .TextStructuredExtractionCapabilityExecutor,
+
             SubjectId = subjectId,
             ClassificationId = classification,
             AuditDatabasePath = auditPath

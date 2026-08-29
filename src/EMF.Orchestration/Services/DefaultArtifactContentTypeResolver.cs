@@ -1,3 +1,4 @@
+using System.Text.Json;
 using EMF.Core.Contracts;
 using EMF.Core.Models;
 
@@ -19,7 +20,14 @@ public sealed class DefaultArtifactContentTypeResolver :
         }
 
         var extension =
-            value as string;
+            value switch
+            {
+                string text => text,
+                JsonElement json when
+                    json.ValueKind == JsonValueKind.String =>
+                    json.GetString(),
+                _ => null
+            };
 
         return extension?.ToLowerInvariant() switch
         {

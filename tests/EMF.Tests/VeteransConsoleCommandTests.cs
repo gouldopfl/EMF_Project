@@ -45,6 +45,123 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
+    public async Task DecisionInterpret_RejectsMissingDatabase()
+    {
+        var exitCode =
+            await VeteransConsoleCommand.RunAsync(
+                [
+                    "decision",
+                    "interpret",
+                    "/tmp/emf-missing-veterans-decision.db",
+                    "artifact-1"
+                ]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
+    public async Task DecisionInterpret_InterpretsTextArtifact()
+    {
+        var databasePath = Path.GetTempFileName();
+        var contentPath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-decision-content-{Guid.NewGuid():N}");
+
+        var previousContentPath =
+            Environment.GetEnvironmentVariable(
+                "EMF_ARTIFACT_CONTENT_PATH");
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var evidenceRepository =
+                new SqliteEvidenceRepository(databasePath);
+
+            await evidenceRepository.InitializeAsync();
+
+            var artifact =
+                new EMF.Core.Models.Artifact
+                {
+                    Id =
+                        new ArtifactId(
+                            "artifact-decision-console-001"),
+                    Name = "decision.txt",
+                    ArtifactType = "file",
+                    Metadata =
+                        new Dictionary<string, object>
+                        {
+                            [EMF.Core.Models.ArtifactMetadataKeys.FileExtension] =
+                                ".txt"
+                        }
+                };
+
+            await evidenceRepository.AddArtifactAsync(artifact);
+
+            var contentStore =
+                new EMF.Persistence.Storage.FileSystemArtifactContentStore(
+                    contentPath);
+
+            await contentStore.WriteAsync(
+                artifact.Id,
+                System.Text.Encoding.UTF8.GetBytes(
+                    "VA decision: Sleep apnea is granted."));
+
+            var extractedText =
+                await ArtifactTextExtractionFactory
+                    .Create(
+                        evidenceRepository,
+                        contentStore)
+                    .ExtractTextAsync(artifact.Id);
+
+            Assert.Equal(
+                "VA decision: Sleep apnea is granted.",
+                extractedText);
+
+            Environment.SetEnvironmentVariable(
+                "EMF_ARTIFACT_CONTENT_PATH",
+                contentPath);
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunDecisionInterpretAsync(
+                        databasePath,
+                        artifact.Id,
+                        () => Task.FromResult(
+                        new TextSummarizationConsoleRuntime
+                        {
+                            TextSummarizationCapabilityExecutor =
+                                new FakeSummarizationExecutor(),
+                            TextStructuredExtractionCapabilityExecutor =
+                                new FakeStructuredExtractionExecutor(),
+                            SubjectId = "console-test",
+                            ClassificationId =
+                                new ProtectionClassificationId(
+                                    "confidential"),
+                            AuditDatabasePath = "test-audit.db"
+                        }),
+                        contentStore);
+
+            Assert.Equal(0, exitCode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                "EMF_ARTIFACT_CONTENT_PATH",
+                previousContentPath);
+
+            File.Delete(databasePath);
+
+            if (Directory.Exists(contentPath))
+                Directory.Delete(
+                    contentPath,
+                    recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task EvidenceClaim_RejectsMissingDatabase()
     {
         var exitCode =
@@ -665,6 +782,8 @@ public sealed class VeteransConsoleCommandTests
                         {
                             TextSummarizationCapabilityExecutor =
                                 new FakeSummarizationExecutor(),
+                            TextStructuredExtractionCapabilityExecutor =
+                                new FakeStructuredExtractionExecutor(),
                             SubjectId = "console-test",
                             ClassificationId =
                                 new ProtectionClassificationId(
@@ -1377,4 +1496,63 @@ public sealed class VeteransConsoleCommandTests
         }
     }
 
+
+    private sealed class FakeStructuredExtractionExecutor :
+        IIntelligenceCapabilityExecutor<
+            TextStructuredExtractionRequest,
+            string>
+    {
+        public Task<IntelligenceCapabilityResult<string>>
+            ExecuteAsync(
+                IntelligenceCapabilityId capabilityId,
+                TextStructuredExtractionRequest request,
+                IntelligenceExecutionContext context,
+                CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(
+                new IntelligenceCapabilityResult<string>
+                {
+                    Success = true,
+                    Output =
+                        """
+                        {
+                          "decisionDate": "2026-08-29T00:00:00Z",
+                          "issueDecisions": [{
+                            "issueDescription": "Sleep apnea",
+                            "outcome": "Granted",
+                            "rationale": "The evidence supports the claimed condition.",
+                            "favorableFindings": [
+                              "Sleep apnea is documented."
+                            ],
+                            "adverseFindings": [],
+                            "citedRegulations": [
+                              "38 CFR 3.310"
+                            ],
+                            "referencedEvidence": [
+                              "VA sleep study"
+                            ],
+                            "sourceExcerpts": [{
+                              "text": "Sleep apnea is granted.",
+                              "startOffset": 0,
+                              "length": 25
+                            }]
+                          }]
+                        }
+                        """,
+                    RequiresReview = true,
+                    Metadata = new IntelligenceExecutionMetadata
+                    {
+                        CapabilityId = capabilityId,
+                        ProviderId =
+                            new IntelligenceProviderId("test"),
+                        CorrelationId = context.CorrelationId,
+                        EngineName = "test",
+                        StartedUtc = DateTimeOffset.UtcNow,
+                        CompletedUtc = DateTimeOffset.UtcNow
+                    },
+                    SourceArtifactIds =
+                        context.InputArtifactIds.ToArray()
+                });
+        }
+    }
 }
