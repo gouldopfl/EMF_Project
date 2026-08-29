@@ -11,6 +11,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService :
     private readonly ClaimIssueAdjudicationReadinessService _readiness;
     private readonly ClaimIssueMeritsAssessmentService _merits;
     private readonly ClaimIssueDecisionRecommendationService _recommendations;
+    private readonly ClaimIssueDecisionReviewHistoryService _reviewHistory;
     private readonly ClaimIssueAdjudicationAgingStatusService _aging;
     private readonly ClaimIssueAdjudicationAgingPolicy _agingPolicy;
     private readonly TimeProvider _timeProvider;
@@ -20,6 +21,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService :
         ClaimIssueAdjudicationReadinessService readiness,
         ClaimIssueMeritsAssessmentService merits,
         ClaimIssueDecisionRecommendationService recommendations,
+        ClaimIssueDecisionReviewHistoryService reviewHistory,
         ClaimIssueAdjudicationAgingStatusService aging,
         ClaimIssueAdjudicationAgingPolicy agingPolicy,
         TimeProvider timeProvider)
@@ -28,6 +30,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService :
         ArgumentNullException.ThrowIfNull(readiness);
         ArgumentNullException.ThrowIfNull(merits);
         ArgumentNullException.ThrowIfNull(recommendations);
+        ArgumentNullException.ThrowIfNull(reviewHistory);
         ArgumentNullException.ThrowIfNull(aging);
         ArgumentNullException.ThrowIfNull(agingPolicy);
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -36,6 +39,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService :
         _readiness = readiness;
         _merits = merits;
         _recommendations = recommendations;
+        _reviewHistory = reviewHistory;
         _aging = aging;
         _agingPolicy = agingPolicy;
         _timeProvider = timeProvider;
@@ -74,14 +78,23 @@ public sealed class ClaimIssueAdjudicationAssessmentService :
                 Merits = merits
             };
 
+        var recommendation =
+            _recommendations.Assess(assessment);
+
+        var reviewHistory =
+            await _reviewHistory.GetAsync(
+                recommendation,
+                merits,
+                cancellationToken);
+
         return new ClaimIssueAdjudicationAssessment
         {
             Details = assessment.Details,
             Readiness = assessment.Readiness,
             Aging = assessment.Aging,
             Merits = assessment.Merits,
-            Recommendation =
-                _recommendations.Assess(assessment)
+            Recommendation = recommendation,
+            DecisionReviewHistory = reviewHistory
         };
     }
 }

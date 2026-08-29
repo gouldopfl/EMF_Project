@@ -461,6 +461,22 @@ public static class VeteransConsoleCommand
     }
 
 
+    private static ClaimIssueDecisionReviewHistoryService
+        CreateReviewHistoryService(
+            string databasePath)
+    {
+        var repository =
+            new SqliteVaDecisionRepository(databasePath);
+
+        return new ClaimIssueDecisionReviewHistoryService(
+            new ClaimIssueDecisionComparisonHistoryService(
+                repository,
+                new ClaimIssueDecisionComparisonService()),
+            new ClaimIssueDecisionReviewService(),
+            new ClaimIssueDecisionReviewAnalysisService());
+    }
+
+
     private static ClaimIssueAdjudicationAssessmentService
         CreateAdjudicationAssessmentService(
             string databasePath)
@@ -542,6 +558,7 @@ public static class VeteransConsoleCommand
                 new ClaimIssueAdjudicationReadinessService(),
                 merits,
                 new ClaimIssueDecisionRecommendationService(),
+                CreateReviewHistoryService(databasePath),
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
                     new ClaimIssueAdjudicationAgingPolicyService()),

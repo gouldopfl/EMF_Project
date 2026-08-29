@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using System.Reflection;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
@@ -23,6 +24,7 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationReadinessService(),
                 CreateMeritsService(),
                 new ClaimIssueDecisionRecommendationService(),
+                CreateReviewHistoryService(),
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
                     new ClaimIssueAdjudicationAgingPolicyService()),
@@ -84,6 +86,7 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationReadinessService(),
                 CreateMeritsService(),
                 new ClaimIssueDecisionRecommendationService(),
+                CreateReviewHistoryService(),
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
                     new ClaimIssueAdjudicationAgingPolicyService()),
@@ -108,6 +111,70 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
         Assert.NotNull(result.Recommendation);
         Assert.False(result.Recommendation!.HasRecommendation);
         Assert.Null(result.Recommendation.RecommendedOutcome);
+    }
+
+    [Fact]
+    public async Task GetAsync_composes_decision_review_history()
+    {
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-history"),
+                ClaimId = new ClaimId("claim-1"),
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+        var decision =
+            new IssueDecision
+            {
+                Id = new IssueDecisionId("decision-history"),
+                VaDecisionId = new VaDecisionId("va-decision-history"),
+                ClaimIssueId = issue.Id,
+                Outcome = IssueDecisionOutcomes.Denied
+            };
+
+        var repository =
+            new EmptyDecisionRepository
+            {
+                Decisions = [decision]
+            };
+
+        var details =
+            CreateDetails(issue, []);
+
+        var reviewHistory =
+            new ClaimIssueDecisionReviewHistoryService(
+                new ClaimIssueDecisionComparisonHistoryService(
+                    repository,
+                    new ClaimIssueDecisionComparisonService()),
+                new ClaimIssueDecisionReviewService(),
+                new ClaimIssueDecisionReviewAnalysisService());
+
+        var service =
+            new ClaimIssueAdjudicationAssessmentService(
+                Proxy<IClaimIssueAdjudicationDetailsService>(
+                    (method, args) =>
+                        Task.FromResult<
+                            ClaimIssueAdjudicationDetails?>(details)),
+                new ClaimIssueAdjudicationReadinessService(),
+                CreateMeritsService(),
+                new ClaimIssueDecisionRecommendationService(),
+                reviewHistory,
+                new ClaimIssueAdjudicationAgingStatusService(
+                    new ClaimIssueAdjudicationAgingService(),
+                    new ClaimIssueAdjudicationAgingPolicyService()),
+                ClaimIssueAdjudicationAgingPolicies.Default,
+                TimeProvider.System);
+
+        var result =
+            await service.GetAsync(issue.Id);
+
+        Assert.NotNull(result);
+        Assert.Single(result!.DecisionReviewHistory);
+        Assert.Equal(
+            issue.Id,
+            result.DecisionReviewHistory[0].ClaimIssueId);
     }
 
     [Fact]
@@ -148,6 +215,7 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationReadinessService(),
                 CreateMeritsService(),
                 new ClaimIssueDecisionRecommendationService(),
+                CreateReviewHistoryService(),
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
                     new ClaimIssueAdjudicationAgingPolicyService()),
@@ -166,6 +234,67 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
         Assert.True(result.Readiness.IsReadyForAdjudication);
         Assert.True(result.RequiresAttention);
         Assert.True(result.ShouldConsiderFollowUp);
+    }
+
+    private static ClaimIssueDecisionReviewHistoryService
+        CreateReviewHistoryService()
+    {
+        var repository =
+            new EmptyDecisionRepository();
+
+        return new ClaimIssueDecisionReviewHistoryService(
+            new ClaimIssueDecisionComparisonHistoryService(
+                repository,
+                new ClaimIssueDecisionComparisonService()),
+            new ClaimIssueDecisionReviewService(),
+            new ClaimIssueDecisionReviewAnalysisService());
+    }
+
+    private sealed class EmptyDecisionRepository :
+        IVaDecisionRepository
+    {
+        public IReadOnlyList<IssueDecision> Decisions { get; init; } = [];
+
+        public Task<IReadOnlyList<IssueDecision>>
+            GetIssueDecisionsAsync(
+                ClaimIssueId claimIssueId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult(Decisions);
+
+        public Task AddDecisionAsync(
+            VaDecision decision,
+            IReadOnlyCollection<IssueDecision> issueDecisions,
+            IReadOnlyCollection<IssueDecisionSubmission> submissionAssociations,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<VaDecision?> GetDecisionAsync(
+            VaDecisionId vaDecisionId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<IssueDecision>>
+            GetIssueDecisionsAsync(
+                VaDecisionId vaDecisionId,
+                CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<SubmissionId>>
+            GetSubmissionIdsAsync(
+                IssueDecisionId issueDecisionId,
+                CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task AddDecisionArtifactAsync(
+            VaDecisionArtifact association,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ArtifactId>>
+            GetArtifactIdsAsync(
+                VaDecisionId vaDecisionId,
+                CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FixedTimeProvider(
