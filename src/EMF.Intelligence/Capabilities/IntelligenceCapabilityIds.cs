@@ -21,4 +21,10 @@ public static class IntelligenceCapabilityIds
     {
         get;
     } = new("text.keywords.extract");
+
+    public static IntelligenceCapabilityId
+        TextStructuredExtraction
+    {
+        get;
+    } = new("text.structured.extract");
 }
