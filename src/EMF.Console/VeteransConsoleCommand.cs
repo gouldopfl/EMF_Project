@@ -90,7 +90,8 @@ public static class VeteransConsoleCommand
                 decisionDatabasePath,
                 new ArtifactId(args[3]),
                 runtimeFactory,
-                ArtifactContentStoreFactory.Create());
+                ArtifactContentStoreFactory.Create(),
+                global::System.Console.Out);
         }
 
         if (args.Length == 4 &&
@@ -787,7 +788,8 @@ public static class VeteransConsoleCommand
         string databasePath,
         ArtifactId artifactId,
         Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory,
-        IArtifactContentStore? contentStore)
+        IArtifactContentStore? contentStore,
+        TextWriter output)
     {
         var evidenceRepository =
             new SqliteEvidenceRepository(databasePath);
@@ -855,26 +857,29 @@ public static class VeteransConsoleCommand
             return 1;
         }
 
-        global::System.Console.WriteLine(
+        output.WriteLine(
             $"Artifact    : {result.Interpretation.ArtifactId.Value}");
 
-        global::System.Console.WriteLine(
+        output.WriteLine(
             $"Decision Date: " +
             $"{result.Interpretation.DecisionDate?.ToString("u") ?? "Not provided"}");
 
-        global::System.Console.WriteLine(
+        output.WriteLine(
             $"Issues      : {result.Interpretation.IssueDecisions.Count}");
+
+        output.WriteLine(
+            $"Requires Review: {result.IntelligenceResult.RequiresReview}");
 
         foreach (var issue in result.Interpretation.IssueDecisions)
         {
-            global::System.Console.WriteLine();
-            global::System.Console.WriteLine(
+            output.WriteLine();
+            output.WriteLine(
                 $"Issue       : {issue.IssueDescription}");
 
-            global::System.Console.WriteLine(
+            output.WriteLine(
                 $"Outcome     : {issue.Outcome}");
 
-            global::System.Console.WriteLine(
+            output.WriteLine(
                 $"Rationale   : {issue.Rationale}");
         }
 

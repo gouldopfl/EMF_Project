@@ -124,6 +124,8 @@ public sealed class VeteransConsoleCommandTests
                 "EMF_ARTIFACT_CONTENT_PATH",
                 contentPath);
 
+            using var output = new StringWriter();
+
             var exitCode =
                 await VeteransConsoleCommand
                     .RunDecisionInterpretAsync(
@@ -142,9 +144,13 @@ public sealed class VeteransConsoleCommandTests
                                     "confidential"),
                             AuditDatabasePath = "test-audit.db"
                         }),
-                        contentStore);
+                        contentStore,
+                        output);
 
             Assert.Equal(0, exitCode);
+            Assert.Contains(
+                "Requires Review: True",
+                output.ToString());
         }
         finally
         {
