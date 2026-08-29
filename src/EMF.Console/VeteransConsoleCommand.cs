@@ -508,6 +508,10 @@ public static class VeteransConsoleCommand
                 $"{result.Aging.Aging.LastActivityAt:O}");
 
             output.WriteLine(
+                $"Inactive Days: " +
+                $"{result.Aging.Aging.DaysSinceLastActivity}");
+
+            output.WriteLine(
                 $"Aging Status : {result.Aging.AlertLevel}");
         }
 
