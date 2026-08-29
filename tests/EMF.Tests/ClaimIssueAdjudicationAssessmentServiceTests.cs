@@ -165,6 +165,7 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
         Assert.Equal(100, result.Aging!.Aging.AgeInDays);
         Assert.True(result.Readiness.IsReadyForAdjudication);
         Assert.True(result.RequiresAttention);
+        Assert.True(result.ShouldConsiderFollowUp);
     }
 
     private sealed class FixedTimeProvider(

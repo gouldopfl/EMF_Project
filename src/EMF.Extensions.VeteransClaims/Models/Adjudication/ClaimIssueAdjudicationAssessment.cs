@@ -15,4 +15,7 @@ public sealed class ClaimIssueAdjudicationAssessment
     public bool RequiresAttention =>
         !Readiness.IsReadyForAdjudication ||
         Aging?.RequiresAttention == true;
+
+    public bool ShouldConsiderFollowUp =>
+        Aging?.ShouldConsiderFollowUp == true;
 }
