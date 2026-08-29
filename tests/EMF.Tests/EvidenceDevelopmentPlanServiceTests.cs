@@ -29,7 +29,10 @@ public sealed class EvidenceDevelopmentPlanServiceTests
             await service.GetEvidenceDevelopmentPlanAsync(planId);
 
         Assert.NotNull(result);
-        Assert.Equal(plan.Id, result!.Plan.Id);
+        Assert.Equal(
+            EvidenceDevelopmentPlanStatuses.Unknown,
+            result!.Status!.Status);
+        Assert.Equal(plan.Id, result.Plan.Id);
         Assert.Single(result.Requirements);
         Assert.Single(result.EvidenceGaps);
         Assert.Single(result.Artifacts);
@@ -80,8 +83,12 @@ public sealed class EvidenceDevelopmentPlanServiceTests
 
         Assert.NotNull(result);
 
+        Assert.Equal(
+            EvidenceDevelopmentPlanStatuses.Complete,
+            result!.Status!.Status);
+
         var detail =
-            Assert.Single(result!.GapDetails);
+            Assert.Single(result.GapDetails);
 
         Assert.Equal(gap.Id, detail.Id);
         Assert.Equal(

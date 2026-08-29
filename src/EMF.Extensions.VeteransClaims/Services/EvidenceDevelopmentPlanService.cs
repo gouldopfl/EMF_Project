@@ -9,6 +9,7 @@ public sealed class EvidenceDevelopmentPlanService :
 {
     private readonly IEvidenceDevelopmentPlanRepository _repository;
     private readonly IEvidenceGapRepository? _gaps;
+    private readonly EvidenceDevelopmentPlanStatusService _status;
 
     public EvidenceDevelopmentPlanService(
         IEvidenceDevelopmentPlanRepository repository)
@@ -24,6 +25,7 @@ public sealed class EvidenceDevelopmentPlanService :
 
         _repository = repository;
         _gaps = gaps;
+        _status = new EvidenceDevelopmentPlanStatusService();
     }
 
 
@@ -145,7 +147,7 @@ public sealed class EvidenceDevelopmentPlanService :
                 results.Add(result);
         }
 
-        return new EvidenceDevelopmentPlanDetails
+        var details = new EvidenceDevelopmentPlanDetails
         {
             Plan = plan,
             Requirements = requirements,
@@ -154,6 +156,18 @@ public sealed class EvidenceDevelopmentPlanService :
             Artifacts = artifacts,
             Executions = executions,
             Results = results
+        };
+
+        return new EvidenceDevelopmentPlanDetails
+        {
+            Plan = details.Plan,
+            Requirements = details.Requirements,
+            EvidenceGaps = details.EvidenceGaps,
+            GapDetails = details.GapDetails,
+            Artifacts = details.Artifacts,
+            Executions = details.Executions,
+            Results = details.Results,
+            Status = _status.Assess(details)
         };
     }
 }

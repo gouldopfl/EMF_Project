@@ -7,6 +7,8 @@ public sealed class EvidenceDevelopmentPlanDetails
     public required IReadOnlyList<EvidenceDevelopmentPlanRequirement>
         Requirements { get; init; }
 
+    public EvidenceDevelopmentPlanStatus? Status { get; init; }
+
     public required IReadOnlyList<EvidenceDevelopmentPlanEvidenceGap>
         EvidenceGaps { get; init; }
 
