@@ -587,6 +587,13 @@ public static class VeteransConsoleCommand
             $"Follow Up   : {result.ShouldConsiderFollowUp}");
 
         output.WriteLine(
+            $"Merits      : {result.Merits?.Outcome ?? "None"}");
+
+        output.WriteLine(
+            $"Recommend   : " +
+            $"{result.Recommendation?.RecommendedOutcome ?? "None"}");
+
+        output.WriteLine(
             $"Outstanding : {result.Readiness.OutstandingRequirementCount}");
 
         foreach (var blocking in

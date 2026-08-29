@@ -231,6 +231,14 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
+                "Merits      : Unresolved",
+                rendered);
+
+            Assert.Contains(
+                "Recommend   : None",
+                rendered);
+
+            Assert.Contains(
                 "Timeline    : 1",
                 rendered);
 
