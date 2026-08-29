@@ -54,5 +54,56 @@ public sealed class ClaimIssueAdjudicationAgingStatusServiceTests
             ClaimIssueAdjudicationAgingAlertLevels
                 .ConsiderFollowUp,
             result.AlertLevel);
+        Assert.True(result.RequiresAttention);
+        Assert.True(result.ShouldConsiderFollowUp);
     }
+
+    [Theory]
+    [InlineData(
+        ClaimIssueAdjudicationAgingAlertLevels.Normal,
+        false,
+        false)]
+    [InlineData(
+        ClaimIssueAdjudicationAgingAlertLevels.Attention,
+        true,
+        false)]
+    [InlineData(
+        ClaimIssueAdjudicationAgingAlertLevels.ConsiderFollowUp,
+        true,
+        true)]
+    public void Aging_status_exposes_semantic_flags(
+        string alertLevel,
+        bool requiresAttention,
+        bool shouldConsiderFollowUp)
+    {
+        var status =
+            new ClaimIssueAdjudicationAgingStatus
+            {
+                Aging =
+                    new ClaimIssueAdjudicationAging
+                    {
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-flags"),
+                        PendingSince =
+                            new DateTimeOffset(
+                                2026, 8, 1, 0, 0, 0,
+                                TimeSpan.Zero),
+                        AgeInDays = 27,
+                        LastActivityAt =
+                            new DateTimeOffset(
+                                2026, 8, 10, 0, 0, 0,
+                                TimeSpan.Zero),
+                        DaysSinceLastActivity = 18
+                    },
+                AlertLevel = alertLevel
+            };
+
+        Assert.Equal(
+            requiresAttention,
+            status.RequiresAttention);
+        Assert.Equal(
+            shouldConsiderFollowUp,
+            status.ShouldConsiderFollowUp);
+    }
+
 }
