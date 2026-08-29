@@ -1,3 +1,4 @@
+using System.Text.Json;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Orchestration;
 using EMF.Intelligence.Capabilities;
@@ -88,6 +89,99 @@ public sealed class VaDecisionDocumentInterpretationServiceTests
         Assert.Equal(
             IntelligenceCapabilityIds.TextStructuredExtraction,
             executor.CapabilityId);
+    }
+
+
+    [Fact]
+    public async Task InterpretAsync_PreservesCapabilityFailure()
+    {
+        var capabilityResult =
+            new IntelligenceCapabilityResult<string>
+            {
+                Success = false,
+                Message = "Unavailable.",
+                RequiresReview = true,
+                Metadata = TestMetadata()
+            };
+
+        var service =
+            new VaDecisionDocumentInterpretationService(
+                new FakeExecutor(capabilityResult));
+
+        var result =
+            await service.InterpretAsync(
+                new ArtifactId("decision-1"),
+                "VA decision text.",
+                TestContext());
+
+        Assert.Same(
+            capabilityResult,
+            result.IntelligenceResult);
+
+        Assert.Null(result.Interpretation);
+    }
+
+
+    [Fact]
+    public async Task InterpretAsync_RejectsUnknownOutcome()
+    {
+        var capabilityResult =
+            new IntelligenceCapabilityResult<string>
+            {
+                Success = true,
+                Output =
+                    """
+                    {
+                      "decisionDate": null,
+                      "issueDecisions": [{
+                        "issueDescription": "Sleep apnea",
+                        "outcome": "Pending",
+                        "rationale": "",
+                        "favorableFindings": [],
+                        "adverseFindings": [],
+                        "citedRegulations": [],
+                        "referencedEvidence": [],
+                        "sourceExcerpts": []
+                      }]
+                    }
+                    """,
+                RequiresReview = true,
+                Metadata = TestMetadata()
+            };
+
+        var service =
+            new VaDecisionDocumentInterpretationService(
+                new FakeExecutor(capabilityResult));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.InterpretAsync(
+                new ArtifactId("decision-1"),
+                "VA decision text.",
+                TestContext()));
+    }
+
+
+    [Fact]
+    public async Task InterpretAsync_RejectsMalformedJson()
+    {
+        var capabilityResult =
+            new IntelligenceCapabilityResult<string>
+            {
+                Success = true,
+                Output = "{ not-json",
+                RequiresReview = true,
+                Metadata = TestMetadata()
+            };
+
+        var service =
+            new VaDecisionDocumentInterpretationService(
+                new FakeExecutor(capabilityResult));
+
+        await Assert.ThrowsAsync<JsonException>(
+            () => service.InterpretAsync(
+                new ArtifactId("decision-1"),
+                "VA decision text.",
+                TestContext()));
     }
 
     private sealed class FakeExecutor(
