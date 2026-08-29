@@ -50,6 +50,58 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_AggregatesAttentionAcrossIssues()
+    {
+        var claimId = new ClaimId("claim-002");
+
+        var claim =
+            new Claim
+            {
+                Id = claimId,
+                VeteranId = new VeteranId("veteran-002")
+            };
+
+        var normalIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-normal"),
+                ClaimId = claimId,
+                ClaimIssueType = "ServiceConnection"
+            };
+
+        var agingIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-aging"),
+                ClaimId = claimId,
+                ClaimIssueType = "ServiceConnection"
+            };
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(claim),
+                new FakeClaimIssueRepository(
+                    normalIssue,
+                    agingIssue),
+                new FakeIssueAssessmentService(
+                    CreateAssessment(
+                        normalIssue,
+                        requiresAttention: false,
+                        shouldConsiderFollowUp: false),
+                    CreateAssessment(
+                        agingIssue,
+                        requiresAttention: true,
+                        shouldConsiderFollowUp: true)));
+
+        var result = await service.GetAsync(claimId);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result!.Issues.Count);
+        Assert.True(result.RequiresAttention);
+        Assert.True(result.ShouldConsiderFollowUp);
+    }
+
+    [Fact]
     public async Task GetAsync_ReturnsNullWhenClaimDoesNotExist()
     {
         var service =
