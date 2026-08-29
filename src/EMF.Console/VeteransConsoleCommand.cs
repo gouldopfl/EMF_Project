@@ -881,6 +881,21 @@ public static class VeteransConsoleCommand
 
             output.WriteLine(
                 $"Rationale   : {issue.Rationale}");
+
+            foreach (var finding in issue.FavorableFindings)
+                output.WriteLine($"Favorable   : {finding}");
+
+            foreach (var finding in issue.AdverseFindings)
+                output.WriteLine($"Adverse     : {finding}");
+
+            foreach (var regulation in issue.CitedRegulations)
+                output.WriteLine($"Regulation  : {regulation}");
+
+            foreach (var evidence in issue.ReferencedEvidence)
+                output.WriteLine($"Evidence    : {evidence}");
+
+            foreach (var excerpt in issue.SourceExcerpts)
+                output.WriteLine($"Source      : {excerpt.Text}");
         }
 
         return 0;

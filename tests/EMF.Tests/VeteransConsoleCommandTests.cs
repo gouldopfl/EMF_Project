@@ -148,9 +148,27 @@ public sealed class VeteransConsoleCommandTests
                         output);
 
             Assert.Equal(0, exitCode);
+            var rendered = output.ToString();
+
             Assert.Contains(
                 "Requires Review: True",
-                output.ToString());
+                rendered);
+
+            Assert.Contains(
+                "Favorable   : Sleep apnea is documented.",
+                rendered);
+
+            Assert.Contains(
+                "Regulation  : 38 CFR 3.310",
+                rendered);
+
+            Assert.Contains(
+                "Evidence    : VA sleep study",
+                rendered);
+
+            Assert.Contains(
+                "Source      : Sleep apnea is granted.",
+                rendered);
         }
         finally
         {
