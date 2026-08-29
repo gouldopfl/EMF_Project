@@ -455,6 +455,10 @@ public static class VeteransConsoleCommand
             output.WriteLine(
                 $"  Recommend : " +
                 $"{issue.Recommendation?.RecommendedOutcome ?? "None"}");
+
+            output.WriteLine(
+                $"  Reviews   : " +
+                $"{issue.DecisionReviewHistory.Count}");
         }
 
         return 0;
