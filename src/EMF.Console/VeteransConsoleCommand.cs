@@ -476,6 +476,12 @@ public static class VeteransConsoleCommand
             $"Ready       : {result.Readiness.IsReadyForAdjudication}");
 
         output.WriteLine(
+            $"Attention   : {result.RequiresAttention}");
+
+        output.WriteLine(
+            $"Follow Up   : {result.ShouldConsiderFollowUp}");
+
+        output.WriteLine(
             $"Outstanding : {result.Readiness.OutstandingRequirementCount}");
 
         foreach (var blocking in

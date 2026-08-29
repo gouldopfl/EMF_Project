@@ -223,6 +223,14 @@ public sealed class VeteransConsoleCommandTests
             Assert.Equal(0, exitCode);
 
             Assert.Contains(
+                "Attention   : False",
+                rendered);
+
+            Assert.Contains(
+                "Follow Up   : False",
+                rendered);
+
+            Assert.Contains(
                 "Timeline    : 1",
                 rendered);
 
