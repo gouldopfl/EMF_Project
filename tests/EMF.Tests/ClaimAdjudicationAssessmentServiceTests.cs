@@ -102,6 +102,43 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_DoesNotEscalateAttentionToFollowUp()
+    {
+        var claimId = new ClaimId("claim-003");
+
+        var claim =
+            new Claim
+            {
+                Id = claimId,
+                VeteranId = new VeteranId("veteran-003")
+            };
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-attention"),
+                ClaimId = claimId,
+                ClaimIssueType = "ServiceConnection"
+            };
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(claim),
+                new FakeClaimIssueRepository(issue),
+                new FakeIssueAssessmentService(
+                    CreateAssessment(
+                        issue,
+                        requiresAttention: true,
+                        shouldConsiderFollowUp: false)));
+
+        var result = await service.GetAsync(claimId);
+
+        Assert.NotNull(result);
+        Assert.True(result!.RequiresAttention);
+        Assert.False(result.ShouldConsiderFollowUp);
+    }
+
+    [Fact]
     public async Task GetAsync_ReturnsNullWhenClaimDoesNotExist()
     {
         var service =
