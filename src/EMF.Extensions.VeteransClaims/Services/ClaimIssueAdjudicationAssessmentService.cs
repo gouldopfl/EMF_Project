@@ -4,7 +4,8 @@ using EMF.Extensions.VeteransClaims.Models.Identities;
 
 namespace EMF.Extensions.VeteransClaims.Services;
 
-public sealed class ClaimIssueAdjudicationAssessmentService
+public sealed class ClaimIssueAdjudicationAssessmentService :
+    IClaimIssueAdjudicationAssessmentService
 {
     private readonly IClaimIssueAdjudicationDetailsService _details;
     private readonly ClaimIssueAdjudicationReadinessService _readiness;
