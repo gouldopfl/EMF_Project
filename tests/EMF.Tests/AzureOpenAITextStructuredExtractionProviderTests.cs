@@ -81,4 +81,113 @@ public sealed class
             """{"outcome":"string"}""",
             client.SystemInstruction);
     }
+    [Fact]
+    public async Task ExecuteAsync_RejectsInvalidJson()
+    {
+        var client =
+            new RecordingAzureOpenAITextClient
+            {
+                Completion = new("{ not-json")
+            };
+
+        var provider =
+            new AzureOpenAITextStructuredExtractionProvider(
+                client,
+                new AzureOpenAIOptions
+                {
+                    Endpoint = "https://example.openai.azure.com",
+                    DeploymentName = "extract-deployment",
+                    ProviderId = "azure.openai"
+                });
+
+        await Assert.ThrowsAsync<
+            EMF.Intelligence.AzureOpenAI.Exceptions.
+                AzureOpenAIInvalidResponseException>(
+                () => provider.ExecuteAsync(
+                    new TextStructuredExtractionRequest(
+                        "Decision text.",
+                        "Extract.",
+                        """{"outcome":"string"}"""),
+                    TestContext()));
+    }
+
+
+    [Fact]
+    public async Task ExecuteAsync_RecordsNonStopFinishReasonWarning()
+    {
+        var client =
+            new RecordingAzureOpenAITextClient
+            {
+                Completion =
+                    new(
+                        """{"outcome":"Denied"}""",
+                        "gpt-test",
+                        "operation-structured",
+                        "Length")
+            };
+
+        var provider =
+            new AzureOpenAITextStructuredExtractionProvider(
+                client,
+                new AzureOpenAIOptions
+                {
+                    Endpoint = "https://example.openai.azure.com",
+                    DeploymentName = "extract-deployment",
+                    ProviderId = "azure.openai"
+                });
+
+        var result =
+            await provider.ExecuteAsync(
+                new TextStructuredExtractionRequest(
+                    "Decision text.",
+                    "Extract.",
+                    """{"outcome":"string"}"""),
+                TestContext());
+
+        Assert.Contains(
+            result.Warnings,
+            warning => warning.Contains("Length"));
+    }
+
+
+    [Fact]
+    public async Task ExecuteAsync_HonorsCancellation()
+    {
+        var client =
+            new RecordingAzureOpenAITextClient();
+
+        var provider =
+            new AzureOpenAITextStructuredExtractionProvider(
+                client,
+                new AzureOpenAIOptions
+                {
+                    Endpoint = "https://example.openai.azure.com",
+                    DeploymentName = "extract-deployment",
+                    ProviderId = "azure.openai"
+                });
+
+        using var cancellation =
+            new CancellationTokenSource();
+
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => provider.ExecuteAsync(
+                new TextStructuredExtractionRequest(
+                    "Decision text.",
+                    "Extract.",
+                    """{"outcome":"string"}"""),
+                TestContext(),
+                cancellation.Token));
+
+        Assert.Null(client.Input);
+    }
+
+    private static IntelligenceExecutionContext TestContext() =>
+        new(
+            "security-steward",
+            new IntelligenceCorrelationId("operation-001"),
+            new ProtectionClassificationId("confidential"),
+            Array.Empty<ArtifactId>());
+
 }
