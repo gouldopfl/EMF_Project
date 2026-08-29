@@ -23,6 +23,8 @@ public sealed class
         : this(
             new AzureOpenAITextSummarizationProvider(
                 options),
+            new AzureOpenAITextStructuredExtractionProvider(
+                options),
             authorizationPolicy,
             auditSink,
             permittedClassifications)
@@ -33,12 +35,17 @@ public sealed class
         IIntelligenceCapabilityProvider<
             TextSummarizationRequest,
             string> provider,
+        IIntelligenceCapabilityProvider<
+            TextStructuredExtractionRequest,
+            string> structuredProvider,
         IAuthorizationPolicy authorizationPolicy,
         ISecurityAuditSink auditSink,
         IEnumerable<ProtectionClassificationId>
             permittedClassifications)
     {
         ArgumentNullException.ThrowIfNull(provider);
+        ArgumentNullException.ThrowIfNull(
+            structuredProvider);
         ArgumentNullException.ThrowIfNull(
             authorizationPolicy);
         ArgumentNullException.ThrowIfNull(auditSink);
@@ -58,12 +65,20 @@ public sealed class
                 permittedClassifications);
 
         var grants =
-            classifications.Select(
-                classification =>
-                    new IntelligenceProviderRoutingGrant(
-                        provider.ProviderId,
-                        provider.Id,
-                        classification));
+            classifications
+                .SelectMany(
+                    classification =>
+                        new[]
+                        {
+                            new IntelligenceProviderRoutingGrant(
+                                provider.ProviderId,
+                                provider.Id,
+                                classification),
+                            new IntelligenceProviderRoutingGrant(
+                                structuredProvider.ProviderId,
+                                structuredProvider.Id,
+                                classification)
+                        });
 
         var routingPolicy =
             new ConfiguredIntelligenceProviderRoutingPolicy(
@@ -84,6 +99,18 @@ public sealed class
         TextSummarizationCapabilityExecutor =
             capabilityExecutor;
 
+        TextStructuredExtractionCapabilityExecutor =
+            new IntelligenceCapabilityExecutor<
+                TextStructuredExtractionRequest,
+                string>(
+                new IntelligenceCapabilityProviderRouter<
+                    TextStructuredExtractionRequest,
+                    string>(
+                    [structuredProvider],
+                    routingPolicy),
+                authorizationPolicy,
+                auditSink);
+
         var agent =
             new TextSummarizationAgent(
                 capabilityExecutor);
@@ -102,6 +129,12 @@ public sealed class
         TextSummarizationRequest,
         string>
         TextSummarizationCapabilityExecutor
+    { get; }
+
+    public IIntelligenceCapabilityExecutor<
+        TextStructuredExtractionRequest,
+        string>
+        TextStructuredExtractionCapabilityExecutor
     { get; }
 
     public IIntelligenceAgentExecutor<

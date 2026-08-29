@@ -39,6 +39,15 @@ public sealed class AzureOpenAICompositionTests
         var composition =
             new AzureOpenAITextIntelligenceComposition(
                 provider,
+                new AzureOpenAITextStructuredExtractionProvider(
+                    client,
+                    new AzureOpenAIOptions
+                    {
+                        Endpoint =
+                            "https://example.openai.azure.com",
+                        DeploymentName = "summary-deployment",
+                        ProviderId = "azure.openai"
+                    }),
                 new AuthorizationPolicy(
                     new InMemoryAuthorizationContextProvider(
                         Array.Empty<
@@ -108,6 +117,15 @@ public sealed class AzureOpenAICompositionTests
         var composition =
             new AzureOpenAITextIntelligenceComposition(
                 provider,
+                new AzureOpenAITextStructuredExtractionProvider(
+                    client,
+                    new AzureOpenAIOptions
+                    {
+                        Endpoint =
+                            "https://example.openai.azure.com",
+                        DeploymentName = "summary-deployment",
+                        ProviderId = "azure.openai"
+                    }),
                 new AuthorizationPolicy(
                     new InMemoryAuthorizationContextProvider(
                         Array.Empty<
