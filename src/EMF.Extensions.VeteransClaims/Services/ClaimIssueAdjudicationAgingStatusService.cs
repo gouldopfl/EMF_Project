@@ -16,6 +16,33 @@ public sealed class ClaimIssueAdjudicationAgingStatusService
         _policy = policy;
     }
 
+    public ClaimIssueAdjudicationAgingStatus? TryAssess(
+        ClaimIssueId claimIssueId,
+        IReadOnlyCollection<ClaimIssueAdjudicationEvent> timeline,
+        DateTimeOffset asOf,
+        ClaimIssueAdjudicationAgingPolicy policy)
+    {
+        var aging =
+            _aging.TryAssess(
+                claimIssueId,
+                timeline,
+                asOf);
+
+        if (aging is null)
+            return null;
+
+        var alertLevel =
+            _policy.Evaluate(
+                aging,
+                policy);
+
+        return new ClaimIssueAdjudicationAgingStatus
+        {
+            Aging = aging,
+            AlertLevel = alertLevel
+        };
+    }
+
     public ClaimIssueAdjudicationAgingStatus Assess(
         ClaimIssueId claimIssueId,
         IReadOnlyCollection<ClaimIssueAdjudicationEvent> timeline,

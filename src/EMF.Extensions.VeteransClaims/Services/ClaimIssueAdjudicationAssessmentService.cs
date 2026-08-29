@@ -57,28 +57,12 @@ public sealed class ClaimIssueAdjudicationAssessmentService
                 claimIssueId,
                 cancellationToken);
 
-        ClaimIssueAdjudicationAgingStatus? aging = null;
-
-        if (details.Timeline.Count > 0)
-        {
-            var lastEvent =
-                details.Timeline
-                    .OrderBy(x => x.OccurredAt)
-                    .Last();
-
-            if (lastEvent.EventType !=
-                    ClaimIssueAdjudicationEventTypes.VaDecision &&
-                lastEvent.EventType !=
-                    ClaimIssueAdjudicationEventTypes.CourtDecision)
-            {
-                aging =
-                    _aging.Assess(
-                        claimIssueId,
-                        details.Timeline,
-                        _timeProvider.GetUtcNow(),
-                        _agingPolicy);
-            }
-        }
+        var aging =
+            _aging.TryAssess(
+                claimIssueId,
+                details.Timeline,
+                _timeProvider.GetUtcNow(),
+                _agingPolicy);
 
         var assessment =
             new ClaimIssueAdjudicationAssessment

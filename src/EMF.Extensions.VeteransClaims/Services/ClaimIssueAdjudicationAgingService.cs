@@ -5,6 +5,30 @@ namespace EMF.Extensions.VeteransClaims.Services;
 
 public sealed class ClaimIssueAdjudicationAgingService
 {
+    public ClaimIssueAdjudicationAging? TryAssess(
+        ClaimIssueId claimIssueId,
+        IReadOnlyCollection<ClaimIssueAdjudicationEvent> timeline,
+        DateTimeOffset asOf)
+    {
+        ArgumentNullException.ThrowIfNull(timeline);
+
+        if (timeline.Count == 0)
+            return null;
+
+        try
+        {
+            return Assess(
+                claimIssueId,
+                timeline,
+                asOf);
+        }
+        catch (InvalidOperationException ex)
+            when (ex.Message == "Adjudication cycle is closed.")
+        {
+            return null;
+        }
+    }
+
     public ClaimIssueAdjudicationAging Assess(
         ClaimIssueId claimIssueId,
         IReadOnlyCollection<ClaimIssueAdjudicationEvent> timeline,
