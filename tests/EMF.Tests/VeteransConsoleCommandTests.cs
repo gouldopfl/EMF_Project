@@ -1134,9 +1134,14 @@ public sealed class VeteransConsoleCommandTests
                 "  Recommend : None",
                 rendered);
 
-            
+
             Assert.Contains(
                 "  Reviews   : 0",
+                rendered);
+
+
+            Assert.Contains(
+                "  Review Req: 0",
                 rendered);
         }
         finally

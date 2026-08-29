@@ -459,6 +459,12 @@ public static class VeteransConsoleCommand
             output.WriteLine(
                 $"  Reviews   : " +
                 $"{issue.DecisionReviewHistory.Count}");
+
+
+            output.WriteLine(
+                $"  Review Req: " +
+                $"{issue.DecisionReviewHistory.Count(
+                    x => x.Review.RequiresReview)}");
         }
 
         return 0;
