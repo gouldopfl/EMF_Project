@@ -80,6 +80,16 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 "Secondary service connection requirement"
         };
 
+        var provision =
+            new RegulatoryProvision
+            {
+                Id = requirement.RegulatoryProvisionId,
+                RegulatoryAuthorityId =
+                    new RegulatoryAuthorityId("authority-1"),
+                ProvisionType = "Test",
+                Citation = "38 CFR"
+            };
+
         var responsiveness =
             new RequirementEvidenceResponsivenessAssessment
             {
@@ -153,7 +163,10 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                         method.Name == "GetRequirementAsync"
                             ? Task.FromResult<Requirement?>(
                                 requirement)
-                            : throw new NotSupportedException()),
+                            : method.Name == "GetRegulatoryProvisionAsync"
+                                ? Task.FromResult<RegulatoryProvision?>(
+                                    provision)
+                                : throw new NotSupportedException()),
                 Proxy<IRequirementEvidenceService>(
                     method =>
                         method.Name == "AssessResponsivenessAsync"
@@ -207,6 +220,10 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         Assert.Same(
             requirement,
             resolvedRequirement.Requirement);
+
+        Assert.Same(
+            provision,
+            resolvedRequirement.RegulatoryProvision);
 
         Assert.Same(
             responsiveness,

@@ -696,6 +696,42 @@ public static class VeteransConsoleCommand
                 $"Review={review.Review.RequiresReview}");
         }
 
+        foreach (var theory in result.Details.ServiceConnectionTheories)
+        {
+            output.WriteLine(
+                $"Theory      : {theory.TheoryType}");
+
+            output.WriteLine(
+                $"Theory ID   : {theory.Id.Value}");
+
+            foreach (var basis in
+                result.Details.ServiceConnectionBases.Where(
+                    x => x.ServiceConnectionTheoryId == theory.Id))
+            {
+                output.WriteLine(
+                    $"Basis       : {basis.Id.Value}");
+
+                foreach (var requirement in
+                    result.Details.Requirements.Where(
+                        x => x.Basis.Id == basis.Id))
+                {
+                    output.WriteLine(
+                        $"Requirement : {requirement.Requirement.Id.Value}");
+
+                    output.WriteLine(
+                        $"Description : {requirement.Requirement.Description}");
+
+                    output.WriteLine(
+                        $"Provision   : " +
+                        $"{requirement.Requirement.RegulatoryProvisionId.Value}");
+
+                    output.WriteLine(
+                        $"Citation    : " +
+                        $"{requirement.RegulatoryProvision.Citation}");
+                }
+            }
+        }
+
         output.WriteLine(
             $"Outstanding : {result.Readiness.OutstandingRequirementCount}");
 

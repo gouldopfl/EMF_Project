@@ -143,6 +143,18 @@ public sealed class ClaimIssueAdjudicationReadinessServiceTests
                             $"provision-{id}"),
                     Description = id
                 },
+            RegulatoryProvision =
+                new RegulatoryProvision
+                {
+                    Id =
+                        new RegulatoryProvisionId(
+                            $"provision-{id}"),
+                    RegulatoryAuthorityId =
+                        new RegulatoryAuthorityId(
+                            "authority-test"),
+                    ProvisionType = "Test",
+                    Citation = "38 CFR"
+                },
             Responsiveness =
                 new RequirementEvidenceResponsivenessAssessment
                 {

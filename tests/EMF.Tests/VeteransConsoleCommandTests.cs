@@ -707,16 +707,46 @@ public sealed class VeteransConsoleCommandTests
                         Description = "Medical opinion evidence."
                     });
 
+            using var output = new StringWriter();
+
             var exitCode =
-                await VeteransConsoleCommand.RunAsync(
-                    [
-                        "adjudication",
-                        "assess",
+                await VeteransConsoleCommand
+                    .RunAdjudicationAssessmentAsync(
                         databasePath,
-                        issue.Id.Value
-                    ]);
+                        issue.Id,
+                        output);
+
+            var rendered = output.ToString();
 
             Assert.Equal(0, exitCode);
+
+            Assert.Contains(
+                "Theory      : Secondary",
+                rendered);
+
+            Assert.Contains(
+                "Theory ID   : theory-adjudication-blocked",
+                rendered);
+
+            Assert.Contains(
+                "Basis       : basis-adjudication-blocked",
+                rendered);
+
+            Assert.Contains(
+                "Requirement : requirement-adjudication-blocked",
+                rendered);
+
+            Assert.Contains(
+                "Description : Secondary service connection requirement",
+                rendered);
+
+            Assert.Contains(
+                "Provision   : provision-adjudication-blocked",
+                rendered);
+
+            Assert.Contains(
+                "Citation    : 38 CFR 3.310",
+                rendered);
         }
         finally
         {

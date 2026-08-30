@@ -9,6 +9,8 @@ public sealed class ServiceConnectionBasisRequirementDetails
 
     public required Requirement Requirement { get; init; }
 
+    public required RegulatoryProvision RegulatoryProvision { get; init; }
+
     public required RequirementEvidenceResponsivenessAssessment
         Responsiveness { get; init; }
 

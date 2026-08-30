@@ -170,6 +170,17 @@ public sealed class ClaimIssueDecisionRecommendationServiceTests
                         new RegulatoryProvisionId("regulation-1"),
                     Description = "Missing evidence."
                 },
+            RegulatoryProvision =
+                new RegulatoryProvision
+                {
+                    Id =
+                        new RegulatoryProvisionId("regulation-1"),
+                    RegulatoryAuthorityId =
+                        new RegulatoryAuthorityId(
+                            "authority-test"),
+                    ProvisionType = "Test",
+                    Citation = "38 CFR"
+                },
             Responsiveness =
                 new RequirementEvidenceResponsivenessAssessment
                 {

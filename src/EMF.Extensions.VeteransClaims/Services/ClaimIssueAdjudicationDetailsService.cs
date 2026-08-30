@@ -116,6 +116,13 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     ?? throw new InvalidOperationException(
                         "Service-connection requirement could not be read.");
 
+                var provision =
+                    await _regulatory.GetRegulatoryProvisionAsync(
+                        requirement.RegulatoryProvisionId,
+                        cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        "Regulatory provision could not be read.");
+
                 var responsiveness =
                     await _requirementEvidence
                         .AssessResponsivenessAsync(
@@ -133,6 +140,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     {
                         Basis = basis,
                         Requirement = requirement,
+                        RegulatoryProvision = provision,
                         Responsiveness = responsiveness,
                         DevelopmentChecklist = developmentChecklist
                     });
