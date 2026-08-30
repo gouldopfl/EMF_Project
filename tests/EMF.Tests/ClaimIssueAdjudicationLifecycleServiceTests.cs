@@ -10,6 +10,27 @@ namespace EMF.Tests;
 public sealed class ClaimIssueAdjudicationLifecycleServiceTests
 {
     [Fact]
+    public async Task GetAsync_ThrowsWhenVaDecisionCannotBeRead()
+    {
+        var service =
+            new ClaimIssueAdjudicationLifecycleService(
+                new DecisionRepository(
+                    new ClaimIssueId("issue-missing-decision")),
+                new SubmissionRepository(
+                    new ClaimIssueId("issue-missing-decision")));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    service.GetAsync(
+                        new ClaimIssueId("issue-missing-decision")));
+
+        Assert.Equal(
+            "VA decision could not be read.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task GetAsync_orders_initial_and_supplemental_decisions()
     {
         var issueId = new ClaimIssueId("issue-001");
@@ -119,7 +140,9 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
             VaDecisionId id,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<VaDecision?>(
-                new VaDecision
+                _issueId.Value == "issue-missing-decision"
+                    ? null
+                    : new VaDecision
                 {
                     Id = id,
                     DecisionDate =
