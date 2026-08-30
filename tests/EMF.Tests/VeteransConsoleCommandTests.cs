@@ -667,6 +667,38 @@ public sealed class VeteransConsoleCommandTests
 
             await connections.AddServiceConnectionBasisAsync(basis);
 
+            var serviceConnectedCondition =
+                new EMF.Extensions.VeteransClaims.Models.Conditions.MedicalCondition
+                {
+                    Id =
+                        new MedicalConditionId(
+                            "medical-condition-adjudication-blocked"),
+                    Name = "Posttraumatic stress disorder"
+                };
+
+            var conditions =
+                new SqliteConditionRepository(databasePath);
+
+            await conditions.AddMedicalConditionAsync(
+                serviceConnectedCondition);
+
+            await conditions.AddVeteranMedicalConditionAsync(
+                new EMF.Extensions.VeteransClaims.Models.Conditions.VeteranMedicalCondition
+                {
+                    VeteranId = veteran.Id,
+                    MedicalConditionId =
+                        serviceConnectedCondition.Id
+                });
+
+            await connections
+                .AddBasisServiceConnectedConditionAsync(
+                    new ServiceConnectionBasisServiceConnectedCondition
+                    {
+                        ServiceConnectionBasisId = basis.Id,
+                        ServiceConnectedConditionId =
+                            serviceConnectedCondition.Id
+                    });
+
             var regulatory =
                 new SqliteRegulatoryRepository(databasePath);
 
@@ -747,6 +779,10 @@ public sealed class VeteransConsoleCommandTests
 
             Assert.Contains(
                 "Basis       : basis-adjudication-blocked",
+                rendered);
+
+            Assert.Contains(
+                "Service Connected: medical-condition-adjudication-blocked (Posttraumatic stress disorder)",
                 rendered);
 
             Assert.Contains(

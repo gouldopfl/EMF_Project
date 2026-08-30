@@ -738,6 +738,16 @@ public static class VeteransConsoleCommand
                 output.WriteLine(
                     $"Basis       : {basis.Id.Value}");
 
+                foreach (var condition in
+                    result.Details.ServiceConnectedConditions.Where(
+                        x => x.Basis.Id == basis.Id))
+                {
+                    output.WriteLine(
+                        $"Service Connected: " +
+                        $"{condition.ServiceConnectedCondition.Id.Value} " +
+                        $"({condition.ServiceConnectedCondition.Name})");
+                }
+
                 foreach (var requirement in
                     result.Details.Requirements.Where(
                         x => x.Basis.Id == basis.Id))
