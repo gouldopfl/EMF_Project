@@ -120,6 +120,7 @@ public sealed class ClaimIssueDecisionRecommendationServiceTests
                     ServiceConnectedConditions = [],
                     Requirements = [],
                     Timeline = [],
+                    ServiceEvents = [],
                     Evidence =
                         new ClaimIssueEvidenceDetails
                         {

@@ -97,6 +97,7 @@ public sealed class ClaimIssueAdjudicationReadinessServiceTests
             ServiceConnectedConditions = [],
             Requirements = requirements,
             Timeline = [],
+            ServiceEvents = [],
             Evidence =
                 new ClaimIssueEvidenceDetails
                 {

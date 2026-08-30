@@ -207,7 +207,8 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
                                 },
                             DevelopmentPlans = []
                         },
-                    Timeline = []
+                    Timeline = [],
+                    ServiceEvents = [],
                 },
             Readiness =
                 new ClaimIssueAdjudicationReadiness
