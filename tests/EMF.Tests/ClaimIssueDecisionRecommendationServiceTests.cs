@@ -84,6 +84,26 @@ public sealed class ClaimIssueDecisionRecommendationServiceTests
         Assert.False(result.HasRecommendation);
     }
 
+    [Fact]
+    public void Assess_ThrowsForUnknownMeritsOutcome()
+    {
+        var assessment =
+            CreateAssessment(
+                isReady: true,
+                "Unexpected");
+
+        var ex =
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    new ClaimIssueDecisionRecommendationService()
+                        .Assess(assessment));
+
+        Assert.Equal(
+            "Unknown merits outcome 'Unexpected'.",
+            ex.Message);
+    }
+
+
     private static ClaimIssueAdjudicationAssessment
         CreateAssessment(
             bool isReady,
