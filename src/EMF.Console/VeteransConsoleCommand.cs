@@ -1107,6 +1107,12 @@ public static class VeteransConsoleCommand
             output.WriteLine(
                 $"Persisted   : {entry.Persisted}");
 
+            if (entry.VaDecisionId is not null)
+            {
+                output.WriteLine(
+                    $"VA Decision : {entry.VaDecisionId.Value}");
+            }
+
             output.WriteLine(
                 $"Matched     : {entry.MatchedIssueCount}");
 

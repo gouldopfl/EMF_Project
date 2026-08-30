@@ -326,6 +326,20 @@ public sealed class VeteransConsoleCommandTests
             await new SqliteClaimRepository(databasePath)
                 .AddClaimAsync(claim);
 
+            var issue =
+                new ClaimIssue
+                {
+                    Id =
+                        new ClaimIssueId(
+                            "issue-history-001"),
+                    ClaimId = claim.Id,
+                    ClaimIssueType =
+                        ClaimIssueTypes.ServiceConnection
+                };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
             var attempts =
                 new SqliteVaDecisionDocumentProcessingAttemptRepository(
                     databasePath);
@@ -341,6 +355,49 @@ public sealed class VeteransConsoleCommandTests
                             2026, 8, 29, 12, 0, 0,
                             TimeSpan.Zero),
                     VaDecisionId = null,
+                    Matches = []
+                });
+
+            var decisionId =
+                new VaDecisionId("va-decision-history-001");
+
+            await new SqliteVaDecisionRepository(databasePath)
+                .AddDecisionAsync(
+                    new VaDecision
+                    {
+                        Id = decisionId,
+                        DecisionDate =
+                            new DateTimeOffset(
+                                2026, 8, 29, 0, 0, 0,
+                                TimeSpan.Zero)
+                    },
+                    [
+                        new IssueDecision
+                        {
+                            Id =
+                                new IssueDecisionId(
+                                    "issue-decision-history-001"),
+                            VaDecisionId = decisionId,
+                            ClaimIssueId =
+                                new ClaimIssueId(
+                                    "issue-history-001"),
+                            Outcome =
+                                IssueDecisionOutcomes.Granted
+                        }
+                    ],
+                    []);
+
+            await attempts.AddAsync(
+                new VaDecisionDocumentProcessingAttempt
+                {
+                    ClaimId = claim.Id,
+                    ArtifactId =
+                        new ArtifactId("artifact-history-002"),
+                    ProcessedAt =
+                        new DateTimeOffset(
+                            2026, 8, 29, 13, 0, 0,
+                            TimeSpan.Zero),
+                    VaDecisionId = decisionId,
                     Matches = []
                 });
 
@@ -363,6 +420,18 @@ public sealed class VeteransConsoleCommandTests
 
             Assert.Contains(
                 "Persisted   : False",
+                rendered);
+
+            Assert.Contains(
+                "Artifact    : artifact-history-002",
+                rendered);
+
+            Assert.Contains(
+                "Persisted   : True",
+                rendered);
+
+            Assert.Contains(
+                "VA Decision : va-decision-history-001",
                 rendered);
 
             Assert.Contains(
