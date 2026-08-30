@@ -112,6 +112,32 @@ public sealed class ClaimIssueMeritsAssessmentServiceTests
             requirementResult.Outcome);
     }
 
+    [Fact]
+    public async Task AssessAsync_ReturnsUnresolvedWhenNoTheoriesExist()
+    {
+        var issueId = new ClaimIssueId("issue-empty");
+
+        var connections =
+            Proxy<IServiceConnectionRepository>(
+                (method, args) =>
+                    method.Name == "GetServiceConnectionTheoriesAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionTheory>>([])
+                        : throw new NotSupportedException());
+
+        var findings =
+            Proxy<IFindingRepository>(
+                (method, args) => throw new NotSupportedException());
+
+        var result =
+            await new ClaimIssueMeritsAssessmentService(
+                    connections,
+                    findings)
+                .AssessAsync(issueId);
+
+        Assert.Equal(FindingOutcomes.Unresolved, result.Outcome);
+        Assert.Empty(result.TheoryOutcomes);
+    }
+
     private static T Proxy<T>(
         Func<MethodInfo, object?[]?, object?> handler)
         where T : class
