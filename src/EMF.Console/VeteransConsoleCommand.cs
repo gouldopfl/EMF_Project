@@ -876,6 +876,24 @@ public static class VeteransConsoleCommand
 
                 output.WriteLine(
                     $"Outcome     : {theory.Outcome}");
+
+                foreach (var basis in theory.BasisOutcomes)
+                {
+                    output.WriteLine(
+                        $"Basis       : {basis.Basis.Id.Value}");
+
+                    output.WriteLine(
+                        $"Basis Result: {basis.Outcome}");
+
+                    foreach (var requirement in basis.RequirementOutcomes)
+                    {
+                        output.WriteLine(
+                            $"Requirement : {requirement.RequirementId.Value}");
+
+                        output.WriteLine(
+                            $"Req Result  : {requirement.Outcome}");
+                    }
+                }
             }
         }
 
