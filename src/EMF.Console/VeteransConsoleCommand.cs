@@ -892,6 +892,18 @@ public static class VeteransConsoleCommand
 
                         output.WriteLine(
                             $"Req Result  : {requirement.Outcome}");
+
+                        foreach (var finding in requirement.Findings)
+                        {
+                            output.WriteLine(
+                                $"Finding     : {finding.Id.Value}");
+
+                            output.WriteLine(
+                                $"Find Result : {finding.Outcome}");
+
+                            output.WriteLine(
+                                $"Description : {finding.Description}");
+                        }
                     }
                 }
             }

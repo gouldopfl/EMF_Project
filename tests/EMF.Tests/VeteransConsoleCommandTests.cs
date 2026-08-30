@@ -137,6 +137,15 @@ public sealed class VeteransConsoleCommandTests
             Assert.Contains(
                 "Req Result  : Favorable",
                 rendered);
+            Assert.Contains(
+                "Finding     : finding-decision-review",
+                rendered);
+            Assert.Contains(
+                "Find Result : Favorable",
+                rendered);
+            Assert.Contains(
+                "Description : Requirement supported.",
+                rendered);
         }
         finally
         {
