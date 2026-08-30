@@ -786,6 +786,18 @@ public static class VeteransConsoleCommand
                     output.WriteLine(
                         $"Requirement : {requirement.Requirement.Id.Value}");
 
+                    var requirementOutcome =
+                        basisOutcome?.RequirementOutcomes.SingleOrDefault(
+                            x =>
+                                x.RequirementId ==
+                                requirement.Requirement.Id);
+
+                    if (requirementOutcome is not null)
+                    {
+                        output.WriteLine(
+                            $"Req Result  : {requirementOutcome.Outcome}");
+                    }
+
                     output.WriteLine(
                         $"Description : {requirement.Requirement.Description}");
 

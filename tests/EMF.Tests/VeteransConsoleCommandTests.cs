@@ -824,6 +824,10 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
+                "Req Result  : Unresolved",
+                rendered);
+
+            Assert.Contains(
                 "Description : Secondary service connection requirement",
                 rendered);
 
