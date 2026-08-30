@@ -262,6 +262,82 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         Assert.Same(timeline, result.Timeline);
     }
 
+    [Fact]
+    public async Task GetAsync_ThrowsWhenLinkedServiceEventCannotBeRead()
+    {
+        var issueId = new ClaimIssueId("issue-001");
+
+        var issue = new ClaimIssue
+        {
+            Id = issueId,
+            ClaimId = new ClaimId("claim-001"),
+            ClaimIssueType = "service-connection"
+        };
+
+        var theory = new ServiceConnectionTheory
+        {
+            Id = new ServiceConnectionTheoryId("theory-001"),
+            ClaimIssueId = issueId,
+            TheoryType = ServiceConnectionTheoryTypes.Direct
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-001"),
+            ClaimIssueId = issueId,
+            ServiceConnectionTheoryId = theory.Id
+        };
+
+        var serviceEventId =
+            new ServiceEventId("missing-service-event");
+
+        var service =
+            new ClaimIssueAdjudicationDetailsService(
+                new FakeClaimIssueRepository(issue),
+                Proxy<IConditionRepository>(
+                    method =>
+                        method.Name == "GetClaimedConditionsAsync"
+                            ? Task.FromResult<
+                                IReadOnlyList<ClaimedCondition>>([])
+                            : throw new NotSupportedException()),
+                Proxy<IServiceConnectionRepository>(
+                    method =>
+                        method.Name == "GetServiceConnectionTheoriesAsync"
+                            ? Task.FromResult<
+                                IReadOnlyList<ServiceConnectionTheory>>(
+                                    [theory])
+                            : method.Name == "GetServiceConnectionBasesAsync"
+                                ? Task.FromResult<
+                                    IReadOnlyList<ServiceConnectionBasis>>(
+                                        [basis])
+                                : method.Name ==
+                                    "GetServiceConnectedConditionIdsAsync"
+                                    ? Task.FromResult<
+                                        IReadOnlyList<MedicalConditionId>>([])
+                                    : method.Name == "GetServiceEventIdsAsync"
+                                        ? Task.FromResult<
+                                            IReadOnlyList<ServiceEventId>>(
+                                                [serviceEventId])
+                                        : throw new NotSupportedException()),
+                Proxy<IServiceHistoryRepository>(
+                    method =>
+                        method.Name == "GetServiceEventAsync"
+                            ? Task.FromResult<ServiceEvent?>(null)
+                            : throw new NotSupportedException()),
+                NeverCall<IRegulatoryRepository>(),
+                NeverCall<IRequirementEvidenceService>(),
+                NeverCall<IClaimIssueEvidenceDetailsService>(),
+                NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Service event could not be read.",
+            exception.Message);
+    }
+
     private sealed class MissingClaimIssueRepository :
         FakeClaimIssueRepository
     {
