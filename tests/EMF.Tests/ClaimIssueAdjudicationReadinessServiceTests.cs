@@ -75,6 +75,34 @@ public sealed class ClaimIssueAdjudicationReadinessServiceTests
             item.BlockerType);
     }
 
+    [Fact]
+    public void Assess_AggregatesMultipleBlockingRequirements()
+    {
+        var first =
+            RequirementDetails(
+                "req-first",
+                outstanding: true);
+
+        var second =
+            RequirementDetails(
+                "req-second",
+                outstanding: true);
+
+        var result =
+            new ClaimIssueAdjudicationReadinessService()
+                .Assess(
+                    CreateDetails(
+                        first,
+                        second));
+
+        Assert.False(result.IsReadyForAdjudication);
+        Assert.Equal(2, result.OutstandingRequirementCount);
+        Assert.Equal(2, result.BlockingRequirements.Count);
+        Assert.Equal(2, result.OutstandingItemCount);
+        Assert.Equal(2, result.BlockingItems.Count);
+    }
+
+
     private static ClaimIssueAdjudicationDetails CreateDetails(
         params ServiceConnectionBasisRequirementDetails[] requirements)
     {
