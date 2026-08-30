@@ -98,6 +98,21 @@ public sealed class VaDecisionDocumentProcessingHistoryServiceTests
         Assert.False(entry.HasUnresolvedIssues);
     }
 
+    [Fact]
+    public async Task GetAsync_returns_empty_when_no_attempts_exist()
+    {
+        var service =
+            new VaDecisionDocumentProcessingHistoryService(
+                new RecordingRepository());
+
+        var history =
+            await service.GetAsync(
+                new ClaimId("claim-001"));
+
+        Assert.Empty(history);
+    }
+
+
     private static VaDecisionDocumentIssueMatch Match(
         string status,
         string? claimIssueId = null) =>
