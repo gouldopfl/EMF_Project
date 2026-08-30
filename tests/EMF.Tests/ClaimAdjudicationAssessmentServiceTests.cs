@@ -139,6 +139,56 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_OmitsIssueWhenAssessmentIsMissing()
+    {
+        var claimId = new ClaimId("claim-missing-assessment");
+
+        var claim =
+            new Claim
+            {
+                Id = claimId,
+                VeteranId = new VeteranId("veteran-001")
+            };
+
+        var assessedIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-assessed"),
+                ClaimId = claimId,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var missingIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-missing"),
+                ClaimId = claimId,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(claim),
+                new FakeClaimIssueRepository(
+                    assessedIssue,
+                    missingIssue),
+                new FakeIssueAssessmentService(
+                    CreateAssessment(
+                        assessedIssue,
+                        requiresAttention: false,
+                        shouldConsiderFollowUp: false)));
+
+        var result = await service.GetAsync(claimId);
+
+        Assert.NotNull(result);
+        var issueAssessment = Assert.Single(result!.Issues);
+        Assert.Equal(
+            assessedIssue.Id,
+            issueAssessment.Details.ClaimIssue.Id);
+    }
+
+
+    [Fact]
     public async Task GetAsync_ReturnsNullWhenClaimDoesNotExist()
     {
         var service =
