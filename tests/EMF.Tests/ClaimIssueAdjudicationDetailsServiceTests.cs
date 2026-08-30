@@ -410,6 +410,50 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             exception.Message);
     }
 
+    [Fact]
+    public async Task GetAsync_ThrowsWhenEvidenceDetailsCannotBeRead()
+    {
+        var issueId = new ClaimIssueId("issue-001");
+
+        var issue = new ClaimIssue
+        {
+            Id = issueId,
+            ClaimId = new ClaimId("claim-001"),
+            ClaimIssueType = "service-connection"
+        };
+
+        var service =
+            new ClaimIssueAdjudicationDetailsService(
+                new FakeClaimIssueRepository(issue),
+                Proxy<IConditionRepository>(
+                    m => m.Name == "GetClaimedConditionsAsync"
+                        ? Task.FromResult<IReadOnlyList<ClaimedCondition>>([])
+                        : throw new NotSupportedException()),
+                Proxy<IServiceConnectionRepository>(
+                    m => m.Name == "GetServiceConnectionTheoriesAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionTheory>>([])
+                        : m.Name == "GetServiceConnectionBasesAsync"
+                            ? Task.FromResult<IReadOnlyList<ServiceConnectionBasis>>([])
+                            : throw new NotSupportedException()),
+                NeverCall<IServiceHistoryRepository>(),
+                NeverCall<IRegulatoryRepository>(),
+                NeverCall<IRequirementEvidenceService>(),
+                Proxy<IClaimIssueEvidenceDetailsService>(
+                    m => m.Name == "GetAsync"
+                        ? Task.FromResult<ClaimIssueEvidenceDetails?>(null)
+                        : throw new NotSupportedException()),
+                NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Claim issue evidence details could not be read.",
+            ex.Message);
+    }
+
+
     private sealed class MissingClaimIssueRepository :
         FakeClaimIssueRepository
     {
