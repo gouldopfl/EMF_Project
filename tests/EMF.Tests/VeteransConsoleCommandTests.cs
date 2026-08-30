@@ -1537,6 +1537,16 @@ public sealed class VeteransConsoleCommandTests
                     RequirementId = requirementId
                 });
 
+            await plans.AddEvidenceDevelopmentPlanArtifactAsync(
+                new EvidenceDevelopmentPlanArtifact
+                {
+                    EvidenceDevelopmentPlanId = plan.Id,
+                    ArtifactId =
+                        new EMF.Core.Models.Identities.ArtifactId(
+                            "artifact-summary-1"),
+                    Role = "Supporting"
+                });
+
             using var output = new StringWriter();
 
             var exitCode =
@@ -1595,7 +1605,11 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
-                "Artifacts   : 0",
+                "Artifacts   : 1",
+                rendered);
+
+            Assert.Contains(
+                "Plan Artifact: artifact-summary-1 (Supporting)",
                 rendered);
 
             Assert.Contains(

@@ -1245,6 +1245,12 @@ public static class VeteransConsoleCommand
         output.WriteLine(
             $"Artifacts   : {result.Artifacts.Count}");
 
+        foreach (var artifact in result.Artifacts)
+        {
+            output.WriteLine(
+                $"Plan Artifact: {artifact.ArtifactId.Value} ({artifact.Role})");
+        }
+
         output.WriteLine(
             $"Executions  : {result.Executions.Count}");
 
