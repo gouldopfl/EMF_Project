@@ -1254,6 +1254,12 @@ public static class VeteransConsoleCommand
         output.WriteLine(
             $"Executions  : {result.Executions.Count}");
 
+        foreach (var execution in result.Executions)
+        {
+            output.WriteLine(
+                $"Execution   : {execution.EvidenceGapId.Value} -> {execution.WorkflowId.Value}");
+        }
+
         output.WriteLine(
             $"Results     : {result.Results.Count}");
 

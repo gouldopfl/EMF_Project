@@ -1547,6 +1547,16 @@ public sealed class VeteransConsoleCommandTests
                     Role = "Supporting"
                 });
 
+            await plans.AddEvidenceDevelopmentExecutionAsync(
+                new EvidenceDevelopmentExecution
+                {
+                    EvidenceDevelopmentPlanId = plan.Id,
+                    EvidenceGapId = gap.Id,
+                    WorkflowId =
+                        new EMF.Core.Models.Identities.WorkflowId(
+                            "workflow-summary-1")
+                });
+
             using var output = new StringWriter();
 
             var exitCode =
@@ -1613,7 +1623,11 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
-                "Executions  : 0",
+                "Executions  : 1",
+                rendered);
+
+            Assert.Contains(
+                "Execution   : gap-summary-1 -> workflow-summary-1",
                 rendered);
 
             Assert.Contains(
