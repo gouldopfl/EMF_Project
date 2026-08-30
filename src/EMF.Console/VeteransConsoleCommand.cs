@@ -868,6 +868,14 @@ public static class VeteransConsoleCommand
                 $"{analysis.Review.Comparison.IssueDecision.Outcome}");
 
             output.WriteLine(
+                $"EMF Merits  : " +
+                $"{analysis.Review.Comparison.Recommendation.MeritsOutcome}");
+
+            output.WriteLine(
+                $"Recommend   : " +
+                $"{analysis.Review.Comparison.Recommendation.RecommendedOutcome ?? "None"}");
+
+            output.WriteLine(
                 $"Comparison  : " +
                 $"{analysis.Review.Comparison.ComparisonOutcome}");
 

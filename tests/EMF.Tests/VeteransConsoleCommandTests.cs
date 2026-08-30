@@ -120,6 +120,12 @@ public sealed class VeteransConsoleCommandTests
                 "VA Outcome  : Denied",
                 rendered);
             Assert.Contains(
+                "EMF Merits  : Favorable",
+                rendered);
+            Assert.Contains(
+                "Recommend   : Granted",
+                rendered);
+            Assert.Contains(
                 "Comparison  : Disagreement",
                 rendered);
             Assert.Contains(
