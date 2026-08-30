@@ -31,6 +31,26 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_ThrowsWhenSubmissionCannotBeRead()
+    {
+        var issueId =
+            new ClaimIssueId("issue-missing-submission");
+
+        var service =
+            new ClaimIssueAdjudicationLifecycleService(
+                new DecisionRepository(issueId),
+                new SubmissionRepository(issueId));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Submission could not be read.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task GetAsync_orders_initial_and_supplemental_decisions()
     {
         var issueId = new ClaimIssueId("issue-001");
@@ -215,7 +235,9 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
             SubmissionId id,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<Submission?>(
-                new Submission
+                _issueId.Value == "issue-missing-submission"
+                    ? null
+                    : new Submission
                 {
                     Id = id,
                     ClaimId = new ClaimId("claim-001"),
