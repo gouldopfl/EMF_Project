@@ -863,8 +863,20 @@ public static class VeteransConsoleCommand
                 $"Needs Review: {analysis.Review.RequiresReview}");
 
             output.WriteLine(
+                $"Merits      : {analysis.Merits.Outcome}");
+
+            output.WriteLine(
                 $"Contributing: " +
                 $"{analysis.ContributingTheoryOutcomes.Count}");
+
+            foreach (var theory in analysis.ContributingTheoryOutcomes)
+            {
+                output.WriteLine(
+                    $"Theory      : {theory.Theory.TheoryType}");
+
+                output.WriteLine(
+                    $"Outcome     : {theory.Outcome}");
+            }
         }
 
         return 0;

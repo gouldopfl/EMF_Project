@@ -116,6 +116,15 @@ public sealed class VeteransConsoleCommandTests
             Assert.Contains(
                 "Needs Review: True",
                 rendered);
+            Assert.Contains(
+                "Merits      : Favorable",
+                rendered);
+            Assert.Contains(
+                "Theory      : Secondary",
+                rendered);
+            Assert.Contains(
+                "Outcome     : Favorable",
+                rendered);
         }
         finally
         {
