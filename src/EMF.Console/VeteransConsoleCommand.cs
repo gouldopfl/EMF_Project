@@ -717,6 +717,18 @@ public static class VeteransConsoleCommand
         output.WriteLine(
             $"Review History: {result.DecisionReviewHistory.Count}");
 
+        output.WriteLine(
+            $"Evidence Checklists: " +
+            $"{result.Details.Evidence.Checklist.RequirementChecklists.Count}");
+
+        output.WriteLine(
+            $"Evidence Outstanding: " +
+            $"{result.Details.Evidence.Checklist.HasOutstandingItems}");
+
+        output.WriteLine(
+            $"Development Plans: " +
+            $"{result.Details.Evidence.DevelopmentPlans.Count}");
+
         foreach (var review in result.DecisionReviewHistory)
         {
             output.WriteLine(
