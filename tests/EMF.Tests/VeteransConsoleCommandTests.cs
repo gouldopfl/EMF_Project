@@ -1557,6 +1557,18 @@ public sealed class VeteransConsoleCommandTests
                             "workflow-summary-1")
                 });
 
+            await plans.AddEvidenceDevelopmentResultAsync(
+                new EvidenceDevelopmentResult
+                {
+                    EvidenceGapId = gap.Id,
+                    RequirementId = requirementId,
+                    EvidenceGuidance = [],
+                    MatchingGuidanceItemCount = 1,
+                    MissingGuidanceItemCount = 0,
+                    ResultingGapStatus =
+                        EvidenceGapStatuses.Resolved
+                });
+
             using var output = new StringWriter();
 
             var exitCode =
@@ -1631,7 +1643,27 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
-                "Results     : 0",
+                "Results     : 1",
+                rendered);
+
+            Assert.Contains(
+                "Result      : gap-summary-1",
+                rendered);
+
+            Assert.Contains(
+                "Result Req  : requirement-summary-1",
+                rendered);
+
+            Assert.Contains(
+                "Matched     : 1",
+                rendered);
+
+            Assert.Contains(
+                "Missing     : 0",
+                rendered);
+
+            Assert.Contains(
+                "Result Status: Resolved",
                 rendered);
         }
         finally

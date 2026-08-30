@@ -1263,6 +1263,24 @@ public static class VeteransConsoleCommand
         output.WriteLine(
             $"Results     : {result.Results.Count}");
 
+        foreach (var developmentResult in result.Results)
+        {
+            output.WriteLine(
+                $"Result      : {developmentResult.EvidenceGapId.Value}");
+
+            output.WriteLine(
+                $"Result Req  : {developmentResult.RequirementId.Value}");
+
+            output.WriteLine(
+                $"Matched     : {developmentResult.MatchingGuidanceItemCount?.ToString() ?? "Unknown"}");
+
+            output.WriteLine(
+                $"Missing     : {developmentResult.MissingGuidanceItemCount?.ToString() ?? "Unknown"}");
+
+            output.WriteLine(
+                $"Result Status: {developmentResult.ResultingGapStatus ?? "Unknown"}");
+        }
+
         return 0;
     }
 
