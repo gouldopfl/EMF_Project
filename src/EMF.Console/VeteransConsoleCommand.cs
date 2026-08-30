@@ -1221,6 +1221,21 @@ public static class VeteransConsoleCommand
         output.WriteLine(
             $"Evidence Gaps: {result.EvidenceGaps.Count}");
 
+        foreach (var gap in result.GapDetails)
+        {
+            output.WriteLine(
+                $"Gap         : {gap.Id.Value}");
+
+            output.WriteLine(
+                $"Requirement : {gap.RequirementId.Value}");
+
+            output.WriteLine(
+                $"Gap Status  : {gap.Status}");
+
+            output.WriteLine(
+                $"Gap Detail  : {gap.Description}");
+        }
+
         output.WriteLine(
             $"Artifacts   : {result.Artifacts.Count}");
 

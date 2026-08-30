@@ -1466,9 +1466,69 @@ public sealed class VeteransConsoleCommandTests
 
             await plans.InitializeAsync();
 
+            var authorityId =
+                new RegulatoryAuthorityId(
+                    "authority-plan-summary");
+
+            var provisionId =
+                new RegulatoryProvisionId(
+                    "provision-plan-summary");
+
+            var requirementId =
+                new RequirementId(
+                    "requirement-summary-1");
+
+            var regulatory =
+                new SqliteRegulatoryRepository(databasePath);
+
+            await regulatory.AddRegulatoryAuthorityAsync(
+                new RegulatoryAuthority
+                {
+                    Id = authorityId,
+                    AuthorityType = "Regulation",
+                    Citation = "38 CFR",
+                    Title = "Test Authority"
+                });
+
+            await regulatory.AddRegulatoryProvisionAsync(
+                new RegulatoryProvision
+                {
+                    Id = provisionId,
+                    RegulatoryAuthorityId = authorityId,
+                    ProvisionType = "Requirement",
+                    Citation = "38 CFR Test"
+                });
+
+            await regulatory.AddRequirementAsync(
+                new Requirement
+                {
+                    Id = requirementId,
+                    RegulatoryProvisionId = provisionId,
+                    Description = "Test requirement"
+                });
+
+            var gap =
+                new EvidenceGap
+                {
+                    Id = new EvidenceGapId("gap-summary-1"),
+                    ClaimIssueId = issue.Id,
+                    RequirementId = requirementId,
+                    Description = "Missing supporting evidence.",
+                    Status = EvidenceGapStatuses.Open
+                };
+
+            await new SqliteEvidenceGapRepository(databasePath)
+                .AddEvidenceGapAsync(gap);
+
             await plans.CreateEvidenceDevelopmentPlanAsync(
                 plan,
-                []);
+                [
+                    new EvidenceDevelopmentPlanEvidenceGap
+                    {
+                        EvidenceDevelopmentPlanId = plan.Id,
+                        EvidenceGapId = gap.Id
+                    }
+                ]);
 
             using var output = new StringWriter();
 
@@ -1496,7 +1556,7 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
-                "Status      : Complete",
+                "Status      : RequiresDevelopment",
                 rendered);
 
             Assert.Contains(
@@ -1504,7 +1564,23 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
-                "Evidence Gaps: 0",
+                "Evidence Gaps: 1",
+                rendered);
+
+            Assert.Contains(
+                "Gap         : gap-summary-1",
+                rendered);
+
+            Assert.Contains(
+                "Requirement : requirement-summary-1",
+                rendered);
+
+            Assert.Contains(
+                "Gap Status  : Open",
+                rendered);
+
+            Assert.Contains(
+                "Gap Detail  : Missing supporting evidence.",
                 rendered);
 
             Assert.Contains(
