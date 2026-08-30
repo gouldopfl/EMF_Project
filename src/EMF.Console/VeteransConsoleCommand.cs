@@ -1167,6 +1167,14 @@ public static class VeteransConsoleCommand
 
 
         global::System.Console.WriteLine(
+            "       emf veterans decision interpret " +
+            "<database-path> <artifact-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans decision history " +
+            "<database-path> <claim-id>");
+
+        global::System.Console.WriteLine(
             "       emf veterans adjudication assess " +
             "<database-path> <claim-issue-id>");
 
