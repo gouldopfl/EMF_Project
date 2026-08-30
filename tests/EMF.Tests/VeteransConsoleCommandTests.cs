@@ -747,6 +747,18 @@ public sealed class VeteransConsoleCommandTests
             Assert.Contains(
                 "Citation    : 38 CFR 3.310",
                 rendered);
+
+            Assert.Contains(
+                "Evidence Matched : 0",
+                rendered);
+
+            Assert.Contains(
+                "Evidence Missing : 1",
+                rendered);
+
+            Assert.Contains(
+                "Development Items: 1",
+                rendered);
         }
         finally
         {

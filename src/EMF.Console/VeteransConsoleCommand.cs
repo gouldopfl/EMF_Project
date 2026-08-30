@@ -728,6 +728,18 @@ public static class VeteransConsoleCommand
                     output.WriteLine(
                         $"Citation    : " +
                         $"{requirement.RegulatoryProvision.Citation}");
+
+                    output.WriteLine(
+                        $"Evidence Matched : " +
+                        $"{requirement.Responsiveness.MatchingItemCount}");
+
+                    output.WriteLine(
+                        $"Evidence Missing : " +
+                        $"{requirement.Responsiveness.MissingItemCount}");
+
+                    output.WriteLine(
+                        $"Development Items: " +
+                        $"{requirement.DevelopmentChecklist.Items.Count}");
                 }
             }
         }
