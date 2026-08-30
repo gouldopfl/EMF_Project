@@ -94,6 +94,27 @@ public static class VeteransConsoleCommand
 
         if (args.Length == 4 &&
             args[0] == "decision" &&
+            args[1] == "review")
+        {
+            var decisionReviewDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(decisionReviewDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {decisionReviewDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunDecisionReviewAsync(
+                decisionReviewDatabasePath,
+                new ClaimIssueId(args[3]),
+                global::System.Console.Out);
+        }
+
+        if (args.Length == 4 &&
+            args[0] == "decision" &&
             args[1] == "interpret")
         {
             var decisionDatabasePath =
@@ -805,6 +826,51 @@ public static class VeteransConsoleCommand
     }
 
 
+    internal static async Task<int> RunDecisionReviewAsync(
+        string databasePath,
+        ClaimIssueId claimIssueId,
+        TextWriter output)
+    {
+        var service =
+            CreateAdjudicationAssessmentService(databasePath);
+
+        var assessment =
+            await service.GetAsync(claimIssueId);
+
+        if (assessment is null)
+        {
+            output.WriteLine(
+                $"Claim issue not found: {claimIssueId.Value}");
+
+            return 1;
+        }
+
+        output.WriteLine(
+            $"Claim Issue : {claimIssueId.Value}");
+
+        output.WriteLine(
+            $"Reviews     : {assessment.DecisionReviewHistory.Count}");
+
+        foreach (var analysis in assessment.DecisionReviewHistory)
+        {
+            output.WriteLine();
+
+            output.WriteLine(
+                $"Comparison  : " +
+                $"{analysis.Review.Comparison.ComparisonOutcome}");
+
+            output.WriteLine(
+                $"Needs Review: {analysis.Review.RequiresReview}");
+
+            output.WriteLine(
+                $"Contributing: " +
+                $"{analysis.ContributingTheoryOutcomes.Count}");
+        }
+
+        return 0;
+    }
+
+
     internal static async Task<int> RunDecisionHistoryAsync(
         string databasePath,
         ClaimId claimId,
@@ -1173,6 +1239,10 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans decision history " +
             "<database-path> <claim-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans decision review " +
+            "<database-path> <claim-issue-id>");
 
         global::System.Console.WriteLine(
             "       emf veterans adjudication assess " +

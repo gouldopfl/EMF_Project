@@ -75,6 +75,55 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
+    public async Task DecisionReview_RejectsMissingDatabase()
+    {
+        var exitCode =
+            await VeteransConsoleCommand.RunAsync(
+                [
+                    "decision",
+                    "review",
+                    "/tmp/emf-missing-decision-review.db",
+                    "issue-001"
+                ]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
+    public async Task DecisionReview_ShowsDisagreement()
+    {
+        var databasePath =
+            await CreateDecisionReviewDatabaseAsync();
+
+        try
+        {
+            using var output = new StringWriter();
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunDecisionReviewAsync(
+                        databasePath,
+                        new ClaimIssueId(
+                            "issue-decision-review"),
+                        output);
+
+            var rendered = output.ToString();
+
+            Assert.Equal(0, exitCode);
+            Assert.Contains(
+                "Comparison  : Disagreement",
+                rendered);
+            Assert.Contains(
+                "Needs Review: True",
+                rendered);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task DecisionInterpret_InterpretsTextArtifact()
     {
         var databasePath = Path.GetTempFileName();
@@ -1672,4 +1721,160 @@ public sealed class VeteransConsoleCommandTests
                 });
         }
     }
+    private static async Task<string>
+        CreateDecisionReviewDatabaseAsync()
+    {
+        var path = Path.GetTempFileName();
+
+        await new VeteransClaimsSqliteSchema(path)
+            .InitializeAsync();
+
+        var veteran = new Veteran
+        {
+            Id = new VeteranId("veteran-decision-review")
+        };
+
+        await new SqliteVeteranRepository(path)
+            .AddVeteranAsync(veteran);
+
+        var claim = new Claim
+        {
+            Id = new ClaimId("claim-decision-review"),
+            VeteranId = veteran.Id
+        };
+
+        await new SqliteClaimRepository(path)
+            .AddClaimAsync(claim);
+
+        var issue = new ClaimIssue
+        {
+            Id = new ClaimIssueId("issue-decision-review"),
+            ClaimId = claim.Id,
+            ClaimIssueType = ClaimIssueTypes.ServiceConnection
+        };
+
+        await new SqliteClaimIssueRepository(path)
+            .AddClaimIssueAsync(issue);
+
+        var connections =
+            new SqliteServiceConnectionRepository(path);
+
+        var theory = new ServiceConnectionTheory
+        {
+            Id =
+                new ServiceConnectionTheoryId(
+                    "theory-decision-review"),
+            ClaimIssueId = issue.Id,
+            TheoryType =
+                ServiceConnectionTheoryTypes.Secondary
+        };
+
+        await connections
+            .AddServiceConnectionTheoryAsync(theory);
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id =
+                new ServiceConnectionBasisId(
+                    "basis-decision-review"),
+            ClaimIssueId = issue.Id,
+            ServiceConnectionTheoryId = theory.Id
+        };
+
+        await connections
+            .AddServiceConnectionBasisAsync(basis);
+
+        var regulatory =
+            new SqliteRegulatoryRepository(path);
+
+        var authority = new RegulatoryAuthority
+        {
+            Id =
+                new RegulatoryAuthorityId(
+                    "authority-decision-review"),
+            AuthorityType = "Regulation",
+            Citation = "38 CFR",
+            Title = "Veterans Benefits"
+        };
+
+        await regulatory
+            .AddRegulatoryAuthorityAsync(authority);
+
+        var provision = new RegulatoryProvision
+        {
+            Id =
+                new RegulatoryProvisionId(
+                    "provision-decision-review"),
+            RegulatoryAuthorityId = authority.Id,
+            ProvisionType =
+                RegulatoryProvisionTypes.Presumption,
+            Citation = "38 CFR 3.310"
+        };
+
+        await regulatory
+            .AddRegulatoryProvisionAsync(provision);
+
+        var requirement = new Requirement
+        {
+            Id =
+                new RequirementId(
+                    "requirement-decision-review"),
+            RegulatoryProvisionId = provision.Id,
+            Description =
+                "Secondary service connection requirement"
+        };
+
+        await regulatory
+            .AddRequirementAsync(requirement);
+
+        await connections
+            .AddBasisRequirementAsync(
+                new ServiceConnectionBasisRequirement
+                {
+                    ServiceConnectionBasisId = basis.Id,
+                    RequirementId = requirement.Id
+                });
+
+        await new SqliteFindingRepository(path)
+            .AddFindingAsync(
+                new Finding
+                {
+                    Id =
+                        new FindingId(
+                            "finding-decision-review"),
+                    ClaimIssueId = issue.Id,
+                    RequirementId = requirement.Id,
+                    Outcome = FindingOutcomes.Favorable,
+                    Description = "Requirement supported."
+                });
+
+        var decision = new VaDecision
+        {
+            Id = new VaDecisionId("va-decision-review"),
+            DecisionDate =
+                new DateTimeOffset(
+                    2026, 8, 11,
+                    0, 0, 0,
+                    TimeSpan.Zero)
+        };
+
+        var issueDecision = new IssueDecision
+        {
+            Id =
+                new IssueDecisionId(
+                    "issue-decision-review-history"),
+            VaDecisionId = decision.Id,
+            ClaimIssueId = issue.Id,
+            Outcome = IssueDecisionOutcomes.Denied
+        };
+
+        await new SqliteVaDecisionRepository(path)
+            .AddDecisionAsync(
+                decision,
+                new[] { issueDecision },
+                []);
+
+        return path;
+    }
+
 }
