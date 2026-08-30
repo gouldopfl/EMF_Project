@@ -497,6 +497,19 @@ public sealed class VeteransConsoleCommandTests
             await new SqliteClaimIssueRepository(databasePath)
                 .AddClaimIssueAsync(issue);
 
+            var claimedCondition =
+                new EMF.Extensions.VeteransClaims.Models.Conditions.ClaimedCondition
+                {
+                    Id =
+                        new ClaimedConditionId(
+                            "claimed-condition-timeline"),
+                    ClaimIssueId = issue.Id,
+                    Name = "Sleep apnea"
+                };
+
+            await new SqliteConditionRepository(databasePath)
+                .AddClaimedConditionAsync(claimedCondition);
+
             var submission = new Submission
             {
                 Id = new SubmissionId("submission-timeline"),
@@ -552,6 +565,10 @@ public sealed class VeteransConsoleCommandTests
             var rendered = output.ToString();
 
             Assert.Equal(0, exitCode);
+
+            Assert.Contains(
+                "Claimed Condition: claimed-condition-timeline (Sleep apnea)",
+                rendered);
 
             Assert.Contains(
                 "Attention   : False",

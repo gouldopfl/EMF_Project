@@ -691,6 +691,12 @@ public static class VeteransConsoleCommand
         output.WriteLine(
             $"Claim Issue : {result.Details.ClaimIssue.Id.Value}");
 
+        foreach (var claimedCondition in result.Details.ClaimedConditions)
+        {
+            output.WriteLine(
+                $"Claimed Condition: {claimedCondition.Id.Value} ({claimedCondition.Name})");
+        }
+
         output.WriteLine(
             $"Ready       : {result.Readiness.IsReadyForAdjudication}");
 
