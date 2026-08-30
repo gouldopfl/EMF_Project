@@ -81,6 +81,40 @@ public sealed class ClaimIssueDecisionReviewHistoryServiceTests
                 !x.Review.RequiresReview);
     }
 
+    [Fact]
+    public async Task GetAsync_ReturnsEmptyWhenNoHistoricalDecisionsExist()
+    {
+        var issueId =
+            new ClaimIssueId("issue-empty");
+
+        var service =
+            new ClaimIssueDecisionReviewHistoryService(
+                new ClaimIssueDecisionComparisonHistoryService(
+                    new RecordingRepository(),
+                    new ClaimIssueDecisionComparisonService()),
+                new ClaimIssueDecisionReviewService(),
+                new ClaimIssueDecisionReviewAnalysisService());
+
+        var result =
+            await service.GetAsync(
+                new ClaimIssueDecisionRecommendation
+                {
+                    ClaimIssueId = issueId,
+                    IsReadyForAdjudication = true,
+                    MeritsOutcome = FindingOutcomes.Unresolved,
+                    RecommendedOutcome = null
+                },
+                new ClaimIssueMeritsOutcomeAssessment
+                {
+                    ClaimIssueId = issueId,
+                    TheoryOutcomes = [],
+                    Outcome = FindingOutcomes.Unresolved
+                });
+
+        Assert.Empty(result);
+    }
+
+
     private sealed class RecordingRepository :
         IVaDecisionRepository
     {
