@@ -109,7 +109,12 @@ public sealed class ClaimIssueDecisionReviewHistoryServiceTests
         public Task<VaDecision?> GetDecisionAsync(
             VaDecisionId vaDecisionId,
             CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            Task.FromResult<VaDecision?>(
+                new VaDecision
+                {
+                    Id = vaDecisionId,
+                    DecisionDate = DateTimeOffset.UnixEpoch
+                });
 
         public Task<IReadOnlyList<IssueDecision>>
             GetIssueDecisionsAsync(

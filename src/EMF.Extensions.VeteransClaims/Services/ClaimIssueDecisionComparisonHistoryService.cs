@@ -31,12 +31,34 @@ public sealed class ClaimIssueDecisionComparisonHistoryService
                 recommendation.ClaimIssueId,
                 cancellationToken);
 
-        return decisions
-            .Select(
-                decision =>
-                    _comparison.Compare(
-                        recommendation,
-                        decision))
-            .ToArray();
+        var comparisons =
+            new List<ClaimIssueDecisionComparison>(
+                decisions.Count);
+
+        foreach (var decision in decisions)
+        {
+            var comparison =
+                _comparison.Compare(
+                    recommendation,
+                    decision);
+
+            var vaDecision =
+                await _decisions.GetDecisionAsync(
+                    decision.VaDecisionId,
+                    cancellationToken);
+
+            comparisons.Add(
+                new ClaimIssueDecisionComparison
+                {
+                    ClaimIssueId = comparison.ClaimIssueId,
+                    IssueDecision = comparison.IssueDecision,
+                    VaDecision = vaDecision,
+                    Recommendation = comparison.Recommendation,
+                    ComparisonOutcome =
+                        comparison.ComparisonOutcome
+                });
+        }
+
+        return comparisons;
     }
 }

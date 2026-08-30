@@ -117,6 +117,9 @@ public sealed class VeteransConsoleCommandTests
                 "VA Decision : va-decision-review",
                 rendered);
             Assert.Contains(
+                "Decision Date: 2026-08-11",
+                rendered);
+            Assert.Contains(
                 "VA Outcome  : Denied",
                 rendered);
             Assert.Contains(

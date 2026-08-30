@@ -863,6 +863,13 @@ public static class VeteransConsoleCommand
                 $"VA Decision : " +
                 $"{analysis.Review.Comparison.IssueDecision.VaDecisionId.Value}");
 
+            if (analysis.Review.Comparison.VaDecision is not null)
+            {
+                output.WriteLine(
+                    $"Decision Date: " +
+                    $"{analysis.Review.Comparison.VaDecision.DecisionDate:yyyy-MM-dd}");
+            }
+
             output.WriteLine(
                 $"VA Outcome  : " +
                 $"{analysis.Review.Comparison.IssueDecision.Outcome}");

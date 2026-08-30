@@ -61,11 +61,28 @@ public sealed class ClaimIssueDecisionComparisonHistoryServiceTests
         var repository =
             Proxy<IVaDecisionRepository>(
                 (method, args) =>
-                    method.Name == "GetIssueDecisionsAsync" &&
-                    args![0] is ClaimIssueId
-                        ? Task.FromResult<
-                            IReadOnlyList<IssueDecision>>(decisions)
-                        : throw new NotSupportedException());
+                {
+                    if (method.Name == "GetIssueDecisionsAsync" &&
+                        args![0] is ClaimIssueId)
+                    {
+                        return Task.FromResult<
+                            IReadOnlyList<IssueDecision>>(decisions);
+                    }
+
+                    if (method.Name == "GetDecisionAsync" &&
+                        args![0] is VaDecisionId vaDecisionId)
+                    {
+                        return Task.FromResult<VaDecision?>(
+                            new VaDecision
+                            {
+                                Id = vaDecisionId,
+                                DecisionDate =
+                                    DateTimeOffset.UnixEpoch
+                            });
+                    }
+
+                    throw new NotSupportedException();
+                });
 
         var service =
             new ClaimIssueDecisionComparisonHistoryService(
@@ -93,6 +110,68 @@ public sealed class ClaimIssueDecisionComparisonHistoryServiceTests
                     new IssueDecisionId("decision-2") &&
                 x.ComparisonOutcome ==
                     ClaimIssueDecisionComparisonOutcomes.Agreement);
+    }
+
+    [Fact]
+    public async Task GetAsync_IncludesParentVaDecision()
+    {
+        var issueId = new ClaimIssueId("issue-1");
+        var vaDecisionId = new VaDecisionId("va-1");
+
+        var issueDecision =
+            new IssueDecision
+            {
+                Id = new IssueDecisionId("decision-1"),
+                VaDecisionId = vaDecisionId,
+                ClaimIssueId = issueId,
+                Outcome = IssueDecisionOutcomes.Denied
+            };
+
+        var vaDecision =
+            new VaDecision
+            {
+                Id = vaDecisionId,
+                DecisionDate =
+                    new DateTimeOffset(
+                        2026, 8, 11, 0, 0, 0,
+                        TimeSpan.Zero)
+            };
+
+        var repository =
+            Proxy<IVaDecisionRepository>(
+                (method, args) =>
+                {
+                    if (method.Name == "GetIssueDecisionsAsync" &&
+                        args![0] is ClaimIssueId)
+                    {
+                        return Task.FromResult<
+                            IReadOnlyList<IssueDecision>>(
+                                [issueDecision]);
+                    }
+
+                    if (method.Name == "GetDecisionAsync")
+                    {
+                        return Task.FromResult<VaDecision?>(
+                            vaDecision);
+                    }
+
+                    throw new NotSupportedException();
+                });
+
+        var service =
+            new ClaimIssueDecisionComparisonHistoryService(
+                repository,
+                new ClaimIssueDecisionComparisonService());
+
+        var result =
+            await service.GetAsync(
+                CreateRecommendation(issueId));
+
+        var comparison = Assert.Single(result);
+
+        Assert.Same(
+            vaDecision,
+            comparison.VaDecision);
     }
 
     [Fact]

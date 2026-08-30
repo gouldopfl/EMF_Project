@@ -8,6 +8,8 @@ public sealed class ClaimIssueDecisionComparison
 
     public required IssueDecision IssueDecision { get; init; }
 
+    public VaDecision? VaDecision { get; init; }
+
     public required ClaimIssueDecisionRecommendation
         Recommendation { get; init; }
 
