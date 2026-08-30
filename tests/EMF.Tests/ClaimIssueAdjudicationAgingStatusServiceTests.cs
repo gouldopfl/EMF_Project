@@ -58,6 +58,26 @@ public sealed class ClaimIssueAdjudicationAgingStatusServiceTests
         Assert.True(result.ShouldConsiderFollowUp);
     }
 
+    [Fact]
+    public void TryAssess_ReturnsNullWithoutAgingTimeline()
+    {
+        var result =
+            new ClaimIssueAdjudicationAgingStatusService(
+                new ClaimIssueAdjudicationAgingService(),
+                new ClaimIssueAdjudicationAgingPolicyService())
+                .TryAssess(
+                    new ClaimIssueId("issue-empty"),
+                    [],
+                    DateTimeOffset.UtcNow,
+                    new ClaimIssueAdjudicationAgingPolicy
+                    {
+                        AttentionAfterDays = 60,
+                        ConsiderFollowUpAfterDays = 90
+                    });
+
+        Assert.Null(result);
+    }
+
     [Theory]
     [InlineData(
         ClaimIssueAdjudicationAgingAlertLevels.Normal,
