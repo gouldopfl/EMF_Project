@@ -10,6 +10,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
     private readonly IClaimIssueRepository _issues;
     private readonly IConditionRepository _conditions;
     private readonly IServiceConnectionRepository _serviceConnections;
+    private readonly IServiceHistoryRepository _serviceHistory;
     private readonly IRegulatoryRepository _regulatory;
     private readonly IRequirementEvidenceService _requirementEvidence;
     private readonly IClaimIssueEvidenceDetailsService _evidence;
@@ -19,6 +20,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         IClaimIssueRepository issues,
         IConditionRepository conditions,
         IServiceConnectionRepository serviceConnections,
+        IServiceHistoryRepository serviceHistory,
         IRegulatoryRepository regulatory,
         IRequirementEvidenceService requirementEvidence,
         IClaimIssueEvidenceDetailsService evidence,
@@ -27,6 +29,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         ArgumentNullException.ThrowIfNull(issues);
         ArgumentNullException.ThrowIfNull(conditions);
         ArgumentNullException.ThrowIfNull(serviceConnections);
+        ArgumentNullException.ThrowIfNull(serviceHistory);
         ArgumentNullException.ThrowIfNull(regulatory);
         ArgumentNullException.ThrowIfNull(requirementEvidence);
         ArgumentNullException.ThrowIfNull(evidence);
@@ -35,6 +38,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         _issues = issues;
         _conditions = conditions;
         _serviceConnections = serviceConnections;
+        _serviceHistory = serviceHistory;
         _regulatory = regulatory;
         _requirementEvidence = requirementEvidence;
         _evidence = evidence;
@@ -74,6 +78,9 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         var serviceConnectedConditions =
             new List<ServiceConnectionBasisConditionDetails>();
 
+        var serviceEvents =
+            new List<ServiceConnectionBasisServiceEventDetails>();
+
         var requirements =
             new List<ServiceConnectionBasisRequirementDetails>();
 
@@ -99,6 +106,28 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     {
                         Basis = basis,
                         ServiceConnectedCondition = condition
+                    });
+            }
+
+            var serviceEventIds =
+                await _serviceConnections.GetServiceEventIdsAsync(
+                    basis.Id,
+                    cancellationToken);
+
+            foreach (var serviceEventId in serviceEventIds)
+            {
+                var serviceEvent =
+                    await _serviceHistory.GetServiceEventAsync(
+                        serviceEventId,
+                        cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        "Service event could not be read.");
+
+                serviceEvents.Add(
+                    new ServiceConnectionBasisServiceEventDetails
+                    {
+                        Basis = basis,
+                        ServiceEvent = serviceEvent
                     });
             }
 
@@ -166,6 +195,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
             ServiceConnectionTheories = theories,
             ServiceConnectionBases = bases,
             ServiceConnectedConditions = serviceConnectedConditions,
+            ServiceEvents = serviceEvents,
             Requirements = requirements,
             Evidence = evidence,
             Timeline = timeline

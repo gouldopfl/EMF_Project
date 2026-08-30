@@ -58,6 +58,7 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 ServiceConnectionTheories = [],
                 ServiceConnectionBases = [],
                 ServiceConnectedConditions = [],
+                ServiceEvents = [],
                 Requirements = [],
                 Timeline = [],
                 Evidence =
@@ -320,6 +321,7 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
             ServiceConnectionTheories = [],
             ServiceConnectionBases = [],
             ServiceConnectedConditions = [],
+            ServiceEvents = [],
             Requirements = [],
             Timeline = timeline,
             Evidence =

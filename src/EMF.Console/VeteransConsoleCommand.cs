@@ -639,6 +639,7 @@ public static class VeteransConsoleCommand
                 issues,
                 conditions,
                 serviceConnections,
+                new SqliteServiceHistoryRepository(databasePath),
                 regulatory,
                 requirementEvidence,
                 evidence,

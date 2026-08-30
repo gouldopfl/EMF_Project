@@ -20,6 +20,7 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 new MissingClaimIssueRepository(),
                 NeverCall<IConditionRepository>(),
                 NeverCall<IServiceConnectionRepository>(),
+                NeverCall<IServiceHistoryRepository>(),
                 NeverCall<IRegulatoryRepository>(),
                 NeverCall<IRequirementEvidenceService>(),
                 NeverCall<IClaimIssueEvidenceDetailsService>(),
@@ -69,6 +70,13 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         {
             Id = new MedicalConditionId("ptsd-001"),
             Name = "Posttraumatic stress disorder"
+        };
+
+        var serviceEvent = new ServiceEvent
+        {
+            Id = new ServiceEventId("service-event-001"),
+            VeteranId = new VeteranId("veteran-001"),
+            Description = "Documented duty event"
         };
 
         var requirement = new Requirement
@@ -154,10 +162,19 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                 : method.Name == "GetServiceConnectedConditionIdsAsync"
                                     ? Task.FromResult<IReadOnlyList<MedicalConditionId>>(
                                         [serviceConnectedCondition.Id])
+                                    : method.Name == "GetServiceEventIdsAsync"
+                                        ? Task.FromResult<IReadOnlyList<ServiceEventId>>(
+                                            [serviceEvent.Id])
                                     : method.Name == "GetRequirementIdsAsync"
                                         ? Task.FromResult<IReadOnlyList<RequirementId>>(
                                             [requirement.Id])
                                         : throw new NotSupportedException()),
+                Proxy<IServiceHistoryRepository>(
+                    method =>
+                        method.Name == "GetServiceEventAsync"
+                            ? Task.FromResult<ServiceEvent?>(
+                                serviceEvent)
+                            : throw new NotSupportedException()),
                 Proxy<IRegulatoryRepository>(
                     method =>
                         method.Name == "GetRequirementAsync"
@@ -209,6 +226,14 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         Assert.Same(
             serviceConnectedCondition,
             resolved.ServiceConnectedCondition);
+
+        var resolvedServiceEvent =
+            Assert.Single(result.ServiceEvents);
+
+        Assert.Same(basis, resolvedServiceEvent.Basis);
+        Assert.Same(
+            serviceEvent,
+            resolvedServiceEvent.ServiceEvent);
 
         var resolvedRequirement =
             Assert.Single(result.Requirements);
