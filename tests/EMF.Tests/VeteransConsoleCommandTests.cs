@@ -1530,6 +1530,13 @@ public sealed class VeteransConsoleCommandTests
                     }
                 ]);
 
+            await plans.AddEvidenceDevelopmentPlanRequirementAsync(
+                new EvidenceDevelopmentPlanRequirement
+                {
+                    EvidenceDevelopmentPlanId = plan.Id,
+                    RequirementId = requirementId
+                });
+
             using var output = new StringWriter();
 
             var exitCode =
@@ -1560,7 +1567,11 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
-                "Requirements: 0",
+                "Requirements: 1",
+                rendered);
+
+            Assert.Contains(
+                "Plan Requirement: requirement-summary-1",
                 rendered);
 
             Assert.Contains(

@@ -1218,6 +1218,12 @@ public static class VeteransConsoleCommand
         output.WriteLine(
             $"Requirements: {result.Requirements.Count}");
 
+        foreach (var requirement in result.Requirements)
+        {
+            output.WriteLine(
+                $"Plan Requirement: {requirement.RequirementId.Value}");
+        }
+
         output.WriteLine(
             $"Evidence Gaps: {result.EvidenceGaps.Count}");
 
