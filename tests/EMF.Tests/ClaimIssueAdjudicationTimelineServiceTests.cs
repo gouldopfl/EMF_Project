@@ -40,6 +40,23 @@ public sealed class ClaimIssueAdjudicationTimelineServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_ThrowsWhenTimelineRetrievalIsNotConfigured()
+    {
+        var service =
+            new ClaimIssueAdjudicationTimelineService();
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    service.GetAsync(
+                        new ClaimIssueId("issue-unconfigured")));
+
+        Assert.Equal(
+            "Timeline retrieval is not configured.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task GetAsync_merges_va_and_court_history()
     {
         var issueId = new ClaimIssueId("issue-001");
