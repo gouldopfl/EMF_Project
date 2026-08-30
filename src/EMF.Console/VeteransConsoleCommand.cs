@@ -749,6 +749,16 @@ public static class VeteransConsoleCommand
                         $"({condition.ServiceConnectedCondition.Name})");
                 }
 
+                foreach (var serviceEvent in
+                    result.Details.ServiceEvents.Where(
+                        x => x.Basis.Id == basis.Id))
+                {
+                    output.WriteLine(
+                        $"Service Event: " +
+                        $"{serviceEvent.ServiceEvent.Id.Value} " +
+                        $"({serviceEvent.ServiceEvent.Description})");
+                }
+
                 foreach (var requirement in
                     result.Details.Requirements.Where(
                         x => x.Basis.Id == basis.Id))

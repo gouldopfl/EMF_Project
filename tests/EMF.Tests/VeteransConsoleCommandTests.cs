@@ -699,6 +699,28 @@ public sealed class VeteransConsoleCommandTests
                             serviceConnectedCondition.Id
                     });
 
+            var serviceEvent =
+                new ServiceEvent
+                {
+                    Id =
+                        new ServiceEventId(
+                            "service-event-adjudication-blocked"),
+                    VeteranId = veteran.Id,
+                    Description = "Documented duty event"
+                };
+
+            await new SqliteServiceHistoryRepository(
+                databasePath)
+                .AddServiceEventAsync(serviceEvent);
+
+            await connections
+                .AddBasisServiceEventAsync(
+                    new ServiceConnectionBasisServiceEvent
+                    {
+                        ServiceConnectionBasisId = basis.Id,
+                        ServiceEventId = serviceEvent.Id
+                    });
+
             var regulatory =
                 new SqliteRegulatoryRepository(databasePath);
 
@@ -783,6 +805,10 @@ public sealed class VeteransConsoleCommandTests
 
             Assert.Contains(
                 "Service Connected: medical-condition-adjudication-blocked (Posttraumatic stress disorder)",
+                rendered);
+
+            Assert.Contains(
+                "Service Event: service-event-adjudication-blocked (Documented duty event)",
                 rendered);
 
             Assert.Contains(
