@@ -111,6 +111,15 @@ public sealed class VeteransConsoleCommandTests
 
             Assert.Equal(0, exitCode);
             Assert.Contains(
+                "Issue Decision: issue-decision-review-history",
+                rendered);
+            Assert.Contains(
+                "VA Decision : va-decision-review",
+                rendered);
+            Assert.Contains(
+                "VA Outcome  : Denied",
+                rendered);
+            Assert.Contains(
                 "Comparison  : Disagreement",
                 rendered);
             Assert.Contains(

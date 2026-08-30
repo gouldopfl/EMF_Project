@@ -856,6 +856,18 @@ public static class VeteransConsoleCommand
             output.WriteLine();
 
             output.WriteLine(
+                $"Issue Decision: " +
+                $"{analysis.Review.Comparison.IssueDecision.Id.Value}");
+
+            output.WriteLine(
+                $"VA Decision : " +
+                $"{analysis.Review.Comparison.IssueDecision.VaDecisionId.Value}");
+
+            output.WriteLine(
+                $"VA Outcome  : " +
+                $"{analysis.Review.Comparison.IssueDecision.Outcome}");
+
+            output.WriteLine(
                 $"Comparison  : " +
                 $"{analysis.Review.Comparison.ComparisonOutcome}");
 
