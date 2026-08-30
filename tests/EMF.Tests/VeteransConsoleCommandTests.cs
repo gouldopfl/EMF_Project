@@ -792,6 +792,18 @@ public sealed class VeteransConsoleCommandTests
             Assert.Equal(0, exitCode);
 
             Assert.Contains(
+                "Evidence Checklists: 0",
+                rendered);
+
+            Assert.Contains(
+                "Evidence Outstanding: False",
+                rendered);
+
+            Assert.Contains(
+                "Development Plans: 0",
+                rendered);
+
+            Assert.Contains(
                 "Theory      : Secondary",
                 rendered);
 
