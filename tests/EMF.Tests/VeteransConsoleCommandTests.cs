@@ -1410,6 +1410,122 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
+    public async Task EvidencePlan_ReportsPlanSummary()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran =
+                new Veteran
+                {
+                    Id = new VeteranId("veteran-plan-summary")
+                };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim =
+                new Claim
+                {
+                    Id = new ClaimId("claim-plan-summary"),
+                    VeteranId = veteran.Id
+                };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue =
+                new ClaimIssue
+                {
+                    Id = new ClaimIssueId("issue-plan-summary"),
+                    ClaimId = claim.Id,
+                    ClaimIssueType =
+                        ClaimIssueTypes.ServiceConnection
+                };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var plan =
+                new EvidenceDevelopmentPlan
+                {
+                    Id =
+                        new EvidenceDevelopmentPlanId(
+                            "plan-summary-1"),
+                    ClaimIssueId = issue.Id,
+                    Description = "Develop supporting evidence."
+                };
+
+            var plans =
+                new SqliteEvidenceDevelopmentPlanRepository(
+                    databasePath);
+
+            await plans.InitializeAsync();
+
+            await plans.CreateEvidenceDevelopmentPlanAsync(
+                plan,
+                []);
+
+            using var output = new StringWriter();
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunEvidenceDevelopmentPlanAsync(
+                        databasePath,
+                        plan.Id,
+                        output);
+
+            var rendered = output.ToString();
+
+            Assert.Equal(0, exitCode);
+
+            Assert.Contains(
+                "Plan ID     : plan-summary-1",
+                rendered);
+
+            Assert.Contains(
+                "Claim Issue : issue-plan-summary",
+                rendered);
+
+            Assert.Contains(
+                "Description : Develop supporting evidence.",
+                rendered);
+
+            Assert.Contains(
+                "Status      : Complete",
+                rendered);
+
+            Assert.Contains(
+                "Requirements: 0",
+                rendered);
+
+            Assert.Contains(
+                "Evidence Gaps: 0",
+                rendered);
+
+            Assert.Contains(
+                "Artifacts   : 0",
+                rendered);
+
+            Assert.Contains(
+                "Executions  : 0",
+                rendered);
+
+            Assert.Contains(
+                "Results     : 0",
+                rendered);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task AdjudicationClaim_ReadsClaimAndIssues()
     {
         var databasePath = Path.GetTempFileName();

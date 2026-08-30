@@ -176,6 +176,27 @@ public static class VeteransConsoleCommand
                 new ClaimIssueId(args[3]));
         }
 
+        if (args.Length == 4 &&
+            args[0] == "evidence" &&
+            args[1] == "plan")
+        {
+            var planDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(planDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {planDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunEvidenceDevelopmentPlanAsync(
+                planDatabasePath,
+                new EvidenceDevelopmentPlanId(args[3]),
+                global::System.Console.Out);
+        }
+
         if (args.Length == 5 &&
             args[0] == "evidence" &&
             args[1] == "prepare")
@@ -1150,6 +1171,68 @@ public static class VeteransConsoleCommand
 
         return 0;
     }
+
+    public static async Task<int> RunEvidenceDevelopmentPlanAsync(
+        string databasePath,
+        EvidenceDevelopmentPlanId planId,
+        TextWriter output)
+    {
+        var repository =
+            new SqliteEvidenceDevelopmentPlanRepository(
+                databasePath);
+
+        await repository.InitializeAsync();
+
+        var gaps =
+            new SqliteEvidenceGapRepository(databasePath);
+
+        var plans =
+            new EvidenceDevelopmentPlanService(
+                repository,
+                gaps);
+
+        var result =
+            await plans.GetEvidenceDevelopmentPlanAsync(
+                planId);
+
+        if (result is null)
+        {
+            output.WriteLine(
+                $"Evidence development plan not found: {planId.Value}");
+
+            return 1;
+        }
+
+        output.WriteLine(
+            $"Plan ID     : {result.Plan.Id.Value}");
+
+        output.WriteLine(
+            $"Claim Issue : {result.Plan.ClaimIssueId.Value}");
+
+        output.WriteLine(
+            $"Description : {result.Plan.Description}");
+
+        output.WriteLine(
+            $"Status      : {result.Status?.Status ?? "Unknown"}");
+
+        output.WriteLine(
+            $"Requirements: {result.Requirements.Count}");
+
+        output.WriteLine(
+            $"Evidence Gaps: {result.EvidenceGaps.Count}");
+
+        output.WriteLine(
+            $"Artifacts   : {result.Artifacts.Count}");
+
+        output.WriteLine(
+            $"Executions  : {result.Executions.Count}");
+
+        output.WriteLine(
+            $"Results     : {result.Results.Count}");
+
+        return 0;
+    }
+
 
     private static async Task<int> RunExecuteAsync(
         string databasePath,
