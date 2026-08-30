@@ -263,6 +263,78 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_ThrowsWhenLinkedServiceConnectedConditionCannotBeRead()
+    {
+        var issueId = new ClaimIssueId("issue-001");
+
+        var issue = new ClaimIssue
+        {
+            Id = issueId,
+            ClaimId = new ClaimId("claim-001"),
+            ClaimIssueType = "service-connection"
+        };
+
+        var theory = new ServiceConnectionTheory
+        {
+            Id = new ServiceConnectionTheoryId("theory-001"),
+            ClaimIssueId = issueId,
+            TheoryType = ServiceConnectionTheoryTypes.Secondary
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-001"),
+            ClaimIssueId = issueId,
+            ServiceConnectionTheoryId = theory.Id
+        };
+
+        var conditionId =
+            new MedicalConditionId("missing-condition");
+
+        var service =
+            new ClaimIssueAdjudicationDetailsService(
+                new FakeClaimIssueRepository(issue),
+                Proxy<IConditionRepository>(
+                    method =>
+                        method.Name == "GetClaimedConditionsAsync"
+                            ? Task.FromResult<
+                                IReadOnlyList<ClaimedCondition>>([])
+                            : method.Name == "GetMedicalConditionAsync"
+                                ? Task.FromResult<MedicalCondition?>(null)
+                                : throw new NotSupportedException()),
+                Proxy<IServiceConnectionRepository>(
+                    method =>
+                        method.Name == "GetServiceConnectionTheoriesAsync"
+                            ? Task.FromResult<
+                                IReadOnlyList<ServiceConnectionTheory>>(
+                                    [theory])
+                            : method.Name == "GetServiceConnectionBasesAsync"
+                                ? Task.FromResult<
+                                    IReadOnlyList<ServiceConnectionBasis>>(
+                                        [basis])
+                                : method.Name ==
+                                    "GetServiceConnectedConditionIdsAsync"
+                                    ? Task.FromResult<
+                                        IReadOnlyList<MedicalConditionId>>(
+                                            [conditionId])
+                                    : throw new NotSupportedException()),
+                NeverCall<IServiceHistoryRepository>(),
+                NeverCall<IRegulatoryRepository>(),
+                NeverCall<IRequirementEvidenceService>(),
+                NeverCall<IClaimIssueEvidenceDetailsService>(),
+                NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Service-connected condition could not be read.",
+            exception.Message);
+    }
+
+
+    [Fact]
     public async Task GetAsync_ThrowsWhenLinkedServiceEventCannotBeRead()
     {
         var issueId = new ClaimIssueId("issue-001");
