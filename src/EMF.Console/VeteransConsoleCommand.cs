@@ -732,12 +732,32 @@ public static class VeteransConsoleCommand
             output.WriteLine(
                 $"Theory ID   : {theory.Id.Value}");
 
+            var theoryOutcome =
+                result.Merits?.TheoryOutcomes.SingleOrDefault(
+                    x => x.Theory.Id == theory.Id);
+
+            if (theoryOutcome is not null)
+            {
+                output.WriteLine(
+                    $"Outcome     : {theoryOutcome.Outcome}");
+            }
+
             foreach (var basis in
                 result.Details.ServiceConnectionBases.Where(
                     x => x.ServiceConnectionTheoryId == theory.Id))
             {
                 output.WriteLine(
                     $"Basis       : {basis.Id.Value}");
+
+                var basisOutcome =
+                    theoryOutcome?.BasisOutcomes.SingleOrDefault(
+                        x => x.Basis.Id == basis.Id);
+
+                if (basisOutcome is not null)
+                {
+                    output.WriteLine(
+                        $"Basis Result: {basisOutcome.Outcome}");
+                }
 
                 foreach (var condition in
                     result.Details.ServiceConnectedConditions.Where(

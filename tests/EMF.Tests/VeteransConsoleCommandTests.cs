@@ -800,7 +800,15 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
+                "Outcome     : Unresolved",
+                rendered);
+
+            Assert.Contains(
                 "Basis       : basis-adjudication-blocked",
+                rendered);
+
+            Assert.Contains(
+                "Basis Result: Unresolved",
                 rendered);
 
             Assert.Contains(
