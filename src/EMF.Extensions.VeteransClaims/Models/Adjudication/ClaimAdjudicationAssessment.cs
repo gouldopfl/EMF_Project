@@ -30,6 +30,12 @@ public sealed class ClaimAdjudicationAssessment
             x => x.DecisionReviewHistory.Count(
                 review => review.Review.RequiresReview));
 
+    public int AttentionIssueCount =>
+        Issues.Count(x => x.RequiresAttention);
+
+    public int FollowUpIssueCount =>
+        Issues.Count(x => x.ShouldConsiderFollowUp);
+
     public bool RequiresAttention =>
         Issues.Any(x => x.RequiresAttention);
 

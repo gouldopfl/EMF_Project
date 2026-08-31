@@ -164,6 +164,76 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
 
 
     [Fact]
+    public async Task GetAsync_SummarizesAttentionAndFollowUpCounts()
+    {
+        var claimId =
+            new ClaimId("claim-aging-summary");
+
+        var claim =
+            new Claim
+            {
+                Id = claimId,
+                VeteranId =
+                    new VeteranId("veteran-aging-summary")
+            };
+
+        var normalIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-normal-summary"),
+                ClaimId = claimId,
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+        var attentionIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-attention-summary"),
+                ClaimId = claimId,
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+        var followUpIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-follow-up-summary"),
+                ClaimId = claimId,
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(claim),
+                new FakeClaimIssueRepository(
+                    normalIssue,
+                    attentionIssue,
+                    followUpIssue),
+                new FakeIssueAssessmentService(
+                    CreateAssessment(
+                        normalIssue,
+                        requiresAttention: false,
+                        shouldConsiderFollowUp: false),
+                    CreateAssessment(
+                        attentionIssue,
+                        requiresAttention: true,
+                        shouldConsiderFollowUp: false),
+                    CreateAssessment(
+                        followUpIssue,
+                        requiresAttention: true,
+                        shouldConsiderFollowUp: true)));
+
+        var result =
+            await service.GetAsync(claimId);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result!.AttentionIssueCount);
+        Assert.Equal(1, result.FollowUpIssueCount);
+    }
+
+    [Fact]
     public async Task GetAsync_DoesNotEscalateAttentionToFollowUp()
     {
         var claimId = new ClaimId("claim-003");
