@@ -139,7 +139,7 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
     }
 
     [Fact]
-    public async Task GetAsync_OmitsIssueWhenAssessmentIsMissing()
+    public async Task GetAsync_ThrowsWhenIssueAssessmentIsMissing()
     {
         var claimId = new ClaimId("claim-missing-assessment");
 
@@ -150,15 +150,7 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
                 VeteranId = new VeteranId("veteran-001")
             };
 
-        var assessedIssue =
-            new ClaimIssue
-            {
-                Id = new ClaimIssueId("issue-assessed"),
-                ClaimId = claimId,
-                ClaimIssueType = ClaimIssueTypes.ServiceConnection
-            };
-
-        var missingIssue =
+        var issue =
             new ClaimIssue
             {
                 Id = new ClaimIssueId("issue-missing"),
@@ -169,22 +161,16 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
         var service =
             new ClaimAdjudicationAssessmentService(
                 new FakeClaimRepository(claim),
-                new FakeClaimIssueRepository(
-                    assessedIssue,
-                    missingIssue),
-                new FakeIssueAssessmentService(
-                    CreateAssessment(
-                        assessedIssue,
-                        requiresAttention: false,
-                        shouldConsiderFollowUp: false)));
+                new FakeClaimIssueRepository(issue),
+                new FakeIssueAssessmentService());
 
-        var result = await service.GetAsync(claimId);
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(claimId));
 
-        Assert.NotNull(result);
-        var issueAssessment = Assert.Single(result!.Issues);
         Assert.Equal(
-            assessedIssue.Id,
-            issueAssessment.Details.ClaimIssue.Id);
+            "Claim issue adjudication assessment could not be read.",
+            exception.Message);
     }
 
 

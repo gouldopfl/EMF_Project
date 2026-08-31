@@ -44,8 +44,13 @@ public sealed class ClaimAdjudicationAssessmentService
             var assessment =
                 await _assessments.GetAsync(issue.Id, cancellationToken);
 
-            if (assessment is not null)
-                assessments.Add(assessment);
+            if (assessment is null)
+            {
+                throw new InvalidOperationException(
+                    "Claim issue adjudication assessment could not be read.");
+            }
+
+            assessments.Add(assessment);
         }
 
         return new ClaimAdjudicationAssessment
