@@ -165,12 +165,14 @@ public sealed class ClaimAdjudicationWorkflowTests
 
             var first =
                 rendered.IndexOf(
-                    "Lifecycle   : 2026-01-15 issue-workflow-1",
+                    "2026-01-15T00:00:00.0000000+00:00 " +
+                    "issue-workflow-1 VaDecision",
                     StringComparison.Ordinal);
 
             var second =
                 rendered.IndexOf(
-                    "Lifecycle   : 2026-06-15 issue-workflow-2",
+                    "2026-06-15T00:00:00.0000000+00:00 " +
+                    "issue-workflow-2 VaDecision",
                     StringComparison.Ordinal);
 
             Assert.True(first >= 0);

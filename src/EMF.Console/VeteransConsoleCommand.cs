@@ -495,12 +495,15 @@ public static class VeteransConsoleCommand
                 CreateAdjudicationAssessmentService(
                     databasePath));
 
-        var lifecycle =
-            new ClaimAdjudicationLifecycleService(
+        var timeline =
+            new ClaimAdjudicationTimelineService(
                 issues,
-                new ClaimIssueAdjudicationLifecycleService(
-                    new SqliteVaDecisionRepository(databasePath),
-                    new SqliteSubmissionRepository(databasePath)));
+                new ClaimIssueAdjudicationTimelineService(
+                    new ClaimIssueAdjudicationLifecycleService(
+                        new SqliteVaDecisionRepository(databasePath),
+                        new SqliteSubmissionRepository(databasePath)),
+                    new SqliteClaimIssueCourtAppealRepository(
+                        databasePath)));
 
         var result =
             await service.GetAsync(claimId);
@@ -580,17 +583,24 @@ public static class VeteransConsoleCommand
                     x => x.Review.RequiresReview)}");
         }
 
-        var lifecycleEntries =
-            await lifecycle.GetAsync(claimId);
+        var timelineEvents =
+            await timeline.GetAsync(claimId);
 
-        foreach (var entry in lifecycleEntries)
+        output.WriteLine(
+            $"Timeline    : {timelineEvents.Count}");
+
+        foreach (var item in timelineEvents)
         {
             output.WriteLine(
-                $"Lifecycle   : " +
-                $"{entry.VaDecision.DecisionDate:yyyy-MM-dd} " +
-                $"{entry.ClaimIssueId.Value} " +
-                $"{entry.Submission.SubmissionType} " +
-                $"{entry.IssueDecision.Outcome}");
+                $"- {item.OccurredAt:O} " +
+                $"{item.ClaimIssueId.Value} " +
+                $"{item.EventType}" +
+                (item.Outcome is null
+                    ? string.Empty
+                    : $" [{item.Outcome}]") +
+                (item.Description is null
+                    ? string.Empty
+                    : $": {item.Description}"));
         }
 
         return 0;

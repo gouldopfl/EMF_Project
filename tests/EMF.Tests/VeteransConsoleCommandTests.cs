@@ -2019,9 +2019,13 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
-                "Lifecycle   : 2026-08-15 " +
+                "Timeline    : 1",
+                rendered);
+
+            Assert.Contains(
+                "- 2026-08-15T00:00:00.0000000+00:00 " +
                 "issue-adjudication-console " +
-                "SupplementalClaim Denied",
+                "VaDecision [Denied]: SupplementalClaim",
                 rendered);
         }
         finally
