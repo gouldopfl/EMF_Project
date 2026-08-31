@@ -14,6 +14,7 @@ public sealed class VaDecisionDocumentCoordinator
     private readonly VaDecisionDocumentPersistenceService _persistence;
     private readonly VaDecisionDocumentProcessingAttemptService _attempts;
     private readonly IIdGenerator _idGenerator;
+    private readonly TimeProvider _timeProvider;
 
     public VaDecisionDocumentCoordinator(
         IClaimIssueRepository issues,
@@ -21,7 +22,8 @@ public sealed class VaDecisionDocumentCoordinator
         VaDecisionDocumentIssueMatchingService matching,
         VaDecisionDocumentPersistenceService persistence,
         VaDecisionDocumentProcessingAttemptService attempts,
-        IIdGenerator idGenerator)
+        IIdGenerator idGenerator,
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(issues);
         ArgumentNullException.ThrowIfNull(conditions);
@@ -29,6 +31,7 @@ public sealed class VaDecisionDocumentCoordinator
         ArgumentNullException.ThrowIfNull(persistence);
         ArgumentNullException.ThrowIfNull(attempts);
         ArgumentNullException.ThrowIfNull(idGenerator);
+        ArgumentNullException.ThrowIfNull(timeProvider);
 
         _issues = issues;
         _conditions = conditions;
@@ -36,6 +39,7 @@ public sealed class VaDecisionDocumentCoordinator
         _persistence = persistence;
         _attempts = attempts;
         _idGenerator = idGenerator;
+        _timeProvider = timeProvider;
     }
 
     public async Task<VaDecisionDocumentProcessingResult> ProcessAsync(
@@ -89,7 +93,7 @@ public sealed class VaDecisionDocumentCoordinator
                 claimId,
                 interpretation,
                 unresolvedResult,
-                DateTimeOffset.UtcNow,
+                _timeProvider.GetUtcNow(),
                 cancellationToken);
 
             return unresolvedResult;
@@ -130,7 +134,7 @@ public sealed class VaDecisionDocumentCoordinator
             claimId,
             interpretation,
             result,
-            DateTimeOffset.UtcNow,
+            _timeProvider.GetUtcNow(),
             cancellationToken);
 
         return result;

@@ -54,6 +54,44 @@ public sealed class VaDecisionDocumentCoordinatorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_UsesProvidedTimeForProcessingAttempt()
+    {
+        var claimId = new ClaimId("claim-time");
+        var issueId = new ClaimIssueId("issue-time");
+
+        var processedAt =
+            new DateTimeOffset(
+                2026, 8, 31, 19, 45, 30,
+                TimeSpan.Zero);
+
+        var repository =
+            new RecordingVaDecisionRepository();
+
+        var attempts =
+            new RecordingProcessingAttemptRepository();
+
+        var coordinator =
+            CreateCoordinator(
+                claimId,
+                issueId,
+                repository,
+                attempts: attempts,
+                timeProvider:
+                    new FixedTimeProvider(processedAt));
+
+        await coordinator.ProcessAsync(
+            claimId,
+            CreateInterpretation("Sleep apnea"));
+
+        var attempt =
+            Assert.Single(attempts.Attempts);
+
+        Assert.Equal(
+            processedAt,
+            attempt.ProcessedAt);
+    }
+
+    [Fact]
     public async Task ProcessAsync_PropagatesArtifactPersistenceFailure()
     {
         var claimId = new ClaimId("claim-artifact-failure");
@@ -340,6 +378,13 @@ public sealed class VaDecisionDocumentCoordinatorTests
                     .ToArray()
         };
 
+    private sealed class FixedTimeProvider(
+        DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() =>
+            utcNow;
+    }
+
     private sealed class StubIdGenerator : IIdGenerator
     {
         private readonly Queue<string> _ids;
@@ -365,7 +410,8 @@ public sealed class VaDecisionDocumentCoordinatorTests
             string? secondConditionName = null,
             ClaimIssueId? thirdIssueId = null,
             string? thirdConditionName = null,
-            RecordingProcessingAttemptRepository? attempts = null)
+            RecordingProcessingAttemptRepository? attempts = null,
+            TimeProvider? timeProvider = null)
     {
         var persistence =
             new VaDecisionDocumentPersistenceService(
@@ -404,7 +450,8 @@ public sealed class VaDecisionDocumentCoordinatorTests
                         "issue-decision-1",
                         "issue-decision-2",
                         "va-decision-1")
-                    : new StubIdGenerator());
+                    : new StubIdGenerator(),
+            timeProvider ?? TimeProvider.System);
     }
 
     private sealed class StubClaimIssueRepository :
