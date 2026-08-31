@@ -85,6 +85,37 @@ public sealed class VaDecisionDocumentCoordinatorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_PropagatesProcessingAttemptFailure()
+    {
+        var claimId = new ClaimId("claim-attempt-failure");
+        var issueId = new ClaimIssueId("issue-attempt-failure");
+
+        var repository =
+            new RecordingVaDecisionRepository();
+
+        var attempts =
+            new RecordingProcessingAttemptRepository(
+                failWrite: true);
+
+        var coordinator =
+            CreateCoordinator(
+                claimId,
+                issueId,
+                repository,
+                attempts: attempts);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.ProcessAsync(
+                claimId,
+                CreateInterpretation("Sleep apnea")));
+
+        Assert.NotNull(repository.Decision);
+        Assert.Single(repository.IssueDecisions);
+        Assert.Single(repository.Artifacts);
+        Assert.Empty(attempts.Attempts);
+    }
+
+    [Fact]
     public async Task ProcessAsync_RejectsUnmatchedIssue()
     {
         var claimId = new ClaimId("claim-1");
@@ -489,6 +520,14 @@ public sealed class VaDecisionDocumentCoordinatorTests
     private sealed class RecordingProcessingAttemptRepository :
         IVaDecisionDocumentProcessingAttemptRepository
     {
+        private readonly bool _failWrite;
+
+        public RecordingProcessingAttemptRepository(
+            bool failWrite = false)
+        {
+            _failWrite = failWrite;
+        }
+
         public List<VaDecisionDocumentProcessingAttempt>
             Attempts { get; } = [];
 
@@ -496,6 +535,12 @@ public sealed class VaDecisionDocumentCoordinatorTests
             VaDecisionDocumentProcessingAttempt attempt,
             CancellationToken cancellationToken = default)
         {
+            if (_failWrite)
+            {
+                throw new InvalidOperationException(
+                    "Processing attempt persistence failed.");
+            }
+
             Attempts.Add(attempt);
             return Task.CompletedTask;
         }
