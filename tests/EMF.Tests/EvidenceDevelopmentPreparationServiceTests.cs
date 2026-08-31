@@ -196,6 +196,75 @@ public sealed class EvidenceDevelopmentPreparationServiceTests
     }
 
 
+    [Fact]
+    public async Task PrepareAsync_RejectsExistingPlanForDifferentClaimIssue()
+    {
+        var requestedIssueId =
+            new ClaimIssueId("issue-requested");
+
+        var existing =
+            new EvidenceDevelopmentPlanDetails
+            {
+                Plan =
+                    new EvidenceDevelopmentPlan
+                    {
+                        Id =
+                            new EvidenceDevelopmentPlanId(
+                                "plan-existing"),
+                        ClaimIssueId =
+                            new ClaimIssueId(
+                                "issue-other"),
+                        Description = "Existing development plan."
+                    },
+                Requirements = [],
+                EvidenceGaps = [],
+                Artifacts = [],
+                Executions = [],
+                Results = []
+            };
+
+        var gaps =
+            Proxy<IServiceConnectionEvidenceGapService>(
+                (method, args) =>
+                    Task.FromResult<IReadOnlyList<EvidenceGap>>(
+                        [
+                            new EvidenceGap
+                            {
+                                Id = new EvidenceGapId("gap-1"),
+                                ClaimIssueId = requestedIssueId,
+                                RequirementId =
+                                    new RequirementId(
+                                        "requirement-1"),
+                                Description = "Missing evidence."
+                            }
+                        ]));
+
+        var plans =
+            Proxy<IEvidenceDevelopmentPlanService>(
+                (method, args) =>
+                    Task.FromResult<
+                        EvidenceDevelopmentPlanDetails?>(
+                            existing));
+
+        var service =
+            new EvidenceDevelopmentPreparationService(
+                gaps,
+                plans);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    service.PrepareAsync(
+                        existing.Plan.Id,
+                        requestedIssueId,
+                        "Develop missing evidence."));
+
+        Assert.Equal(
+            "Evidence development plan belongs to another claim issue.",
+            ex.Message);
+    }
+
+
     private static T Proxy<T>(
         Func<MethodInfo, object?[]?, object?> handler)
         where T : class
