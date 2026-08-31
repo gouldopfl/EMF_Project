@@ -521,6 +521,15 @@ public static class VeteransConsoleCommand
             $"Blocked     : {result.BlockedIssueCount}");
 
         output.WriteLine(
+            $"Recommended : {result.RecommendedIssueCount}");
+
+        output.WriteLine(
+            $"Reviews     : {result.ReviewedDecisionCount}");
+
+        output.WriteLine(
+            $"Review Req  : {result.ReviewRequiredCount}");
+
+        output.WriteLine(
             $"Attention   : {result.RequiresAttention}");
 
         output.WriteLine(

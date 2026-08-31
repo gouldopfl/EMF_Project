@@ -18,6 +18,18 @@ public sealed class ClaimAdjudicationAssessment
     public int BlockedIssueCount =>
         Issues.Count(x => !x.Readiness.IsReadyForAdjudication);
 
+    public int RecommendedIssueCount =>
+        Issues.Count(
+            x => x.Recommendation?.HasRecommendation == true);
+
+    public int ReviewedDecisionCount =>
+        Issues.Sum(x => x.DecisionReviewHistory.Count);
+
+    public int ReviewRequiredCount =>
+        Issues.Sum(
+            x => x.DecisionReviewHistory.Count(
+                review => review.Review.RequiresReview));
+
     public bool RequiresAttention =>
         Issues.Any(x => x.RequiresAttention);
 

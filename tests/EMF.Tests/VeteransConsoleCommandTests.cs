@@ -1925,6 +1925,18 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
+                "Recommended : 0",
+                rendered);
+
+            Assert.Contains(
+                "Reviews     : 0",
+                rendered);
+
+            Assert.Contains(
+                "Review Req  : 0",
+                rendered);
+
+            Assert.Contains(
                 "Attention   : False",
                 rendered);
 

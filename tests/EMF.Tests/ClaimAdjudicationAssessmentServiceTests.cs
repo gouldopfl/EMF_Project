@@ -237,6 +237,59 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
 
 
     [Fact]
+    public async Task GetAsync_SummarizesDecisionProgression()
+    {
+        var claim =
+            new Claim
+            {
+                Id = new ClaimId("claim-progression"),
+                VeteranId = new VeteranId("veteran-1")
+            };
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-progression"),
+                ClaimId = claim.Id,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var recommendation =
+            new ClaimIssueDecisionRecommendation
+            {
+                ClaimIssueId = issue.Id,
+                IsReadyForAdjudication = true,
+                MeritsOutcome = FindingOutcomes.Favorable,
+                RecommendedOutcome = IssueDecisionOutcomes.Granted
+            };
+
+        var review =
+            CreateReviewAnalysis(issue, recommendation);
+
+        var assessment =
+            CreateAssessment(
+                issue,
+                false,
+                false,
+                recommendation: recommendation,
+                reviewHistory: [review]);
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(claim),
+                new FakeClaimIssueRepository([issue]),
+                new FakeIssueAssessmentService(assessment));
+
+        var result =
+            await service.GetAsync(claim.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(1, result!.RecommendedIssueCount);
+        Assert.Equal(1, result.ReviewedDecisionCount);
+        Assert.Equal(1, result.ReviewRequiredCount);
+    }
+
+    [Fact]
     public async Task GetAsync_ReturnsNullWhenClaimDoesNotExist()
     {
         var service =
@@ -252,11 +305,57 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
         Assert.Null(result);
     }
 
+    private static ClaimIssueDecisionReviewAnalysis CreateReviewAnalysis(
+        ClaimIssue issue,
+        ClaimIssueDecisionRecommendation recommendation)
+    {
+        var decision =
+            new IssueDecision
+            {
+                Id = new IssueDecisionId("decision-progression"),
+                VaDecisionId = new VaDecisionId("va-progression"),
+                ClaimIssueId = issue.Id,
+                Outcome = IssueDecisionOutcomes.Denied
+            };
+
+        var comparison =
+            new ClaimIssueDecisionComparison
+            {
+                ClaimIssueId = issue.Id,
+                IssueDecision = decision,
+                Recommendation = recommendation,
+                ComparisonOutcome =
+                    ClaimIssueDecisionComparisonOutcomes.Disagreement
+            };
+
+        return new ClaimIssueDecisionReviewAnalysis
+        {
+            ClaimIssueId = issue.Id,
+            Review =
+                new ClaimIssueDecisionReview
+                {
+                    ClaimIssueId = issue.Id,
+                    Comparison = comparison,
+                    RequiresReview = true
+                },
+            Merits =
+                new ClaimIssueMeritsOutcomeAssessment
+                {
+                    ClaimIssueId = issue.Id,
+                    Outcome = FindingOutcomes.Favorable,
+                    TheoryOutcomes = []
+                },
+            ContributingTheoryOutcomes = []
+        };
+    }
+
     private static ClaimIssueAdjudicationAssessment CreateAssessment(
         ClaimIssue issue,
         bool requiresAttention,
         bool shouldConsiderFollowUp,
-        bool isReady = true)
+        bool isReady = true,
+        ClaimIssueDecisionRecommendation? recommendation = null,
+        IReadOnlyList<ClaimIssueDecisionReviewAnalysis>? reviewHistory = null)
     {
         ClaimIssueAdjudicationAgingStatus? aging = null;
 
@@ -318,7 +417,9 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
                             ? []
                             : [CreateBlockingRequirement()]
                 },
-            Aging = aging
+            Aging = aging,
+            Recommendation = recommendation,
+            DecisionReviewHistory = reviewHistory ?? []
         };
     }
 
