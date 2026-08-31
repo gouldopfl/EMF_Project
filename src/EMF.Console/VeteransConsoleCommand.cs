@@ -495,6 +495,13 @@ public static class VeteransConsoleCommand
                 CreateAdjudicationAssessmentService(
                     databasePath));
 
+        var lifecycle =
+            new ClaimAdjudicationLifecycleService(
+                issues,
+                new ClaimIssueAdjudicationLifecycleService(
+                    new SqliteVaDecisionRepository(databasePath),
+                    new SqliteSubmissionRepository(databasePath)));
+
         var result =
             await service.GetAsync(claimId);
 
@@ -565,11 +572,23 @@ public static class VeteransConsoleCommand
                 $"  Reviews   : " +
                 $"{issue.DecisionReviewHistory.Count}");
 
-
             output.WriteLine(
                 $"  Review Req: " +
                 $"{issue.DecisionReviewHistory.Count(
                     x => x.Review.RequiresReview)}");
+        }
+
+        var lifecycleEntries =
+            await lifecycle.GetAsync(claimId);
+
+        foreach (var entry in lifecycleEntries)
+        {
+            output.WriteLine(
+                $"Lifecycle   : " +
+                $"{entry.VaDecision.DecisionDate:yyyy-MM-dd} " +
+                $"{entry.ClaimIssueId.Value} " +
+                $"{entry.Submission.SubmissionType} " +
+                $"{entry.IssueDecision.Outcome}");
         }
 
         return 0;

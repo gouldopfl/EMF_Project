@@ -1895,6 +1895,46 @@ public sealed class VeteransConsoleCommandTests
 
             Assert.Equal(0, exitCode);
 
+            var submission = new Submission
+            {
+                Id = new SubmissionId("submission-claim-lifecycle"),
+                ClaimId = claim.Id,
+                SubmissionType = SubmissionTypes.SupplementalClaim
+            };
+
+            await new SqliteSubmissionRepository(databasePath)
+                .AddSubmissionAsync(
+                    submission,
+                    [new ClaimIssueId("issue-adjudication-console")]);
+
+            var decision = new VaDecision
+            {
+                Id = new VaDecisionId("decision-claim-lifecycle"),
+                DecisionDate = new DateTimeOffset(
+                    2026, 8, 15, 0, 0, 0, TimeSpan.Zero)
+            };
+
+            var issueDecision = new IssueDecision
+            {
+                Id = new IssueDecisionId("issue-decision-claim-lifecycle"),
+                VaDecisionId = decision.Id,
+                ClaimIssueId =
+                    new ClaimIssueId("issue-adjudication-console"),
+                Outcome = IssueDecisionOutcomes.Denied
+            };
+
+            await new SqliteVaDecisionRepository(databasePath)
+                .AddDecisionAsync(
+                    decision,
+                    [issueDecision],
+                    [
+                        new IssueDecisionSubmission
+                        {
+                            IssueDecisionId = issueDecision.Id,
+                            SubmissionId = submission.Id
+                        }
+                    ]);
+
             using var output = new StringWriter();
 
             var renderedExitCode =
@@ -1929,7 +1969,7 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
-                "Reviews     : 0",
+                "Reviews     : 1",
                 rendered);
 
             Assert.Contains(
@@ -1970,12 +2010,18 @@ public sealed class VeteransConsoleCommandTests
 
 
             Assert.Contains(
-                "  Reviews   : 0",
+                "  Reviews   : 1",
                 rendered);
 
 
             Assert.Contains(
                 "  Review Req: 0",
+                rendered);
+
+            Assert.Contains(
+                "Lifecycle   : 2026-08-15 " +
+                "issue-adjudication-console " +
+                "SupplementalClaim Denied",
                 rendered);
         }
         finally
