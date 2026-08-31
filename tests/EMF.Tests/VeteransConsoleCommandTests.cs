@@ -1977,11 +1977,11 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
-                "Attention   : False",
+                "Attention   : False (0 issue(s))",
                 rendered);
 
             Assert.Contains(
-                "Follow Up   : False",
+                "Follow Up   : False (0 issue(s))",
                 rendered);
 
             Assert.Contains(

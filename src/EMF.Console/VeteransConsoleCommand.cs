@@ -537,10 +537,12 @@ public static class VeteransConsoleCommand
             $"Review Req  : {result.ReviewRequiredCount}");
 
         output.WriteLine(
-            $"Attention   : {result.RequiresAttention}");
+            $"Attention   : {result.RequiresAttention} " +
+            $"({result.AttentionIssueCount} issue(s))");
 
         output.WriteLine(
-            $"Follow Up   : {result.ShouldConsiderFollowUp}");
+            $"Follow Up   : {result.ShouldConsiderFollowUp} " +
+            $"({result.FollowUpIssueCount} issue(s))");
 
         foreach (var issue in result.Issues)
         {
