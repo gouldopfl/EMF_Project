@@ -512,6 +512,15 @@ public static class VeteransConsoleCommand
             $"Claim       : {result.Claim.Id.Value}");
 
         output.WriteLine(
+            $"Issues      : {result.IssueCount}");
+
+        output.WriteLine(
+            $"Ready       : {result.ReadyIssueCount}");
+
+        output.WriteLine(
+            $"Blocked     : {result.BlockedIssueCount}");
+
+        output.WriteLine(
             $"Attention   : {result.RequiresAttention}");
 
         output.WriteLine(

@@ -9,6 +9,15 @@ public sealed class ClaimAdjudicationAssessment
     public required IReadOnlyList<ClaimIssueAdjudicationAssessment>
         Issues { get; init; }
 
+    public int IssueCount =>
+        Issues.Count;
+
+    public int ReadyIssueCount =>
+        Issues.Count(x => x.Readiness.IsReadyForAdjudication);
+
+    public int BlockedIssueCount =>
+        Issues.Count(x => !x.Readiness.IsReadyForAdjudication);
+
     public bool RequiresAttention =>
         Issues.Any(x => x.RequiresAttention);
 

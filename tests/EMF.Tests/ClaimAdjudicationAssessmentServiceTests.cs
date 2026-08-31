@@ -2,6 +2,8 @@ using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Claims;
 using EMF.Extensions.VeteransClaims.Models.Identities;
+using EMF.Extensions.VeteransClaims.Models.Service;
+using EMF.Extensions.VeteransClaims.Regulatory;
 using EMF.Extensions.VeteransClaims.Services;
 
 namespace EMF.Tests;
@@ -102,6 +104,66 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_SummarizesIssueReadiness()
+    {
+        var claimId = new ClaimId("claim-readiness-summary");
+
+        var claim =
+            new Claim
+            {
+                Id = claimId,
+                VeteranId = new VeteranId("veteran-summary")
+            };
+
+        var readyIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-ready"),
+                ClaimId = claimId,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var blockedIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-blocked"),
+                ClaimId = claimId,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var readyAssessment =
+            CreateAssessment(
+                readyIssue,
+                requiresAttention: false,
+                shouldConsiderFollowUp: false);
+
+        var blockedAssessment =
+            CreateAssessment(
+                blockedIssue,
+                requiresAttention: false,
+                shouldConsiderFollowUp: false,
+                isReady: false);
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(claim),
+                new FakeClaimIssueRepository(
+                    readyIssue,
+                    blockedIssue),
+                new FakeIssueAssessmentService(
+                    readyAssessment,
+                    blockedAssessment));
+
+        var result = await service.GetAsync(claimId);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result!.IssueCount);
+        Assert.Equal(1, result.ReadyIssueCount);
+        Assert.Equal(1, result.BlockedIssueCount);
+    }
+
+
+    [Fact]
     public async Task GetAsync_DoesNotEscalateAttentionToFollowUp()
     {
         var claimId = new ClaimId("claim-003");
@@ -193,7 +255,8 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
     private static ClaimIssueAdjudicationAssessment CreateAssessment(
         ClaimIssue issue,
         bool requiresAttention,
-        bool shouldConsiderFollowUp)
+        bool shouldConsiderFollowUp,
+        bool isReady = true)
     {
         ClaimIssueAdjudicationAgingStatus? aging = null;
 
@@ -250,9 +313,72 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationReadiness
                 {
                     ClaimIssueId = issue.Id,
-                    BlockingRequirements = []
+                    BlockingRequirements =
+                        isReady
+                            ? []
+                            : [CreateBlockingRequirement()]
                 },
             Aging = aging
+        };
+    }
+
+    private static ServiceConnectionBasisRequirementDetails
+        CreateBlockingRequirement()
+    {
+        var requirementId =
+            new RequirementId("requirement-blocking");
+
+        return new ServiceConnectionBasisRequirementDetails
+        {
+            Basis =
+                new ServiceConnectionBasis
+                {
+                    Id =
+                        new ServiceConnectionBasisId("basis-blocking"),
+                    ClaimIssueId =
+                        new ClaimIssueId("issue-blocked"),
+                    ServiceConnectionTheoryId =
+                        new ServiceConnectionTheoryId("theory-blocking")
+                },
+            Requirement =
+                new Requirement
+                {
+                    Id = requirementId,
+                    RegulatoryProvisionId =
+                        new RegulatoryProvisionId("regulation-blocking"),
+                    Description = "Missing evidence."
+                },
+            RegulatoryProvision =
+                new RegulatoryProvision
+                {
+                    Id =
+                        new RegulatoryProvisionId("regulation-blocking"),
+                    RegulatoryAuthorityId =
+                        new RegulatoryAuthorityId("authority-test"),
+                    ProvisionType = "Test",
+                    Citation = "38 CFR"
+                },
+            Responsiveness =
+                new RequirementEvidenceResponsivenessAssessment
+                {
+                    RequirementId = requirementId,
+                    Items = []
+                },
+            DevelopmentChecklist =
+                new EvidenceDevelopmentChecklist
+                {
+                    RequirementId = requirementId,
+                    Items =
+                    [
+                        new EvidenceDevelopmentChecklistItem
+                        {
+                            RequirementId = requirementId,
+                            EvidenceClassification = "Medical",
+                            GuidanceRole = "Required",
+                            Description = "Missing evidence."
+                        }
+                    ]
+                }
         };
     }
 
