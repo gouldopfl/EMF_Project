@@ -54,6 +54,37 @@ public sealed class VaDecisionDocumentCoordinatorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_PropagatesArtifactPersistenceFailure()
+    {
+        var claimId = new ClaimId("claim-artifact-failure");
+        var issueId = new ClaimIssueId("issue-artifact-failure");
+
+        var repository =
+            new RecordingVaDecisionRepository(
+                failArtifactWrite: true);
+
+        var attempts =
+            new RecordingProcessingAttemptRepository();
+
+        var coordinator =
+            CreateCoordinator(
+                claimId,
+                issueId,
+                repository,
+                attempts: attempts);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.ProcessAsync(
+                claimId,
+                CreateInterpretation("Sleep apnea")));
+
+        Assert.NotNull(repository.Decision);
+        Assert.Single(repository.IssueDecisions);
+        Assert.Empty(repository.Artifacts);
+        Assert.Empty(attempts.Attempts);
+    }
+
+    [Fact]
     public async Task ProcessAsync_RejectsUnmatchedIssue()
     {
         var claimId = new ClaimId("claim-1");
@@ -480,6 +511,14 @@ public sealed class VaDecisionDocumentCoordinatorTests
     private sealed class RecordingVaDecisionRepository :
         IVaDecisionRepository
     {
+        private readonly bool _failArtifactWrite;
+
+        public RecordingVaDecisionRepository(
+            bool failArtifactWrite = false)
+        {
+            _failArtifactWrite = failArtifactWrite;
+        }
+
         public VaDecision? Decision { get; private set; }
 
         public List<IssueDecision>
@@ -505,6 +544,12 @@ public sealed class VaDecisionDocumentCoordinatorTests
             VaDecisionArtifact association,
             CancellationToken cancellationToken = default)
         {
+            if (_failArtifactWrite)
+            {
+                throw new InvalidOperationException(
+                    "Artifact persistence failed.");
+            }
+
             Artifacts.Add(association);
 
             return Task.CompletedTask;

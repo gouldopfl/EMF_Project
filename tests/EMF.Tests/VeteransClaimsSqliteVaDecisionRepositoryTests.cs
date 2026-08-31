@@ -1,3 +1,5 @@
+using Microsoft.Data.Sqlite;
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Claims;
@@ -159,6 +161,121 @@ public sealed partial class VeteransClaimsSqliteVaDecisionRepositoryTests
             Assert.Equal(
                 submission.Id,
                 Assert.Single(storedSubmissionIds));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task Repository_RollsBackDecisionDocumentWhenArtifactInsertFails()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            await using (var connection =
+                new SqliteConnection(
+                    $"Data Source={databasePath}"))
+            {
+                await connection.OpenAsync();
+
+                await using var command =
+                    connection.CreateCommand();
+
+                command.CommandText =
+                    """
+                    CREATE TRIGGER FailVaDecisionArtifactInsert
+                    BEFORE INSERT ON VeteransClaims_VaDecisionArtifacts
+                    BEGIN
+                        SELECT RAISE(ABORT, 'artifact insert failed');
+                    END;
+                    """;
+
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var veteran =
+                new Veteran
+                {
+                    Id = new VeteranId("veteran-artifact-rollback")
+                };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim =
+                new Claim
+                {
+                    Id = new ClaimId("claim-artifact-rollback"),
+                    VeteranId = veteran.Id
+                };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue =
+                new ClaimIssue
+                {
+                    Id =
+                        new ClaimIssueId(
+                            "issue-artifact-rollback"),
+                    ClaimId = claim.Id,
+                    ClaimIssueType =
+                        ClaimIssueTypes.ServiceConnection
+                };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var decision =
+                new VaDecision
+                {
+                    Id =
+                        new VaDecisionId(
+                            "decision-artifact-rollback"),
+                    DecisionDate =
+                        DateTimeOffset.UtcNow
+                };
+
+            var issueDecision =
+                new IssueDecision
+                {
+                    Id =
+                        new IssueDecisionId(
+                            "issue-decision-artifact-rollback"),
+                    VaDecisionId = decision.Id,
+                    ClaimIssueId = issue.Id,
+                    Outcome =
+                        IssueDecisionOutcomes.Denied
+                };
+
+            var repository =
+                new SqliteVaDecisionRepository(databasePath);
+
+            await Assert.ThrowsAsync<SqliteException>(
+                () => repository.AddDecisionDocumentAsync(
+                    decision,
+                    [issueDecision],
+                    new VaDecisionArtifact
+                    {
+                        VaDecisionId = decision.Id,
+                        ArtifactId =
+                            new ArtifactId(
+                                "artifact-rollback")
+                    }));
+
+            Assert.Null(
+                await repository.GetDecisionAsync(
+                    decision.Id));
+
+            Assert.Empty(
+                await repository.GetIssueDecisionsAsync(
+                    decision.Id));
         }
         finally
         {

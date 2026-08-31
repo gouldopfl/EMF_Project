@@ -36,6 +36,23 @@ public interface IVaDecisionRepository
         VaDecisionArtifact association,
         CancellationToken cancellationToken = default);
 
+    async Task AddDecisionDocumentAsync(
+        VaDecision decision,
+        IReadOnlyCollection<IssueDecision> issueDecisions,
+        VaDecisionArtifact artifact,
+        CancellationToken cancellationToken = default)
+    {
+        await AddDecisionAsync(
+            decision,
+            issueDecisions,
+            [],
+            cancellationToken);
+
+        await AddDecisionArtifactAsync(
+            artifact,
+            cancellationToken);
+    }
+
     Task<IReadOnlyList<ArtifactId>>
         GetArtifactIdsAsync(
             VaDecisionId vaDecisionId,

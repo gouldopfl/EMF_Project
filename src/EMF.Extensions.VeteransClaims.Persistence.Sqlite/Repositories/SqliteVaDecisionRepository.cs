@@ -116,6 +116,60 @@ public sealed class SqliteVaDecisionRepository :
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task AddDecisionDocumentAsync(
+        VaDecision decision,
+        IReadOnlyCollection<IssueDecision> issueDecisions,
+        VaDecisionArtifact artifact,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+        ArgumentNullException.ThrowIfNull(issueDecisions);
+        ArgumentNullException.ThrowIfNull(artifact);
+
+        if (issueDecisions.Count == 0)
+            throw new ArgumentException(
+                "A VA decision must contain at least one issue decision.",
+                nameof(issueDecisions));
+
+        if (issueDecisions.Any(
+            item => item.VaDecisionId != decision.Id))
+            throw new InvalidOperationException(
+                "Every issue decision must reference " +
+                "the VA decision being persisted.");
+
+        if (artifact.VaDecisionId != decision.Id)
+            throw new InvalidOperationException(
+                "The artifact must reference " +
+                "the VA decision being persisted.");
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var transaction = (SqliteTransaction)
+            await connection.BeginTransactionAsync(
+                cancellationToken);
+
+        await InsertDecisionAsync(
+            connection,
+            transaction,
+            decision,
+            cancellationToken);
+
+        await InsertIssueDecisionsAsync(
+            connection,
+            transaction,
+            issueDecisions,
+            cancellationToken);
+
+        await InsertDecisionArtifactAsync(
+            connection,
+            transaction,
+            artifact,
+            cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     private static async Task
         ValidateSubmissionAssociationsAsync(
             SqliteConnection connection,
@@ -302,7 +356,27 @@ public sealed class SqliteVaDecisionRepository :
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
+        await using var transaction = (SqliteTransaction)
+            await connection.BeginTransactionAsync(
+                cancellationToken);
+
+        await InsertDecisionArtifactAsync(
+            connection,
+            transaction,
+            association,
+            cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task InsertDecisionArtifactAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        VaDecisionArtifact association,
+        CancellationToken cancellationToken)
+    {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText =
             """
             INSERT INTO VeteransClaims_VaDecisionArtifacts (

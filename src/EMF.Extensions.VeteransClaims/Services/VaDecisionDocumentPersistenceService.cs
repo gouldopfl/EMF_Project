@@ -61,13 +61,9 @@ public sealed class VaDecisionDocumentPersistenceService
                             item.Match))
                 .ToArray();
 
-        await _repository.AddDecisionAsync(
+        await _repository.AddDecisionDocumentAsync(
             decision,
             issueDecisions,
-            [],
-            cancellationToken);
-
-        await _repository.AddDecisionArtifactAsync(
             new VaDecisionArtifact
             {
                 VaDecisionId = decision.Id,
