@@ -1913,6 +1913,18 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
+                "Issues      : 1",
+                rendered);
+
+            Assert.Contains(
+                "Ready       : 1",
+                rendered);
+
+            Assert.Contains(
+                "Blocked     : 0",
+                rendered);
+
+            Assert.Contains(
                 "Attention   : False",
                 rendered);
 
