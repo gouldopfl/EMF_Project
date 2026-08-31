@@ -180,6 +180,85 @@ public sealed class VaDecisionDocumentProcessingAttemptRepositoryTests
     }
 
     [Fact]
+    public async Task GetByClaimAsync_orders_attempts_by_processed_time()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(path)
+                .InitializeAsync();
+
+            var veteran =
+                new Veteran
+                {
+                    Id = new VeteranId("veteran-ordering")
+                };
+
+            await new SqliteVeteranRepository(path)
+                .AddVeteranAsync(veteran);
+
+            var claim =
+                new Claim
+                {
+                    Id = new ClaimId("claim-ordering"),
+                    VeteranId = veteran.Id
+                };
+
+            await new SqliteClaimRepository(path)
+                .AddClaimAsync(claim);
+
+            var repository =
+                new SqliteVaDecisionDocumentProcessingAttemptRepository(
+                    path);
+
+            await repository.AddAsync(
+                new VaDecisionDocumentProcessingAttempt
+                {
+                    ClaimId = claim.Id,
+                    ArtifactId =
+                        new ArtifactId("artifact-later"),
+                    ProcessedAt =
+                        new DateTimeOffset(
+                            2026, 8, 28, 12, 0, 0,
+                            TimeSpan.Zero),
+                    VaDecisionId = null,
+                    Matches = []
+                });
+
+            await repository.AddAsync(
+                new VaDecisionDocumentProcessingAttempt
+                {
+                    ClaimId = claim.Id,
+                    ArtifactId =
+                        new ArtifactId("artifact-earlier"),
+                    ProcessedAt =
+                        new DateTimeOffset(
+                            2026, 8, 28, 10, 0, 0,
+                            TimeSpan.Zero),
+                    VaDecisionId = null,
+                    Matches = []
+                });
+
+            var stored =
+                await repository.GetByClaimAsync(claim.Id);
+
+            Assert.Equal(2, stored.Count);
+            Assert.Equal(
+                new ArtifactId("artifact-earlier"),
+                stored[0].ArtifactId);
+            Assert.Equal(
+                new ArtifactId("artifact-later"),
+                stored[1].ArtifactId);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+
+    [Fact]
     public async Task AddAsync_rolls_back_when_nested_write_fails()
     {
         var path =
