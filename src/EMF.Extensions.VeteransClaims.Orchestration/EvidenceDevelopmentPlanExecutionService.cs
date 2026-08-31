@@ -49,6 +49,16 @@ public sealed class EvidenceDevelopmentPlanExecutionService :
                 continue;
             }
 
+            var existing =
+                details.Executions.FirstOrDefault(
+                    x => x.EvidenceGapId == gap.EvidenceGapId);
+
+            if (existing is not null)
+            {
+                executions.Add(existing);
+                continue;
+            }
+
             executions.Add(
                 await _workflow.StartAsync(
                     planId,

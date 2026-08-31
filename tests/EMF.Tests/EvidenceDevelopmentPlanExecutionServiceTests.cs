@@ -213,6 +213,76 @@ public sealed class EvidenceDevelopmentPlanExecutionServiceTests
         Assert.Equal(openGap, Assert.Single(started));
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ReusesExistingExecution()
+    {
+        var planId =
+            new EvidenceDevelopmentPlanId("plan-existing");
+
+        var gapId =
+            new EvidenceGapId("gap-existing");
+
+        var existing =
+            new EvidenceDevelopmentExecution
+            {
+                EvidenceDevelopmentPlanId = planId,
+                EvidenceGapId = gapId,
+                WorkflowId =
+                    new EMF.Core.Models.Identities.WorkflowId(
+                        "workflow-existing")
+            };
+
+        var details =
+            new EvidenceDevelopmentPlanDetails
+            {
+                Plan =
+                    new EvidenceDevelopmentPlan
+                    {
+                        Id = planId,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-existing"),
+                        Description = "Develop evidence."
+                    },
+                Requirements = [],
+                EvidenceGaps =
+                [
+                    new EvidenceDevelopmentPlanEvidenceGap
+                    {
+                        EvidenceDevelopmentPlanId = planId,
+                        EvidenceGapId = gapId
+                    }
+                ],
+                Artifacts = [],
+                Executions = [existing],
+                Results = []
+            };
+
+        var plans =
+            Proxy<IEvidenceDevelopmentPlanService>(
+                (method, args) =>
+                    Task.FromResult<
+                        EvidenceDevelopmentPlanDetails?>(
+                            details));
+
+        var workflow =
+            Proxy<IEvidenceDevelopmentWorkflowCoordinator>(
+                (method, args) =>
+                    throw new InvalidOperationException(
+                        $"{method.Name} should not be called."));
+
+        var service =
+            new EvidenceDevelopmentPlanExecutionService(
+                plans,
+                workflow);
+
+        var result =
+            await service.ExecuteAsync(planId);
+
+        Assert.NotNull(result);
+        Assert.Same(existing, Assert.Single(result!));
+    }
+
+
     private static T Proxy<T>(
         Func<MethodInfo, object?[]?, object?> handler)
         where T : class
