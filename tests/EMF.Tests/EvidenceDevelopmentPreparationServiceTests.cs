@@ -71,6 +71,15 @@ public sealed class EvidenceDevelopmentPreparationServiceTests
             Proxy<IEvidenceDevelopmentPlanService>(
                 (method, args) =>
                 {
+                    if (method.Name ==
+                        nameof(
+                            IEvidenceDevelopmentPlanService
+                                .GetEvidenceDevelopmentPlanAsync))
+                    {
+                        return Task.FromResult<
+                            EvidenceDevelopmentPlanDetails?>(null);
+                    }
+
                     captured =
                         (CreateEvidenceDevelopmentPlanRequest)
                             args![0]!;
@@ -111,6 +120,81 @@ public sealed class EvidenceDevelopmentPreparationServiceTests
             new[] { gap1.Id, gap2.Id },
             captured.EvidenceGapIds);
     }
+
+    [Fact]
+    public async Task PrepareAsync_ReturnsExistingPlan()
+    {
+        var claimIssueId =
+            new ClaimIssueId("issue-existing");
+
+        var planId =
+            new EvidenceDevelopmentPlanId("plan-existing");
+
+        var existing =
+            new EvidenceDevelopmentPlanDetails
+            {
+                Plan =
+                    new EvidenceDevelopmentPlan
+                    {
+                        Id = planId,
+                        ClaimIssueId = claimIssueId,
+                        Description = "Existing development plan."
+                    },
+                Requirements = [],
+                EvidenceGaps = [],
+                Artifacts = [],
+                Executions = [],
+                Results = []
+            };
+
+        var gaps =
+            Proxy<IServiceConnectionEvidenceGapService>(
+                (method, args) =>
+                    Task.FromResult<IReadOnlyList<EvidenceGap>>(
+                        [
+                            new EvidenceGap
+                            {
+                                Id = new EvidenceGapId("gap-existing"),
+                                ClaimIssueId = claimIssueId,
+                                RequirementId =
+                                    new RequirementId(
+                                        "requirement-existing"),
+                                Description = "Missing evidence."
+                            }
+                        ]));
+
+        var plans =
+            Proxy<IEvidenceDevelopmentPlanService>(
+                (method, args) =>
+                {
+                    if (method.Name ==
+                        nameof(
+                            IEvidenceDevelopmentPlanService
+                                .GetEvidenceDevelopmentPlanAsync))
+                    {
+                        return Task.FromResult<
+                            EvidenceDevelopmentPlanDetails?>(
+                                existing);
+                    }
+
+                    throw new InvalidOperationException(
+                        $"{method.Name} should not be called.");
+                });
+
+        var service =
+            new EvidenceDevelopmentPreparationService(
+                gaps,
+                plans);
+
+        var result =
+            await service.PrepareAsync(
+                planId,
+                claimIssueId,
+                "Develop missing evidence.");
+
+        Assert.Same(existing, result);
+    }
+
 
     private static T Proxy<T>(
         Func<MethodInfo, object?[]?, object?> handler)

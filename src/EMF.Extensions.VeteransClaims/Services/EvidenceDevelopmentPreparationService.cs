@@ -37,6 +37,22 @@ public sealed class EvidenceDevelopmentPreparationService :
         if (gaps.Count == 0)
             return null;
 
+        var existing =
+            await _plans.GetEvidenceDevelopmentPlanAsync(
+                planId,
+                cancellationToken);
+
+        if (existing is not null)
+        {
+            if (existing.Plan.ClaimIssueId != claimIssueId)
+            {
+                throw new InvalidOperationException(
+                    "Evidence development plan belongs to another claim issue.");
+            }
+
+            return existing;
+        }
+
         return await _plans.CreateEvidenceDevelopmentPlanAsync(
             new CreateEvidenceDevelopmentPlanRequest
             {
