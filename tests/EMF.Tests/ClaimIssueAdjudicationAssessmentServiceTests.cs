@@ -24,6 +24,8 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationReadinessService(),
                 CreateMeritsService(),
                 new ClaimIssueDecisionRecommendationService(),
+                new ClaimIssueCurrentDecisionService(
+                    new EmptyDecisionRepository()),
                 CreateReviewHistoryService(),
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
@@ -87,6 +89,8 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationReadinessService(),
                 CreateMeritsService(),
                 new ClaimIssueDecisionRecommendationService(),
+                new ClaimIssueCurrentDecisionService(
+                    new EmptyDecisionRepository()),
                 CreateReviewHistoryService(),
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
@@ -161,6 +165,8 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationReadinessService(),
                 CreateMeritsService(),
                 new ClaimIssueDecisionRecommendationService(),
+                new ClaimIssueCurrentDecisionService(
+                    new EmptyDecisionRepository()),
                 reviewHistory,
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
@@ -216,6 +222,8 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
                 new ClaimIssueAdjudicationReadinessService(),
                 CreateMeritsService(),
                 new ClaimIssueDecisionRecommendationService(),
+                new ClaimIssueCurrentDecisionService(
+                    new EmptyDecisionRepository()),
                 CreateReviewHistoryService(),
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),
@@ -235,6 +243,67 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
         Assert.True(result.Readiness.IsReadyForAdjudication);
         Assert.True(result.RequiresAttention);
         Assert.True(result.ShouldConsiderFollowUp);
+    }
+
+    [Fact]
+    public async Task GetAsync_composes_current_decision()
+    {
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-current"),
+                ClaimId = new ClaimId("claim-1"),
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+        var decision =
+            new IssueDecision
+            {
+                Id = new IssueDecisionId("decision-current"),
+                VaDecisionId = new VaDecisionId("va-decision-current"),
+                ClaimIssueId = issue.Id,
+                Outcome = IssueDecisionOutcomes.Granted
+            };
+
+        var repository =
+            new EmptyDecisionRepository
+            {
+                Decisions = [decision]
+            };
+
+        var details =
+            CreateDetails(issue, []);
+
+        var service =
+            new ClaimIssueAdjudicationAssessmentService(
+                Proxy<IClaimIssueAdjudicationDetailsService>(
+                    (method, args) =>
+                        Task.FromResult<
+                            ClaimIssueAdjudicationDetails?>(details)),
+                new ClaimIssueAdjudicationReadinessService(),
+                CreateMeritsService(),
+                new ClaimIssueDecisionRecommendationService(),
+                new ClaimIssueCurrentDecisionService(
+                    repository),
+                CreateReviewHistoryService(),
+                new ClaimIssueAdjudicationAgingStatusService(
+                    new ClaimIssueAdjudicationAgingService(),
+                    new ClaimIssueAdjudicationAgingPolicyService()),
+                ClaimIssueAdjudicationAgingPolicies.Default,
+                TimeProvider.System);
+
+        var result =
+            await service.GetAsync(issue.Id);
+
+        Assert.NotNull(result);
+        Assert.NotNull(result!.CurrentDecision);
+        Assert.Same(
+            decision,
+            result.CurrentDecision!.IssueDecision);
+        Assert.Equal(
+            IssueDecisionOutcomes.Granted,
+            result.CurrentDecision.IssueDecision.Outcome);
     }
 
     private static ClaimIssueDecisionReviewHistoryService

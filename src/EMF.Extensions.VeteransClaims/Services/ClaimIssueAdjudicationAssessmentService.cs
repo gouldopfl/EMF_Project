@@ -11,6 +11,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService :
     private readonly ClaimIssueAdjudicationReadinessService _readiness;
     private readonly ClaimIssueMeritsAssessmentService _merits;
     private readonly ClaimIssueDecisionRecommendationService _recommendations;
+    private readonly ClaimIssueCurrentDecisionService _currentDecision;
     private readonly ClaimIssueDecisionReviewHistoryService _reviewHistory;
     private readonly ClaimIssueAdjudicationAgingStatusService _aging;
     private readonly ClaimIssueAdjudicationAgingPolicy _agingPolicy;
@@ -21,6 +22,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService :
         ClaimIssueAdjudicationReadinessService readiness,
         ClaimIssueMeritsAssessmentService merits,
         ClaimIssueDecisionRecommendationService recommendations,
+        ClaimIssueCurrentDecisionService currentDecision,
         ClaimIssueDecisionReviewHistoryService reviewHistory,
         ClaimIssueAdjudicationAgingStatusService aging,
         ClaimIssueAdjudicationAgingPolicy agingPolicy,
@@ -30,6 +32,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService :
         ArgumentNullException.ThrowIfNull(readiness);
         ArgumentNullException.ThrowIfNull(merits);
         ArgumentNullException.ThrowIfNull(recommendations);
+        ArgumentNullException.ThrowIfNull(currentDecision);
         ArgumentNullException.ThrowIfNull(reviewHistory);
         ArgumentNullException.ThrowIfNull(aging);
         ArgumentNullException.ThrowIfNull(agingPolicy);
@@ -39,6 +42,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService :
         _readiness = readiness;
         _merits = merits;
         _recommendations = recommendations;
+        _currentDecision = currentDecision;
         _reviewHistory = reviewHistory;
         _aging = aging;
         _agingPolicy = agingPolicy;
@@ -59,6 +63,11 @@ public sealed class ClaimIssueAdjudicationAssessmentService :
 
         var merits =
             await _merits.AssessAsync(
+                claimIssueId,
+                cancellationToken);
+
+        var currentDecision =
+            await _currentDecision.GetAsync(
                 claimIssueId,
                 cancellationToken);
 
@@ -94,6 +103,7 @@ public sealed class ClaimIssueAdjudicationAssessmentService :
             Aging = assessment.Aging,
             Merits = assessment.Merits,
             Recommendation = recommendation,
+            CurrentDecision = currentDecision,
             DecisionReviewHistory = reviewHistory
         };
     }

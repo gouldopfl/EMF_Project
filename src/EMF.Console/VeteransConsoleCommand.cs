@@ -705,6 +705,8 @@ public static class VeteransConsoleCommand
                 new ClaimIssueAdjudicationReadinessService(),
                 merits,
                 new ClaimIssueDecisionRecommendationService(),
+                new ClaimIssueCurrentDecisionService(
+                    new SqliteVaDecisionRepository(databasePath)),
                 CreateReviewHistoryService(databasePath),
                 new ClaimIssueAdjudicationAgingStatusService(
                     new ClaimIssueAdjudicationAgingService(),

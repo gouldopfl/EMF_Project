@@ -12,6 +12,8 @@ public sealed class ClaimIssueAdjudicationAssessment
 
     public ClaimIssueDecisionRecommendation? Recommendation { get; init; }
 
+    public ClaimIssueCurrentDecision? CurrentDecision { get; init; }
+
     public IReadOnlyList<ClaimIssueDecisionReviewAnalysis> DecisionReviewHistory { get; init; } = [];
 
     public bool RequiresAttention =>
