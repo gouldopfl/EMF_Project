@@ -82,6 +82,36 @@ public sealed class EvidencePackageService :
         return artifact;
     }
 
+    public async Task<IReadOnlyList<EvidencePackageDetails>> GetAsync(
+        ClaimIssueId claimIssueId,
+        CancellationToken cancellationToken = default)
+    {
+        var packages =
+            await _repository.GetEvidencePackagesAsync(
+                claimIssueId,
+                cancellationToken);
+
+        var details =
+            new List<EvidencePackageDetails>();
+
+        foreach (var package in packages)
+        {
+            var artifacts =
+                await _repository.GetEvidencePackageArtifactsAsync(
+                    package.Id,
+                    cancellationToken);
+
+            details.Add(
+                new EvidencePackageDetails
+                {
+                    Package = package,
+                    Artifacts = artifacts
+                });
+        }
+
+        return details;
+    }
+
     public async Task<EvidencePackageDetails?> GetAsync(
         EvidencePackageId evidencePackageId,
         CancellationToken cancellationToken = default)

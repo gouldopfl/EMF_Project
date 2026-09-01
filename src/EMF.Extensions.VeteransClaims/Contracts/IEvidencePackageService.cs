@@ -21,4 +21,8 @@ public interface IEvidencePackageService
     Task<EvidencePackageDetails?> GetAsync(
         EvidencePackageId evidencePackageId,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<EvidencePackageDetails>> GetAsync(
+        ClaimIssueId claimIssueId,
+        CancellationToken cancellationToken = default);
 }

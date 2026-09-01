@@ -63,6 +63,8 @@ public sealed partial class EvidencePackageServiceTests
 
         public EvidencePackage? ExistingPackage { get; set; }
 
+        public IReadOnlyList<EvidencePackage> ExistingPackages { get; set; } = [];
+
         public IReadOnlyList<EvidencePackageArtifact>
             ExistingArtifacts { get; set; } = [];
 
@@ -104,8 +106,8 @@ public sealed partial class EvidencePackageServiceTests
             GetEvidencePackagesAsync(
                 ClaimIssueId claimIssueId,
                 CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<EvidencePackage>>(
-                Array.Empty<EvidencePackage>());
+            Task.FromResult(
+                ExistingPackages);
     }
 }
 
@@ -242,5 +244,65 @@ public sealed partial class EvidencePackageServiceTests
         Assert.Equal(
             0,
             repository.ArtifactQueryCount);
+    }
+}
+
+public sealed partial class EvidencePackageServiceTests
+{
+    [Fact]
+    public async Task GetAsync_ByClaimIssue_ReturnsPackageDetails()
+    {
+        var repository =
+            new RecordingRepository
+            {
+                ExistingPackages =
+                [
+                    new EvidencePackage
+                    {
+                        Id = new EvidencePackageId("package-1"),
+                        ClaimIssueId = new ClaimIssueId("issue-1"),
+                        Purpose = "Medical review",
+                        ReviewerRole = "MedicalProfessional"
+                    }
+                ]
+            };
+
+        repository.ExistingArtifacts =
+            [
+                new EvidencePackageArtifact
+                {
+                    EvidencePackageId =
+                        repository.ExistingPackages[0].Id,
+                    ArtifactId =
+                        new EMF.Core.Models.Identities.ArtifactId(
+                            "artifact-1"),
+                    ContentRole =
+                        EvidencePackageContentRoles.UnderlyingEvidence
+                }
+            ];
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var result =
+            await service.GetAsync(
+                new ClaimIssueId("issue-1"));
+
+        var details =
+            Assert.Single(result);
+
+        Assert.Same(
+            repository.ExistingPackages[0],
+            details.Package);
+
+        var artifact =
+            Assert.Single(
+                details.Artifacts);
+
+        Assert.Equal(
+            "artifact-1",
+            artifact.ArtifactId.Value);
     }
 }
