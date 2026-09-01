@@ -656,6 +656,10 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
+                "Current     : Denied",
+                rendered);
+
+            Assert.Contains(
                 "Review History: 1",
                 rendered);
 

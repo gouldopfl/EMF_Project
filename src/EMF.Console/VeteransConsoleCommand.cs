@@ -766,6 +766,10 @@ public static class VeteransConsoleCommand
             $"{result.Recommendation?.RecommendedOutcome ?? "None"}");
 
         output.WriteLine(
+            $"Current     : " +
+            $"{result.CurrentDecision?.IssueDecision.Outcome ?? "None"}");
+
+        output.WriteLine(
             $"Review History: {result.DecisionReviewHistory.Count}");
 
         output.WriteLine(
