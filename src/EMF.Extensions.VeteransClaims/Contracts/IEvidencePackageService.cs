@@ -17,4 +17,8 @@ public interface IEvidencePackageService
         ArtifactId artifactId,
         string contentRole,
         CancellationToken cancellationToken = default);
+
+    Task<EvidencePackageDetails?> GetAsync(
+        EvidencePackageId evidencePackageId,
+        CancellationToken cancellationToken = default);
 }

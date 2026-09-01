@@ -81,4 +81,28 @@ public sealed class EvidencePackageService :
 
         return artifact;
     }
+
+    public async Task<EvidencePackageDetails?> GetAsync(
+        EvidencePackageId evidencePackageId,
+        CancellationToken cancellationToken = default)
+    {
+        var package =
+            await _repository.GetEvidencePackageAsync(
+                evidencePackageId,
+                cancellationToken);
+
+        if (package is null)
+            return null;
+
+        var artifacts =
+            await _repository.GetEvidencePackageArtifactsAsync(
+                evidencePackageId,
+                cancellationToken);
+
+        return new EvidencePackageDetails
+        {
+            Package = package,
+            Artifacts = artifacts
+        };
+    }
 }

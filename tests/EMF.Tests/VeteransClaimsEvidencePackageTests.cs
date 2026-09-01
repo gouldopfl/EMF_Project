@@ -4,7 +4,7 @@ using EMF.Extensions.VeteransClaims.Models.Identities;
 
 namespace EMF.Tests;
 
-public sealed class VeteransClaimsEvidencePackageTests
+public sealed partial class VeteransClaimsEvidencePackageTests
 {
     [Fact]
     public void EvidencePackage_PreservesIssuePurposeAndReviewerRole()
@@ -35,5 +35,45 @@ public sealed class VeteransClaimsEvidencePackageTests
         Assert.Equal(
             EvidencePackageContentRoles.UnderlyingEvidence,
             artifact.ContentRole);
+    }
+}
+
+public sealed partial class VeteransClaimsEvidencePackageTests
+{
+    [Fact]
+    public void EvidencePackageDetails_ComposesPackageAndArtifacts()
+    {
+        var package =
+            new EvidencePackage
+            {
+                Id = new EvidencePackageId("package-001"),
+                ClaimIssueId = new ClaimIssueId("claim-issue-001"),
+                Purpose = "Medical review",
+                ReviewerRole = "MedicalProfessional"
+            };
+
+        var artifact =
+            new EvidencePackageArtifact
+            {
+                EvidencePackageId = package.Id,
+                ArtifactId = new ArtifactId("artifact-001"),
+                ContentRole =
+                    EvidencePackageContentRoles.UnderlyingEvidence
+            };
+
+        var details =
+            new EvidencePackageDetails
+            {
+                Package = package,
+                Artifacts = [artifact]
+            };
+
+        Assert.Same(
+            package,
+            details.Package);
+
+        Assert.Same(
+            artifact,
+            Assert.Single(details.Artifacts));
     }
 }

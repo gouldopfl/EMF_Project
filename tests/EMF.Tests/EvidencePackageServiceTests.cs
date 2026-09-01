@@ -61,6 +61,13 @@ public sealed partial class EvidencePackageServiceTests
 
         public EvidencePackageArtifact? Artifact { get; private set; }
 
+        public EvidencePackage? ExistingPackage { get; set; }
+
+        public IReadOnlyList<EvidencePackageArtifact>
+            ExistingArtifacts { get; set; } = [];
+
+        public int ArtifactQueryCount { get; private set; }
+
         public Task AddEvidencePackageAsync(
             EvidencePackage evidencePackage,
             CancellationToken cancellationToken = default)
@@ -80,7 +87,18 @@ public sealed partial class EvidencePackageServiceTests
         public Task<EvidencePackage?> GetEvidencePackageAsync(
             EvidencePackageId evidencePackageId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<EvidencePackage?>(null);
+            Task.FromResult(ExistingPackage);
+
+        public Task<IReadOnlyList<EvidencePackageArtifact>>
+            GetEvidencePackageArtifactsAsync(
+                EvidencePackageId evidencePackageId,
+                CancellationToken cancellationToken = default)
+        {
+            ArtifactQueryCount++;
+
+            return Task.FromResult(
+                ExistingArtifacts);
+        }
 
         public Task<IReadOnlyList<EvidencePackage>>
             GetEvidencePackagesAsync(
@@ -148,5 +166,81 @@ public sealed partial class EvidencePackageServiceTests
                     new EMF.Core.Models.Identities.ArtifactId(
                         "artifact-1"),
                     "UnsupportedRole"));
+    }
+}
+
+public sealed partial class EvidencePackageServiceTests
+{
+    [Fact]
+    public async Task GetAsync_ReturnsPackageDetails()
+    {
+        var package =
+            new EvidencePackage
+            {
+                Id = new EvidencePackageId("package-1"),
+                ClaimIssueId = new ClaimIssueId("issue-1"),
+                Purpose = "Medical review",
+                ReviewerRole = "MedicalProfessional"
+            };
+
+        var artifact =
+            new EvidencePackageArtifact
+            {
+                EvidencePackageId = package.Id,
+                ArtifactId =
+                    new EMF.Core.Models.Identities.ArtifactId(
+                        "artifact-1"),
+                ContentRole =
+                    EvidencePackageContentRoles.UnderlyingEvidence
+            };
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingPackage = package,
+                ExistingArtifacts = [artifact]
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var result =
+            await service.GetAsync(
+                package.Id);
+
+        Assert.NotNull(result);
+        Assert.Same(
+            package,
+            result!.Package);
+
+        Assert.Same(
+            artifact,
+            Assert.Single(result.Artifacts));
+    }
+}
+
+public sealed partial class EvidencePackageServiceTests
+{
+    [Fact]
+    public async Task GetAsync_ReturnsNullWhenPackageDoesNotExist()
+    {
+        var repository =
+            new RecordingRepository();
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var result =
+            await service.GetAsync(
+                new EvidencePackageId("missing-package"));
+
+        Assert.Null(result);
+        Assert.Equal(
+            0,
+            repository.ArtifactQueryCount);
     }
 }
