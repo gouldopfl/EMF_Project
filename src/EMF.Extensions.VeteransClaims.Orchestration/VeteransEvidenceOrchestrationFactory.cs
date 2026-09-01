@@ -18,6 +18,19 @@ public static class VeteransEvidenceOrchestrationFactory
             promotionService);
     }
 
+    public static VeteransReviewerPackagePreparationService
+        CreateReviewerPackagePreparationService(
+            IVeteransEvidenceSummaryPromotionService summaryPromotion,
+            IEvidencePackagePreparationService packagePreparation)
+    {
+        ArgumentNullException.ThrowIfNull(summaryPromotion);
+        ArgumentNullException.ThrowIfNull(packagePreparation);
+
+        return new VeteransReviewerPackagePreparationService(
+            summaryPromotion,
+            packagePreparation);
+    }
+
     public static IEvidenceDevelopmentWorkflowCoordinator
         CreateEvidenceDevelopmentWorkflowCoordinator(
             IWorkflowService workflowService,

@@ -71,4 +71,15 @@ public sealed class VeteransEvidenceOrchestrationFactoryTests
                         null!,
                         null!));
     }
+
+    [Fact]
+    public void CreateReviewerPackagePreparationService_RequiresDependencies()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () =>
+                VeteransEvidenceOrchestrationFactory
+                    .CreateReviewerPackagePreparationService(
+                        null!,
+                        null!));
+    }
 }
