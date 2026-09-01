@@ -302,3 +302,41 @@ public sealed partial class EvidencePackagePreparationServiceTests
             artifact.ArtifactId);
     }
 }
+
+public sealed partial class EvidencePackagePreparationServiceTests
+{
+    [Fact]
+    public async Task PrepareAsync_AddsGeneratedOrganizationalMaterial()
+    {
+        var packages =
+            new RecordingPackageService();
+
+        var service =
+            new EvidencePackagePreparationService(
+                new RecordingClassificationRepository(),
+                packages);
+
+        var generatedArtifactId =
+            new EMF.Core.Models.Identities.ArtifactId(
+                "generated-summary-1");
+
+        await service.PrepareAsync(
+            new ClaimIssueId("issue-1"),
+            "Physician reviewer package",
+            "MedicalProfessional",
+            [generatedArtifactId]);
+
+        var artifact =
+            Assert.Single(
+                packages.AddedArtifacts);
+
+        Assert.Equal(
+            generatedArtifactId,
+            artifact.ArtifactId);
+
+        Assert.Equal(
+            EvidencePackageContentRoles
+                .GeneratedOrganizationalMaterial,
+            artifact.ContentRole);
+    }
+}

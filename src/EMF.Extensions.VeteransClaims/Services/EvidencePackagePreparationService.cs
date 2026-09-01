@@ -18,13 +18,31 @@ public sealed class EvidencePackagePreparationService
         _packages = packages;
     }
 
+    public Task<EMF.Extensions.VeteransClaims.Models.Adjudication.EvidencePackage>
+        PrepareAsync(
+            EMF.Extensions.VeteransClaims.Models.Identities.ClaimIssueId claimIssueId,
+            string purpose,
+            string reviewerRole,
+            CancellationToken cancellationToken = default) =>
+        PrepareAsync(
+            claimIssueId,
+            purpose,
+            reviewerRole,
+            [],
+            cancellationToken);
+
     public async Task<EMF.Extensions.VeteransClaims.Models.Adjudication.EvidencePackage>
         PrepareAsync(
             EMF.Extensions.VeteransClaims.Models.Identities.ClaimIssueId claimIssueId,
             string purpose,
             string reviewerRole,
+            IReadOnlyCollection<EMF.Core.Models.Identities.ArtifactId>
+                generatedOrganizationalMaterialArtifactIds,
             CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(
+            generatedOrganizationalMaterialArtifactIds);
+
         var classifications =
             await _classifications.GetEvidenceClassificationsAsync(
                 claimIssueId,
@@ -47,6 +65,18 @@ public sealed class EvidencePackagePreparationService
                 artifactId,
                 EMF.Extensions.VeteransClaims.Models.Adjudication
                     .EvidencePackageContentRoles.UnderlyingEvidence,
+                cancellationToken);
+        }
+
+        foreach (var artifactId in
+            generatedOrganizationalMaterialArtifactIds.Distinct())
+        {
+            await _packages.AddArtifactAsync(
+                package.Id,
+                artifactId,
+                EMF.Extensions.VeteransClaims.Models.Adjudication
+                    .EvidencePackageContentRoles
+                    .GeneratedOrganizationalMaterial,
                 cancellationToken);
         }
 
