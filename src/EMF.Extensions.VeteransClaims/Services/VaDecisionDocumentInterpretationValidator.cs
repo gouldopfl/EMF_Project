@@ -4,6 +4,26 @@ namespace EMF.Extensions.VeteransClaims.Services;
 
 public sealed class VaDecisionDocumentInterpretationValidator
 {
+    public void ValidateAgainstSource(
+        VaDecisionDocumentInterpretation interpretation,
+        string sourceText)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceText);
+
+        Validate(interpretation);
+
+        foreach (var issue in interpretation.IssueDecisions)
+        {
+            foreach (var excerpt in issue.SourceExcerpts)
+            {
+                ValidateExcerptAgainstSource(
+                    interpretation.ArtifactId,
+                    excerpt,
+                    sourceText);
+            }
+        }
+    }
+
     public void Validate(
         VaDecisionDocumentInterpretation interpretation)
     {
@@ -75,6 +95,45 @@ public sealed class VaDecisionDocumentInterpretationValidator
         {
             throw new InvalidOperationException(
                 "A decision source excerpt length cannot be negative.");
+        }
+    }
+
+    private static void ValidateExcerptAgainstSource(
+        EMF.Core.Models.Identities.ArtifactId artifactId,
+        DecisionDocumentSourceExcerpt excerpt,
+        string sourceText)
+    {
+        if (excerpt.ArtifactId != artifactId)
+        {
+            throw new InvalidOperationException(
+                "A decision source excerpt must reference " +
+                "the interpreted artifact.");
+        }
+
+        if (excerpt.StartOffset is null || excerpt.Length is null)
+        {
+            throw new InvalidOperationException(
+                "A decision source excerpt must contain " +
+                "a start offset and length.");
+        }
+
+        var startOffset = excerpt.StartOffset.Value;
+        var length = excerpt.Length.Value;
+
+        if (length != excerpt.Text.Length ||
+            length > sourceText.Length ||
+            startOffset > sourceText.Length - length)
+        {
+            throw new InvalidOperationException(
+                "A decision source excerpt range is invalid.");
+        }
+
+        if (!sourceText.AsSpan(startOffset, length)
+                .SequenceEqual(excerpt.Text.AsSpan()))
+        {
+            throw new InvalidOperationException(
+                "A decision source excerpt does not match " +
+                "the source document.");
         }
     }
 }

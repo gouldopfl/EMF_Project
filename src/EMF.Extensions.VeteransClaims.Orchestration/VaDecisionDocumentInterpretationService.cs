@@ -66,7 +66,9 @@ internal sealed class VaDecisionDocumentInterpretationService
         var interpretation =
             Map(artifactId, extracted);
 
-        _validator.Validate(interpretation);
+        _validator.ValidateAgainstSource(
+            interpretation,
+            text);
 
         return new VaDecisionDocumentInterpretationResult
         {

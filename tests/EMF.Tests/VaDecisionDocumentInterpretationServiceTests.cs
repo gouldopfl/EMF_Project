@@ -57,7 +57,7 @@ public sealed class VaDecisionDocumentInterpretationServiceTests
         var result =
             await service.InterpretAsync(
                 artifactId,
-                "VA decision text.",
+                "0123456789Service connection is denied.",
                 TestContext());
 
         Assert.Same(
@@ -181,6 +181,48 @@ public sealed class VaDecisionDocumentInterpretationServiceTests
             () => service.InterpretAsync(
                 new ArtifactId("decision-1"),
                 "VA decision text.",
+                TestContext()));
+    }
+
+    [Fact]
+    public async Task InterpretAsync_RejectsUngroundedSourceExcerpt()
+    {
+        var capabilityResult =
+            new IntelligenceCapabilityResult<string>
+            {
+                Success = true,
+                Output =
+                    """
+                    {
+                      "decisionDate": "2026-08-20T00:00:00+00:00",
+                      "issueDecisions": [{
+                        "issueDescription": "Sleep apnea",
+                        "outcome": "Denied",
+                        "rationale": "No nexus established.",
+                        "favorableFindings": [],
+                        "adverseFindings": [],
+                        "citedRegulations": [],
+                        "referencedEvidence": [],
+                        "sourceExcerpts": [{
+                          "text": "Service connection is denied.",
+                          "startOffset": 0,
+                          "length": 29
+                        }]
+                      }]
+                    }
+                    """,
+                RequiresReview = true,
+                Metadata = TestMetadata()
+            };
+
+        var service =
+            new VaDecisionDocumentInterpretationService(
+                new FakeExecutor(capabilityResult));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.InterpretAsync(
+                new ArtifactId("decision-1"),
+                "Service connection is granted.",
                 TestContext()));
     }
 
