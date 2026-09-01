@@ -261,6 +261,52 @@ public sealed class SqliteDisabilityEvaluationRepository :
         return evaluations;
     }
 
+    public async Task<DisabilityEvaluation?>
+        GetCurrentEvaluationAsync(
+            IssueDecisionId issueDecisionId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT e.Id, e.IssueDecisionId, e.Evaluation
+            FROM VeteransClaims_DisabilityEvaluations e
+            JOIN VeteransClaims_EffectiveDates d
+                ON d.DisabilityEvaluationId = e.Id
+            WHERE e.IssueDecisionId = $issueDecisionId
+            ORDER BY d.EffectiveDate DESC
+            LIMIT 1;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$issueDecisionId",
+            issueDecisionId.Value);
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new DisabilityEvaluation
+        {
+            Id =
+                new DisabilityEvaluationId(
+                    reader.GetString(0)),
+            IssueDecisionId =
+                new IssueDecisionId(
+                    reader.GetString(1)),
+            Evaluation =
+                reader.GetString(2)
+        };
+    }
+
     public async Task<EffectiveDate?>
         GetEffectiveDateAsync(
             DisabilityEvaluationId disabilityEvaluationId,

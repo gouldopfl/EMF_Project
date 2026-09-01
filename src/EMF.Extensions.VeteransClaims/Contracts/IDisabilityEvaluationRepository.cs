@@ -18,6 +18,10 @@ public interface IDisabilityEvaluationRepository
             IssueDecisionId issueDecisionId,
             CancellationToken cancellationToken = default);
 
+    Task<DisabilityEvaluation?> GetCurrentEvaluationAsync(
+        IssueDecisionId issueDecisionId,
+        CancellationToken cancellationToken = default);
+
     Task<EffectiveDate?> GetEffectiveDateAsync(
         DisabilityEvaluationId disabilityEvaluationId,
         CancellationToken cancellationToken = default);

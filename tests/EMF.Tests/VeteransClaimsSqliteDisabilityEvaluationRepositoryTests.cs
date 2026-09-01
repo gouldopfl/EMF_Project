@@ -79,7 +79,7 @@ public sealed class VeteransClaimsSqliteDisabilityEvaluationRepositoryTests
                 {
                     Id =
                         new DisabilityEvaluationId(
-                            "evaluation-001"),
+                            "evaluation-900"),
                     IssueDecisionId =
                         issueDecision.Id,
                     Evaluation = "0%"
@@ -90,7 +90,7 @@ public sealed class VeteransClaimsSqliteDisabilityEvaluationRepositoryTests
                 {
                     Id =
                         new DisabilityEvaluationId(
-                            "evaluation-002"),
+                            "evaluation-100"),
                     IssueDecisionId =
                         issueDecision.Id,
                     Evaluation = "50%"
@@ -147,7 +147,15 @@ public sealed class VeteransClaimsSqliteDisabilityEvaluationRepositoryTests
                 await repository.GetEffectiveDateAsync(
                     increasedEvaluation.Id);
 
+            var currentEvaluation =
+                await repository.GetCurrentEvaluationAsync(
+                    issueDecision.Id);
+
             Assert.Equal(2, storedEvaluations.Count);
+            Assert.NotNull(currentEvaluation);
+            Assert.Equal(
+                increasedEvaluation.Id,
+                currentEvaluation!.Id);
 
             Assert.Contains(
                 storedEvaluations,
@@ -171,6 +179,27 @@ public sealed class VeteransClaimsSqliteDisabilityEvaluationRepositoryTests
         {
             File.Delete(databasePath);
         }
+    }
+
+    [Fact]
+    public async Task Repository_ReturnsCurrentEvaluation()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        await new VeteransClaimsSqliteSchema(databasePath)
+            .InitializeAsync();
+
+        IDisabilityEvaluationRepository repository =
+            new SqliteDisabilityEvaluationRepository(
+                databasePath);
+
+        var result =
+            await repository.GetCurrentEvaluationAsync(
+                new IssueDecisionId("issue-decision-001"));
+
+        Assert.Null(result);
+
+        File.Delete(databasePath);
     }
 
     [Fact]
