@@ -336,13 +336,43 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
         var review =
             CreateReviewAnalysis(issue, recommendation);
 
+        var currentDecision =
+            new ClaimIssueCurrentDecision
+            {
+                IssueDecision =
+                    new IssueDecision
+                    {
+                        Id =
+                            new IssueDecisionId(
+                                "issue-decision-progression"),
+                        VaDecisionId =
+                            new VaDecisionId(
+                                "va-decision-progression"),
+                        ClaimIssueId = issue.Id,
+                        Outcome = IssueDecisionOutcomes.Granted
+                    },
+                VaDecision =
+                    new VaDecision
+                    {
+                        Id =
+                            new VaDecisionId(
+                                "va-decision-progression"),
+                        DecisionDate =
+                            new DateTimeOffset(
+                                2026, 8, 11,
+                                0, 0, 0,
+                                TimeSpan.Zero)
+                    }
+            };
+
         var assessment =
             CreateAssessment(
                 issue,
                 false,
                 false,
                 recommendation: recommendation,
-                reviewHistory: [review]);
+                reviewHistory: [review],
+                currentDecision: currentDecision);
 
         var service =
             new ClaimAdjudicationAssessmentService(
@@ -355,6 +385,8 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
 
         Assert.NotNull(result);
         Assert.Equal(1, result!.RecommendedIssueCount);
+        Assert.Equal(1, result.CurrentDecisionCount);
+        Assert.Equal(1, result.GrantedIssueCount);
         Assert.Equal(1, result.ReviewedDecisionCount);
         Assert.Equal(1, result.ReviewRequiredCount);
     }
@@ -419,13 +451,320 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
         };
     }
 
+
+    [Fact]
+    public async Task GetAsync_CountsDeniedCurrentDecisions()
+    {
+        var claim =
+            new Claim
+            {
+                Id = new ClaimId("claim-denied-summary"),
+                VeteranId = new VeteranId("veteran-denied-summary")
+            };
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-denied-summary"),
+                ClaimId = claim.Id,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var currentDecision =
+            new ClaimIssueCurrentDecision
+            {
+                IssueDecision =
+                    new IssueDecision
+                    {
+                        Id =
+                            new IssueDecisionId(
+                                "issue-decision-denied-summary"),
+                        VaDecisionId =
+                            new VaDecisionId(
+                                "va-decision-denied-summary"),
+                        ClaimIssueId = issue.Id,
+                        Outcome = IssueDecisionOutcomes.Denied
+                    },
+                VaDecision =
+                    new VaDecision
+                    {
+                        Id =
+                            new VaDecisionId(
+                                "va-decision-denied-summary"),
+                        DecisionDate =
+                            new DateTimeOffset(
+                                2026, 8, 12,
+                                0, 0, 0,
+                                TimeSpan.Zero)
+                    }
+            };
+
+        var assessment =
+            CreateAssessment(
+                issue,
+                false,
+                false,
+                currentDecision: currentDecision);
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(claim),
+                new FakeClaimIssueRepository(issue),
+                new FakeIssueAssessmentService(assessment));
+
+        var result =
+            await service.GetAsync(claim.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(1, result!.CurrentDecisionCount);
+        Assert.Equal(1, result.DeniedIssueCount);
+        Assert.Equal(0, result.GrantedIssueCount);
+    }
+
+
+
+    [Fact]
+    public async Task GetAsync_CountsDeferredCurrentDecisions()
+    {
+        var claim =
+            new Claim
+            {
+                Id = new ClaimId("claim-deferred-summary"),
+                VeteranId = new VeteranId("veteran-deferred-summary")
+            };
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-deferred-summary"),
+                ClaimId = claim.Id,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var currentDecision =
+            new ClaimIssueCurrentDecision
+            {
+                IssueDecision =
+                    new IssueDecision
+                    {
+                        Id =
+                            new IssueDecisionId(
+                                "issue-decision-deferred-summary"),
+                        VaDecisionId =
+                            new VaDecisionId(
+                                "va-decision-deferred-summary"),
+                        ClaimIssueId = issue.Id,
+                        Outcome = IssueDecisionOutcomes.Deferred
+                    },
+                VaDecision =
+                    new VaDecision
+                    {
+                        Id =
+                            new VaDecisionId(
+                                "va-decision-deferred-summary"),
+                        DecisionDate =
+                            new DateTimeOffset(
+                                2026, 8, 13,
+                                0, 0, 0,
+                                TimeSpan.Zero)
+                    }
+            };
+
+        var assessment =
+            CreateAssessment(
+                issue,
+                false,
+                false,
+                currentDecision: currentDecision);
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(claim),
+                new FakeClaimIssueRepository(issue),
+                new FakeIssueAssessmentService(assessment));
+
+        var result =
+            await service.GetAsync(claim.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(1, result!.CurrentDecisionCount);
+        Assert.Equal(1, result.DeferredIssueCount);
+        Assert.Equal(0, result.GrantedIssueCount);
+        Assert.Equal(0, result.DeniedIssueCount);
+    }
+
+
+
+    [Fact]
+    public async Task GetAsync_CountsPartiallyGrantedCurrentDecisions()
+    {
+        var claim =
+            new Claim
+            {
+                Id =
+                    new ClaimId(
+                        "claim-partially-granted-summary"),
+                VeteranId =
+                    new VeteranId(
+                        "veteran-partially-granted-summary")
+            };
+
+        var issue =
+            new ClaimIssue
+            {
+                Id =
+                    new ClaimIssueId(
+                        "issue-partially-granted-summary"),
+                ClaimId = claim.Id,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var currentDecision =
+            new ClaimIssueCurrentDecision
+            {
+                IssueDecision =
+                    new IssueDecision
+                    {
+                        Id =
+                            new IssueDecisionId(
+                                "issue-decision-partially-granted-summary"),
+                        VaDecisionId =
+                            new VaDecisionId(
+                                "va-decision-partially-granted-summary"),
+                        ClaimIssueId = issue.Id,
+                        Outcome =
+                            IssueDecisionOutcomes.PartiallyGranted
+                    },
+                VaDecision =
+                    new VaDecision
+                    {
+                        Id =
+                            new VaDecisionId(
+                                "va-decision-partially-granted-summary"),
+                        DecisionDate =
+                            new DateTimeOffset(
+                                2026, 8, 14,
+                                0, 0, 0,
+                                TimeSpan.Zero)
+                    }
+            };
+
+        var assessment =
+            CreateAssessment(
+                issue,
+                false,
+                false,
+                currentDecision: currentDecision);
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(claim),
+                new FakeClaimIssueRepository(issue),
+                new FakeIssueAssessmentService(assessment));
+
+        var result =
+            await service.GetAsync(claim.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(1, result!.CurrentDecisionCount);
+        Assert.Equal(1, result.PartiallyGrantedIssueCount);
+        Assert.Equal(0, result.GrantedIssueCount);
+        Assert.Equal(0, result.DeniedIssueCount);
+        Assert.Equal(0, result.DeferredIssueCount);
+    }
+
+
+
+    [Fact]
+    public async Task GetAsync_CountsUndecidedIssues()
+    {
+        var claim =
+            new Claim
+            {
+                Id = new ClaimId("claim-undecided-summary"),
+                VeteranId = new VeteranId("veteran-undecided-summary")
+            };
+
+        var decidedIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-decided-summary"),
+                ClaimId = claim.Id,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var undecidedIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-undecided-summary"),
+                ClaimId = claim.Id,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var currentDecision =
+            new ClaimIssueCurrentDecision
+            {
+                IssueDecision =
+                    new IssueDecision
+                    {
+                        Id =
+                            new IssueDecisionId(
+                                "issue-decision-undecided-summary"),
+                        VaDecisionId =
+                            new VaDecisionId(
+                                "va-decision-undecided-summary"),
+                        ClaimIssueId = decidedIssue.Id,
+                        Outcome = IssueDecisionOutcomes.Granted
+                    },
+                VaDecision =
+                    new VaDecision
+                    {
+                        Id =
+                            new VaDecisionId(
+                                "va-decision-undecided-summary"),
+                        DecisionDate =
+                            new DateTimeOffset(
+                                2026, 8, 15,
+                                0, 0, 0,
+                                TimeSpan.Zero)
+                    }
+            };
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(claim),
+                new FakeClaimIssueRepository(
+                    decidedIssue,
+                    undecidedIssue),
+                new FakeIssueAssessmentService(
+                    CreateAssessment(
+                        decidedIssue,
+                        false,
+                        false,
+                        currentDecision: currentDecision),
+                    CreateAssessment(
+                        undecidedIssue,
+                        false,
+                        false)));
+
+        var result =
+            await service.GetAsync(claim.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result!.IssueCount);
+        Assert.Equal(1, result.CurrentDecisionCount);
+        Assert.Equal(1, result.UndecidedIssueCount);
+    }
+
+
     private static ClaimIssueAdjudicationAssessment CreateAssessment(
         ClaimIssue issue,
         bool requiresAttention,
         bool shouldConsiderFollowUp,
         bool isReady = true,
         ClaimIssueDecisionRecommendation? recommendation = null,
-        IReadOnlyList<ClaimIssueDecisionReviewAnalysis>? reviewHistory = null)
+        IReadOnlyList<ClaimIssueDecisionReviewAnalysis>? reviewHistory = null,
+        ClaimIssueCurrentDecision? currentDecision = null)
     {
         ClaimIssueAdjudicationAgingStatus? aging = null;
 
@@ -489,6 +828,7 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
                 },
             Aging = aging,
             Recommendation = recommendation,
+            CurrentDecision = currentDecision,
             DecisionReviewHistory = reviewHistory ?? []
         };
     }

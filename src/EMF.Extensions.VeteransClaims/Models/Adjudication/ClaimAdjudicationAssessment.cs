@@ -22,6 +22,38 @@ public sealed class ClaimAdjudicationAssessment
         Issues.Count(
             x => x.Recommendation?.HasRecommendation == true);
 
+    public int CurrentDecisionCount =>
+        Issues.Count(
+            x => x.CurrentDecision is not null);
+
+    public int UndecidedIssueCount =>
+        Issues.Count(
+            x => x.CurrentDecision is null);
+
+    public int GrantedIssueCount =>
+        Issues.Count(
+            x =>
+                x.CurrentDecision?.IssueDecision.Outcome ==
+                IssueDecisionOutcomes.Granted);
+
+    public int DeniedIssueCount =>
+        Issues.Count(
+            x =>
+                x.CurrentDecision?.IssueDecision.Outcome ==
+                IssueDecisionOutcomes.Denied);
+
+    public int DeferredIssueCount =>
+        Issues.Count(
+            x =>
+                x.CurrentDecision?.IssueDecision.Outcome ==
+                IssueDecisionOutcomes.Deferred);
+
+    public int PartiallyGrantedIssueCount =>
+        Issues.Count(
+            x =>
+                x.CurrentDecision?.IssueDecision.Outcome ==
+                IssueDecisionOutcomes.PartiallyGranted);
+
     public int ReviewedDecisionCount =>
         Issues.Sum(x => x.DecisionReviewHistory.Count);
 
