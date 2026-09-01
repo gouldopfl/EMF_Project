@@ -2,7 +2,8 @@ using EMF.Extensions.VeteransClaims.Contracts;
 
 namespace EMF.Extensions.VeteransClaims.Services;
 
-public sealed class EvidencePackagePreparationService
+public sealed class EvidencePackagePreparationService :
+    IEvidencePackagePreparationService
 {
     private readonly IEvidenceClassificationRepository _classifications;
     private readonly IEvidencePackageService _packages;

@@ -16,6 +16,21 @@ public sealed partial class EvidencePackagePreparationServiceTests
 public sealed partial class EvidencePackagePreparationServiceTests
 {
     [Fact]
+    public void Service_ImplementsPreparationContract()
+    {
+        EMF.Extensions.VeteransClaims.Contracts
+            .IEvidencePackagePreparationService service =
+                new EvidencePackagePreparationService(
+                    new RecordingClassificationRepository(),
+                    new RecordingPackageService());
+
+        Assert.NotNull(service);
+    }
+}
+
+public sealed partial class EvidencePackagePreparationServiceTests
+{
+    [Fact]
     public void Constructor_RequiresDependencies()
     {
         Assert.Throws<ArgumentNullException>(
