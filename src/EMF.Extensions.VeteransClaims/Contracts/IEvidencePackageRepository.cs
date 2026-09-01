@@ -17,4 +17,22 @@ public interface IEvidencePackageRepository
         GetEvidencePackagesAsync(
             ClaimIssueId claimIssueId,
             CancellationToken cancellationToken = default);
+
+
+    Task AddEvidencePackageArtifactAsync(
+        EvidencePackageArtifact artifact,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Evidence package artifacts are not supported by this repository.");
+    }
+
+    Task<IReadOnlyList<EvidencePackageArtifact>>
+        GetEvidencePackageArtifactsAsync(
+            EvidencePackageId evidencePackageId,
+            CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Evidence package artifacts are not supported by this repository.");
+    }
 }
