@@ -534,6 +534,24 @@ public static class VeteransConsoleCommand
             $"Recommended : {result.RecommendedIssueCount}");
 
         output.WriteLine(
+            $"Decisions   : {result.CurrentDecisionCount}");
+
+        output.WriteLine(
+            $"Denied      : {result.DeniedIssueCount}");
+
+        output.WriteLine(
+            $"Granted     : {result.GrantedIssueCount}");
+
+        output.WriteLine(
+            $"Deferred    : {result.DeferredIssueCount}");
+
+        output.WriteLine(
+            $"Partial     : {result.PartiallyGrantedIssueCount}");
+
+        output.WriteLine(
+            $"Undecided   : {result.UndecidedIssueCount}");
+
+        output.WriteLine(
             $"Reviews     : {result.ReviewedDecisionCount}");
 
         output.WriteLine(
@@ -572,6 +590,10 @@ public static class VeteransConsoleCommand
             output.WriteLine(
                 $"  Recommend : " +
                 $"{issue.Recommendation?.RecommendedOutcome ?? "None"}");
+
+            output.WriteLine(
+                $"  Current   : " +
+                $"{issue.CurrentDecision?.IssueDecision.Outcome ?? "None"}");
 
             output.WriteLine(
                 $"  Reviews   : " +

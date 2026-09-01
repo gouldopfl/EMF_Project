@@ -1973,11 +1973,39 @@ public sealed class VeteransConsoleCommandTests
                 rendered);
 
             Assert.Contains(
+                "Decisions   : 1",
+                rendered);
+
+            Assert.Contains(
+                "Denied      : 1",
+                rendered);
+
+            Assert.Contains(
+                "Granted     : 0",
+                rendered);
+
+            Assert.Contains(
+                "Deferred    : 0",
+                rendered);
+
+            Assert.Contains(
+                "Partial     : 0",
+                rendered);
+
+            Assert.Contains(
+                "Undecided   : 0",
+                rendered);
+
+            Assert.Contains(
                 "Reviews     : 1",
                 rendered);
 
             Assert.Contains(
                 "Review Req  : 0",
+                rendered);
+
+            Assert.Contains(
+                "  Current   : Denied",
                 rendered);
 
             Assert.Contains(
