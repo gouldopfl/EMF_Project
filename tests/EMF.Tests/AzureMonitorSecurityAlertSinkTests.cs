@@ -84,6 +84,11 @@ public sealed class AzureMonitorSecurityAlertSinkTests
             Facts = new Dictionary<string, string>
             {
                 ["outcome"] = "Denied",
+                ["detail"] = "Bearer do-not-send",
+                ["authentication"] = "Basic do-not-send",
+                ["diagnostic"] = "password=do-not-send",
+                ["certificate"] =
+                    "-----BEGIN PRIVATE KEY----- do-not-send",
                 ["accessToken"] = "do-not-send",
                 ["password"] = "do-not-send"
             }
@@ -97,6 +102,18 @@ public sealed class AzureMonitorSecurityAlertSinkTests
         Assert.Equal(
             "Denied",
             facts.GetProperty("outcome").GetString());
+
+        Assert.False(
+            facts.TryGetProperty("detail", out _));
+
+        Assert.False(
+            facts.TryGetProperty("authentication", out _));
+
+        Assert.False(
+            facts.TryGetProperty("diagnostic", out _));
+
+        Assert.False(
+            facts.TryGetProperty("certificate", out _));
 
         Assert.False(
             facts.TryGetProperty("accessToken", out _));
