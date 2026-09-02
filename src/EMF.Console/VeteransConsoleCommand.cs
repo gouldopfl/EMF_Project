@@ -445,9 +445,23 @@ public static class VeteransConsoleCommand
 
                 if (promote)
                 {
-                    var promotedArtifact =
-                        await VeteransEvidenceSummaryPublisher.PublishAsync(
+                    var plan =
+                        await developmentRepository
+                            .GetEvidenceDevelopmentPlanAsync(planId);
+
+                    if (plan is null)
+                    {
+                        global::System.Console.Error.WriteLine(
+                            $"Evidence development plan not found: {planId.Value}");
+                        return 1;
+                    }
+
+                    var prepared =
+                        await VeteransReviewerPackagePublisher.PublishAsync(
                             databasePath,
+                            plan.ClaimIssueId,
+                            "Physician reviewer package",
+                            "MedicalProfessional",
                             $"Evidence gap {evidenceGapId.Value} summary",
                             runtime.SubjectId,
                             Environment.GetEnvironmentVariable("EMF_REVIEWED_BY")!,
@@ -457,10 +471,12 @@ public static class VeteransConsoleCommand
                             intelligenceResult);
 
                     global::System.Console.WriteLine();
-                    global::System.Console.WriteLine("Promoted");
-                    global::System.Console.WriteLine("--------");
+                    global::System.Console.WriteLine("Promoted and Packaged");
+                    global::System.Console.WriteLine("---------------------");
                     global::System.Console.WriteLine(
-                        $"Artifact ID : {promotedArtifact.Id.Value}");
+                        $"Summary Artifact ID : {prepared.SummaryArtifact.Id.Value}");
+                    global::System.Console.WriteLine(
+                        $"Package ID          : {prepared.Package.Id.Value}");
                 }
 
             }

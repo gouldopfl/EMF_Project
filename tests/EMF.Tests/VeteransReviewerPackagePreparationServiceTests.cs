@@ -44,8 +44,9 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
                 ]
             };
 
-        await service.PrepareAsync(
-            new ClaimIssueId("issue-1"),
+        var prepared =
+            await service.PrepareAsync(
+                new ClaimIssueId("issue-1"),
             "Physician reviewer package",
             "MedicalProfessional",
             "OSA evidence summary",
@@ -55,6 +56,14 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
             new EvidenceGapId("gap-1"),
             new RequirementId("requirement-1"),
             result);
+
+        Assert.Same(
+            promoted.Artifact,
+            prepared.SummaryArtifact);
+
+        Assert.Equal(
+            new EvidencePackageId("package-1"),
+            prepared.Package.Id);
 
         Assert.Equal(
             promoted.Artifact.Id,
@@ -102,10 +111,12 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
         IEvidencePackagePreparationService
     {
         public IReadOnlyCollection<ArtifactId>
-            UnderlyingArtifactIds { get; private set; } = [];
+            UnderlyingArtifactIds
+        { get; private set; } = [];
 
         public IReadOnlyCollection<ArtifactId>
-            GeneratedArtifactIds { get; private set; } = [];
+            GeneratedArtifactIds
+        { get; private set; } = [];
 
         public Task<EvidencePackage> PrepareAsync(
             ClaimIssueId claimIssueId,

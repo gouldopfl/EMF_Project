@@ -23,7 +23,7 @@ public sealed class VeteransReviewerPackagePreparationService
         _packagePreparation = packagePreparation;
     }
 
-    public async Task<EvidencePackage> PrepareAsync(
+    public async Task<VeteransReviewerPackagePreparationResult> PrepareAsync(
         ClaimIssueId claimIssueId,
         string purpose,
         string reviewerRole,
@@ -49,12 +49,19 @@ public sealed class VeteransReviewerPackagePreparationService
                 summaryResult,
                 cancellationToken);
 
-        return await _packagePreparation.PrepareAsync(
-            claimIssueId,
-            purpose,
-            reviewerRole,
-            summaryResult.SourceArtifactIds,
-            [summaryArtifact.Id],
-            cancellationToken);
+        var package =
+            await _packagePreparation.PrepareAsync(
+                claimIssueId,
+                purpose,
+                reviewerRole,
+                summaryResult.SourceArtifactIds,
+                [summaryArtifact.Id],
+                cancellationToken);
+
+        return new VeteransReviewerPackagePreparationResult
+        {
+            SummaryArtifact = summaryArtifact,
+            Package = package
+        };
     }
 }

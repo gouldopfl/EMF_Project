@@ -1070,7 +1070,7 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
-    public async Task EvidenceDevelopSummarize_UsesInjectedRuntime()
+    public async Task EvidenceDevelopSummarizePromote_PersistsSummaryAndPackage()
     {
         var databasePath = Path.GetTempFileName();
         var previousReviewer =
@@ -1263,6 +1263,52 @@ public sealed class VeteransConsoleCommandTests
             Assert.Equal(
                 new ArtifactId("artifact-console-001"),
                 relationship.TargetArtifactId);
+
+            var packageRepository =
+                new SqliteEvidencePackageRepository(
+                    databasePath);
+
+            var package =
+                Assert.Single(
+                    await packageRepository
+                        .GetEvidencePackagesAsync(
+                            issue.Id));
+
+            Assert.Equal(
+                "Physician reviewer package",
+                package.Purpose);
+
+            Assert.Equal(
+                "MedicalProfessional",
+                package.ReviewerRole);
+
+            var packageArtifacts =
+                await packageRepository
+                    .GetEvidencePackageArtifactsAsync(
+                        package.Id);
+
+            Assert.Equal(
+                2,
+                packageArtifacts.Count);
+
+            Assert.Contains(
+                packageArtifacts,
+                artifact =>
+                    artifact.ArtifactId ==
+                        new ArtifactId(
+                            "artifact-console-001") &&
+                    artifact.ContentRole ==
+                        EvidencePackageContentRoles
+                            .UnderlyingEvidence);
+
+            Assert.Contains(
+                packageArtifacts,
+                artifact =>
+                    artifact.ArtifactId ==
+                        expectedArtifact.Id &&
+                    artifact.ContentRole ==
+                        EvidencePackageContentRoles
+                            .GeneratedOrganizationalMaterial);
 
         }
         finally
