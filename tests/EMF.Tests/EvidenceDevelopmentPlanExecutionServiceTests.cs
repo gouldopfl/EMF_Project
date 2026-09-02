@@ -66,6 +66,27 @@ public sealed class EvidenceDevelopmentPlanExecutionServiceTests
                         EvidenceGapId = gap2
                     }
                 ],
+                GapDetails =
+                [
+                    new EvidenceGap
+                    {
+                        Id = gap1,
+                        ClaimIssueId = new ClaimIssueId("issue-1"),
+                        RequirementId =
+                            new RequirementId("requirement-1"),
+                        Description = "First gap.",
+                        Status = EvidenceGapStatuses.Open
+                    },
+                    new EvidenceGap
+                    {
+                        Id = gap2,
+                        ClaimIssueId = new ClaimIssueId("issue-1"),
+                        RequirementId =
+                            new RequirementId("requirement-2"),
+                        Description = "Second gap.",
+                        Status = EvidenceGapStatuses.Open
+                    }
+                ],
                 Artifacts = [],
                 Executions = [],
                 Results = []
@@ -252,6 +273,19 @@ public sealed class EvidenceDevelopmentPlanExecutionServiceTests
                         EvidenceGapId = gapId
                     }
                 ],
+                GapDetails =
+                [
+                    new EvidenceGap
+                    {
+                        Id = gapId,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-existing"),
+                        RequirementId =
+                            new RequirementId("requirement-existing"),
+                        Description = "Existing gap.",
+                        Status = EvidenceGapStatuses.Open
+                    }
+                ],
                 Artifacts = [],
                 Executions = [existing],
                 Results = []
@@ -280,6 +314,104 @@ public sealed class EvidenceDevelopmentPlanExecutionServiceTests
 
         Assert.NotNull(result);
         Assert.Same(existing, Assert.Single(result!));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RejectsMissingGapDetailsBeforeStartingWorkflows()
+    {
+        var planId =
+            new EvidenceDevelopmentPlanId("plan-missing-gap");
+
+        var presentGapId =
+            new EvidenceGapId("gap-present");
+
+        var missingGapId =
+            new EvidenceGapId("gap-missing");
+
+        var details =
+            new EvidenceDevelopmentPlanDetails
+            {
+                Plan =
+                    new EvidenceDevelopmentPlan
+                    {
+                        Id = planId,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-missing-gap"),
+                        Description = "Develop evidence."
+                    },
+                Requirements = [],
+                EvidenceGaps =
+                [
+                    new EvidenceDevelopmentPlanEvidenceGap
+                    {
+                        EvidenceDevelopmentPlanId = planId,
+                        EvidenceGapId = presentGapId
+                    },
+                    new EvidenceDevelopmentPlanEvidenceGap
+                    {
+                        EvidenceDevelopmentPlanId = planId,
+                        EvidenceGapId = missingGapId
+                    }
+                ],
+                GapDetails =
+                [
+                    new EvidenceGap
+                    {
+                        Id = presentGapId,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-missing-gap"),
+                        RequirementId =
+                            new RequirementId("requirement-present"),
+                        Description = "Present gap.",
+                        Status = EvidenceGapStatuses.Open
+                    }
+                ],
+                Artifacts = [],
+                Executions = [],
+                Results = []
+            };
+
+        var plans =
+            Proxy<IEvidenceDevelopmentPlanService>(
+                (method, args) =>
+                    Task.FromResult<
+                        EvidenceDevelopmentPlanDetails?>(
+                            details));
+
+        var started = 0;
+
+        var workflow =
+            Proxy<IEvidenceDevelopmentWorkflowCoordinator>(
+                (method, args) =>
+                {
+                    started++;
+                    var gapId = (EvidenceGapId)args![1]!;
+
+                    return Task.FromResult(
+                        new EvidenceDevelopmentExecution
+                        {
+                            EvidenceDevelopmentPlanId = planId,
+                            EvidenceGapId = gapId,
+                            WorkflowId =
+                                new EMF.Core.Models.Identities.WorkflowId(
+                                    $"workflow-{gapId.Value}")
+                        });
+                });
+
+        var service =
+            new EvidenceDevelopmentPlanExecutionService(
+                plans,
+                workflow);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.ExecuteAsync(planId));
+
+        Assert.Equal(
+            "Evidence development plan references a missing evidence gap.",
+            exception.Message);
+
+        Assert.Equal(0, started);
     }
 
 

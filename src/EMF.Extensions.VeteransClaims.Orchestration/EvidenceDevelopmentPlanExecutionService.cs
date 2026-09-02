@@ -34,6 +34,16 @@ public sealed class EvidenceDevelopmentPlanExecutionService :
         if (details is null)
             return null;
 
+        if (details.EvidenceGaps.Any(
+            gap =>
+                details.GapDetails.All(
+                    detail =>
+                        detail.Id != gap.EvidenceGapId)))
+        {
+            throw new InvalidOperationException(
+                "Evidence development plan references a missing evidence gap.");
+        }
+
         var executions =
             new List<EvidenceDevelopmentExecution>();
 
