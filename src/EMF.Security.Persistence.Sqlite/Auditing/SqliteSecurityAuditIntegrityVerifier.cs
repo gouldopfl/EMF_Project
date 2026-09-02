@@ -34,8 +34,25 @@ public sealed class
         await connection.OpenAsync(
             cancellationToken);
 
+        return await VerifyAsync(
+            connection,
+            null,
+            cancellationToken);
+    }
+
+    internal static async Task<
+        SecurityAuditIntegrityVerificationResult>
+        VerifyAsync(
+            SqliteConnection connection,
+            SqliteTransaction? transaction,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+
         await using var command =
             connection.CreateCommand();
+
+        command.Transaction = transaction;
 
         command.CommandText =
             """

@@ -24,17 +24,6 @@ public sealed class SqliteSecurityAuditOperationReporter
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
 
-        var integrity =
-            await new SqliteSecurityAuditIntegrityVerifier(
-                _databasePath)
-                .VerifyAsync(cancellationToken);
-
-        if (!integrity.IsValid)
-        {
-            throw new InvalidOperationException(
-                "Security audit integrity verification failed.");
-        }
-
         var connectionString =
             new SqliteConnectionStringBuilder
             {
@@ -47,7 +36,25 @@ public sealed class SqliteSecurityAuditOperationReporter
 
         await connection.OpenAsync(cancellationToken);
 
+        using var transaction =
+            connection.BeginTransaction();
+
+        var integrity =
+            await SqliteSecurityAuditIntegrityVerifier
+                .VerifyAsync(
+                    connection,
+                    transaction,
+                    cancellationToken);
+
+        if (!integrity.IsValid)
+        {
+            throw new InvalidOperationException(
+                "Security audit integrity verification failed.");
+        }
+
         await using var command = connection.CreateCommand();
+
+        command.Transaction = transaction;
 
         command.CommandText =
             """
@@ -103,7 +110,7 @@ public sealed class SqliteSecurityAuditOperationReporter
                 last = groupLast;
         }
 
-        return new SecurityAuditOperationReport
+        var report = new SecurityAuditOperationReport
         {
             Operation = operation,
             TotalCount = total,
@@ -112,5 +119,9 @@ public sealed class SqliteSecurityAuditOperationReporter
             LastOccurredUtc = last,
             ChainHeadHash = integrity.ChainHeadHash
         };
+
+        transaction.Commit();
+
+        return report;
     }
 }
