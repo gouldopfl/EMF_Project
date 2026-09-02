@@ -19,8 +19,8 @@ public sealed class EvidenceDevelopmentPreparationServiceTests
         var plans =
             Proxy<IEvidenceDevelopmentPlanService>(
                 (method, args) =>
-                    throw new InvalidOperationException(
-                        $"{method.Name} should not be called."));
+                    Task.FromResult<
+                        EvidenceDevelopmentPlanDetails?>(null));
 
         var service =
             new EvidenceDevelopmentPreparationService(
@@ -150,18 +150,8 @@ public sealed class EvidenceDevelopmentPreparationServiceTests
         var gaps =
             Proxy<IServiceConnectionEvidenceGapService>(
                 (method, args) =>
-                    Task.FromResult<IReadOnlyList<EvidenceGap>>(
-                        [
-                            new EvidenceGap
-                            {
-                                Id = new EvidenceGapId("gap-existing"),
-                                ClaimIssueId = claimIssueId,
-                                RequirementId =
-                                    new RequirementId(
-                                        "requirement-existing"),
-                                Description = "Missing evidence."
-                            }
-                        ]));
+                    throw new InvalidOperationException(
+                        $"{method.Name} should not be called."));
 
         var plans =
             Proxy<IEvidenceDevelopmentPlanService>(

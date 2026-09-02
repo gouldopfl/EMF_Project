@@ -29,13 +29,6 @@ public sealed class EvidenceDevelopmentPreparationService :
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(description);
 
-        var gaps =
-            await _gaps.EnsureGapsAsync(
-                claimIssueId,
-                cancellationToken);
-
-        if (gaps.Count == 0)
-            return null;
 
         var existing =
             await _plans.GetEvidenceDevelopmentPlanAsync(
@@ -52,6 +45,14 @@ public sealed class EvidenceDevelopmentPreparationService :
 
             return existing;
         }
+
+        var gaps =
+            await _gaps.EnsureGapsAsync(
+                claimIssueId,
+                cancellationToken);
+
+        if (gaps.Count == 0)
+            return null;
 
         return await _plans.CreateEvidenceDevelopmentPlanAsync(
             new CreateEvidenceDevelopmentPlanRequest
