@@ -25,6 +25,22 @@ public sealed class ProtectionPolicyTests
     }
 
     [Theory]
+    [InlineData("public")]
+    [InlineData("internal")]
+    [InlineData("confidential")]
+    public async Task EvaluateAsync_CanonicalBaselineClassification_Allows(
+        string classification)
+    {
+        var decision =
+            await new ProtectionPolicy().EvaluateAsync(
+                CreateRequest(classification));
+
+        Assert.Equal(
+            AuthorizationDecision.Allow,
+            decision);
+    }
+
+    [Theory]
     [InlineData(ProtectionClassifications.Public)]
     [InlineData(ProtectionClassifications.Internal)]
     [InlineData(ProtectionClassifications.Confidential)]

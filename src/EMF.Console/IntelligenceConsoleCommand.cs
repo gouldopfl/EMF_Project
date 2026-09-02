@@ -6,8 +6,6 @@ using EMF.Intelligence.Agents;
 using EMF.Intelligence.Development.Composition;
 using EMF.Intelligence.Models.Identities;
 using EMF.Orchestration.Services;
-using EMF.Security.Authorization;
-using EMF.Security.Authorization.Services;
 using EMF.Security.Models;
 using EMF.Security.Models.Identities;
 using EMF.Security.Persistence.Sqlite.Auditing;
@@ -86,20 +84,9 @@ public static class IntelligenceConsoleCommand
         await auditSink.InitializeAsync();
 
         var policy =
-            new AuthorizationPolicy(
-                new InMemoryAuthorizationContextProvider(
-                    [
-                        new AuthorizationContext
-                        {
-                            SubjectId = subjectId,
-                            RoleIds = Array.Empty<RoleId>(),
-                            PermissionIds =
-                            [
-                                SecurityPermissions
-                                    .ArtifactIntelligenceUse
-                            ]
-                        }
-                    ]));
+            ConsoleAuthorizationPolicyFactory.Create(
+                subjectId,
+                SecurityPermissions.ArtifactIntelligenceUse);
 
         var composition =
             new DevelopmentTextIntelligenceComposition(

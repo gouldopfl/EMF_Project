@@ -1,8 +1,6 @@
 using EMF.Core.Models.Identities;
 using EMF.Persistence.Repositories;
 using EMF.Security;
-using EMF.Security.Authorization;
-using EMF.Security.Authorization.Services;
 using EMF.Security.Models;
 using EMF.Security.Models.Identities;
 using EMF.Security.Persistence.Sqlite.Auditing;
@@ -62,21 +60,9 @@ internal static class SecurityWorkflowRecoveryConsoleCommand
         await auditSink.InitializeAsync();
 
         var authorization =
-            new AuthorizationPolicy(
-                new InMemoryAuthorizationContextProvider(
-                    [
-                        new AuthorizationContext
-                        {
-                            SubjectId = subjectId,
-                            RoleIds =
-                                Array.Empty<RoleId>(),
-                            PermissionIds =
-                            [
-                                SecurityPermissions
-                                    .WorkflowActivityClaimRecover
-                            ]
-                        }
-                    ]));
+            ConsoleAuthorizationPolicyFactory.Create(
+                subjectId,
+                SecurityPermissions.WorkflowActivityClaimRecover);
 
         var service =
             new WorkflowActivityClaimRecoveryService(
