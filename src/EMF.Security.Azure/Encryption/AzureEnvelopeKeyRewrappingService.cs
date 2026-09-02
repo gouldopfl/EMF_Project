@@ -9,6 +9,7 @@ namespace EMF.Security.Azure.Encryption;
 public sealed class AzureEnvelopeKeyRewrappingService :
     IEnvelopeKeyRewrappingService
 {
+    private const int DataEncryptionKeySize = 32;
     private readonly IAzureKeyReferenceProvider _keyProvider;
     private readonly IAzureKeyCryptographyFactory
         _cryptographyFactory;
@@ -73,6 +74,13 @@ public sealed class AzureEnvelopeKeyRewrappingService :
 
         try
         {
+            if (dataEncryptionKey.Length !=
+                DataEncryptionKeySize)
+            {
+                throw new CryptographicException(
+                    "Invalid data encryption key length.");
+            }
+
             var wrappedDataEncryptionKey =
                 await currentCryptography.WrapKeyAsync(
                     dataEncryptionKey,

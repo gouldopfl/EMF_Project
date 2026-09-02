@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using EMF.Security.Azure.Cryptography;
 using EMF.Security.Azure.Encryption;
 using EMF.Security.Azure.Keys;
@@ -30,7 +31,8 @@ public sealed class
                 Ciphertext = [1, 2, 3],
                 Nonce = [4, 5, 6],
                 AuthenticationTag = [7, 8, 9],
-                WrappedDataEncryptionKey = [1, 42, 43],
+                WrappedDataEncryptionKey =
+                    [1, .. Enumerable.Repeat((byte)42, 32)],
                 KeyEncryptionKeyId = "emf-key/v1",
                 Algorithm = "AES-256-GCM"
             };
@@ -58,12 +60,42 @@ public sealed class
             original.FormatVersion,
             rewrapped.FormatVersion);
 
-        Assert.Equal([2, 42, 43],
+        Assert.Equal(
+            [2, .. Enumerable.Repeat((byte)42, 32)],
             rewrapped.WrappedDataEncryptionKey);
 
         Assert.Same(
             rewrapped,
             await service.RewrapAsync(rewrapped));
+    }
+
+
+    [Fact]
+    public async Task RewrapAsync_RejectsInvalidDataEncryptionKeyLength()
+    {
+        var service =
+            new AzureEnvelopeKeyRewrappingService(
+                new TestKeyProvider(
+                    CreateKey("v1"),
+                    CreateKey("v2")),
+                new TestCryptographyFactory());
+
+        var envelope =
+            new EncryptedEnvelope
+            {
+                FormatVersion =
+                    EncryptedEnvelopeFormat.CurrentVersion,
+                Ciphertext = [1],
+                Nonce = [2],
+                AuthenticationTag = [3],
+                WrappedDataEncryptionKey = [1, 42, 43],
+                KeyEncryptionKeyId = "emf-key/v1",
+                Algorithm =
+                    EncryptedEnvelopeFormat.Aes256GcmAlgorithm
+            };
+
+        await Assert.ThrowsAsync<CryptographicException>(
+            () => service.RewrapAsync(envelope));
     }
 
     private static AzureKeyReference CreateKey(
