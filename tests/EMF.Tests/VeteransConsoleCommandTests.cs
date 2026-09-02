@@ -2330,8 +2330,8 @@ public sealed class VeteransConsoleCommandTests
                             ],
                             "sourceExcerpts": [{
                               "text": "Sleep apnea is granted.",
-                              "startOffset": 0,
-                              "length": 25
+                              "startOffset": 13,
+                              "length": 23
                             }]
                           }]
                         }

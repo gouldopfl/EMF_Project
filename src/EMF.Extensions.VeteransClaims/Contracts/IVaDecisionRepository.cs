@@ -17,6 +17,11 @@ public interface IVaDecisionRepository
         VaDecisionId vaDecisionId,
         CancellationToken cancellationToken = default);
 
+    Task<VaDecision?> GetDecisionByArtifactAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task<IReadOnlyList<IssueDecision>>
         GetIssueDecisionsAsync(
             VaDecisionId vaDecisionId,

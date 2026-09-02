@@ -99,29 +99,37 @@ public sealed class VaDecisionDocumentCoordinator
             return unresolvedResult;
         }
 
-        var matchedIssues =
-            matches.Select(
-                    match =>
-                        new VaDecisionDocumentMatchedIssue
-                        {
-                            IssueDecisionId =
-                                new IssueDecisionId(
-                                    _idGenerator.Generate()),
-                            Match = match
-                        })
-                .ToArray();
-
         var decision =
-            await _persistence.PersistAsync(
-                new PersistVaDecisionDocumentRequest
-                {
-                    VaDecisionId =
-                        new VaDecisionId(
-                            _idGenerator.Generate()),
-                    Interpretation = interpretation,
-                    MatchedIssues = matchedIssues
-                },
+            await _persistence.GetByArtifactAsync(
+                interpretation.ArtifactId,
                 cancellationToken);
+
+        if (decision is null)
+        {
+            var matchedIssues =
+                matches.Select(
+                        match =>
+                            new VaDecisionDocumentMatchedIssue
+                            {
+                                IssueDecisionId =
+                                    new IssueDecisionId(
+                                        _idGenerator.Generate()),
+                                Match = match
+                            })
+                    .ToArray();
+
+            decision =
+                await _persistence.PersistAsync(
+                    new PersistVaDecisionDocumentRequest
+                    {
+                        VaDecisionId =
+                            new VaDecisionId(
+                                _idGenerator.Generate()),
+                        Interpretation = interpretation,
+                        MatchedIssues = matchedIssues
+                    },
+                    cancellationToken);
+        }
 
         var result =
             new VaDecisionDocumentProcessingResult

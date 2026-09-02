@@ -1672,6 +1672,16 @@ internal static class VeteransClaimsSqliteMigrations
 
                 ALTER TABLE VeteransClaims_Submissions
                 ADD COLUMN ReceivedAt TEXT NULL;
+                """),
+            new VeteransClaimsSqliteMigration(
+                57,
+                "EnforceUniqueVaDecisionArtifacts",
+                """
+                CREATE UNIQUE INDEX
+                    UX_VeteransClaims_VaDecisionArtifacts_Artifact
+                ON VeteransClaims_VaDecisionArtifacts (
+                    ArtifactId
+                );
                 """)
         };
 }

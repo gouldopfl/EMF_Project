@@ -154,6 +154,48 @@ public sealed class VaDecisionDocumentCoordinatorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_RetryAfterAttemptFailureReusesDecision()
+    {
+        var claimId = new ClaimId("claim-attempt-retry");
+        var issueId = new ClaimIssueId("issue-attempt-retry");
+        var repository =
+            new RecordingVaDecisionRepository();
+
+        var firstCoordinator =
+            CreateCoordinator(
+                claimId,
+                issueId,
+                repository,
+                attempts:
+                    new RecordingProcessingAttemptRepository(
+                        failWrite: true));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => firstCoordinator.ProcessAsync(
+                claimId,
+                CreateInterpretation("Sleep apnea")));
+
+        var attempts =
+            new RecordingProcessingAttemptRepository();
+
+        var retryCoordinator =
+            CreateCoordinator(
+                claimId,
+                issueId,
+                repository,
+                attempts: attempts);
+
+        var result =
+            await retryCoordinator.ProcessAsync(
+                claimId,
+                CreateInterpretation("Sleep apnea"));
+
+        Assert.NotNull(result.Decision);
+        Assert.Equal(1, repository.DecisionWriteCount);
+        Assert.Single(attempts.Attempts);
+    }
+
+    [Fact]
     public async Task ProcessAsync_RejectsUnmatchedIssue()
     {
         var claimId = new ClaimId("claim-1");
@@ -613,6 +655,8 @@ public sealed class VaDecisionDocumentCoordinatorTests
 
         public VaDecision? Decision { get; private set; }
 
+        public int DecisionWriteCount { get; private set; }
+
         public List<IssueDecision>
             IssueDecisions { get; } = [];
 
@@ -626,6 +670,7 @@ public sealed class VaDecisionDocumentCoordinatorTests
                 submissionAssociations,
             CancellationToken cancellationToken = default)
         {
+            DecisionWriteCount++;
             Decision = decision;
             IssueDecisions.AddRange(issueDecisions);
 
@@ -651,6 +696,14 @@ public sealed class VaDecisionDocumentCoordinatorTests
             VaDecisionId vaDecisionId,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<VaDecision?> GetDecisionByArtifactAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(
+                Artifacts.Any(x => x.ArtifactId == artifactId)
+                    ? Decision
+                    : null);
 
         public Task<IReadOnlyList<IssueDecision>>
             GetIssueDecisionsAsync(

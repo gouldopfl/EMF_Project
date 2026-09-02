@@ -475,6 +475,52 @@ public sealed class SqliteVaDecisionRepository :
         };
     }
 
+    public async Task<VaDecision?> GetDecisionByArtifactAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT d.Id, d.DecisionDate
+            FROM VeteransClaims_VaDecisions d
+            JOIN VeteransClaims_VaDecisionArtifacts a
+                ON a.VaDecisionId = d.Id
+            WHERE a.ArtifactId = $artifactId
+            ORDER BY d.Id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            artifactId.Value);
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+            return null;
+
+        var decision =
+            new VaDecision
+            {
+                Id = new VaDecisionId(reader.GetString(0)),
+                DecisionDate =
+                    DateTimeOffset.Parse(reader.GetString(1))
+            };
+
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "Multiple VA decisions reference the same artifact.");
+        }
+
+        return decision;
+    }
+
     public async Task<IReadOnlyList<IssueDecision>>
         GetIssueDecisionsAsync(
             VaDecisionId vaDecisionId,

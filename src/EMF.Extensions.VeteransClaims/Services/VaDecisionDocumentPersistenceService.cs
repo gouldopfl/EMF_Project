@@ -23,6 +23,13 @@ public sealed class VaDecisionDocumentPersistenceService
         _factory = factory;
     }
 
+    public Task<VaDecision?> GetByArtifactAsync(
+        EMF.Core.Models.Identities.ArtifactId artifactId,
+        CancellationToken cancellationToken = default) =>
+        _repository.GetDecisionByArtifactAsync(
+            artifactId,
+            cancellationToken);
+
     public async Task<VaDecision> PersistAsync(
         PersistVaDecisionDocumentRequest request,
         CancellationToken cancellationToken = default)

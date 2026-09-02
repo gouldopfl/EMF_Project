@@ -120,6 +120,16 @@ public sealed partial class VeteransClaimsSqliteVaDecisionRepositoryTests
                 new[] { issueDecision },
                 new[] { association });
 
+            var artifactId =
+                new ArtifactId("decision-artifact-001");
+
+            await repository.AddDecisionArtifactAsync(
+                new VaDecisionArtifact
+                {
+                    VaDecisionId = decision.Id,
+                    ArtifactId = artifactId
+                });
+
             var storedDecision =
                 await repository.GetDecisionAsync(
                     decision.Id);
@@ -128,6 +138,16 @@ public sealed partial class VeteransClaimsSqliteVaDecisionRepositoryTests
                 await repository
                     .GetIssueDecisionsAsync(
                         decision.Id);
+
+            var decisionByArtifact =
+                await repository
+                    .GetDecisionByArtifactAsync(
+                        artifactId);
+
+            var missingDecision =
+                await repository
+                    .GetDecisionByArtifactAsync(
+                        new ArtifactId("missing-artifact"));
 
             var storedSubmissionIds =
                 await repository
@@ -142,6 +162,13 @@ public sealed partial class VeteransClaimsSqliteVaDecisionRepositoryTests
             Assert.Equal(
                 decision.DecisionDate,
                 storedDecision.DecisionDate);
+
+            Assert.NotNull(decisionByArtifact);
+            Assert.Equal(
+                decision.Id,
+                decisionByArtifact!.Id);
+
+            Assert.Null(missingDecision);
 
             var storedIssueDecision =
                 Assert.Single(storedIssueDecisions);
@@ -161,6 +188,44 @@ public sealed partial class VeteransClaimsSqliteVaDecisionRepositoryTests
             Assert.Equal(
                 submission.Id,
                 Assert.Single(storedSubmissionIds));
+
+            var duplicateDecision =
+                new VaDecision
+                {
+                    Id =
+                        new VaDecisionId(
+                            "decision-duplicate-artifact"),
+                    DecisionDate =
+                        decision.DecisionDate
+                };
+
+            var duplicateIssueDecision =
+                new IssueDecision
+                {
+                    Id =
+                        new IssueDecisionId(
+                            "issue-decision-duplicate-artifact"),
+                    VaDecisionId =
+                        duplicateDecision.Id,
+                    ClaimIssueId = claimIssue.Id,
+                    Outcome =
+                        IssueDecisionOutcomes.Denied
+                };
+
+            await Assert.ThrowsAsync<SqliteException>(
+                () => repository.AddDecisionDocumentAsync(
+                    duplicateDecision,
+                    [duplicateIssueDecision],
+                    new VaDecisionArtifact
+                    {
+                        VaDecisionId =
+                            duplicateDecision.Id,
+                        ArtifactId = artifactId
+                    }));
+
+            Assert.Null(
+                await repository.GetDecisionAsync(
+                    duplicateDecision.Id));
         }
         finally
         {
