@@ -178,6 +178,27 @@ public static class VeteransConsoleCommand
 
         if (args.Length == 4 &&
             args[0] == "evidence" &&
+            args[1] == "package")
+        {
+            var packageDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(packageDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {packageDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunEvidencePackageAsync(
+                packageDatabasePath,
+                new EvidencePackageId(args[3]),
+                global::System.Console.Out);
+        }
+
+        if (args.Length == 4 &&
+            args[0] == "evidence" &&
             args[1] == "plan")
         {
             var planDatabasePath =
@@ -1520,6 +1541,41 @@ public static class VeteransConsoleCommand
     }
 
 
+    internal static async Task<int> RunEvidencePackageAsync(
+        string databasePath,
+        EvidencePackageId evidencePackageId,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        var service =
+            new EvidencePackageService(
+                new SqliteEvidencePackageRepository(
+                    databasePath),
+                new GuidIdGenerator());
+
+        var details =
+            await service.GetAsync(
+                evidencePackageId);
+
+        if (details is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Evidence package not found: {evidencePackageId.Value}");
+
+            return 1;
+        }
+
+        foreach (var line in
+            VeteransEvidencePackageFormatter.Format(details))
+        {
+            output.WriteLine(line);
+        }
+
+        return 0;
+    }
+
+
     private static async Task<int> RunPrepareAsync(
         string databasePath,
         ClaimIssueId claimIssueId,
@@ -1644,6 +1700,10 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence checklist " +
             "<database-path> <claim-issue-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence package " +
+            "<database-path> <package-id>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence prepare " +
