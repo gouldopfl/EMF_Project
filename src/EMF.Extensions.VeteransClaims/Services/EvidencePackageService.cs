@@ -23,14 +23,35 @@ public sealed class EvidencePackageService :
         _idGenerator = idGenerator;
     }
 
+    public Task<EvidencePackage> CreateAsync(
+        ClaimIssueId claimIssueId,
+        string purpose,
+        string reviewerRole,
+        CancellationToken cancellationToken = default) =>
+        CreateAsync(
+            claimIssueId,
+            purpose,
+            reviewerRole,
+            [],
+            [],
+            cancellationToken);
+
     public async Task<EvidencePackage> CreateAsync(
         ClaimIssueId claimIssueId,
         string purpose,
         string reviewerRole,
+        IReadOnlyCollection<ArtifactId>
+            underlyingEvidenceArtifactIds,
+        IReadOnlyCollection<ArtifactId>
+            generatedOrganizationalMaterialArtifactIds,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
         ArgumentException.ThrowIfNullOrWhiteSpace(reviewerRole);
+        ArgumentNullException.ThrowIfNull(
+            underlyingEvidenceArtifactIds);
+        ArgumentNullException.ThrowIfNull(
+            generatedOrganizationalMaterialArtifactIds);
 
         var package =
             new EvidencePackage
@@ -43,8 +64,37 @@ public sealed class EvidencePackageService :
                 ReviewerRole = reviewerRole
             };
 
+        var artifacts =
+            underlyingEvidenceArtifactIds
+                .Distinct()
+                .Select(
+                    artifactId =>
+                        new EvidencePackageArtifact
+                        {
+                            EvidencePackageId = package.Id,
+                            ArtifactId = artifactId,
+                            ContentRole =
+                                EvidencePackageContentRoles
+                                    .UnderlyingEvidence
+                        })
+                .Concat(
+                    generatedOrganizationalMaterialArtifactIds
+                        .Distinct()
+                        .Select(
+                            artifactId =>
+                                new EvidencePackageArtifact
+                                {
+                                    EvidencePackageId = package.Id,
+                                    ArtifactId = artifactId,
+                                    ContentRole =
+                                        EvidencePackageContentRoles
+                                            .GeneratedOrganizationalMaterial
+                                }))
+                .ToArray();
+
         await _repository.AddEvidencePackageAsync(
             package,
+            artifacts,
             cancellationToken);
 
         return package;

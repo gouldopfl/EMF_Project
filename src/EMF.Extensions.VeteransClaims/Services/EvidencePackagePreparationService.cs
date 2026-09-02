@@ -49,38 +49,20 @@ public sealed class EvidencePackagePreparationService :
                 claimIssueId,
                 cancellationToken);
 
-        var package =
-            await _packages.CreateAsync(
-                claimIssueId,
-                purpose,
-                reviewerRole,
-                cancellationToken);
-
-        foreach (var artifactId in
+        var underlyingEvidenceArtifactIds =
             classifications
                 .Select(x => x.ArtifactId)
-                .Distinct())
-        {
-            await _packages.AddArtifactAsync(
-                package.Id,
-                artifactId,
-                EMF.Extensions.VeteransClaims.Models.Adjudication
-                    .EvidencePackageContentRoles.UnderlyingEvidence,
-                cancellationToken);
-        }
+                .Distinct()
+                .ToArray();
 
-        foreach (var artifactId in
-            generatedOrganizationalMaterialArtifactIds.Distinct())
-        {
-            await _packages.AddArtifactAsync(
-                package.Id,
-                artifactId,
-                EMF.Extensions.VeteransClaims.Models.Adjudication
-                    .EvidencePackageContentRoles
-                    .GeneratedOrganizationalMaterial,
-                cancellationToken);
-        }
-
-        return package;
+        return await _packages.CreateAsync(
+            claimIssueId,
+            purpose,
+            reviewerRole,
+            underlyingEvidenceArtifactIds,
+            generatedOrganizationalMaterialArtifactIds
+                .Distinct()
+                .ToArray(),
+            cancellationToken);
     }
 }

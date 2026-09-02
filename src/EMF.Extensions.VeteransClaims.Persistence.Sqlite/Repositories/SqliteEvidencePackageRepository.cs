@@ -34,7 +34,64 @@ public sealed class SqliteEvidencePackageRepository :
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
+        await InsertEvidencePackageAsync(
+            connection,
+            null,
+            evidencePackage,
+            cancellationToken);
+    }
+
+    public async Task AddEvidencePackageAsync(
+        EvidencePackage evidencePackage,
+        IReadOnlyCollection<EvidencePackageArtifact> artifacts,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(evidencePackage);
+        ArgumentNullException.ThrowIfNull(artifacts);
+
+        if (artifacts.Any(
+            artifact =>
+                artifact.EvidencePackageId !=
+                    evidencePackage.Id))
+        {
+            throw new InvalidOperationException(
+                "Every artifact must reference " +
+                "the evidence package being persisted.");
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var transaction = (SqliteTransaction)
+            await connection.BeginTransactionAsync(
+                cancellationToken);
+
+        await InsertEvidencePackageAsync(
+            connection,
+            transaction,
+            evidencePackage,
+            cancellationToken);
+
+        foreach (var artifact in artifacts)
+        {
+            await InsertEvidencePackageArtifactAsync(
+                connection,
+                transaction,
+                artifact,
+                cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task InsertEvidencePackageAsync(
+        SqliteConnection connection,
+        SqliteTransaction? transaction,
+        EvidencePackage evidencePackage,
+        CancellationToken cancellationToken)
+    {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText =
             """
             INSERT INTO VeteransClaims_EvidencePackages (
@@ -123,7 +180,21 @@ public sealed class SqliteEvidencePackageRepository :
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
+        await InsertEvidencePackageArtifactAsync(
+            connection,
+            null,
+            artifact,
+            cancellationToken);
+    }
+
+    private static async Task InsertEvidencePackageArtifactAsync(
+        SqliteConnection connection,
+        SqliteTransaction? transaction,
+        EvidencePackageArtifact artifact,
+        CancellationToken cancellationToken)
+    {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText =
             """
             INSERT INTO VeteransClaims_EvidencePackageArtifacts (

@@ -116,6 +116,50 @@ public sealed partial class EvidencePackagePreparationServiceTests
                 });
         }
 
+        public async Task<EvidencePackage> CreateAsync(
+            ClaimIssueId claimIssueId,
+            string purpose,
+            string reviewerRole,
+            IReadOnlyCollection<EMF.Core.Models.Identities.ArtifactId>
+                underlyingEvidenceArtifactIds,
+            IReadOnlyCollection<EMF.Core.Models.Identities.ArtifactId>
+                generatedOrganizationalMaterialArtifactIds,
+            CancellationToken cancellationToken = default)
+        {
+            var package =
+                await CreateAsync(
+                    claimIssueId,
+                    purpose,
+                    reviewerRole,
+                    cancellationToken);
+
+            AddedArtifacts.AddRange(
+                underlyingEvidenceArtifactIds.Select(
+                    artifactId =>
+                        new EvidencePackageArtifact
+                        {
+                            EvidencePackageId = package.Id,
+                            ArtifactId = artifactId,
+                            ContentRole =
+                                EvidencePackageContentRoles
+                                    .UnderlyingEvidence
+                        }));
+
+            AddedArtifacts.AddRange(
+                generatedOrganizationalMaterialArtifactIds.Select(
+                    artifactId =>
+                        new EvidencePackageArtifact
+                        {
+                            EvidencePackageId = package.Id,
+                            ArtifactId = artifactId,
+                            ContentRole =
+                                EvidencePackageContentRoles
+                                    .GeneratedOrganizationalMaterial
+                        }));
+
+            return package;
+        }
+
         public Task<EvidencePackageArtifact> AddArtifactAsync(
             EvidencePackageId evidencePackageId,
             EMF.Core.Models.Identities.ArtifactId artifactId,

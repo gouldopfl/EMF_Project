@@ -9,6 +9,15 @@ public interface IEvidencePackageRepository
         EvidencePackage evidencePackage,
         CancellationToken cancellationToken = default);
 
+    Task AddEvidencePackageAsync(
+        EvidencePackage evidencePackage,
+        IReadOnlyCollection<EvidencePackageArtifact> artifacts,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Atomic evidence package persistence is not supported.");
+    }
+
     Task<EvidencePackage?> GetEvidencePackageAsync(
         EvidencePackageId evidencePackageId,
         CancellationToken cancellationToken = default);

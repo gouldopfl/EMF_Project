@@ -1,4 +1,5 @@
 using EMF.Common;
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -54,12 +55,55 @@ public sealed partial class EvidencePackageServiceTests
         Assert.Same(result, repository.Package);
     }
 
+    [Fact]
+    public async Task CreateAsync_PersistsInitialArtifactsAtomically()
+    {
+        var repository = new RecordingRepository();
+
+        IEvidencePackageService service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var result =
+            await service.CreateAsync(
+                new ClaimIssueId("issue-atomic"),
+                "Medical review",
+                "MedicalProfessional",
+                [new ArtifactId("artifact-evidence")],
+                [new ArtifactId("artifact-summary")]);
+
+        Assert.Equal(2, repository.InitialArtifacts.Count);
+
+        Assert.Contains(
+            repository.InitialArtifacts,
+            artifact =>
+                artifact.EvidencePackageId == result.Id &&
+                artifact.ArtifactId ==
+                    new ArtifactId("artifact-evidence") &&
+                artifact.ContentRole ==
+                    EvidencePackageContentRoles.UnderlyingEvidence);
+
+        Assert.Contains(
+            repository.InitialArtifacts,
+            artifact =>
+                artifact.EvidencePackageId == result.Id &&
+                artifact.ArtifactId ==
+                    new ArtifactId("artifact-summary") &&
+                artifact.ContentRole ==
+                    EvidencePackageContentRoles
+                        .GeneratedOrganizationalMaterial);
+    }
+
     private sealed class RecordingRepository :
         IEvidencePackageRepository
     {
         public EvidencePackage? Package { get; private set; }
 
         public EvidencePackageArtifact? Artifact { get; private set; }
+
+        public IReadOnlyList<EvidencePackageArtifact>
+            InitialArtifacts { get; private set; } = [];
 
         public EvidencePackage? ExistingPackage { get; set; }
 
@@ -75,6 +119,16 @@ public sealed partial class EvidencePackageServiceTests
             CancellationToken cancellationToken = default)
         {
             Package = evidencePackage;
+            return Task.CompletedTask;
+        }
+
+        public Task AddEvidencePackageAsync(
+            EvidencePackage evidencePackage,
+            IReadOnlyCollection<EvidencePackageArtifact> artifacts,
+            CancellationToken cancellationToken = default)
+        {
+            Package = evidencePackage;
+            InitialArtifacts = artifacts.ToArray();
             return Task.CompletedTask;
         }
 

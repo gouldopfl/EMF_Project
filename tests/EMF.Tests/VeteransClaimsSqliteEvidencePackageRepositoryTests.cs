@@ -129,6 +129,59 @@ public sealed partial class VeteransClaimsSqliteEvidencePackageRepositoryTests
             Assert.Equal(
                 artifact.ContentRole,
                 storedArtifact.ContentRole);
+
+            await using (var connection =
+                new Microsoft.Data.Sqlite.SqliteConnection(
+                    $"Data Source={databasePath}"))
+            {
+                await connection.OpenAsync();
+
+                await using var command =
+                    connection.CreateCommand();
+
+                command.CommandText =
+                    """
+                    CREATE TRIGGER FailEvidencePackageArtifactInsert
+                    BEFORE INSERT ON VeteransClaims_EvidencePackageArtifacts
+                    BEGIN
+                        SELECT RAISE(ABORT, 'artifact insert failed');
+                    END;
+                    """;
+
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var failingPackage =
+                new EvidencePackage
+                {
+                    Id =
+                        new EvidencePackageId(
+                            "package-artifact-rollback"),
+                    ClaimIssueId = claimIssue.Id,
+                    Purpose = "Rollback test",
+                    ReviewerRole = "MedicalProfessional"
+                };
+
+            var failingArtifact =
+                new EvidencePackageArtifact
+                {
+                    EvidencePackageId = failingPackage.Id,
+                    ArtifactId =
+                        new ArtifactId(
+                            "artifact-rollback"),
+                    ContentRole =
+                        EvidencePackageContentRoles.UnderlyingEvidence
+                };
+
+            await Assert.ThrowsAsync<
+                Microsoft.Data.Sqlite.SqliteException>(
+                    () => repository.AddEvidencePackageAsync(
+                        failingPackage,
+                        [failingArtifact]));
+
+            Assert.Null(
+                await repository.GetEvidencePackageAsync(
+                    failingPackage.Id));
         }
         finally
         {
