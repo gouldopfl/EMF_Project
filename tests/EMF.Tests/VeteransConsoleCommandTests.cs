@@ -20,6 +20,157 @@ namespace EMF.Tests;
 public sealed class VeteransConsoleCommandTests
 {
     [Fact]
+    public async Task EvidenceIngest_PersistsEvidence()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-ingest-{Guid.NewGuid():N}.db");
+
+        var sourcePath =
+            Path.GetTempFileName();
+
+        var contentPath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-content-{Guid.NewGuid():N}");
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                sourcePath,
+                "console evidence ingestion");
+
+            var contentStore =
+                new EMF.Persistence.Storage
+                    .FileSystemArtifactContentStore(contentPath);
+
+            using var output = new StringWriter();
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunEvidenceIngestAsync(
+                        databasePath,
+                        sourcePath,
+                        contentStore,
+                        output);
+
+            var rendered = output.ToString();
+
+            Assert.Equal(0, exitCode);
+            Assert.True(File.Exists(databasePath));
+            Assert.Contains("Artifact ID :", rendered);
+            Assert.Contains("Status      : Persisted", rendered);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+            File.Delete(sourcePath);
+
+            if (Directory.Exists(contentPath))
+                Directory.Delete(contentPath, true);
+        }
+    }
+
+    [Fact]
+    public async Task EvidenceIngest_ReusesExistingEvidence()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-ingest-{Guid.NewGuid():N}.db");
+
+        var sourcePath =
+            Path.GetTempFileName();
+
+        var contentPath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-content-{Guid.NewGuid():N}");
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                sourcePath,
+                "console evidence ingestion");
+
+            var contentStore =
+                new EMF.Persistence.Storage
+                    .FileSystemArtifactContentStore(contentPath);
+
+            using var firstOutput = new StringWriter();
+
+            var firstExitCode =
+                await VeteransConsoleCommand
+                    .RunEvidenceIngestAsync(
+                        databasePath,
+                        sourcePath,
+                        contentStore,
+                        firstOutput);
+
+            using var secondOutput = new StringWriter();
+
+            var secondExitCode =
+                await VeteransConsoleCommand
+                    .RunEvidenceIngestAsync(
+                        databasePath,
+                        sourcePath,
+                        contentStore,
+                        secondOutput);
+
+            Assert.Equal(0, firstExitCode);
+            Assert.Equal(0, secondExitCode);
+            Assert.Contains(
+                "Status      : Persisted",
+                firstOutput.ToString());
+            Assert.Contains(
+                "Status      : Existing",
+                secondOutput.ToString());
+        }
+        finally
+        {
+            File.Delete(databasePath);
+            File.Delete(sourcePath);
+
+            if (Directory.Exists(contentPath))
+                Directory.Delete(contentPath, true);
+        }
+    }
+
+    [Fact]
+    public async Task EvidenceIngest_RequiresContentStore()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-ingest-{Guid.NewGuid():N}.db");
+
+        var sourcePath =
+            Path.GetTempFileName();
+
+        try
+        {
+            using var output = new StringWriter();
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunEvidenceIngestAsync(
+                        databasePath,
+                        sourcePath,
+                        null,
+                        output);
+
+            Assert.Equal(2, exitCode);
+            Assert.False(File.Exists(databasePath));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+            File.Delete(sourcePath);
+        }
+    }
+
+    [Fact]
     public async Task EvidenceDevelop_RequiresArguments()
     {
         var exitCode =

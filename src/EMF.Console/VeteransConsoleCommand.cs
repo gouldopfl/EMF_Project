@@ -5,6 +5,7 @@ using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
+using EMF.Integrity;
 using EMF.Extensions.VeteransClaims.Orchestration;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
 using EMF.Extensions.VeteransClaims.Services;
@@ -132,6 +133,39 @@ public static class VeteransConsoleCommand
                 decisionDatabasePath,
                 new ArtifactId(args[3]),
                 runtimeFactory,
+                ArtifactContentStoreFactory.Create(),
+                global::System.Console.Out);
+        }
+
+        if (args.Length == 4 &&
+            args[0] == "evidence" &&
+            args[1] == "ingest")
+        {
+            var ingestDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            var ingestSourcePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(ingestDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {ingestDatabasePath}");
+
+                return 2;
+            }
+
+            if (!File.Exists(ingestSourcePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Evidence file not found: {ingestSourcePath}");
+
+                return 2;
+            }
+
+            return await RunEvidenceIngestAsync(
+                ingestDatabasePath,
+                ingestSourcePath,
                 ArtifactContentStoreFactory.Create(),
                 global::System.Console.Out);
         }
@@ -1011,6 +1045,55 @@ public static class VeteransConsoleCommand
     }
 
 
+    internal static async Task<int> RunEvidenceIngestAsync(
+        string databasePath,
+        string sourcePath,
+        IArtifactContentStore? contentStore,
+        TextWriter output)
+    {
+        if (contentStore is null)
+        {
+            global::System.Console.Error.WriteLine(
+                "Artifact content store is not configured.");
+
+            return 2;
+        }
+
+        var repository =
+            new SqliteEvidenceRepository(databasePath);
+
+        await repository.InitializeAsync();
+
+        var service =
+            new EvidenceFileIngestionService(
+                repository,
+                contentStore,
+                new Sha256ContentFingerprintService(),
+                new GuidArtifactIdGenerator(),
+                new ArtifactFactory());
+
+        try
+        {
+            var result =
+                await service.IngestAsync(sourcePath);
+
+            await output.WriteLineAsync(
+                $"Artifact ID : {result.Artifact.Id.Value}");
+
+            await output.WriteLineAsync(
+                $"Status      : {(result.AlreadyExisted ? "Existing" : "Persisted")}");
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Evidence ingestion failed: {ex.Message}");
+
+            return 1;
+        }
+    }
+
     private static async Task<int> RunClaimEvidenceAsync(
         string databasePath,
         ClaimId claimId)
@@ -1696,6 +1779,10 @@ public static class VeteransConsoleCommand
             "Usage: emf veterans evidence develop " +
             "[--summarize [--promote]] " +
             "<database-path> <plan-id> <evidence-gap-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence ingest " +
+            "<database-path> <source-path>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence checklist " +

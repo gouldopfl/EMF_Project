@@ -90,6 +90,8 @@ public static class ConsoleCommandRouter
         global::System.Console.WriteLine(
             "  emf intelligence summarize <text-file>");
         global::System.Console.WriteLine(
+            "  emf veterans evidence ingest <database-path> <source-path>");
+        global::System.Console.WriteLine(
             "  emf veterans evidence develop <database-path> <plan-id> <evidence-gap-id>");
         global::System.Console.WriteLine();
         global::System.Console.WriteLine(
