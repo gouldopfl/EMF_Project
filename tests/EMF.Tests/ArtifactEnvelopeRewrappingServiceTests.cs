@@ -13,7 +13,7 @@ using EMF.Security.Storage.Models;
 
 namespace EMF.Tests;
 
-public sealed class ArtifactEnvelopeRewrappingServiceTests
+public sealed partial class ArtifactEnvelopeRewrappingServiceTests
 {
     [Fact]
     public async Task RewrapAsync_ReplacesStoredEnvelope()

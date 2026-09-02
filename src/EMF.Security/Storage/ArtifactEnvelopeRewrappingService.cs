@@ -58,21 +58,46 @@ public sealed class ArtifactEnvelopeRewrappingService :
             cancellationToken.ThrowIfCancellationRequested();
         }
 
-        var authorization =
-            await _authorizationPolicy.EvaluateAsync(
-                new AuthorizationRequest
-                {
-                    SubjectId = request.SubjectId,
-                    PermissionId =
-                        SecurityPermissions
-                            .ArtifactEnvelopeRewrap,
-                    ResourceType =
-                        SecurityResourceTypes.Artifact,
-                    ResourceId = request.ArtifactId.Value,
-                    ProtectionClassificationId =
-                        request.ProtectionClassificationId
-                },
-                cancellationToken);
+        AuthorizationDecision authorization;
+
+        try
+        {
+            authorization =
+                await _authorizationPolicy.EvaluateAsync(
+                    new AuthorizationRequest
+                    {
+                        SubjectId = request.SubjectId,
+                        PermissionId =
+                            SecurityPermissions
+                                .ArtifactEnvelopeRewrap,
+                        ResourceType =
+                            SecurityResourceTypes.Artifact,
+                        ResourceId = request.ArtifactId.Value,
+                        ProtectionClassificationId =
+                            request.ProtectionClassificationId
+                    },
+                    cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            await WriteAuditAsync(
+                request,
+                null,
+                SecurityAuditOutcome.Cancelled,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
+        catch (Exception)
+        {
+            await WriteAuditAsync(
+                request,
+                null,
+                SecurityAuditOutcome.Failed,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
 
         if (authorization != AuthorizationDecision.Allow)
         {
@@ -85,10 +110,35 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 "Artifact envelope rewrapping was denied.");
         }
 
-        var serialized =
-            await _contentStore.ReadAsync(
-                request.ArtifactId,
-                cancellationToken);
+        byte[]? serialized;
+
+        try
+        {
+            serialized =
+                await _contentStore.ReadAsync(
+                    request.ArtifactId,
+                    cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            await WriteAuditAsync(
+                request,
+                AuthorizationDecision.Allow,
+                SecurityAuditOutcome.Cancelled,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
+        catch (Exception)
+        {
+            await WriteAuditAsync(
+                request,
+                AuthorizationDecision.Allow,
+                SecurityAuditOutcome.Failed,
+                DateTimeOffset.UtcNow);
+
+            throw;
+        }
 
         if (serialized is null)
         {
