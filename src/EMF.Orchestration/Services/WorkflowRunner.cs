@@ -204,6 +204,17 @@ public sealed class WorkflowRunner : IWorkflowRunner
                         claimId,
                         cancellationToken);
             }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                await _workflowService.ReleaseActivityClaimAsync(
+                    context.WorkflowId,
+                    activity.Id,
+                    claimId,
+                    CancellationToken.None);
+
+                throw;
+            }
             catch (Exception exception)
                 when (exception is not OperationCanceledException ||
                       !cancellationToken.IsCancellationRequested)

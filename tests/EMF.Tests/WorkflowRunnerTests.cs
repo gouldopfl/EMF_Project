@@ -6,7 +6,7 @@ using EMF.Orchestration.Services;
 
 namespace EMF.Tests;
 
-public sealed class WorkflowRunnerTests
+public sealed partial class WorkflowRunnerTests
 {
     [Fact]
     public async Task ExecuteAsync_runs_activities_in_order_and_records_checkpoints()
@@ -858,10 +858,15 @@ public sealed class WorkflowRunnerTests
 
         public bool CancellationObserved { get; private set; }
 
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public async Task<WorkflowActivityResult> ExecuteAsync(
             WorkflowExecutionContext context,
             CancellationToken cancellationToken = default)
         {
+            Started.TrySetResult();
+
             try
             {
                 await Task.Delay(
@@ -886,6 +891,8 @@ public sealed class WorkflowRunnerTests
         public List<WorkflowOperationRecord> Operations { get; } = new();
 
         private HashSet<(WorkflowId, string)> Claims { get; } = new();
+
+        public int ActiveClaimCount => Claims.Count;
 
         public bool ClaimAvailable { get; set; } = true;
 
@@ -963,9 +970,9 @@ public sealed class WorkflowRunnerTests
             return Task.CompletedTask;
         }
 
-    public Task RecordCheckpointAsync(
-            WorkflowCheckpoint checkpoint,
-            CancellationToken cancellationToken = default)
+        public Task RecordCheckpointAsync(
+                WorkflowCheckpoint checkpoint,
+                CancellationToken cancellationToken = default)
         {
             Checkpoints.Add(checkpoint);
             return Task.CompletedTask;
