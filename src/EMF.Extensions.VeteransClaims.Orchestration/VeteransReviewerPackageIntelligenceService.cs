@@ -7,7 +7,8 @@ using EMF.Intelligence.Models;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
-internal sealed class VeteransReviewerPackageIntelligenceService
+public sealed class VeteransReviewerPackageIntelligenceService :
+    IVeteransReviewerPackageIntelligenceService
 {
     private readonly TextSummarizationAgent _agent;
 

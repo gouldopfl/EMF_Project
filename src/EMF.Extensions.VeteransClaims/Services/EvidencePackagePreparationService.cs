@@ -1,3 +1,6 @@
+using EMF.Core.Models.Identities;
+using EMF.Extensions.VeteransClaims.Models.Adjudication;
+using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 
 namespace EMF.Extensions.VeteransClaims.Services;
@@ -55,14 +58,40 @@ public sealed class EvidencePackagePreparationService :
                 .Distinct()
                 .ToArray();
 
-        return await _packages.CreateAsync(
+        return await PrepareAsync(
             claimIssueId,
             purpose,
             reviewerRole,
             underlyingEvidenceArtifactIds,
+            generatedOrganizationalMaterialArtifactIds,
+            cancellationToken);
+    }
+
+    public Task<EvidencePackage> PrepareAsync(
+        ClaimIssueId claimIssueId,
+        string purpose,
+        string reviewerRole,
+        IReadOnlyCollection<ArtifactId>
+            underlyingEvidenceArtifactIds,
+        IReadOnlyCollection<ArtifactId>
+            generatedOrganizationalMaterialArtifactIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(
+            underlyingEvidenceArtifactIds);
+
+        ArgumentNullException.ThrowIfNull(
+            generatedOrganizationalMaterialArtifactIds);
+
+        return _packages.CreateAsync(
+            claimIssueId,
+            purpose,
+            reviewerRole,
+            underlyingEvidenceArtifactIds.Distinct().ToArray(),
             generatedOrganizationalMaterialArtifactIds
                 .Distinct()
                 .ToArray(),
             cancellationToken);
     }
+
 }

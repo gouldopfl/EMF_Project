@@ -36,7 +36,12 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
                 CorrelationId =
                     new IntelligenceCorrelationId("operation-1"),
                 StartedUtc = occurredUtc,
-                CompletedUtc = occurredUtc.AddSeconds(1)
+                CompletedUtc = occurredUtc.AddSeconds(1),
+                SourceArtifactIds =
+                [
+                    new ArtifactId("source-1"),
+                    new ArtifactId("source-2")
+                ]
             };
 
         await service.PrepareAsync(
@@ -54,6 +59,10 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
         Assert.Equal(
             promoted.Artifact.Id,
             Assert.Single(packages.GeneratedArtifactIds));
+
+        Assert.Equal(
+            result.SourceArtifactIds,
+            packages.UnderlyingArtifactIds);
     }
 
     private sealed class RecordingSummaryPromotionService :
@@ -93,6 +102,9 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
         IEvidencePackagePreparationService
     {
         public IReadOnlyCollection<ArtifactId>
+            UnderlyingArtifactIds { get; private set; } = [];
+
+        public IReadOnlyCollection<ArtifactId>
             GeneratedArtifactIds { get; private set; } = [];
 
         public Task<EvidencePackage> PrepareAsync(
@@ -110,6 +122,32 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
                 generatedOrganizationalMaterialArtifactIds,
             CancellationToken cancellationToken = default)
         {
+            GeneratedArtifactIds =
+                generatedOrganizationalMaterialArtifactIds;
+
+            return Task.FromResult(
+                new EvidencePackage
+                {
+                    Id = new EvidencePackageId("package-1"),
+                    ClaimIssueId = claimIssueId,
+                    Purpose = purpose,
+                    ReviewerRole = reviewerRole
+                });
+        }
+
+        public Task<EvidencePackage> PrepareAsync(
+            ClaimIssueId claimIssueId,
+            string purpose,
+            string reviewerRole,
+            IReadOnlyCollection<ArtifactId>
+                underlyingEvidenceArtifactIds,
+            IReadOnlyCollection<ArtifactId>
+                generatedOrganizationalMaterialArtifactIds,
+            CancellationToken cancellationToken = default)
+        {
+            UnderlyingArtifactIds =
+                underlyingEvidenceArtifactIds;
+
             GeneratedArtifactIds =
                 generatedOrganizationalMaterialArtifactIds;
 

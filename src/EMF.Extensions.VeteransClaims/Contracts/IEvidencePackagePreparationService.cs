@@ -19,4 +19,15 @@ public interface IEvidencePackagePreparationService
         IReadOnlyCollection<ArtifactId>
             generatedOrganizationalMaterialArtifactIds,
         CancellationToken cancellationToken = default);
+
+    Task<EvidencePackage> PrepareAsync(
+        ClaimIssueId claimIssueId,
+        string purpose,
+        string reviewerRole,
+        IReadOnlyCollection<ArtifactId>
+            underlyingEvidenceArtifactIds,
+        IReadOnlyCollection<ArtifactId>
+            generatedOrganizationalMaterialArtifactIds,
+        CancellationToken cancellationToken = default);
+
 }

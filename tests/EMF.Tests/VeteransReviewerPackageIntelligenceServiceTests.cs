@@ -154,4 +154,15 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
         Assert.False(result.Success);
     }
 
+
+    [Fact]
+    public void Service_ImplementsReviewerIntelligenceContract()
+    {
+        IVeteransReviewerPackageIntelligenceService service =
+            new VeteransReviewerPackageIntelligenceService(
+                new RecordingTextSummarizationExecutor());
+
+        Assert.NotNull(service);
+    }
+
 }

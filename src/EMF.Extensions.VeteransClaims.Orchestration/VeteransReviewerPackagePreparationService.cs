@@ -53,6 +53,7 @@ public sealed class VeteransReviewerPackagePreparationService
             claimIssueId,
             purpose,
             reviewerRole,
+            summaryResult.SourceArtifactIds,
             [summaryArtifact.Id],
             cancellationToken);
     }
