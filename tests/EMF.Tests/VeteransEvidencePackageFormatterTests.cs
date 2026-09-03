@@ -1,7 +1,9 @@
 using EMF.ConsoleApplication;
+using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
+using EMF.Extensions.VeteransClaims.Orchestration;
 
 namespace EMF.Tests;
 
@@ -53,4 +55,65 @@ public sealed class VeteransEvidencePackageFormatterTests
             ],
             VeteransEvidencePackageFormatter.Format(details));
     }
+
+    [Fact]
+    public void Format_ReviewerPackageIncludesResolvedArtifactDetails()
+    {
+        var packageId = new EvidencePackageId("package-1");
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package = new EvidencePackage
+                        {
+                            Id = packageId,
+                            ClaimIssueId =
+                                new ClaimIssueId("issue-1"),
+                            Purpose =
+                                "Physician reviewer package",
+                            ReviewerRole =
+                                "MedicalProfessional"
+                        },
+                        Artifacts =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = packageId,
+                                ArtifactId =
+                                    new ArtifactId("source-1"),
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence
+                            }
+                        ]
+                    },
+                Artifacts =
+                [
+                    new Artifact
+                    {
+                        Id = new ArtifactId("source-1"),
+                        Name = "Sleep Study",
+                        ArtifactType = "medical-record"
+                    }
+                ]
+            };
+
+        Assert.Equal(
+            [
+                "Package: package-1",
+                "Claim Issue: issue-1",
+                "Purpose: Physician reviewer package",
+                "Reviewer Role: MedicalProfessional",
+                "Artifacts: 1",
+                "- UnderlyingEvidence: source-1",
+                "",
+                "Artifact Details:",
+                "- source-1: Sleep Study [medical-record]"
+            ],
+            VeteransEvidencePackageFormatter.Format(details));
+    }
+
 }

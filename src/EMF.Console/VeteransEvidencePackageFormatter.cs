@@ -1,4 +1,5 @@
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
+using EMF.Extensions.VeteransClaims.Orchestration;
 
 namespace EMF.ConsoleApplication;
 
@@ -23,6 +24,31 @@ internal static class VeteransEvidencePackageFormatter
                 artifact =>
                     $"- {artifact.ContentRole}: " +
                     $"{artifact.ArtifactId.Value}"));
+
+        return lines;
+    }
+
+    public static IReadOnlyList<string> Format(
+        VeteransReviewerPackageDetails details)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+
+        var lines =
+            new List<string>(
+                Format(details.PackageDetails));
+
+        if (details.Artifacts.Count == 0)
+            return lines;
+
+        lines.Add(string.Empty);
+        lines.Add("Artifact Details:");
+
+        foreach (var artifact in details.Artifacts)
+        {
+            lines.Add(
+                $"- {artifact.Id.Value}: " +
+                $"{artifact.Name} [{artifact.ArtifactType}]");
+        }
 
         return lines;
     }

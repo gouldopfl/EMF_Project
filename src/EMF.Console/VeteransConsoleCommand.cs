@@ -1743,11 +1743,21 @@ public static class VeteransConsoleCommand
     {
         ArgumentNullException.ThrowIfNull(output);
 
-        var service =
+        var packageService =
             new EvidencePackageService(
                 new SqliteEvidencePackageRepository(
                     databasePath),
                 new GuidIdGenerator());
+
+        var evidenceRepository =
+            new SqliteEvidenceRepository(databasePath);
+
+        await evidenceRepository.InitializeAsync();
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                packageService,
+                evidenceRepository);
 
         var details =
             await service.GetAsync(
