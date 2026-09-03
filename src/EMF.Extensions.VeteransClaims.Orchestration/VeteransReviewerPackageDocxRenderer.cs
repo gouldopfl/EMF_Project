@@ -163,6 +163,17 @@ public static class VeteransReviewerPackageDocxRenderer
                     After = "60"
                 });
         }
+        else if (string.Equals(
+                     styleId,
+                     "Subtitle",
+                     StringComparison.Ordinal))
+        {
+            properties.Append(
+                new SpacingBetweenLines
+                {
+                    After = "40"
+                });
+        }
 
         return new Paragraph(
             properties,
