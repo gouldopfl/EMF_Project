@@ -21,16 +21,18 @@ public sealed class AzureMonitorLogsClientFactory
 
     public IAzureMonitorLogsClient Create()
     {
+        var clientId =
+            _options.ManagedIdentityClientId;
+
+        var managedIdentityId =
+            string.IsNullOrWhiteSpace(clientId)
+                ? ManagedIdentityId.SystemAssigned
+                : ManagedIdentityId
+                    .FromUserAssignedClientId(clientId);
+
         TokenCredential credential =
-            string.IsNullOrWhiteSpace(
-                _options.ManagedIdentityClientId)
-                ? new DefaultAzureCredential()
-                : new DefaultAzureCredential(
-                    new DefaultAzureCredentialOptions
-                    {
-                        ManagedIdentityClientId =
-                            _options.ManagedIdentityClientId
-                    });
+            new ManagedIdentityCredential(
+                managedIdentityId);
 
         return new AzureMonitorLogsClient(
             new LogsIngestionClient(

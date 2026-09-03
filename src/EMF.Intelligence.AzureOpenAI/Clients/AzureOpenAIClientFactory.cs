@@ -20,15 +20,17 @@ internal sealed class AzureOpenAIClientFactory :
 
     public AzureOpenAIClient CreateClient()
     {
-        var credentialOptions =
-            new DefaultAzureCredentialOptions();
+        var clientId =
+            _options.ManagedIdentityClientId;
 
-        if (!string.IsNullOrWhiteSpace(
-                _options.ManagedIdentityClientId))
-        {
-            credentialOptions.ManagedIdentityClientId =
-                _options.ManagedIdentityClientId;
-        }
+        var managedIdentityId =
+            string.IsNullOrWhiteSpace(clientId)
+                ? ManagedIdentityId.SystemAssigned
+                : ManagedIdentityId
+                    .FromUserAssignedClientId(clientId);
+
+        var credential =
+            new ManagedIdentityCredential(managedIdentityId);
 
         var clientOptions =
             new AzureOpenAIClientOptions
@@ -42,8 +44,7 @@ internal sealed class AzureOpenAIClientFactory :
 
         return new AzureOpenAIClient(
             new Uri(_options.Endpoint),
-            new DefaultAzureCredential(
-                credentialOptions),
+            credential,
             clientOptions);
     }
 }
