@@ -8,7 +8,7 @@ using EMF.Tests.TestInfrastructure;
 
 namespace EMF.Tests;
 
-public sealed class VeteransReviewerPackageDetailsServiceTests
+public sealed partial class VeteransReviewerPackageDetailsServiceTests
 {
     [Fact]
     public async Task GetAsync_MissingPackageReturnsNull()
@@ -247,4 +247,112 @@ file sealed class RecordingPackageService :
         ClaimIssueId claimIssueId,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
+}
+
+public sealed partial class VeteransReviewerPackageDetailsServiceTests
+{
+    [Fact]
+    public async Task GetAsync_AssignsMedicalEvidenceAppendix()
+    {
+        var packageId = new EvidencePackageId("package-1");
+        var artifact = CreateArtifact("artifact-1");
+
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var classifications =
+            new RecordingClassificationRepository
+            {
+                ExistingClassifications =
+                [
+                    new EvidenceClassification
+                    {
+                        Id =
+                            new EvidenceClassificationId(
+                                "classification-1"),
+                        ArtifactId = artifact.Id,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-1"),
+                        Classification =
+                            EvidenceClassifications.MedicalEvidence
+                    }
+                ]
+            };
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService
+                {
+                    Details = CreateDetails(
+                        packageId,
+                        artifact.Id)
+                },
+                evidence,
+                classifications,
+                new RecordingTextExtractor("reviewable text"));
+
+        var result = await service.GetAsync(packageId);
+
+        Assert.NotNull(result);
+
+        Assert.Equal(
+            VeteransReviewerPackageAppendix.MedicalEvidence,
+            Assert.Single(result.ArtifactContents).Appendix);
+    }
+}
+
+file sealed class RecordingClassificationRepository :
+    IEvidenceClassificationRepository
+{
+    public IReadOnlyList<EvidenceClassification>
+        ExistingClassifications { get; init; } = [];
+
+    public Task AddEvidenceClassificationAsync(
+        EvidenceClassification classification,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    public Task<EvidenceClassification?> GetEvidenceClassificationAsync(
+        EvidenceClassificationId classificationId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<EvidenceClassification?>(null);
+
+    public Task<IReadOnlyList<EvidenceClassification>>
+        GetEvidenceClassificationsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+        Task.FromResult(
+            ExistingClassifications
+                .Where(x => x.ArtifactId == artifactId)
+                .ToArray() as IReadOnlyList<EvidenceClassification>);
+
+    public Task<EvidenceClassification?> FindEvidenceClassificationAsync(
+        ArtifactId artifactId,
+        ClaimIssueId? claimIssueId,
+        string classification,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<EvidenceClassification?>(null);
+
+    public Task AddEvidenceClassificationRequirementAsync(
+        EvidenceClassificationRequirement association,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    public Task<IReadOnlyList<EvidenceClassificationRequirement>>
+        GetEvidenceClassificationRequirementsAsync(
+            EvidenceClassificationId classificationId,
+            CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<EvidenceClassificationRequirement>>([]);
+
+    public Task<IReadOnlyList<EvidenceClassification>>
+        GetEvidenceClassificationsAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<EvidenceClassification>>([]);
+
+    public Task<IReadOnlyList<EvidenceClassification>>
+        GetEvidenceClassificationsAsync(
+            ClaimIssueId claimIssueId,
+            CancellationToken cancellationToken = default) =>
+        Task.FromResult(ExistingClassifications);
 }

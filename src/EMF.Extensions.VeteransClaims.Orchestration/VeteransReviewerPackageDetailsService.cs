@@ -10,6 +10,7 @@ public sealed class VeteransReviewerPackageDetailsService
 {
     private readonly IEvidencePackageService _packages;
     private readonly IEvidenceRepository _evidence;
+    private readonly IEvidenceClassificationRepository? _classifications;
     private readonly IArtifactTextExtractor? _textExtractor;
 
     public VeteransReviewerPackageDetailsService(
@@ -35,6 +36,17 @@ public sealed class VeteransReviewerPackageDetailsService
         _packages = packages;
         _evidence = evidence;
         _textExtractor = textExtractor;
+    }
+
+    public VeteransReviewerPackageDetailsService(
+        IEvidencePackageService packages,
+        IEvidenceRepository evidence,
+        IEvidenceClassificationRepository classifications,
+        IArtifactTextExtractor textExtractor)
+        : this(packages, evidence, textExtractor)
+    {
+        ArgumentNullException.ThrowIfNull(classifications);
+        _classifications = classifications;
     }
 
     public async Task<VeteransReviewerPackageDetails?> GetAsync(
@@ -84,7 +96,11 @@ public sealed class VeteransReviewerPackageDetailsService
                 new VeteransReviewerArtifactContent
                 {
                     Artifact = artifact,
-                    Text = text
+                    Text = text,
+                    Appendix =
+                        await GetAppendixAsync(
+                            artifact.Id,
+                            cancellationToken)
                 });
         }
 
@@ -93,6 +109,32 @@ public sealed class VeteransReviewerPackageDetailsService
             PackageDetails = details,
             Artifacts = artifacts,
             ArtifactContents = artifactContents
+        };
+    }
+
+    private async Task<string?> GetAppendixAsync(
+        EMF.Core.Models.Identities.ArtifactId artifactId,
+        CancellationToken cancellationToken)
+    {
+        if (_classifications is null)
+            return null;
+
+        var appendixes =
+            (await _classifications.GetEvidenceClassificationsAsync(
+                artifactId,
+                cancellationToken))
+            .Select(x =>
+                VeteransReviewerPackageAppendix.GetAppendix(
+                    x.Classification))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        return appendixes.Length switch
+        {
+            0 => null,
+            1 => appendixes[0],
+            _ => throw new InvalidOperationException(
+                $"Artifact '{artifactId.Value}' maps to multiple reviewer appendixes.")
         };
     }
 

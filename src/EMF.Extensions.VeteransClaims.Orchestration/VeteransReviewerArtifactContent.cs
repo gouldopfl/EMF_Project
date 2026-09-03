@@ -9,4 +9,7 @@ public sealed class VeteransReviewerArtifactContent
 
     public required string Text
     { get; init; }
+
+    public string? Appendix
+    { get; init; }
 }
