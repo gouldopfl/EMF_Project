@@ -1,6 +1,7 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using EMF.Extensions.VeteransClaims.Models.Adjudication;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
@@ -36,38 +37,64 @@ public static class VeteransReviewerPackageDocxRenderer
                     Paragraph(
                         $"Reviewer Role: {package.ReviewerRole}"));
 
-            foreach (var content in details.ArtifactContents)
-            {
-                var packageArtifact =
-                    details.PackageDetails.Artifacts
-                        .FirstOrDefault(
-                            x =>
-                                x.ArtifactId ==
-                                content.Artifact.Id);
+            AppendRoleSection(
+                body,
+                details,
+                EvidencePackageContentRoles
+                    .GeneratedOrganizationalMaterial,
+                "Generated Organizational Material");
 
-                var role =
-                    packageArtifact?.ContentRole;
-
-                var heading =
-                    string.IsNullOrWhiteSpace(role)
-                        ? $"Artifact Content: {content.Artifact.Name} " +
-                          $"[{content.Artifact.Id.Value}]"
-                        : $"Artifact Content: {content.Artifact.Name} " +
-                          $"[{content.Artifact.Id.Value}] " +
-                          $"[{role}]";
-
-                body.Append(
-                    Paragraph(heading));
-
-                body.Append(
-                    Paragraph(content.Text));
-            }
+            AppendRoleSection(
+                body,
+                details,
+                EvidencePackageContentRoles
+                    .UnderlyingEvidence,
+                "Underlying Evidence");
 
             mainPart.Document =
                 new Document(body);
         }
 
         return stream.ToArray();
+    }
+
+    private static void AppendRoleSection(
+        Body body,
+        VeteransReviewerPackageDetails details,
+        string contentRole,
+        string heading)
+    {
+        var contents =
+            details.ArtifactContents
+                .Where(
+                    content =>
+                        details.PackageDetails.Artifacts.Any(
+                            packageArtifact =>
+                                packageArtifact.ArtifactId ==
+                                    content.Artifact.Id &&
+                                string.Equals(
+                                    packageArtifact.ContentRole,
+                                    contentRole,
+                                    StringComparison.Ordinal)))
+                .ToArray();
+
+        if (contents.Length == 0)
+            return;
+
+        body.Append(
+            Paragraph(heading));
+
+        foreach (var content in contents)
+        {
+            body.Append(
+                Paragraph(
+                    $"Artifact Content: {content.Artifact.Name} " +
+                    $"[{content.Artifact.Id.Value}] " +
+                    $"[{contentRole}]"));
+
+            body.Append(
+                Paragraph(content.Text));
+        }
     }
 
     private static Paragraph Paragraph(
