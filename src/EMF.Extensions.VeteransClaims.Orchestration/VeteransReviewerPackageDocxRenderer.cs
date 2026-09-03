@@ -98,10 +98,32 @@ public static class VeteransReviewerPackageDocxRenderer
         if (contents.Length == 0)
             return;
 
-        body.Append(
+        var sectionHeading =
             StyledParagraph(
                 heading,
-                "Heading1"));
+                "Heading1");
+
+        if (string.Equals(
+                contentRole,
+                EvidencePackageContentRoles.UnderlyingEvidence,
+                StringComparison.Ordinal) &&
+            details.ArtifactContents.Any(
+                content =>
+                    details.PackageDetails.Artifacts.Any(
+                        packageArtifact =>
+                            packageArtifact.ArtifactId ==
+                                content.Artifact.Id &&
+                            string.Equals(
+                                packageArtifact.ContentRole,
+                                EvidencePackageContentRoles
+                                    .GeneratedOrganizationalMaterial,
+                                StringComparison.Ordinal))))
+        {
+            sectionHeading.ParagraphProperties!.Append(
+                new PageBreakBefore());
+        }
+
+        body.Append(sectionHeading);
 
         foreach (var content in contents)
         {

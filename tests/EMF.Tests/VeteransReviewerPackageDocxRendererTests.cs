@@ -1474,4 +1474,72 @@ public sealed class VeteransReviewerPackageDocxRendererTests
                         .KeepNext));
     }
 
+
+    [Fact]
+    public void Render_StartsUnderlyingEvidenceOnNewPage()
+    {
+        var packageId = new EvidencePackageId("package-1");
+
+        var summary = new Artifact
+        {
+            Id = new ArtifactId("summary-1"),
+            Name = "Summary",
+            ArtifactType = "text-summary"
+        };
+
+        var evidence = new Artifact
+        {
+            Id = new ArtifactId("source-1"),
+            Name = "Evidence",
+            ArtifactType = "medical-record"
+        };
+
+        var details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = new EvidencePackageDetails
+            {
+                Package = new EvidencePackage
+                {
+                    Id = packageId,
+                    ClaimIssueId = new ClaimIssueId("issue-1"),
+                    Purpose = "Reviewer package",
+                    ReviewerRole = "MedicalProfessional"
+                },
+                Artifacts =
+                [
+                    new()
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = summary.Id,
+                        ContentRole = EvidencePackageContentRoles.GeneratedOrganizationalMaterial
+                    },
+                    new()
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = evidence.Id,
+                        ContentRole = EvidencePackageContentRoles.UnderlyingEvidence
+                    }
+                ]
+            },
+            Artifacts = [summary, evidence],
+            ArtifactContents =
+            [
+                new() { Artifact = summary, Text = "Summary." },
+                new() { Artifact = evidence, Text = "Evidence." }
+            ]
+        };
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document = WordprocessingDocument.Open(stream, false);
+
+        var heading = document.MainDocumentPart!.Document!.Body!
+            .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+            .Single(x => x.InnerText == "Underlying Evidence");
+
+        Assert.NotNull(
+            heading.ParagraphProperties?.PageBreakBefore);
+    }
+
 }
