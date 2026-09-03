@@ -38,10 +38,26 @@ public static class VeteransReviewerPackageDocxRenderer
 
             foreach (var content in details.ArtifactContents)
             {
+                var packageArtifact =
+                    details.PackageDetails.Artifacts
+                        .FirstOrDefault(
+                            x =>
+                                x.ArtifactId ==
+                                content.Artifact.Id);
+
+                var role =
+                    packageArtifact?.ContentRole;
+
+                var heading =
+                    string.IsNullOrWhiteSpace(role)
+                        ? $"Artifact Content: {content.Artifact.Name} " +
+                          $"[{content.Artifact.Id.Value}]"
+                        : $"Artifact Content: {content.Artifact.Name} " +
+                          $"[{content.Artifact.Id.Value}] " +
+                          $"[{role}]";
+
                 body.Append(
-                    Paragraph(
-                        $"Artifact Content: {content.Artifact.Name} " +
-                        $"[{content.Artifact.Id.Value}]"));
+                    Paragraph(heading));
 
                 body.Append(
                     Paragraph(content.Text));
