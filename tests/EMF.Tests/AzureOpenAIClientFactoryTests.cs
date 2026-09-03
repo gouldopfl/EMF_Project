@@ -22,12 +22,22 @@ public sealed class AzureOpenAIClientFactoryTests
         Assert.NotNull(client);
     }
 
-    [Fact]
-    public void Constructor_RejectsNonHttpsEndpoint()
+    [Theory]
+    [InlineData("http://example.openai.azure.com")]
+    [InlineData("https://example.com")]
+    [InlineData("https://openai.azure.com")]
+    [InlineData("https://example.openai.azure.com.evil.test")]
+    [InlineData("https://example.openai.azure.com:444")]
+    [InlineData("https://example.openai.azure.com/path")]
+    [InlineData("https://user@example.openai.azure.com")]
+    [InlineData("https://example.openai.azure.com/?query=1")]
+    [InlineData("https://example.openai.azure.com/#fragment")]
+    public void Constructor_RejectsUntrustedEndpoint(
+        string endpoint)
     {
         var options =
             CreateOptions(
-                "http://example.openai.azure.com");
+                endpoint);
 
         Assert.Throws<ArgumentException>(
             () => new AzureOpenAIClientFactory(

@@ -7,12 +7,15 @@ namespace EMF.Tests;
 
 public sealed class AzureMonitorSecurityAlertSinkTests
 {
-    [Fact]
-    public void Constructor_rejects_insecure_endpoint()
+    [Theory]
+    [InlineData("http://example.com")]
+    [InlineData("https://example.com")]
+    public void Constructor_rejects_untrusted_endpoint(
+        string endpoint)
     {
         var options = new AzureMonitorAlertOptions
         {
-            Endpoint = "http://example.com",
+            Endpoint = endpoint,
             RuleId = "rule",
             StreamName = "stream"
         };
@@ -33,7 +36,7 @@ public sealed class AzureMonitorSecurityAlertSinkTests
         var sink = new AzureMonitorSecurityAlertSink(
             new AzureMonitorAlertOptions
             {
-                Endpoint = "https://example.monitor.azure.com",
+                Endpoint = "https://example.eastus-1.ingest.monitor.azure.com",
                 RuleId = "rule",
                 StreamName = "stream"
             },
@@ -66,7 +69,7 @@ public sealed class AzureMonitorSecurityAlertSinkTests
         var sink = new AzureMonitorSecurityAlertSink(
             new AzureMonitorAlertOptions
             {
-                Endpoint = "https://example.monitor.azure.com",
+                Endpoint = "https://example.eastus-1.ingest.monitor.azure.com",
                 RuleId = "rule",
                 StreamName = "stream"
             },
@@ -127,7 +130,7 @@ public sealed class AzureMonitorSecurityAlertSinkTests
     {
         var options = new AzureMonitorAlertOptions
         {
-            Endpoint = "https://example.monitor.azure.com",
+            Endpoint = "https://example.eastus-1.ingest.monitor.azure.com",
             RuleId = "rule",
             StreamName = "stream"
         };

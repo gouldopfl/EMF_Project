@@ -16,6 +16,11 @@ internal static class AzureKeyVaultOptionsValidator
                 Uri.UriSchemeHttps,
                 StringComparison.OrdinalIgnoreCase) ||
             string.IsNullOrWhiteSpace(uri.Host) ||
+            !uri.IsDefaultPort ||
+            !uri.Host.EndsWith(
+                ".vault.azure.net",
+                StringComparison.OrdinalIgnoreCase) ||
+            uri.Host.Length <= ".vault.azure.net".Length ||
             !string.IsNullOrEmpty(uri.UserInfo) ||
             !string.IsNullOrEmpty(uri.Query) ||
             !string.IsNullOrEmpty(uri.Fragment) ||

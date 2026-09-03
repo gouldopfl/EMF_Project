@@ -11,7 +11,20 @@ internal static class AzureOpenAIOptionsValidator
                 options.Endpoint,
                 UriKind.Absolute,
                 out var endpoint) ||
-            endpoint.Scheme != Uri.UriSchemeHttps)
+            !string.Equals(
+                endpoint.Scheme,
+                Uri.UriSchemeHttps,
+                StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(endpoint.Host) ||
+            !endpoint.IsDefaultPort ||
+            !endpoint.Host.EndsWith(
+                ".openai.azure.com",
+                StringComparison.OrdinalIgnoreCase) ||
+            endpoint.Host.Length <= ".openai.azure.com".Length ||
+            !string.IsNullOrEmpty(endpoint.UserInfo) ||
+            !string.IsNullOrEmpty(endpoint.Query) ||
+            !string.IsNullOrEmpty(endpoint.Fragment) ||
+            endpoint.AbsolutePath != "/")
         {
             throw new ArgumentException(
                 "An absolute HTTPS endpoint is required.",

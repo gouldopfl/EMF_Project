@@ -16,9 +16,15 @@ internal static class AzureMonitorAlertOptionsValidator
                 Uri.UriSchemeHttps,
                 StringComparison.OrdinalIgnoreCase) ||
             string.IsNullOrWhiteSpace(endpoint.Host) ||
+            !endpoint.IsDefaultPort ||
+            !endpoint.Host.EndsWith(
+                ".ingest.monitor.azure.com",
+                StringComparison.OrdinalIgnoreCase) ||
+            endpoint.Host.Length <= ".ingest.monitor.azure.com".Length ||
             !string.IsNullOrEmpty(endpoint.UserInfo) ||
             !string.IsNullOrEmpty(endpoint.Query) ||
-            !string.IsNullOrEmpty(endpoint.Fragment))
+            !string.IsNullOrEmpty(endpoint.Fragment) ||
+            endpoint.AbsolutePath != "/")
         {
             throw new ArgumentException(
                 "Azure Monitor endpoint must be an absolute HTTPS URI.",

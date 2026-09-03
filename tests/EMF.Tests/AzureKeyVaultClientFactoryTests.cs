@@ -33,6 +33,10 @@ public sealed class AzureKeyVaultClientFactoryTests
     [InlineData("https://example.vault.azure.net/?x=1")]
     [InlineData("https://example.vault.azure.net/#fragment")]
     [InlineData("https://example.vault.azure.net/not-root")]
+    [InlineData("https://example.com/")]
+    [InlineData("https://vault.azure.net/")]
+    [InlineData("https://example.vault.azure.net.evil.test/")]
+    [InlineData("https://example.vault.azure.net:444/")]
     public void Constructor_RejectsInvalidVaultUri(
         string vaultUri)
     {
