@@ -26,7 +26,9 @@ public sealed class AzureKeyCryptographyFactory : IAzureKeyCryptographyFactory
             ? new Uri($"{vault}/keys/{keyReference.KeyName}")
             : new Uri($"{vault}/keys/{keyReference.KeyName}/{keyReference.KeyVersion}");
 
-        var client = new CryptographyClient(uri, new DefaultAzureCredential());
+        var client = new CryptographyClient(
+            uri,
+            new ManagedIdentityCredential(ManagedIdentityId.SystemAssigned));
 
         return new AzureKeyVaultCryptography(
             new AzureCryptographyClientAdapter(client));

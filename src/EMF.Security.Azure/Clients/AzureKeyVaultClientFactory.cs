@@ -22,6 +22,7 @@ public sealed class AzureKeyVaultClientFactory :
     {
         return new KeyClient(
             new Uri(_options.VaultUri),
-            new DefaultAzureCredential());
+            new ManagedIdentityCredential(
+                ManagedIdentityId.SystemAssigned));
     }
 }
