@@ -406,4 +406,98 @@ public sealed class VeteransReviewerPackageDocxRendererTests
                 StringComparison.Ordinal));
     }
 
+
+    [Fact]
+    public void Render_UsesReviewerPackagePresentationHeadings()
+    {
+        var packageId =
+            new EvidencePackageId("package-1");
+
+        var summary =
+            new Artifact
+            {
+                Id = new ArtifactId("summary-1"),
+                Name = "Reviewer Summary",
+                ArtifactType = "text-summary"
+            };
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId =
+                                    new ClaimIssueId("issue-1"),
+                                Purpose =
+                                    "Physician reviewer package",
+                                ReviewerRole =
+                                    "MedicalProfessional"
+                            },
+                        Artifacts =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = packageId,
+                                ArtifactId = summary.Id,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .GeneratedOrganizationalMaterial
+                            }
+                        ]
+                    },
+                Artifacts = [summary],
+                ArtifactContents =
+                [
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = summary,
+                        Text = "Generated reviewer summary."
+                    }
+                ]
+            };
+
+        var content =
+            VeteransReviewerPackageDocxRenderer.Render(
+                details);
+
+        using var stream =
+            new MemoryStream(content);
+
+        using var document =
+            WordprocessingDocument.Open(
+                stream,
+                false);
+
+        Assert.NotNull(
+            document.MainDocumentPart);
+
+        Assert.NotNull(
+            document.MainDocumentPart!.Document);
+
+        var paragraphs =
+            document.MainDocumentPart
+                .Document!
+                .Body!
+                .Elements<
+                    DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .ToArray();
+
+        Assert.Contains(
+            paragraphs,
+            paragraph =>
+                paragraph.InnerText ==
+                    "Veterans Evidence Reviewer Package");
+
+        Assert.Contains(
+            paragraphs,
+            paragraph =>
+                paragraph.InnerText ==
+                    "Generated Organizational Material");
+    }
+
 }

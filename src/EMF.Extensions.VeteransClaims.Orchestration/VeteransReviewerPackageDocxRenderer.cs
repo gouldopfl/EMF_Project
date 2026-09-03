@@ -29,6 +29,8 @@ public static class VeteransReviewerPackageDocxRenderer
             var body =
                 new Body(
                     Paragraph(
+                        "Veterans Evidence Reviewer Package"),
+                    Paragraph(
                         $"Package: {package.Id.Value}"),
                     Paragraph(
                         $"Claim Issue: {package.ClaimIssueId.Value}"),
