@@ -113,7 +113,7 @@ public static class VeteransReviewerPackageDocxRenderer
                     "Heading2"));
 
             body.Append(
-                Paragraph(content.Text));
+                ContentParagraph(content.Text));
         }
     }
 
@@ -183,6 +183,20 @@ public static class VeteransReviewerPackageDocxRenderer
                     Space = SpaceProcessingModeValues.Preserve
                 }));
     }
+
+    private static Paragraph ContentParagraph(
+        string text) =>
+        new(
+            new ParagraphProperties(
+                new SpacingBetweenLines
+                {
+                    After = "60"
+                }),
+            new Run(
+                new Text(text)
+                {
+                    Space = SpaceProcessingModeValues.Preserve
+                }));
 
     private static Paragraph Paragraph(
         string text) =>
