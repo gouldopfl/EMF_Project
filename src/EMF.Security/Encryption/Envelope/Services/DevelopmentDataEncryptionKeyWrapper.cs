@@ -98,17 +98,26 @@ internal static class DevelopmentDataEncryptionKeyWrapper
         var dataEncryptionKey =
             new byte[ciphertext.Length];
 
-        using var aes =
-            new AesGcm(
-                keyEncryptionKey,
-                TagSize);
+        try
+        {
+            using var aes =
+                new AesGcm(
+                    keyEncryptionKey,
+                    TagSize);
 
-        aes.Decrypt(
-            nonce,
-            ciphertext,
-            tag,
-            dataEncryptionKey);
+            aes.Decrypt(
+                nonce,
+                ciphertext,
+                tag,
+                dataEncryptionKey);
 
-        return dataEncryptionKey;
+            return dataEncryptionKey;
+        }
+        catch
+        {
+            CryptographicOperations.ZeroMemory(
+                dataEncryptionKey);
+            throw;
+        }
     }
 }

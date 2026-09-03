@@ -69,35 +69,42 @@ public sealed class DevelopmentEnvelopeEncryptionService :
                     EncryptedEnvelopeFormat.CurrentVersion,
                     EncryptedEnvelopeFormat.Aes256GcmAlgorithm);
 
-        using (var aes = new AesGcm(dek, TagSize))
+        try
         {
-            aes.Encrypt(
-                nonce,
-                plaintext.Span,
-                ciphertext,
-                tag,
-                authenticatedData);
+            using (var aes = new AesGcm(dek, TagSize))
+            {
+                aes.Encrypt(
+                    nonce,
+                    plaintext.Span,
+                    ciphertext,
+                    tag,
+                    authenticatedData);
+            }
+
+            var wrappedDek =
+                DevelopmentDataEncryptionKeyWrapper.Wrap(
+                    key.KeyMaterial,
+                    dek);
+
+            return new EncryptedEnvelope
+            {
+                FormatVersion =
+                    authenticatedContext.HasValue
+                        ? EncryptedEnvelopeFormat.ContextBoundVersion
+                        : EncryptedEnvelopeFormat.CurrentVersion,
+                Ciphertext = ciphertext,
+                Nonce = nonce,
+                AuthenticationTag = tag,
+                WrappedDataEncryptionKey = wrappedDek,
+                KeyEncryptionKeyId = key.KeyId,
+                Algorithm =
+                    EncryptedEnvelopeFormat.Aes256GcmAlgorithm
+            };
         }
-
-        var wrappedDek =
-            DevelopmentDataEncryptionKeyWrapper.Wrap(key.KeyMaterial, dek);
-
-        CryptographicOperations.ZeroMemory(dek);
-
-        return new EncryptedEnvelope
+        finally
         {
-            FormatVersion =
-                authenticatedContext.HasValue
-                    ? EncryptedEnvelopeFormat.ContextBoundVersion
-                    : EncryptedEnvelopeFormat.CurrentVersion,
-            Ciphertext = ciphertext,
-            Nonce = nonce,
-            AuthenticationTag = tag,
-            WrappedDataEncryptionKey = wrappedDek,
-            KeyEncryptionKeyId = key.KeyId,
-            Algorithm =
-                EncryptedEnvelopeFormat.Aes256GcmAlgorithm
-        };
+            CryptographicOperations.ZeroMemory(dek);
+        }
     }
 
     public Task<byte[]> DecryptAsync(
@@ -154,17 +161,26 @@ public sealed class DevelopmentEnvelopeEncryptionService :
             var plaintext =
                 new byte[envelope.Ciphertext.Length];
 
-            using var aes =
-                new AesGcm(dek, TagSize);
+            try
+            {
+                using var aes =
+                    new AesGcm(dek, TagSize);
 
-            aes.Decrypt(
-                envelope.Nonce,
-                envelope.Ciphertext,
-                envelope.AuthenticationTag,
-                plaintext,
-                authenticatedData);
+                aes.Decrypt(
+                    envelope.Nonce,
+                    envelope.Ciphertext,
+                    envelope.AuthenticationTag,
+                    plaintext,
+                    authenticatedData);
 
-            return plaintext;
+                return plaintext;
+            }
+            catch
+            {
+                CryptographicOperations.ZeroMemory(
+                    plaintext);
+                throw;
+            }
         }
         finally
         {

@@ -95,15 +95,24 @@ public sealed class DevelopmentContentCryptographyProvider :
         var plaintext =
             new byte[request.Ciphertext.Length];
 
-        using var aes =
-            new AesGcm(key.KeyMaterial, TagSize);
+        try
+        {
+            using var aes =
+                new AesGcm(key.KeyMaterial, TagSize);
 
-        aes.Decrypt(
-            request.Nonce,
-            request.Ciphertext,
-            request.AuthenticationTag,
-            plaintext);
+            aes.Decrypt(
+                request.Nonce,
+                request.Ciphertext,
+                request.AuthenticationTag,
+                plaintext);
 
-        return plaintext;
+            return plaintext;
+        }
+        catch
+        {
+            CryptographicOperations.ZeroMemory(
+                plaintext);
+            throw;
+        }
     }
 }
