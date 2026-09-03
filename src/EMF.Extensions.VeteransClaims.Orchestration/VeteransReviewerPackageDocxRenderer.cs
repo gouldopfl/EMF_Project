@@ -114,18 +114,47 @@ public static class VeteransReviewerPackageDocxRenderer
 
     private static Paragraph StyledParagraph(
         string text,
-        string styleId) =>
-        new(
+        string styleId)
+    {
+        var properties =
             new ParagraphProperties(
                 new ParagraphStyleId
                 {
                     Val = styleId
-                }),
+                });
+
+        if (string.Equals(
+                styleId,
+                "Title",
+                StringComparison.Ordinal))
+        {
+            properties.Append(
+                new SpacingBetweenLines
+                {
+                    After = "240"
+                });
+        }
+        else if (string.Equals(
+                     styleId,
+                     "Heading1",
+                     StringComparison.Ordinal))
+        {
+            properties.Append(
+                new SpacingBetweenLines
+                {
+                    Before = "120",
+                    After = "120"
+                });
+        }
+
+        return new Paragraph(
+            properties,
             new Run(
                 new Text(text)
                 {
                     Space = SpaceProcessingModeValues.Preserve
                 }));
+    }
 
     private static Paragraph Paragraph(
         string text) =>
