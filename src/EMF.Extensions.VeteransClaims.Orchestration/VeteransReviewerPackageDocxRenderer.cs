@@ -102,10 +102,11 @@ public static class VeteransReviewerPackageDocxRenderer
         foreach (var content in contents)
         {
             body.Append(
-                Paragraph(
+                StyledParagraph(
                     $"Artifact Content: {content.Artifact.Name} " +
                     $"[{content.Artifact.Id.Value}] " +
-                    $"[{contentRole}]"));
+                    $"[{contentRole}]",
+                    "Heading2"));
 
             body.Append(
                 Paragraph(content.Text));
