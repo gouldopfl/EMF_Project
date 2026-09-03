@@ -1,3 +1,4 @@
+using System.Text.Json;
 using EMF.Core.Contracts;
 using EMF.Core.Models;
 using EMF.Extensions.VeteransClaims.Contracts;
@@ -64,13 +65,17 @@ public sealed class VeteransReviewerPackageDetailsService
 
             artifacts.Add(artifact);
 
-            if (_textExtractor is null)
-                continue;
-
             var text =
-                await _textExtractor.ExtractTextAsync(
-                    artifact.Id,
-                    cancellationToken);
+                GetTextSummary(artifact);
+
+            if (string.IsNullOrWhiteSpace(text) &&
+                _textExtractor is not null)
+            {
+                text =
+                    await _textExtractor.ExtractTextAsync(
+                        artifact.Id,
+                        cancellationToken);
+            }
 
             if (string.IsNullOrWhiteSpace(text))
                 continue;
@@ -88,6 +93,34 @@ public sealed class VeteransReviewerPackageDetailsService
             PackageDetails = details,
             Artifacts = artifacts,
             ArtifactContents = artifactContents
+        };
+    }
+
+    private static string? GetTextSummary(
+        Artifact artifact)
+    {
+        if (!string.Equals(
+                artifact.ArtifactType,
+                "text-summary",
+                StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (!artifact.Metadata.TryGetValue(
+                "summary",
+                out var value))
+        {
+            return null;
+        }
+
+        return value switch
+        {
+            string text => text,
+            JsonElement json when
+                json.ValueKind == JsonValueKind.String =>
+                json.GetString(),
+            _ => null
         };
     }
 }

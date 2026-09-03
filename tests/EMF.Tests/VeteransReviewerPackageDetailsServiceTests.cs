@@ -112,6 +112,64 @@ public sealed class VeteransReviewerPackageDetailsServiceTests
         Assert.Same(existing, Assert.Single(result.Artifacts));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetAsync_UsesTextSummaryMetadata(
+        bool persistedMetadataShape)
+    {
+        object summary =
+            persistedMetadataShape
+                ? global::System.Text.Json.JsonDocument
+                    .Parse("\"reviewer summary\"")
+                    .RootElement
+                    .Clone()
+                : "reviewer summary";
+
+        var packageId = new EvidencePackageId("package-1");
+
+        var artifact =
+            new Artifact
+            {
+                Id = new ArtifactId("summary-1"),
+                Name = "Reviewer summary",
+                ArtifactType = "text-summary",
+                Metadata =
+                    new Dictionary<string, object>
+                    {
+                        ["summary"] = summary
+                    }
+            };
+
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var extractor =
+            new RecordingTextExtractor("extracted text");
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService
+                {
+                    Details = CreateDetails(
+                        packageId,
+                        artifact.Id)
+                },
+                evidence,
+                extractor);
+
+        var result = await service.GetAsync(packageId);
+
+        Assert.NotNull(result);
+
+        var content =
+            Assert.Single(result.ArtifactContents);
+
+        Assert.Same(artifact, content.Artifact);
+        Assert.Equal("reviewer summary", content.Text);
+        Assert.Null(extractor.ArtifactId);
+    }
+
     private static Artifact CreateArtifact(string id) =>
         new()
         {
