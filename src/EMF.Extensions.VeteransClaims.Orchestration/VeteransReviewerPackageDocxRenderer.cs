@@ -54,6 +54,16 @@ public static class VeteransReviewerPackageDocxRenderer
                     .UnderlyingEvidence,
                 "Underlying Evidence");
 
+            body.Append(
+                new SectionProperties(
+                    new PageMargin
+                    {
+                        Top = 1440,
+                        Right = 1440U,
+                        Bottom = 1440,
+                        Left = 1440U
+                    }));
+
             mainPart.Document =
                 new Document(body);
         }

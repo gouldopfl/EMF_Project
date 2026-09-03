@@ -610,4 +610,88 @@ public sealed class VeteransReviewerPackageDocxRendererTests
                 .Value);
     }
 
+
+    [Fact]
+    public void Render_UsesStandardPageMargins()
+    {
+        var packageId =
+            new EvidencePackageId("package-1");
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId =
+                                    new ClaimIssueId("issue-1"),
+                                Purpose =
+                                    "Physician reviewer package",
+                                ReviewerRole =
+                                    "MedicalProfessional"
+                            },
+                        Artifacts = []
+                    },
+                Artifacts = [],
+                ArtifactContents = []
+            };
+
+        var content =
+            VeteransReviewerPackageDocxRenderer.Render(
+                details);
+
+        using var stream =
+            new MemoryStream(content);
+
+        using var document =
+            WordprocessingDocument.Open(
+                stream,
+                false);
+
+        Assert.NotNull(
+            document.MainDocumentPart);
+
+        Assert.NotNull(
+            document.MainDocumentPart!.Document);
+
+        Assert.NotNull(
+            document.MainDocumentPart
+                .Document!
+                .Body);
+
+        var sectionProperties =
+            Assert.Single(
+                document.MainDocumentPart
+                    .Document!
+                    .Body!
+                    .Elements<
+                        DocumentFormat.OpenXml.Wordprocessing.SectionProperties>());
+
+        var margins =
+            sectionProperties.GetFirstChild<
+                DocumentFormat.OpenXml.Wordprocessing.PageMargin>();
+
+        Assert.NotNull(margins);
+
+        Assert.Equal(
+            1440,
+            margins!.Top?.Value);
+
+        Assert.Equal(
+            1440U,
+            margins.Right?.Value);
+
+        Assert.Equal(
+            1440,
+            margins.Bottom?.Value);
+
+        Assert.Equal(
+            1440U,
+            margins.Left?.Value);
+    }
+
 }
