@@ -6,6 +6,7 @@ namespace EMF.Security.Encryption.Providers.Services;
 public sealed class DevelopmentContentCryptographyProvider :
     IContentCryptographyProvider
 {
+    private const int KeySize = 32;
     private const int NonceSize = 12;
     private const int TagSize = 16;
 
@@ -40,10 +41,15 @@ public sealed class DevelopmentContentCryptographyProvider :
                 keyId,
                 cancellationToken);
 
-        if (key is null)
+        if (key is null ||
+            key.KeyMaterial is not { Length: KeySize } ||
+            !string.Equals(
+                key.KeyId,
+                keyId,
+                StringComparison.Ordinal))
         {
             throw new CryptographicException(
-                "The current encryption key could not be retrieved.");
+                "The current encryption key is invalid.");
         }
 
         var nonce = RandomNumberGenerator.GetBytes(NonceSize);
@@ -86,7 +92,12 @@ public sealed class DevelopmentContentCryptographyProvider :
                 request.KeyId,
                 cancellationToken);
 
-        if (key is null)
+        if (key is null ||
+            key.KeyMaterial is not { Length: KeySize } ||
+            !string.Equals(
+                key.KeyId,
+                request.KeyId,
+                StringComparison.Ordinal))
         {
             throw new CryptographicException(
                 "Unsupported encryption key.");
