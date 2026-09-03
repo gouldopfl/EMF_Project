@@ -28,8 +28,9 @@ public static class VeteransReviewerPackageDocxRenderer
 
             var body =
                 new Body(
-                    Paragraph(
-                        "Veterans Evidence Reviewer Package"),
+                    StyledParagraph(
+                        "Veterans Evidence Reviewer Package",
+                        "Title"),
                     Paragraph(
                         $"Package: {package.Id.Value}"),
                     Paragraph(
@@ -84,7 +85,9 @@ public static class VeteransReviewerPackageDocxRenderer
             return;
 
         body.Append(
-            Paragraph(heading));
+            StyledParagraph(
+                heading,
+                "Heading1"));
 
         foreach (var content in contents)
         {
@@ -98,6 +101,21 @@ public static class VeteransReviewerPackageDocxRenderer
                 Paragraph(content.Text));
         }
     }
+
+    private static Paragraph StyledParagraph(
+        string text,
+        string styleId) =>
+        new(
+            new ParagraphProperties(
+                new ParagraphStyleId
+                {
+                    Val = styleId
+                }),
+            new Run(
+                new Text(text)
+                {
+                    Space = SpaceProcessingModeValues.Preserve
+                }));
 
     private static Paragraph Paragraph(
         string text) =>
