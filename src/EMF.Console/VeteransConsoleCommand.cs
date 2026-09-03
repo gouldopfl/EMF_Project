@@ -1754,10 +1754,20 @@ public static class VeteransConsoleCommand
 
         await evidenceRepository.InitializeAsync();
 
+        var contentStore =
+            ArtifactContentStoreFactory.Create();
+
         var service =
-            new VeteransReviewerPackageDetailsService(
-                packageService,
-                evidenceRepository);
+            contentStore is null
+                ? new VeteransReviewerPackageDetailsService(
+                    packageService,
+                    evidenceRepository)
+                : new VeteransReviewerPackageDetailsService(
+                    packageService,
+                    evidenceRepository,
+                    ArtifactTextExtractionFactory.Create(
+                        evidenceRepository,
+                        contentStore));
 
         var details =
             await service.GetAsync(

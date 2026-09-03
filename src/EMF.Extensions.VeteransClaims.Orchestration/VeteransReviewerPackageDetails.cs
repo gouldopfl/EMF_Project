@@ -10,4 +10,8 @@ public sealed class VeteransReviewerPackageDetails
 
     public required IReadOnlyList<Artifact> Artifacts
     { get; init; }
+
+    public IReadOnlyList<VeteransReviewerArtifactContent> ArtifactContents
+    { get; init; } =
+        Array.Empty<VeteransReviewerArtifactContent>();
 }

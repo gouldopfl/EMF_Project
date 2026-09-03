@@ -52,6 +52,41 @@ public sealed class VeteransReviewerPackageDetailsServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_ExtractsReviewerArtifactContent()
+    {
+        var packageId = new EvidencePackageId("package-1");
+        var artifact = CreateArtifact("artifact-1");
+
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var extractor =
+            new RecordingTextExtractor("reviewable text");
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService
+                {
+                    Details = CreateDetails(
+                        packageId,
+                        artifact.Id)
+                },
+                evidence,
+                extractor);
+
+        var result = await service.GetAsync(packageId);
+
+        Assert.NotNull(result);
+
+        var content =
+            Assert.Single(result.ArtifactContents);
+
+        Assert.Same(artifact, content.Artifact);
+        Assert.Equal("reviewable text", content.Text);
+        Assert.Equal(artifact.Id, extractor.ArtifactId);
+    }
+
+    [Fact]
     public async Task GetAsync_SkipsMissingArtifacts()
     {
         var packageId = new EvidencePackageId("package-1");
@@ -110,6 +145,20 @@ public sealed class VeteransReviewerPackageDetailsServiceTests
                         })
                     .ToArray()
         };
+}
+
+file sealed class RecordingTextExtractor(string? text) :
+    EMF.Core.Contracts.IArtifactTextExtractor
+{
+    public ArtifactId? ArtifactId { get; private set; }
+
+    public Task<string?> ExtractTextAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default)
+    {
+        ArtifactId = artifactId;
+        return Task.FromResult(text);
+    }
 }
 
 file sealed class RecordingPackageService :

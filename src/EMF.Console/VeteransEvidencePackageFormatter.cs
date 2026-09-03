@@ -50,6 +50,13 @@ internal static class VeteransEvidencePackageFormatter
                 $"{artifact.Name} [{artifact.ArtifactType}]");
         }
 
+        foreach (var content in details.ArtifactContents)
+        {
+            lines.Add(string.Empty);
+            lines.Add("Artifact Content:");
+            lines.Add(content.Text);
+        }
+
         return lines;
     }
 }

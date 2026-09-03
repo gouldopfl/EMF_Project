@@ -98,6 +98,20 @@ public sealed class VeteransEvidencePackageFormatterTests
                         Name = "Sleep Study",
                         ArtifactType = "medical-record"
                     }
+                ],
+                ArtifactContents =
+                [
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact =
+                            new Artifact
+                            {
+                                Id = new ArtifactId("source-1"),
+                                Name = "Sleep Study",
+                                ArtifactType = "medical-record"
+                            },
+                        Text = "Severe obstructive sleep apnea documented."
+                    }
                 ]
             };
 
@@ -111,7 +125,10 @@ public sealed class VeteransEvidencePackageFormatterTests
                 "- UnderlyingEvidence: source-1",
                 "",
                 "Artifact Details:",
-                "- source-1: Sleep Study [medical-record]"
+                "- source-1: Sleep Study [medical-record]",
+                "",
+                "Artifact Content:",
+                "Severe obstructive sleep apnea documented."
             ],
             VeteransEvidencePackageFormatter.Format(details));
     }
