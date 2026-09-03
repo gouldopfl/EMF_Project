@@ -93,6 +93,8 @@ public sealed class EncryptedArtifactContentStore :
             throw new InvalidOperationException(
                 "Encrypted artifact envelope is invalid.");
 
+        EncryptedEnvelopeFormat.Validate(envelope);
+
         return await _encryption.DecryptWithContextAsync(
             envelope,
             GetContext(artifactId),

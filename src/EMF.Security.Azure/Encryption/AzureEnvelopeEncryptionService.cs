@@ -125,6 +125,7 @@ public sealed class AzureEnvelopeEncryptionService :
     {
         ArgumentNullException.ThrowIfNull(envelope);
         cancellationToken.ThrowIfCancellationRequested();
+        EncryptedEnvelopeFormat.Validate(envelope);
 
         var authenticatedData =
             envelope.FormatVersion ==

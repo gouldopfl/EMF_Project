@@ -29,8 +29,8 @@ public sealed class
                 FormatVersion =
                     EncryptedEnvelopeFormat.CurrentVersion,
                 Ciphertext = [1, 2, 3],
-                Nonce = [4, 5, 6],
-                AuthenticationTag = [7, 8, 9],
+                Nonce = new byte[12],
+                AuthenticationTag = new byte[16],
                 WrappedDataEncryptionKey =
                     [1, .. Enumerable.Repeat((byte)42, 32)],
                 KeyEncryptionKeyId = "emf-key/v1",
@@ -86,8 +86,8 @@ public sealed class
                 FormatVersion =
                     EncryptedEnvelopeFormat.CurrentVersion,
                 Ciphertext = [1],
-                Nonce = [2],
-                AuthenticationTag = [3],
+                Nonce = new byte[12],
+                AuthenticationTag = new byte[16],
                 WrappedDataEncryptionKey = [1, 42, 43],
                 KeyEncryptionKeyId = "emf-key/v1",
                 Algorithm =

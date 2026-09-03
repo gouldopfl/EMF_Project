@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using EMF.Security.Encryption.Envelope.Models;
 
 namespace EMF.Security.Encryption.Envelope;
 
@@ -10,6 +11,29 @@ public static class EncryptedEnvelopeFormat
     public const int ContextBoundVersion = 2;
     public const string Aes256GcmAlgorithm =
         "AES-256-GCM";
+
+
+    public static void Validate(
+        EncryptedEnvelope envelope)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+
+        Validate(
+            envelope.FormatVersion,
+            envelope.Algorithm);
+
+        if (envelope.Ciphertext is null ||
+            envelope.Nonce is not { Length: 12 } ||
+            envelope.AuthenticationTag is not { Length: 16 } ||
+            envelope.WrappedDataEncryptionKey is not
+                { Length: > 0 } ||
+            string.IsNullOrWhiteSpace(
+                envelope.KeyEncryptionKeyId))
+        {
+            throw new CryptographicException(
+                "Encrypted envelope structure is invalid.");
+        }
+    }
 
 
     public static void Validate(

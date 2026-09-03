@@ -26,6 +26,7 @@ public sealed class
     {
         ArgumentNullException.ThrowIfNull(envelope);
         cancellationToken.ThrowIfCancellationRequested();
+        EncryptedEnvelopeFormat.Validate(envelope);
 
         var currentKeyId =
             await _keyProvider.GetCurrentKeyIdAsync(

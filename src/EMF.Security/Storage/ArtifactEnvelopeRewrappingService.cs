@@ -294,8 +294,7 @@ public sealed class ArtifactEnvelopeRewrappingService :
         try
         {
             EncryptedEnvelopeFormat.Validate(
-                envelope.FormatVersion,
-                envelope.Algorithm);
+                envelope);
         }
         catch (CryptographicException exception)
         {

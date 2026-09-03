@@ -120,6 +120,8 @@ public sealed class DevelopmentEnvelopeEncryptionService :
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(envelope);
+        cancellationToken.ThrowIfCancellationRequested();
+        EncryptedEnvelopeFormat.Validate(envelope);
 
         var authenticatedData =
             envelope.FormatVersion ==

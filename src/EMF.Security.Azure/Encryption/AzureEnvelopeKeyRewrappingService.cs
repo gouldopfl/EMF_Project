@@ -32,6 +32,7 @@ public sealed class AzureEnvelopeKeyRewrappingService :
     {
         ArgumentNullException.ThrowIfNull(envelope);
         cancellationToken.ThrowIfCancellationRequested();
+        EncryptedEnvelopeFormat.Validate(envelope);
 
         var currentKey =
             await _keyProvider.GetCurrentKeyAsync(

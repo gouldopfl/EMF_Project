@@ -34,8 +34,8 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
                     FormatVersion =
                         EncryptedEnvelopeFormat.CurrentVersion,
                     Ciphertext = [1, 2, 3],
-                    Nonce = [4, 5, 6],
-                    AuthenticationTag = [7, 8, 9],
+                    Nonce = new byte[12],
+                    AuthenticationTag = new byte[16],
                     WrappedDataEncryptionKey = [10],
                     KeyEncryptionKeyId = "key/v1",
                     Algorithm = "AES-256-GCM"
@@ -145,8 +145,8 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
             var original = new EncryptedEnvelope
             {
                 Ciphertext = [1, 2, 3],
-                Nonce = [4, 5, 6],
-                AuthenticationTag = [7, 8, 9],
+                Nonce = new byte[12],
+                AuthenticationTag = new byte[16],
                 WrappedDataEncryptionKey = [10],
                 KeyEncryptionKeyId = "key/v1",
                 Algorithm = "AES-256-GCM"
@@ -201,8 +201,8 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         var original = new EncryptedEnvelope
         {
             Ciphertext = [1, 2, 3],
-            Nonce = [4, 5, 6],
-            AuthenticationTag = [7, 8, 9],
+            Nonce = new byte[12],
+            AuthenticationTag = new byte[16],
             WrappedDataEncryptionKey = [10],
             KeyEncryptionKeyId = "key/v1",
             Algorithm = "AES-256-GCM"
@@ -248,8 +248,8 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         var original = new EncryptedEnvelope
         {
             Ciphertext = [1, 2, 3],
-            Nonce = [4, 5, 6],
-            AuthenticationTag = [7, 8, 9],
+            Nonce = new byte[12],
+            AuthenticationTag = new byte[16],
             WrappedDataEncryptionKey = [10],
             KeyEncryptionKeyId = "key/v1",
             Algorithm = "AES-256-GCM"
@@ -319,8 +319,8 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         var original = new EncryptedEnvelope
         {
             Ciphertext = [1, 2, 3],
-            Nonce = [4, 5, 6],
-            AuthenticationTag = [7, 8, 9],
+            Nonce = new byte[12],
+            AuthenticationTag = new byte[16],
             WrappedDataEncryptionKey = [10],
             KeyEncryptionKeyId = "key/v2",
             Algorithm = "AES-256-GCM"
