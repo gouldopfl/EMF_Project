@@ -7,7 +7,7 @@ using EMF.Extensions.VeteransClaims.Orchestration;
 
 namespace EMF.Tests;
 
-public sealed class VeteransReviewerPackageDocxRendererTests
+public sealed partial class VeteransReviewerPackageDocxRendererTests
 {
     [Fact]
     public void Render_IncludesReviewerPackageIdentity()
@@ -1542,4 +1542,97 @@ public sealed class VeteransReviewerPackageDocxRendererTests
             heading.ParagraphProperties?.PageBreakBefore);
     }
 
+}
+
+public sealed partial class VeteransReviewerPackageDocxRendererTests
+{
+    [Fact]
+    public void Render_GroupsUnderlyingEvidenceByAppendix()
+    {
+        var packageId =
+            new EvidencePackageId("package-1");
+
+        var artifact =
+            new Artifact
+            {
+                Id = new ArtifactId("artifact-1"),
+                Name = "Sleep Study",
+                ArtifactType = "medical-record"
+            };
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId =
+                                    new ClaimIssueId("issue-1"),
+                                Purpose = "Medical review",
+                                ReviewerRole =
+                                    "MedicalProfessional"
+                            },
+                        Artifacts =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = packageId,
+                                ArtifactId = artifact.Id,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence
+                            }
+                        ]
+                    },
+                Artifacts = [artifact],
+                ArtifactContents =
+                [
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = artifact,
+                        Text = "Sleep study evidence.",
+                        Appendix =
+                            VeteransReviewerPackageAppendix
+                                .MedicalEvidence
+                    }
+                ]
+            };
+
+        var content =
+            VeteransReviewerPackageDocxRenderer.Render(
+                details);
+
+        using var stream =
+            new MemoryStream(content);
+
+        using var document =
+            WordprocessingDocument.Open(
+                stream,
+                false);
+
+        var mainPart =
+            Assert.IsType<MainDocumentPart>(
+                document.MainDocumentPart);
+
+        var documentRoot =
+            mainPart.Document;
+
+        Assert.NotNull(documentRoot);
+
+        var body =
+            documentRoot!.Body;
+
+        Assert.NotNull(body);
+
+        var text =
+            body!.InnerText;
+
+        Assert.Contains(
+            "Appendix A — Medical Evidence",
+            text);
+    }
 }

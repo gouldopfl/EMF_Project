@@ -125,6 +125,48 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(sectionHeading);
 
+        if (string.Equals(
+                contentRole,
+                EvidencePackageContentRoles.UnderlyingEvidence,
+                StringComparison.Ordinal) &&
+            contents.Any(content => content.Appendix is not null))
+        {
+            foreach (var group in
+                contents
+                    .Where(content => content.Appendix is not null)
+                    .GroupBy(content => content.Appendix!)
+                    .OrderBy(group => AppendixOrder(group.Key)))
+            {
+                body.Append(
+                    StyledParagraph(
+                        AppendixHeading(group.Key),
+                        "Heading2"));
+
+                AppendContents(
+                    body,
+                    group,
+                    contentRole);
+            }
+
+            AppendContents(
+                body,
+                contents.Where(content => content.Appendix is null),
+                contentRole);
+
+            return;
+        }
+
+        AppendContents(
+            body,
+            contents,
+            contentRole);
+    }
+
+    private static void AppendContents(
+        Body body,
+        IEnumerable<VeteransReviewerArtifactContent> contents,
+        string contentRole)
+    {
         foreach (var content in contents)
         {
             body.Append(
@@ -138,6 +180,30 @@ public static class VeteransReviewerPackageDocxRenderer
                 ContentParagraph(content.Text));
         }
     }
+
+    private static int AppendixOrder(string appendix) =>
+        appendix switch
+        {
+            VeteransReviewerPackageAppendix.MedicalEvidence => 0,
+            VeteransReviewerPackageAppendix.ServiceRecords => 1,
+            VeteransReviewerPackageAppendix.LayEvidence => 2,
+            VeteransReviewerPackageAppendix.AdjudicativeRecords => 3,
+            _ => int.MaxValue
+        };
+
+    private static string AppendixHeading(string appendix) =>
+        appendix switch
+        {
+            VeteransReviewerPackageAppendix.MedicalEvidence =>
+                "Appendix A — Medical Evidence",
+            VeteransReviewerPackageAppendix.ServiceRecords =>
+                "Appendix B — Service Records",
+            VeteransReviewerPackageAppendix.LayEvidence =>
+                "Appendix C — Lay Evidence",
+            VeteransReviewerPackageAppendix.AdjudicativeRecords =>
+                "Appendix D — Adjudicative Records",
+            _ => appendix
+        };
 
     private static Paragraph StyledParagraph(
         string text,
