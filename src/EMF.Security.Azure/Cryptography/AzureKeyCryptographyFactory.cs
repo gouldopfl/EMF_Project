@@ -21,10 +21,14 @@ public sealed class AzureKeyCryptographyFactory : IAzureKeyCryptographyFactory
     {
         ArgumentNullException.ThrowIfNull(keyReference);
 
+        AzureKeyVaultOptionsValidator.ValidateKeyName(
+            keyReference.KeyName);
+        AzureKeyVaultOptionsValidator.ValidateKeyVersion(
+            keyReference.KeyVersion);
+
         var vault = _options.VaultUri.TrimEnd('/');
-        var uri = string.IsNullOrWhiteSpace(keyReference.KeyVersion)
-            ? new Uri($"{vault}/keys/{keyReference.KeyName}")
-            : new Uri($"{vault}/keys/{keyReference.KeyName}/{keyReference.KeyVersion}");
+        var uri = new Uri(
+            $"{vault}/keys/{keyReference.KeyName}/{keyReference.KeyVersion}");
 
         var client = new CryptographyClient(
             uri,

@@ -11,6 +11,12 @@ public sealed class ConfiguredAzureKeyReferenceProvider :
         AzureKeyVaultOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+
+        AzureKeyVaultOptionsValidator.ValidateKeyName(
+            options.KeyName);
+        AzureKeyVaultOptionsValidator.ValidateKeyVersion(
+            options.KeyVersion);
+
         _options = options;
     }
 
@@ -36,10 +42,19 @@ public sealed class ConfiguredAzureKeyReferenceProvider :
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (string.IsNullOrWhiteSpace(keyIdentifier))
+            return Task.FromResult<AzureKeyReference?>(null);
+
         var parts = keyIdentifier.Split('/', 2);
 
-        if (parts.Length != 2)
+        if (parts.Length != 2 ||
+            !AzureKeyVaultOptionsValidator.IsValidKeyName(
+                parts[0]) ||
+            !AzureKeyVaultOptionsValidator.IsValidKeyVersion(
+                parts[1]))
+        {
             return Task.FromResult<AzureKeyReference?>(null);
+        }
 
         return Task.FromResult<AzureKeyReference?>(
             new AzureKeyReference
