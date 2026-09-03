@@ -185,18 +185,48 @@ public static class VeteransReviewerPackageDocxRenderer
     }
 
     private static Paragraph ContentParagraph(
-        string text) =>
-        new(
-            new ParagraphProperties(
-                new SpacingBetweenLines
-                {
-                    After = "60"
-                }),
-            new Run(
-                new Text(text)
-                {
-                    Space = SpaceProcessingModeValues.Preserve
-                }));
+        string text)
+    {
+        var paragraph =
+            new Paragraph(
+                new ParagraphProperties(
+                    new SpacingBetweenLines
+                    {
+                        After = "60"
+                    }));
+
+        var lines =
+            text.Replace(
+                    "\r\n",
+                    "\n",
+                    StringComparison.Ordinal)
+                .Replace(
+                    '\r',
+                    '\n')
+                .Split('\n');
+
+        for (var index = 0;
+             index < lines.Length;
+             index++)
+        {
+            if (index > 0)
+            {
+                paragraph.Append(
+                    new Run(
+                        new Break()));
+            }
+
+            paragraph.Append(
+                new Run(
+                    new Text(lines[index])
+                    {
+                        Space =
+                            SpaceProcessingModeValues.Preserve
+                    }));
+        }
+
+        return paragraph;
+    }
 
     private static Paragraph Paragraph(
         string text) =>
