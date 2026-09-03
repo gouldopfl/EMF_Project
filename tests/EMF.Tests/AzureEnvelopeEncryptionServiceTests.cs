@@ -44,6 +44,40 @@ public sealed class AzureEnvelopeEncryptionServiceTests
     }
 
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(16)]
+    [InlineData(24)]
+    [InlineData(31)]
+    [InlineData(33)]
+    public async Task DecryptAsync_RejectsNon256BitDataEncryptionKey(
+        int keyLength)
+    {
+        var keyReference =
+            new AzureKeyReference
+            {
+                KeyName = "emf-key",
+                KeyVersion = "v1"
+            };
+
+        var cryptography =
+            new FakeCryptography(
+                new byte[keyLength]);
+
+        var service =
+            new AzureEnvelopeEncryptionService(
+                new FakeKeyProvider(keyReference),
+                new FakeFactory(cryptography));
+
+        var envelope =
+            await service.EncryptAsync(
+                Encoding.UTF8.GetBytes("protected"));
+
+        await Assert.ThrowsAsync<CryptographicException>(
+            () => service.DecryptAsync(envelope));
+    }
+
+
     [Fact]
     public async Task DecryptWithContextAsync_RejectsWrongContext()
     {
@@ -111,6 +145,14 @@ public sealed class AzureEnvelopeEncryptionServiceTests
     private sealed class FakeCryptography :
         IAzureKeyCryptography
     {
+        private readonly byte[]? _unwrappedKey;
+
+        public FakeCryptography(
+            byte[]? unwrappedKey = null)
+        {
+            _unwrappedKey = unwrappedKey;
+        }
+
         public Task<byte[]> WrapKeyAsync(
             byte[] key,
             CancellationToken cancellationToken = default) =>
@@ -119,6 +161,7 @@ public sealed class AzureEnvelopeEncryptionServiceTests
         public Task<byte[]> UnwrapKeyAsync(
             byte[] wrappedKey,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(wrappedKey.ToArray());
+            Task.FromResult(
+                (_unwrappedKey ?? wrappedKey).ToArray());
     }
 }

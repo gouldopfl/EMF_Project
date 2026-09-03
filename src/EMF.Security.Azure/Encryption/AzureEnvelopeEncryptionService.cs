@@ -160,17 +160,32 @@ public sealed class AzureEnvelopeEncryptionService :
 
         try
         {
+            if (dek.Length != 32)
+            {
+                throw new CryptographicException(
+                    "Invalid data encryption key length.");
+            }
+
             var plaintext = new byte[envelope.Ciphertext.Length];
 
-            using var aes = new AesGcm(dek, 16);
-            aes.Decrypt(
-                envelope.Nonce,
-                envelope.Ciphertext,
-                envelope.AuthenticationTag,
-                plaintext,
-                authenticatedData);
+            try
+            {
+                using var aes = new AesGcm(dek, 16);
+                aes.Decrypt(
+                    envelope.Nonce,
+                    envelope.Ciphertext,
+                    envelope.AuthenticationTag,
+                    plaintext,
+                    authenticatedData);
 
-            return plaintext;
+                return plaintext;
+            }
+            catch
+            {
+                CryptographicOperations.ZeroMemory(
+                    plaintext);
+                throw;
+            }
         }
         finally
         {
