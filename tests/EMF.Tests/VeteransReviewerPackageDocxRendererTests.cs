@@ -909,4 +909,109 @@ public sealed class VeteransReviewerPackageDocxRendererTests
                 .Value);
     }
 
+
+    [Fact]
+    public void Render_SpacesArtifactHeadings()
+    {
+        var packageId =
+            new EvidencePackageId("package-1");
+
+        var artifact =
+            new Artifact
+            {
+                Id = new ArtifactId("source-1"),
+                Name = "Sleep Study",
+                ArtifactType = "medical-record"
+            };
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId =
+                                    new ClaimIssueId("issue-1"),
+                                Purpose =
+                                    "Physician reviewer package",
+                                ReviewerRole =
+                                    "MedicalProfessional"
+                            },
+                        Artifacts =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = packageId,
+                                ArtifactId = artifact.Id,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence
+                            }
+                        ]
+                    },
+                Artifacts = [artifact],
+                ArtifactContents =
+                [
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = artifact,
+                        Text =
+                            "Severe obstructive sleep apnea documented."
+                    }
+                ]
+            };
+
+        var content =
+            VeteransReviewerPackageDocxRenderer.Render(
+                details);
+
+        using var stream =
+            new MemoryStream(content);
+
+        using var document =
+            WordprocessingDocument.Open(
+                stream,
+                false);
+
+        Assert.NotNull(
+            document.MainDocumentPart);
+
+        Assert.NotNull(
+            document.MainDocumentPart!.Document);
+
+        var artifactHeading =
+            Assert.Single(
+                document.MainDocumentPart
+                    .Document!
+                    .Body!
+                    .Elements<
+                        DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                    .Where(
+                        paragraph =>
+                            paragraph.InnerText.Contains(
+                                "Sleep Study",
+                                StringComparison.Ordinal) &&
+                            paragraph.InnerText.Contains(
+                                "source-1",
+                                StringComparison.Ordinal)));
+
+        Assert.Equal(
+            "120",
+            artifactHeading.ParagraphProperties?
+                .SpacingBetweenLines?
+                .Before?
+                .Value);
+
+        Assert.Equal(
+            "60",
+            artifactHeading.ParagraphProperties?
+                .SpacingBetweenLines?
+                .After?
+                .Value);
+    }
+
 }

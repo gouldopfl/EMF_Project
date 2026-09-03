@@ -147,6 +147,18 @@ public static class VeteransReviewerPackageDocxRenderer
                     After = "120"
                 });
         }
+        else if (string.Equals(
+                     styleId,
+                     "Heading2",
+                     StringComparison.Ordinal))
+        {
+            properties.Append(
+                new SpacingBetweenLines
+                {
+                    Before = "120",
+                    After = "60"
+                });
+        }
 
         return new Paragraph(
             properties,
