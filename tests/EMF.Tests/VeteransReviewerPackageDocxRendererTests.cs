@@ -1368,4 +1368,110 @@ public sealed class VeteransReviewerPackageDocxRendererTests
             contentParagraph.InnerText);
     }
 
+
+    [Fact]
+    public void Render_KeepsHeadingsWithFollowingContent()
+    {
+        var packageId =
+            new EvidencePackageId("package-1");
+
+        var artifact =
+            new Artifact
+            {
+                Id = new ArtifactId("source-1"),
+                Name = "Sleep Study",
+                ArtifactType = "medical-record"
+            };
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId =
+                                    new ClaimIssueId("issue-1"),
+                                Purpose =
+                                    "Physician reviewer package",
+                                ReviewerRole =
+                                    "MedicalProfessional"
+                            },
+                        Artifacts =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = packageId,
+                                ArtifactId = artifact.Id,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence
+                            }
+                        ]
+                    },
+                Artifacts = [artifact],
+                ArtifactContents =
+                [
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = artifact,
+                        Text =
+                            "Severe obstructive sleep apnea documented."
+                    }
+                ]
+            };
+
+        var content =
+            VeteransReviewerPackageDocxRenderer.Render(
+                details);
+
+        using var stream =
+            new MemoryStream(content);
+
+        using var document =
+            WordprocessingDocument.Open(
+                stream,
+                false);
+
+        Assert.NotNull(
+            document.MainDocumentPart);
+
+        Assert.NotNull(
+            document.MainDocumentPart!.Document);
+
+        var headings =
+            document.MainDocumentPart
+                .Document!
+                .Body!
+                .Elements<
+                    DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Where(
+                    paragraph =>
+                    {
+                        var styleId =
+                            paragraph.ParagraphProperties?
+                                .ParagraphStyleId?
+                                .Val?
+                                .Value;
+
+                        return styleId == "Heading1" ||
+                               styleId == "Heading2";
+                    })
+                .ToArray();
+
+        Assert.Equal(
+            2,
+            headings.Length);
+
+        Assert.All(
+            headings,
+            paragraph =>
+                Assert.NotNull(
+                    paragraph.ParagraphProperties?
+                        .KeepNext));
+    }
+
 }

@@ -145,6 +145,9 @@ public static class VeteransReviewerPackageDocxRenderer
                      StringComparison.Ordinal))
         {
             properties.Append(
+                new KeepNext());
+
+            properties.Append(
                 new SpacingBetweenLines
                 {
                     Before = "120",
@@ -156,6 +159,9 @@ public static class VeteransReviewerPackageDocxRenderer
                      "Heading2",
                      StringComparison.Ordinal))
         {
+            properties.Append(
+                new KeepNext());
+
             properties.Append(
                 new SpacingBetweenLines
                 {
