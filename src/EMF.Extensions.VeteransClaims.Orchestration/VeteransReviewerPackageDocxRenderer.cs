@@ -31,14 +31,18 @@ public static class VeteransReviewerPackageDocxRenderer
                     StyledParagraph(
                         "Veterans Evidence Reviewer Package",
                         "Title"),
-                    Paragraph(
-                        $"Package: {package.Id.Value}"),
-                    Paragraph(
-                        $"Claim Issue: {package.ClaimIssueId.Value}"),
-                    Paragraph(
-                        $"Purpose: {package.Purpose}"),
-                    Paragraph(
-                        $"Reviewer Role: {package.ReviewerRole}"));
+                    StyledParagraph(
+                        $"Package: {package.Id.Value}",
+                        "Subtitle"),
+                    StyledParagraph(
+                        $"Claim Issue: {package.ClaimIssueId.Value}",
+                        "Subtitle"),
+                    StyledParagraph(
+                        $"Purpose: {package.Purpose}",
+                        "Subtitle"),
+                    StyledParagraph(
+                        $"Reviewer Role: {package.ReviewerRole}",
+                        "Subtitle"));
 
             AppendRoleSection(
                 body,

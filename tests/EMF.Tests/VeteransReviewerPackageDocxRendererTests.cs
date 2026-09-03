@@ -1014,4 +1014,89 @@ public sealed class VeteransReviewerPackageDocxRendererTests
                 .Value);
     }
 
+
+    [Fact]
+    public void Render_StylesReviewerPackageMetadata()
+    {
+        var packageId =
+            new EvidencePackageId("package-1");
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId =
+                                    new ClaimIssueId("issue-1"),
+                                Purpose =
+                                    "Physician reviewer package",
+                                ReviewerRole =
+                                    "MedicalProfessional"
+                            },
+                        Artifacts = []
+                    },
+                Artifacts = [],
+                ArtifactContents = []
+            };
+
+        var content =
+            VeteransReviewerPackageDocxRenderer.Render(
+                details);
+
+        using var stream =
+            new MemoryStream(content);
+
+        using var document =
+            WordprocessingDocument.Open(
+                stream,
+                false);
+
+        Assert.NotNull(
+            document.MainDocumentPart);
+
+        Assert.NotNull(
+            document.MainDocumentPart!.Document);
+
+        var metadata =
+            document.MainDocumentPart
+                .Document!
+                .Body!
+                .Elements<
+                    DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Where(
+                    paragraph =>
+                        paragraph.InnerText.StartsWith(
+                            "Package:",
+                            StringComparison.Ordinal) ||
+                        paragraph.InnerText.StartsWith(
+                            "Claim Issue:",
+                            StringComparison.Ordinal) ||
+                        paragraph.InnerText.StartsWith(
+                            "Purpose:",
+                            StringComparison.Ordinal) ||
+                        paragraph.InnerText.StartsWith(
+                            "Reviewer Role:",
+                            StringComparison.Ordinal))
+                .ToArray();
+
+        Assert.Equal(
+            4,
+            metadata.Length);
+
+        Assert.All(
+            metadata,
+            paragraph =>
+                Assert.Equal(
+                    "Subtitle",
+                    paragraph.ParagraphProperties?
+                        .ParagraphStyleId?
+                        .Val?
+                        .Value));
+    }
+
 }
