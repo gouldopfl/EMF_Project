@@ -53,8 +53,12 @@ public sealed class
                 currentKeyId,
                 cancellationToken);
 
-        ValidateKey(historicalKey);
-        ValidateKey(currentKey);
+        ValidateKey(
+            historicalKey,
+            envelope.KeyEncryptionKeyId);
+        ValidateKey(
+            currentKey,
+            currentKeyId);
 
         var dataEncryptionKey =
             DevelopmentDataEncryptionKeyWrapper.Unwrap(
@@ -94,11 +98,16 @@ public sealed class
         }
     }
 
-    private static void ValidateKey(EncryptionKey? key)
+    private static void ValidateKey(
+        EncryptionKey? key,
+        string expectedKeyId)
     {
         if (key is null ||
-            string.IsNullOrWhiteSpace(key.KeyId) ||
-            key.KeyMaterial.Length != KeySize)
+            key.KeyMaterial is not { Length: KeySize } ||
+            !string.Equals(
+                key.KeyId,
+                expectedKeyId,
+                StringComparison.Ordinal))
         {
             throw new CryptographicException(
                 "Invalid encryption key.");

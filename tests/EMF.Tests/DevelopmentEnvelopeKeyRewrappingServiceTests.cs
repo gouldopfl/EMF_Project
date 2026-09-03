@@ -149,6 +149,35 @@ public sealed class
             CryptographicException>(
                 () => rewrapping.RewrapAsync(original));
     }
+    [Fact]
+    public async Task RewrapAsync_MismatchedHistoricalKeyId_Fails()
+    {
+        var keyA = CreateKey("kek-A");
+        var keyB = CreateKey("kek-B");
+
+        var provider =
+            new RotatingKeyProvider(keyA, keyB);
+
+        var original =
+            await new DevelopmentEnvelopeEncryptionService(
+                provider)
+                .EncryptAsync(
+                    Encoding.UTF8.GetBytes(
+                        "Protected artifact content."));
+
+        provider.RotateTo(keyB.KeyId);
+        provider.Replace(
+            keyA.KeyId,
+            CreateKey("unexpected-key"));
+
+        var rewrapping =
+            new DevelopmentEnvelopeKeyRewrappingService(
+                provider);
+
+        await Assert.ThrowsAsync<CryptographicException>(
+            () => rewrapping.RewrapAsync(original));
+    }
+
     private static EncryptionKey CreateKey(
         string keyId)
     {
@@ -183,6 +212,13 @@ public sealed class
         public void Remove(string keyId)
         {
             _keys.Remove(keyId);
+        }
+
+        public void Replace(
+            string lookupId,
+            EncryptionKey key)
+        {
+            _keys[lookupId] = key;
         }
 
         public void RotateTo(string keyId)

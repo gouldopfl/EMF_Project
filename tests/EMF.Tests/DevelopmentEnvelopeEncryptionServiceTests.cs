@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using EMF.Security.Encryption;
 using EMF.Security.Encryption.Envelope;
 using EMF.Security.Encryption.Envelope.Models;
 using EMF.Security.Encryption.Envelope.Services;
@@ -128,5 +129,54 @@ public sealed class DevelopmentEnvelopeEncryptionServiceTests
 
         await Assert.ThrowsAsync<AuthenticationTagMismatchException>(
             () => service.DecryptAsync(tampered));
+    }
+
+    [Fact]
+    public async Task Operations_RejectMismatchedReturnedKeyId()
+    {
+        var validService = CreateService();
+        var envelope =
+            await validService.EncryptAsync(
+                Encoding.UTF8.GetBytes("protected"));
+
+        var mismatchedService =
+            new DevelopmentEnvelopeEncryptionService(
+                new MismatchedKeyProvider());
+
+        await Assert.ThrowsAsync<CryptographicException>(
+            () => mismatchedService.EncryptAsync(
+                Encoding.UTF8.GetBytes("protected")));
+
+        await Assert.ThrowsAsync<CryptographicException>(
+            () => mismatchedService.DecryptAsync(
+                envelope));
+    }
+
+    private sealed class MismatchedKeyProvider :
+        IEncryptionKeyProvider
+    {
+        private readonly EncryptionKey _key =
+            new()
+            {
+                KeyId = "returned-key",
+                KeyMaterial = new byte[32]
+            };
+
+        public Task<string?> GetCurrentKeyIdAsync(
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return Task.FromResult<string?>("kek-001");
+        }
+
+        public Task<EncryptionKey?> GetKeyAsync(
+            string keyId,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return Task.FromResult<EncryptionKey?>(_key);
+        }
     }
 }

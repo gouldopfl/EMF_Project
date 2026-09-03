@@ -50,8 +50,16 @@ public sealed class DevelopmentEnvelopeEncryptionService :
                 keyId,
                 cancellationToken);
 
-        if (key is null || key.KeyMaterial.Length != KeySize)
-            throw new CryptographicException("Invalid encryption key.");
+        if (key is null ||
+            key.KeyMaterial is not { Length: KeySize } ||
+            !string.Equals(
+                key.KeyId,
+                keyId,
+                StringComparison.Ordinal))
+        {
+            throw new CryptographicException(
+                "Invalid encryption key.");
+        }
 
         var dek = RandomNumberGenerator.GetBytes(KeySize);
         var nonce = RandomNumberGenerator.GetBytes(NonceSize);
@@ -148,8 +156,16 @@ public sealed class DevelopmentEnvelopeEncryptionService :
                 envelope.KeyEncryptionKeyId,
                 cancellationToken);
 
-        if (key is null || key.KeyMaterial.Length != KeySize)
-            throw new CryptographicException("Invalid encryption key.");
+        if (key is null ||
+            key.KeyMaterial is not { Length: KeySize } ||
+            !string.Equals(
+                key.KeyId,
+                envelope.KeyEncryptionKeyId,
+                StringComparison.Ordinal))
+        {
+            throw new CryptographicException(
+                "Invalid encryption key.");
+        }
 
         var dek =
             DevelopmentDataEncryptionKeyWrapper.Unwrap(
