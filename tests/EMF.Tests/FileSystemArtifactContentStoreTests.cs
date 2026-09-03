@@ -107,6 +107,54 @@ public sealed class FileSystemArtifactContentStoreTests
     }
 
 
+    [Theory]
+    [InlineData("nested/artifact")]
+    [InlineData(@"nested\artifact")]
+    [InlineData(".")]
+    [InlineData("..")]
+    [InlineData("/rooted-artifact")]
+    public async Task Operations_RejectPathLikeArtifactIds(
+        string value)
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        try
+        {
+            var store =
+                new FileSystemArtifactContentStore(root);
+            var id = new ArtifactId(value);
+            var content =
+                Encoding.UTF8.GetBytes("protected content");
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => store.WriteAsync(id, content));
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => store.ReadAsync(id));
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => store.DeleteAsync(id));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task Operations_RejectDefaultArtifactId()
+    {
+        var store =
+            new FileSystemArtifactContentStore(
+                Path.GetTempPath());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => store.ReadAsync(default));
+    }
+
     [Fact]
     public async Task WriteThenRead_RoundTripsContent()
     {

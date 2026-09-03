@@ -80,9 +80,21 @@ public sealed class FileSystemArtifactContentStore :
 
     private string GetPath(ArtifactId artifactId)
     {
+        var value = artifactId.Value;
+
+        if (string.IsNullOrWhiteSpace(value) ||
+            value is "." or ".." ||
+            value.Contains('/') ||
+            value.Contains('\\') ||
+            Path.IsPathRooted(value))
+        {
+            throw new InvalidOperationException(
+                "Artifact ID must be a single file name.");
+        }
+
         var path =
             Path.GetFullPath(
-                Path.Combine(_rootPath, artifactId.Value));
+                Path.Combine(_rootPath, value));
 
         var rootWithSeparator =
             _rootPath.EndsWith(
