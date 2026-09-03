@@ -4,42 +4,70 @@ namespace EMF.Tests;
 
 public sealed class ArtifactContentStoreFactoryTests
 {
-    [Fact]
-    public void Create_ReturnsNullWithoutAzureKeyConfiguration()
+    [Theory]
+    [InlineData(null, null, null)]
+    [InlineData("", " ", "\t")]
+    public void Create_ReturnsNullWithoutAzureKeyConfiguration(
+        string? vaultUri,
+        string? keyName,
+        string? keyVersion)
     {
-        var vault = Environment.GetEnvironmentVariable(
-            "EMF_AZURE_KEY_VAULT_URI");
-        var key = Environment.GetEnvironmentVariable(
-            "EMF_AZURE_KEY_NAME");
-        var version = Environment.GetEnvironmentVariable(
-            "EMF_AZURE_KEY_VERSION");
+        var result = ArtifactContentStoreFactory.Create(
+            vaultUri,
+            keyName,
+            keyVersion,
+            null);
 
-        try
-        {
-            Environment.SetEnvironmentVariable(
-                "EMF_AZURE_KEY_VAULT_URI",
-                null);
-            Environment.SetEnvironmentVariable(
-                "EMF_AZURE_KEY_NAME",
-                null);
-            Environment.SetEnvironmentVariable(
-                "EMF_AZURE_KEY_VERSION",
-                null);
+        Assert.Null(result);
+    }
 
-            Assert.Null(
-                ArtifactContentStoreFactory.Create());
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(
-                "EMF_AZURE_KEY_VAULT_URI",
-                vault);
-            Environment.SetEnvironmentVariable(
-                "EMF_AZURE_KEY_NAME",
-                key);
-            Environment.SetEnvironmentVariable(
-                "EMF_AZURE_KEY_VERSION",
-                version);
-        }
+    [Theory]
+    [InlineData(
+        "https://example.vault.azure.net/",
+        null,
+        null)]
+    [InlineData(
+        null,
+        "emf-key",
+        null)]
+    [InlineData(
+        null,
+        null,
+        "0123456789abcdef0123456789abcdef")]
+    [InlineData(
+        "https://example.vault.azure.net/",
+        "emf-key",
+        null)]
+    [InlineData(
+        "https://example.vault.azure.net/",
+        null,
+        "0123456789abcdef0123456789abcdef")]
+    [InlineData(
+        null,
+        "emf-key",
+        "0123456789abcdef0123456789abcdef")]
+    public void Create_RejectsPartialAzureKeyConfiguration(
+        string? vaultUri,
+        string? keyName,
+        string? keyVersion)
+    {
+        Assert.Throws<InvalidOperationException>(
+            () => ArtifactContentStoreFactory.Create(
+                vaultUri,
+                keyName,
+                keyVersion,
+                null));
+    }
+
+    [Fact]
+    public void Create_ReturnsEncryptedStoreWithCompleteConfiguration()
+    {
+        var result = ArtifactContentStoreFactory.Create(
+            "https://example.vault.azure.net/",
+            "emf-key",
+            "0123456789abcdef0123456789abcdef",
+            Path.GetTempPath());
+
+        Assert.NotNull(result);
     }
 }
