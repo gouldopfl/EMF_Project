@@ -44,14 +44,45 @@ public sealed class AzureOpenAIClientFactoryTests
                 options));
     }
 
+    [Theory]
+    [InlineData("not-a-guid")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    [InlineData("{11111111-1111-1111-1111-111111111111}")]
+    public void Constructor_RejectsInvalidManagedIdentityClientId(
+        string clientId)
+    {
+        var options = CreateOptions(
+            "https://example.openai.azure.com",
+            clientId);
+
+        Assert.Throws<ArgumentException>(
+            () => new AzureOpenAIClientFactory(options));
+    }
+
+    [Fact]
+    public void Constructor_AcceptsValidManagedIdentityClientId()
+    {
+        var options = CreateOptions(
+            "https://example.openai.azure.com",
+            "11111111-1111-1111-1111-111111111111");
+
+        var factory =
+            new AzureOpenAIClientFactory(options);
+
+        Assert.NotNull(factory);
+    }
+
     private static AzureOpenAIOptions CreateOptions(
-        string endpoint)
+        string endpoint,
+        string? managedIdentityClientId = null)
     {
         return new AzureOpenAIOptions
         {
             Endpoint = endpoint,
             DeploymentName = "test-deployment",
-            ProviderId = "azure.openai"
+            ProviderId = "azure.openai",
+            ManagedIdentityClientId =
+                managedIdentityClientId
         };
     }
 }

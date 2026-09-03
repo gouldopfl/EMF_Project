@@ -37,6 +37,9 @@ internal static class AzureOpenAIOptionsValidator
         ArgumentException.ThrowIfNullOrWhiteSpace(
             options.ProviderId);
 
+        ValidateManagedIdentityClientId(
+            options.ManagedIdentityClientId);
+
         if (options.RequestTimeout <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(
@@ -47,6 +50,22 @@ internal static class AzureOpenAIOptionsValidator
         {
             throw new ArgumentOutOfRangeException(
                 nameof(options));
+        }
+    }
+
+    private static void ValidateManagedIdentityClientId(
+        string? clientId)
+    {
+        if (!string.IsNullOrWhiteSpace(clientId) &&
+            (!Guid.TryParseExact(
+                clientId,
+                "D",
+                out var parsedClientId) ||
+             parsedClientId == Guid.Empty))
+        {
+            throw new ArgumentException(
+                "Managed identity client ID must be a nonempty GUID.",
+                nameof(clientId));
         }
     }
 }

@@ -28,6 +28,48 @@ public sealed class AzureMonitorSecurityAlertSinkTests
 
 
 
+    [Theory]
+    [InlineData("not-a-guid")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    [InlineData("{11111111-1111-1111-1111-111111111111}")]
+    public void Constructor_rejects_invalid_managed_identity_client_id(
+        string clientId)
+    {
+        var options = new AzureMonitorAlertOptions
+        {
+            Endpoint =
+                "https://example.eastus-1.ingest.monitor.azure.com",
+            RuleId = "rule",
+            StreamName = "stream",
+            ManagedIdentityClientId = clientId
+        };
+
+        Assert.Throws<ArgumentException>(
+            () => new AzureMonitorSecurityAlertSink(
+                options,
+                new RecordingLogsClient()));
+    }
+
+    [Fact]
+    public void Constructor_accepts_valid_managed_identity_client_id()
+    {
+        var options = new AzureMonitorAlertOptions
+        {
+            Endpoint =
+                "https://example.eastus-1.ingest.monitor.azure.com",
+            RuleId = "rule",
+            StreamName = "stream",
+            ManagedIdentityClientId =
+                "11111111-1111-1111-1111-111111111111"
+        };
+
+        var sink = new AzureMonitorSecurityAlertSink(
+            options,
+            new RecordingLogsClient());
+
+        Assert.NotNull(sink);
+    }
+
     [Fact]
     public async Task WriteAsync_uploads_structured_alert()
     {
