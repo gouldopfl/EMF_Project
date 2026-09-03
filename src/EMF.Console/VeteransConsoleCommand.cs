@@ -1791,6 +1791,57 @@ public static class VeteransConsoleCommand
     }
 
 
+    internal static async Task<int> RunEvidencePackageDocxAsync(
+        string databasePath,
+        EvidencePackageId evidencePackageId,
+        string outputPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var packageService =
+            new EvidencePackageService(
+                new SqliteEvidencePackageRepository(
+                    databasePath),
+                new GuidIdGenerator());
+
+        var evidenceRepository =
+            new SqliteEvidenceRepository(databasePath);
+
+        await evidenceRepository.InitializeAsync();
+
+        var contentStore =
+            ArtifactContentStoreFactory.Create();
+
+        var service =
+            contentStore is null
+                ? new VeteransReviewerPackageDetailsService(
+                    packageService,
+                    evidenceRepository)
+                : new VeteransReviewerPackageDetailsService(
+                    packageService,
+                    evidenceRepository,
+                    ArtifactTextExtractionFactory.Create(
+                        evidenceRepository,
+                        contentStore));
+
+        var details =
+            await service.GetAsync(evidencePackageId);
+
+        if (details is null)
+            return 1;
+
+        var content =
+            VeteransReviewerPackageDocxRenderer.Render(
+                details);
+
+        await File.WriteAllBytesAsync(
+            Path.GetFullPath(outputPath),
+            content);
+
+        return 0;
+    }
+
+
     private static async Task<int> RunPrepareAsync(
         string databasePath,
         ClaimIssueId claimIssueId,

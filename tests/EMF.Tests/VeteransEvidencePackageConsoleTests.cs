@@ -182,3 +182,40 @@ public sealed partial class VeteransEvidencePackageConsoleTests
         }
     }
 }
+
+
+public sealed partial class VeteransEvidencePackageConsoleTests
+{
+    [Fact]
+    public async Task EvidencePackage_WritesDocxExport()
+    {
+        var databasePath = Path.GetTempFileName();
+        var outputPath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"{Guid.NewGuid():N}.docx");
+
+        try
+        {
+            var packageId =
+                await SeedPackageAsync(databasePath);
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunEvidencePackageDocxAsync(
+                        databasePath,
+                        packageId,
+                        outputPath);
+
+            Assert.Equal(0, exitCode);
+            Assert.True(File.Exists(outputPath));
+            Assert.True(new FileInfo(outputPath).Length > 0);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+            File.Delete(outputPath);
+        }
+    }
+}
+
