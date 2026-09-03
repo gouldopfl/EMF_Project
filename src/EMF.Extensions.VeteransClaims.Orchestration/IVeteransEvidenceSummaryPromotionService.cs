@@ -15,4 +15,13 @@ public interface IVeteransEvidenceSummaryPromotionService
         RequirementId requirementId,
         IntelligenceAgentResult<string> result,
         CancellationToken cancellationToken = default);
+
+    Task<Artifact> PromoteAsync(
+        string name,
+        string promotedBy,
+        string reviewedBy,
+        DateTimeOffset promotedUtc,
+        ClaimIssueId claimIssueId,
+        IntelligenceAgentResult<string> result,
+        CancellationToken cancellationToken = default);
 }

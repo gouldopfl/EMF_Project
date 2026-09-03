@@ -1182,6 +1182,338 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
+    public async Task EvidenceReviewer_RejectsMissingDatabase()
+    {
+        var exitCode =
+            await VeteransConsoleCommand.RunAsync(
+                [
+                    "evidence",
+                    "reviewer",
+                    "/tmp/emf-missing-veterans-reviewer.db",
+                    "issue-1"
+                ]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
+    public async Task EvidenceReviewer_MissingClaimIssueSkipsRuntime()
+    {
+        var previous =
+            Environment.GetEnvironmentVariable(
+                "EMF_REVIEWED_BY");
+
+        var databasePath = Path.GetTempFileName();
+        var runtimeCreated = false;
+
+        try
+        {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                "reviewer-test");
+
+            await new VeteransClaimsSqliteSchema(
+                    databasePath)
+                .InitializeAsync();
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "reviewer",
+                        databasePath,
+                        "missing-issue"
+                    ],
+                    () =>
+                    {
+                        runtimeCreated = true;
+                        throw new InvalidOperationException();
+                    });
+
+            Assert.Equal(1, exitCode);
+            Assert.False(runtimeCreated);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                previous);
+
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task EvidenceReviewer_RequiresReviewer()
+    {
+        var previous =
+            Environment.GetEnvironmentVariable(
+                "EMF_REVIEWED_BY");
+
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                null);
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "reviewer",
+                        databasePath,
+                        "issue-1"
+                    ]);
+
+            Assert.Equal(1, exitCode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                previous);
+
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task EvidenceReviewer_NoClassifiedEvidenceSkipsRuntime()
+    {
+        var previous =
+            Environment.GetEnvironmentVariable("EMF_REVIEWED_BY");
+
+        var databasePath = Path.GetTempFileName();
+        var runtimeCreated = false;
+
+        try
+        {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                "reviewer-test");
+
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-no-evidence")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-no-evidence"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-no-evidence"),
+                ClaimId = claim.Id,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "reviewer",
+                        databasePath,
+                        issue.Id.Value
+                    ],
+                    () =>
+                    {
+                        runtimeCreated = true;
+                        throw new InvalidOperationException();
+                    });
+
+            Assert.Equal(1, exitCode);
+            Assert.False(runtimeCreated);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                previous);
+
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task EvidenceReviewer_PersistsSummaryAndPackage()
+    {
+        var databasePath = Path.GetTempFileName();
+        var previous =
+            Environment.GetEnvironmentVariable("EMF_REVIEWED_BY");
+
+        try
+        {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                "console-reviewer");
+
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-reviewer-001")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-reviewer-001"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-reviewer-001"),
+                ClaimId = claim.Id,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var sourceArtifactId =
+                new ArtifactId("artifact-reviewer-001");
+
+            await new SqliteEvidenceClassificationRepository(
+                    databasePath)
+                .AddEvidenceClassificationAsync(
+                    new EvidenceClassification
+                    {
+                        Id = new EvidenceClassificationId(
+                            "classification-reviewer-001"),
+                        ArtifactId = sourceArtifactId,
+                        ClaimIssueId = issue.Id,
+                        Classification =
+                            EvidenceClassifications.MedicalEvidence
+                    });
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "reviewer",
+                        databasePath,
+                        issue.Id.Value
+                    ],
+                    () => Task.FromResult(
+                        new TextSummarizationConsoleRuntime
+                        {
+                            TextSummarizationCapabilityExecutor =
+                                new FakeSummarizationExecutor(),
+                            TextStructuredExtractionCapabilityExecutor =
+                                new FakeStructuredExtractionExecutor(),
+                            SubjectId = "console-test",
+                            ClassificationId =
+                                new ProtectionClassificationId(
+                                    "confidential"),
+                            AuditDatabasePath = "test-audit.db"
+                        }));
+
+            Assert.Equal(0, exitCode);
+
+            var expectedArtifact =
+                new TextSummaryEvidenceArtifactFactory()
+                    .Create(
+                        "Veterans evidence summary.",
+                        $"Claim issue {issue.Id.Value} reviewer summary",
+                        DateTimeOffset.UtcNow);
+
+            var evidenceRepository =
+                new SqliteEvidenceRepository(databasePath);
+
+            var stored =
+                await evidenceRepository.GetArtifactAsync(
+                    expectedArtifact.Id);
+
+            Assert.NotNull(stored);
+            Assert.Equal("text-summary", stored!.ArtifactType);
+
+            Assert.Equal(
+                issue.Id.Value,
+                stored.Metadata["claimIssueId"].ToString());
+
+            var relationship =
+                Assert.Single(
+                    await evidenceRepository
+                        .GetRelationshipsAsync(
+                            expectedArtifact.Id));
+
+            Assert.Equal(
+                sourceArtifactId,
+                relationship.TargetArtifactId);
+
+            var packageRepository =
+                new SqliteEvidencePackageRepository(databasePath);
+
+            var package =
+                Assert.Single(
+                    await packageRepository
+                        .GetEvidencePackagesAsync(issue.Id));
+
+            Assert.Equal(
+                "Physician reviewer package",
+                package.Purpose);
+
+            Assert.Equal(
+                "MedicalProfessional",
+                package.ReviewerRole);
+
+            var packageArtifacts =
+                await packageRepository
+                    .GetEvidencePackageArtifactsAsync(package.Id);
+
+            Assert.Equal(2, packageArtifacts.Count);
+
+            Assert.Contains(
+                packageArtifacts,
+                x =>
+                    x.ArtifactId == sourceArtifactId &&
+                    x.ContentRole ==
+                        EvidencePackageContentRoles
+                            .UnderlyingEvidence);
+
+            Assert.Contains(
+                packageArtifacts,
+                x =>
+                    x.ArtifactId == expectedArtifact.Id &&
+                    x.ContentRole ==
+                        EvidencePackageContentRoles
+                            .GeneratedOrganizationalMaterial);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                previous);
+
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task EvidenceDevelopSummarizePromote_RequiresReviewer()
     {
         var previous =

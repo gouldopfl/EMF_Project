@@ -31,6 +31,18 @@ public static class VeteransEvidenceOrchestrationFactory
             packagePreparation);
     }
 
+    public static IVeteransReviewerPackageIntelligenceService
+        CreateReviewerPackageIntelligenceService(
+            IIntelligenceCapabilityExecutor<
+                TextSummarizationRequest,
+                string> executor)
+    {
+        ArgumentNullException.ThrowIfNull(executor);
+
+        return new VeteransReviewerPackageIntelligenceService(
+            executor);
+    }
+
     public static IEvidenceDevelopmentWorkflowCoordinator
         CreateEvidenceDevelopmentWorkflowCoordinator(
             IWorkflowService workflowService,

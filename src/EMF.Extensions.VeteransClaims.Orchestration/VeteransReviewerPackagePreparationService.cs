@@ -31,6 +31,45 @@ public sealed class VeteransReviewerPackagePreparationService
         string promotedBy,
         string reviewedBy,
         DateTimeOffset promotedUtc,
+        IntelligenceAgentResult<string> summaryResult,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(summaryResult);
+
+        var summaryArtifact =
+            await _summaryPromotion.PromoteAsync(
+                summaryName,
+                promotedBy,
+                reviewedBy,
+                promotedUtc,
+                claimIssueId,
+                summaryResult,
+                cancellationToken);
+
+        var package =
+            await _packagePreparation.PrepareAsync(
+                claimIssueId,
+                purpose,
+                reviewerRole,
+                summaryResult.SourceArtifactIds,
+                [summaryArtifact.Id],
+                cancellationToken);
+
+        return new VeteransReviewerPackagePreparationResult
+        {
+            SummaryArtifact = summaryArtifact,
+            Package = package
+        };
+    }
+
+    public async Task<VeteransReviewerPackagePreparationResult> PrepareAsync(
+        ClaimIssueId claimIssueId,
+        string purpose,
+        string reviewerRole,
+        string summaryName,
+        string promotedBy,
+        string reviewedBy,
+        DateTimeOffset promotedUtc,
         EvidenceGapId evidenceGapId,
         RequirementId requirementId,
         IntelligenceAgentResult<string> summaryResult,

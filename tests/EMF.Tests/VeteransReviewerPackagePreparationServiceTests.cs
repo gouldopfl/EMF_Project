@@ -74,6 +74,70 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
             packages.UnderlyingArtifactIds);
     }
 
+    [Fact]
+    public async Task PrepareAsync_PromotesWholeClaimIssueSummary()
+    {
+        var promoted = new RecordingSummaryPromotionService();
+        var packages = new RecordingPreparationService();
+
+        var service =
+            new VeteransReviewerPackagePreparationService(
+                promoted,
+                packages);
+
+        var occurredUtc =
+            new DateTimeOffset(
+                2026, 9, 3, 16, 30, 0,
+                TimeSpan.Zero);
+
+        var claimIssueId =
+            new ClaimIssueId("issue-whole-1");
+
+        var result =
+            new IntelligenceAgentResult<string>
+            {
+                Success = true,
+                Output = "Whole claim issue summary.",
+                AgentId = new AgentId("summary-agent"),
+                CorrelationId =
+                    new IntelligenceCorrelationId("operation-2"),
+                StartedUtc = occurredUtc,
+                CompletedUtc = occurredUtc.AddSeconds(1),
+                SourceArtifactIds =
+                [
+                    new ArtifactId("source-1"),
+                    new ArtifactId("source-2")
+                ]
+            };
+
+        var prepared =
+            await service.PrepareAsync(
+                claimIssueId,
+                "Physician reviewer package",
+                "MedicalProfessional",
+                "Claim issue reviewer summary",
+                "reviewer-package-service",
+                "physician-reviewer",
+                occurredUtc.AddSeconds(2),
+                result);
+
+        Assert.Equal(
+            claimIssueId,
+            promoted.ClaimIssueId);
+
+        Assert.Same(
+            promoted.Artifact,
+            prepared.SummaryArtifact);
+
+        Assert.Equal(
+            result.SourceArtifactIds,
+            packages.UnderlyingArtifactIds);
+
+        Assert.Equal(
+            promoted.Artifact.Id,
+            Assert.Single(packages.GeneratedArtifactIds));
+    }
+
     private sealed class RecordingSummaryPromotionService :
         IVeteransEvidenceSummaryPromotionService
     {
@@ -94,6 +158,22 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
                         2026, 9, 1, 21, 30, 0,
                         TimeSpan.Zero)
             };
+
+        public ClaimIssueId? ClaimIssueId
+        { get; private set; }
+
+        public Task<Artifact> PromoteAsync(
+            string name,
+            string promotedBy,
+            string reviewedBy,
+            DateTimeOffset promotedUtc,
+            ClaimIssueId claimIssueId,
+            IntelligenceAgentResult<string> result,
+            CancellationToken cancellationToken = default)
+        {
+            ClaimIssueId = claimIssueId;
+            return Task.FromResult(Artifact);
+        }
 
         public Task<Artifact> PromoteAsync(
             string name,

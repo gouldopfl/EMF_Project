@@ -293,6 +293,38 @@ public static class VeteransConsoleCommand
                 new EvidenceDevelopmentPlanId(args[3]));
         }
 
+        if (args.Length == 4 &&
+            args[0] == "evidence" &&
+            args[1] == "reviewer")
+        {
+            var reviewerDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(reviewerDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {reviewerDatabasePath}");
+
+                return 2;
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                Environment.GetEnvironmentVariable(
+                    "EMF_REVIEWED_BY")))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Evidence promotion requires review. " +
+                    "Set EMF_REVIEWED_BY to the reviewer identity.");
+
+                return 1;
+            }
+
+            return await RunReviewerPackageAsync(
+                reviewerDatabasePath,
+                new ClaimIssueId(args[3]),
+                runtimeFactory);
+        }
+
         var summarize =
             args.Length >= 6 &&
             args[0] == "evidence" &&
@@ -716,15 +748,100 @@ public static class VeteransConsoleCommand
     }
 
 
-    private static ClaimIssueAdjudicationAssessmentService
-        CreateAdjudicationAssessmentService(
+    private static async Task<int> RunReviewerPackageAsync(
+        string databasePath,
+        ClaimIssueId claimIssueId,
+        Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory)
+    {
+        var details =
+            await CreateAdjudicationDetailsService(databasePath)
+                .GetAsync(claimIssueId);
+
+        if (details is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Claim issue not found: {claimIssueId.Value}");
+
+            return 1;
+        }
+
+        var classifications =
+            await new SqliteEvidenceClassificationRepository(
+                    databasePath)
+                .GetEvidenceClassificationsAsync(claimIssueId);
+
+        var sourceArtifactIds =
+            classifications
+                .Select(x => x.ArtifactId)
+                .Distinct()
+                .ToArray();
+
+        if (sourceArtifactIds.Length == 0)
+        {
+            global::System.Console.Error.WriteLine(
+                $"No classified evidence found for claim issue: {claimIssueId.Value}");
+
+            return 1;
+        }
+
+        var runtime =
+            await runtimeFactory();
+
+        var intelligence =
+            VeteransEvidenceOrchestrationFactory
+                .CreateReviewerPackageIntelligenceService(
+                    runtime.TextSummarizationCapabilityExecutor);
+
+        var result =
+            await intelligence.SummarizeAsync(
+                details,
+                new IntelligenceExecutionContext(
+                    runtime.SubjectId,
+                    new IntelligenceCorrelationId(
+                        $"veterans-{Guid.NewGuid():N}"),
+                    runtime.ClassificationId,
+                    sourceArtifactIds));
+
+        if (!result.Success)
+        {
+            global::System.Console.Error.WriteLine(
+                result.Message ??
+                "Reviewer package summarization failed.");
+
+            return 1;
+        }
+
+        var prepared =
+            await VeteransReviewerPackagePublisher.PublishAsync(
+                databasePath,
+                claimIssueId,
+                "Physician reviewer package",
+                "MedicalProfessional",
+                $"Claim issue {claimIssueId.Value} reviewer summary",
+                runtime.SubjectId,
+                Environment.GetEnvironmentVariable(
+                    "EMF_REVIEWED_BY")!,
+                DateTimeOffset.UtcNow,
+                result);
+
+        global::System.Console.WriteLine(
+            result.Output);
+
+        global::System.Console.WriteLine(
+            $"Summary Artifact ID : {prepared.SummaryArtifact.Id.Value}");
+
+        global::System.Console.WriteLine(
+            $"Package ID          : {prepared.Package.Id.Value}");
+
+        return 0;
+    }
+
+    private static ClaimIssueAdjudicationDetailsService
+        CreateAdjudicationDetailsService(
             string databasePath)
     {
         var issues =
             new SqliteClaimIssueRepository(databasePath);
-
-        var conditions =
-            new SqliteConditionRepository(databasePath);
 
         var serviceConnections =
             new SqliteServiceConnectionRepository(databasePath);
@@ -735,57 +852,52 @@ public static class VeteransConsoleCommand
         var gaps =
             new SqliteEvidenceGapRepository(databasePath);
 
-        var guidance =
-            new SqliteEvidenceRequirementGuidanceRepository(
-                databasePath);
-
-        var classifications =
-            new SqliteEvidenceClassificationRepository(
-                databasePath);
-
         var requirementEvidence =
             new RequirementEvidenceService(
-                classifications,
-                guidance);
-
-        var checklist =
-            new ClaimIssueEvidenceChecklistService(
-                gaps,
-                requirementEvidence);
-
-        var plans =
-            new EvidenceDevelopmentPlanService(
-                new SqliteEvidenceDevelopmentPlanRepository(
+                new SqliteEvidenceClassificationRepository(
                     databasePath),
-                gaps);
+                new SqliteEvidenceRequirementGuidanceRepository(
+                    databasePath));
 
         var evidence =
             new ClaimIssueEvidenceDetailsService(
                 issues,
-                checklist,
-                plans);
-
-        var lifecycle =
-            new ClaimIssueAdjudicationLifecycleService(
-                new SqliteVaDecisionRepository(databasePath),
-                new SqliteSubmissionRepository(databasePath));
+                new ClaimIssueEvidenceChecklistService(
+                    gaps,
+                    requirementEvidence),
+                new EvidenceDevelopmentPlanService(
+                    new SqliteEvidenceDevelopmentPlanRepository(
+                        databasePath),
+                    gaps));
 
         var timeline =
             new ClaimIssueAdjudicationTimelineService(
-                lifecycle,
+                new ClaimIssueAdjudicationLifecycleService(
+                    new SqliteVaDecisionRepository(databasePath),
+                    new SqliteSubmissionRepository(databasePath)),
                 new SqliteClaimIssueCourtAppealRepository(
                     databasePath));
 
+        return new ClaimIssueAdjudicationDetailsService(
+            issues,
+            new SqliteConditionRepository(databasePath),
+            serviceConnections,
+            new SqliteServiceHistoryRepository(databasePath),
+            regulatory,
+            requirementEvidence,
+            evidence,
+            timeline);
+    }
+
+    private static ClaimIssueAdjudicationAssessmentService
+        CreateAdjudicationAssessmentService(
+            string databasePath)
+    {
+        var serviceConnections =
+            new SqliteServiceConnectionRepository(databasePath);
+
         var details =
-            new ClaimIssueAdjudicationDetailsService(
-                issues,
-                conditions,
-                serviceConnections,
-                new SqliteServiceHistoryRepository(databasePath),
-                regulatory,
-                requirementEvidence,
-                evidence,
-                timeline);
+            CreateAdjudicationDetailsService(databasePath);
 
         var merits =
             new ClaimIssueMeritsAssessmentService(
@@ -1786,6 +1898,10 @@ public static class VeteransConsoleCommand
 
         global::System.Console.WriteLine(
             "       emf veterans evidence checklist " +
+            "<database-path> <claim-issue-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence reviewer " +
             "<database-path> <claim-issue-id>");
 
         global::System.Console.WriteLine(
