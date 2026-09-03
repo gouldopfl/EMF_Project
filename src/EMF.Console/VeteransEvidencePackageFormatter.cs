@@ -53,7 +53,9 @@ internal static class VeteransEvidencePackageFormatter
         foreach (var content in details.ArtifactContents)
         {
             lines.Add(string.Empty);
-            lines.Add("Artifact Content:");
+            lines.Add(
+                $"Artifact Content: {content.Artifact.Name} " +
+                $"[{content.Artifact.Id.Value}]");
             lines.Add(content.Text);
         }
 

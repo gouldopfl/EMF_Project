@@ -127,7 +127,7 @@ public sealed class VeteransEvidencePackageFormatterTests
                 "Artifact Details:",
                 "- source-1: Sleep Study [medical-record]",
                 "",
-                "Artifact Content:",
+                "Artifact Content: Sleep Study [source-1]",
                 "Severe obstructive sleep apnea documented."
             ],
             VeteransEvidencePackageFormatter.Format(details));
