@@ -33,8 +33,16 @@ public sealed class ClaimAdjudicationAssessmentService
         if (claim is null)
             return null;
 
+        if (claim.Id != claimId)
+            throw new InvalidOperationException(
+                "Claim lookup returned a different claim.");
+
         var issues =
             await _issues.GetClaimIssuesAsync(claimId, cancellationToken);
+
+        if (issues.Any(x => x.ClaimId != claimId))
+            throw new InvalidOperationException(
+                "Claim lookup returned an issue for a different claim.");
 
         var assessments =
             new List<ClaimIssueAdjudicationAssessment>();
@@ -49,6 +57,14 @@ public sealed class ClaimAdjudicationAssessmentService
                 throw new InvalidOperationException(
                     "Claim issue adjudication assessment could not be read.");
             }
+
+            if (assessment.Details.ClaimIssue.Id != issue.Id)
+                throw new InvalidOperationException(
+                    "Claim issue assessment identity mismatch.");
+
+            if (assessment.Details.ClaimIssue.ClaimId != claimId)
+                throw new InvalidOperationException(
+                    "Claim issue assessment claim ownership mismatch.");
 
             assessments.Add(assessment);
         }

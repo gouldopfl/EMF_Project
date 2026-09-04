@@ -407,6 +407,128 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public async Task GetAsync_RejectsReturnedDifferentClaim()
+    {
+        var requestedId = new ClaimId("claim-requested");
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(
+                    new Claim
+                    {
+                        Id = new ClaimId("claim-other"),
+                        VeteranId = new VeteranId("veteran-1")
+                    }),
+                new FakeClaimIssueRepository(),
+                new FakeIssueAssessmentService());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(requestedId));
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsIssueForDifferentClaim()
+    {
+        var claimId = new ClaimId("claim-1");
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-1"),
+                ClaimId = new ClaimId("claim-other"),
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(
+                    new Claim
+                    {
+                        Id = claimId,
+                        VeteranId = new VeteranId("veteran-1")
+                    }),
+                new FakeClaimIssueRepository(issue),
+                new FakeIssueAssessmentService());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(claimId));
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsAssessmentForDifferentIssue()
+    {
+        var claimId = new ClaimId("claim-1");
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-1"),
+                ClaimId = claimId,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var otherIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-other"),
+                ClaimId = claimId,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(
+                    new Claim
+                    {
+                        Id = claimId,
+                        VeteranId = new VeteranId("veteran-1")
+                    }),
+                new FakeClaimIssueRepository(issue),
+                new FixedIssueAssessmentService(
+                    CreateAssessment(otherIssue, false, false)));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(claimId));
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsAssessmentForDifferentClaim()
+    {
+        var claimId = new ClaimId("claim-1");
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-1"),
+                ClaimId = claimId,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var wrongParent =
+            new ClaimIssue
+            {
+                Id = issue.Id,
+                ClaimId = new ClaimId("claim-other"),
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+        var service =
+            new ClaimAdjudicationAssessmentService(
+                new FakeClaimRepository(
+                    new Claim
+                    {
+                        Id = claimId,
+                        VeteranId = new VeteranId("veteran-1")
+                    }),
+                new FakeClaimIssueRepository(issue),
+                new FixedIssueAssessmentService(
+                    CreateAssessment(wrongParent, false, false)));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(claimId));
+    }
+
     private static ClaimIssueDecisionReviewAnalysis CreateReviewAnalysis(
         ClaimIssue issue,
         ClaimIssueDecisionRecommendation recommendation)
@@ -940,6 +1062,22 @@ public sealed class ClaimAdjudicationAssessmentServiceTests
             ClaimIssue issue,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class FixedIssueAssessmentService :
+        IClaimIssueAdjudicationAssessmentService
+    {
+        private readonly ClaimIssueAdjudicationAssessment _assessment;
+
+        public FixedIssueAssessmentService(
+            ClaimIssueAdjudicationAssessment assessment) =>
+            _assessment = assessment;
+
+        public Task<ClaimIssueAdjudicationAssessment?> GetAsync(
+            ClaimIssueId id,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<ClaimIssueAdjudicationAssessment?>(
+                _assessment);
     }
 
     private sealed class FakeIssueAssessmentService :
