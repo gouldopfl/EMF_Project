@@ -79,6 +79,40 @@ public sealed class AzureEnvelopeEncryptionServiceTests
 
 
     [Fact]
+    public async Task DecryptAsync_RejectsWrongReturnedKeyIdentity()
+    {
+        var cryptography =
+            new FakeCryptography();
+
+        var encryptingService =
+            new AzureEnvelopeEncryptionService(
+                new FakeKeyProvider(
+                    new AzureKeyReference
+                    {
+                        KeyName = "emf-key",
+                        KeyVersion = "v1"
+                    }),
+                new FakeFactory(cryptography));
+
+        var envelope =
+            await encryptingService.EncryptAsync(
+                Encoding.UTF8.GetBytes("protected"));
+
+        var decryptingService =
+            new AzureEnvelopeEncryptionService(
+                new FakeKeyProvider(
+                    new AzureKeyReference
+                    {
+                        KeyName = "emf-key",
+                        KeyVersion = "v2"
+                    }),
+                new FakeFactory(cryptography));
+
+        await Assert.ThrowsAsync<CryptographicException>(
+            () => decryptingService.DecryptAsync(envelope));
+    }
+
+    [Fact]
     public async Task DecryptWithContextAsync_RejectsWrongContext()
     {
         var keyReference = new AzureKeyReference

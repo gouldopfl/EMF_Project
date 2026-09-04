@@ -152,6 +152,19 @@ public sealed class AzureEnvelopeEncryptionService :
         if (keyReference is null)
             throw new CryptographicException("Encryption key not found.");
 
+        if (!string.Equals(
+                keyReference.KeyName,
+                parts[0],
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                keyReference.KeyVersion,
+                parts[1],
+                StringComparison.Ordinal))
+        {
+            throw new CryptographicException(
+                "Encryption key identity mismatch.");
+        }
+
         var cryptography =
             _cryptographyFactory.Create(keyReference);
 
