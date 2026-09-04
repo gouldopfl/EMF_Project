@@ -9,6 +9,122 @@ namespace EMF.Tests;
 public sealed class ClaimIssueEvidenceDetailsServiceTests
 {
     [Fact]
+    public async Task GetAsync_RejectsReturnedDifferentClaimIssue()
+    {
+        var requestedId =
+            new ClaimIssueId("issue-requested");
+
+        var returnedIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-other"),
+                ClaimId = new ClaimId("claim-1"),
+                ClaimIssueType = "ServiceConnection"
+            };
+
+        var service =
+            new ClaimIssueEvidenceDetailsService(
+                new FakeIssueRepository(returnedIssue),
+                new FakeChecklistService(
+                    new ClaimIssueEvidenceChecklist
+                    {
+                        ClaimIssueId = requestedId,
+                        RequirementChecklists = []
+                    }),
+                new FakePlanService([]));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(requestedId));
+
+        Assert.Equal(
+            "Claim issue lookup returned a different issue.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsChecklistForDifferentClaimIssue()
+    {
+        var issueId =
+            new ClaimIssueId("issue-1");
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = issueId,
+                ClaimId = new ClaimId("claim-1"),
+                ClaimIssueType = "ServiceConnection"
+            };
+
+        var checklist =
+            new ClaimIssueEvidenceChecklist
+            {
+                ClaimIssueId =
+                    new ClaimIssueId("issue-other"),
+                RequirementChecklists = []
+            };
+
+        var service =
+            new ClaimIssueEvidenceDetailsService(
+                new FakeIssueRepository(issue),
+                new FakeChecklistService(checklist),
+                new FakePlanService([]));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Evidence checklist claim issue mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsPlanForDifferentClaimIssue()
+    {
+        var issueId =
+            new ClaimIssueId("issue-1");
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = issueId,
+                ClaimId = new ClaimId("claim-1"),
+                ClaimIssueType = "ServiceConnection"
+            };
+
+        var checklist =
+            new ClaimIssueEvidenceChecklist
+            {
+                ClaimIssueId = issueId,
+                RequirementChecklists = []
+            };
+
+        var plan =
+            new EvidenceDevelopmentPlan
+            {
+                Id = new EvidenceDevelopmentPlanId("plan-1"),
+                ClaimIssueId =
+                    new ClaimIssueId("issue-other"),
+                Description = "Develop evidence."
+            };
+
+        var service =
+            new ClaimIssueEvidenceDetailsService(
+                new FakeIssueRepository(issue),
+                new FakeChecklistService(checklist),
+                new FakePlanService([plan]));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Evidence development plan claim issue mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task GetAsync_ComposesEvidenceDetails()
     {
         var issueId = new ClaimIssueId("issue-001");

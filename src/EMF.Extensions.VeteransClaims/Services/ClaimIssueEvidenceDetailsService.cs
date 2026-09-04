@@ -38,17 +38,33 @@ public sealed class ClaimIssueEvidenceDetailsService :
         if (issue is null)
             return null;
 
+        if (issue.Id != claimIssueId)
+            throw new InvalidOperationException(
+                "Claim issue lookup returned a different issue.");
+
+        var checklist =
+            await _checklist.CreateChecklistAsync(
+                claimIssueId,
+                cancellationToken);
+
+        if (checklist.ClaimIssueId != claimIssueId)
+            throw new InvalidOperationException(
+                "Evidence checklist claim issue mismatch.");
+
+        var plans =
+            await _plans.GetEvidenceDevelopmentPlansAsync(
+                claimIssueId,
+                cancellationToken);
+
+        if (plans.Any(x => x.ClaimIssueId != claimIssueId))
+            throw new InvalidOperationException(
+                "Evidence development plan claim issue mismatch.");
+
         return new ClaimIssueEvidenceDetails
         {
             ClaimIssue = issue,
-            Checklist =
-                await _checklist.CreateChecklistAsync(
-                    claimIssueId,
-                    cancellationToken),
-            DevelopmentPlans =
-                await _plans.GetEvidenceDevelopmentPlansAsync(
-                    claimIssueId,
-                    cancellationToken)
+            Checklist = checklist,
+            DevelopmentPlans = plans
         };
     }
 }
