@@ -242,6 +242,75 @@ public sealed class EvidenceDevelopmentPlanServiceTests
     }
 
     [Fact]
+    public async Task GetEvidenceDevelopmentPlanAsync_RejectsExecutionForDifferentPlan()
+    {
+        var planId = new EvidenceDevelopmentPlanId("plan-requested");
+        var otherPlanId = new EvidenceDevelopmentPlanId("plan-other");
+
+        var service = new EvidenceDevelopmentPlanService(
+            new StubRepository(
+                new EvidenceDevelopmentPlan
+                {
+                    Id = planId,
+                    ClaimIssueId = new ClaimIssueId("issue-001"),
+                    Description = "Develop evidence."
+                },
+                executionPlanId: otherPlanId));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetEvidenceDevelopmentPlanAsync(planId));
+
+        Assert.Contains(planId.Value, ex.Message);
+        Assert.Contains(otherPlanId.Value, ex.Message);
+    }
+
+    [Fact]
+    public async Task GetEvidenceDevelopmentPlanAsync_RejectsExecutionForDifferentGap()
+    {
+        var planId = new EvidenceDevelopmentPlanId("plan-requested");
+        var otherGapId = new EvidenceGapId("gap-other");
+
+        var service = new EvidenceDevelopmentPlanService(
+            new StubRepository(
+                new EvidenceDevelopmentPlan
+                {
+                    Id = planId,
+                    ClaimIssueId = new ClaimIssueId("issue-001"),
+                    Description = "Develop evidence."
+                },
+                executionGapId: otherGapId));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetEvidenceDevelopmentPlanAsync(planId));
+
+        Assert.Contains("gap-001", ex.Message);
+        Assert.Contains(otherGapId.Value, ex.Message);
+    }
+
+    [Fact]
+    public async Task GetEvidenceDevelopmentPlanAsync_RejectsResultForDifferentGap()
+    {
+        var planId = new EvidenceDevelopmentPlanId("plan-requested");
+        var otherGapId = new EvidenceGapId("gap-other");
+
+        var service = new EvidenceDevelopmentPlanService(
+            new StubRepository(
+                new EvidenceDevelopmentPlan
+                {
+                    Id = planId,
+                    ClaimIssueId = new ClaimIssueId("issue-001"),
+                    Description = "Develop evidence."
+                },
+                resultGapId: otherGapId));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetEvidenceDevelopmentPlanAsync(planId));
+
+        Assert.Contains("gap-001", ex.Message);
+        Assert.Contains(otherGapId.Value, ex.Message);
+    }
+
+    [Fact]
     public async Task GetEvidenceDevelopmentPlanAsync_ReturnsNullWhenPlanDoesNotExist()
     {
         var service =
@@ -492,17 +561,26 @@ public sealed class EvidenceDevelopmentPlanServiceTests
         private readonly EvidenceDevelopmentPlanId? _evidenceGapPlanId;
         private readonly EvidenceDevelopmentPlanId? _requirementPlanId;
         private readonly EvidenceDevelopmentPlanId? _artifactPlanId;
+        private readonly EvidenceDevelopmentPlanId? _executionPlanId;
+        private readonly EvidenceGapId? _executionGapId;
+        private readonly EvidenceGapId? _resultGapId;
 
         public StubRepository(
             EvidenceDevelopmentPlan plan,
             EvidenceDevelopmentPlanId? evidenceGapPlanId = null,
             EvidenceDevelopmentPlanId? requirementPlanId = null,
-            EvidenceDevelopmentPlanId? artifactPlanId = null)
+            EvidenceDevelopmentPlanId? artifactPlanId = null,
+            EvidenceDevelopmentPlanId? executionPlanId = null,
+            EvidenceGapId? executionGapId = null,
+            EvidenceGapId? resultGapId = null)
         {
             _plan = plan;
             _evidenceGapPlanId = evidenceGapPlanId;
             _requirementPlanId = requirementPlanId;
             _artifactPlanId = artifactPlanId;
+            _executionPlanId = executionPlanId;
+            _executionGapId = executionGapId;
+            _resultGapId = resultGapId;
         }
 
         public Task<EvidenceDevelopmentPlan?>
@@ -568,8 +646,10 @@ public sealed class EvidenceDevelopmentPlanServiceTests
             Task.FromResult<EvidenceDevelopmentExecution?>(
                 new EvidenceDevelopmentExecution
                 {
-                    EvidenceDevelopmentPlanId = planId,
-                    EvidenceGapId = evidenceGapId,
+                    EvidenceDevelopmentPlanId =
+                        _executionPlanId ?? planId,
+                    EvidenceGapId =
+                        _executionGapId ?? evidenceGapId,
                     WorkflowId =
                         new EMF.Core.Models.Identities.WorkflowId(
                             "workflow-001")
@@ -582,7 +662,8 @@ public sealed class EvidenceDevelopmentPlanServiceTests
             Task.FromResult<EvidenceDevelopmentResult?>(
                 new EvidenceDevelopmentResult
                 {
-                    EvidenceGapId = evidenceGapId,
+                    EvidenceGapId =
+                        _resultGapId ?? evidenceGapId,
                     RequirementId =
                         new RequirementId("requirement-001"),
                     EvidenceGuidance = []

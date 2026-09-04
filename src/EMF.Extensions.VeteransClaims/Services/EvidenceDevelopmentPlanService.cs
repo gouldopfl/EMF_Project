@@ -181,7 +181,23 @@ public sealed class EvidenceDevelopmentPlanService :
                     cancellationToken);
 
             if (execution is not null)
+            {
+                if (execution.EvidenceDevelopmentPlanId != planId)
+                {
+                    throw new InvalidOperationException(
+                        $"Plan '{planId.Value}' returned execution for plan " +
+                        $"'{execution.EvidenceDevelopmentPlanId.Value}'.");
+                }
+
+                if (execution.EvidenceGapId != evidenceGap.EvidenceGapId)
+                {
+                    throw new InvalidOperationException(
+                        $"Gap '{evidenceGap.EvidenceGapId.Value}' returned " +
+                        $"execution for gap '{execution.EvidenceGapId.Value}'.");
+                }
+
                 executions.Add(execution);
+            }
 
             var result =
                 await _repository.GetEvidenceDevelopmentResultAsync(
@@ -189,7 +205,16 @@ public sealed class EvidenceDevelopmentPlanService :
                     cancellationToken);
 
             if (result is not null)
+            {
+                if (result.EvidenceGapId != evidenceGap.EvidenceGapId)
+                {
+                    throw new InvalidOperationException(
+                        $"Gap '{evidenceGap.EvidenceGapId.Value}' returned " +
+                        $"result for gap '{result.EvidenceGapId.Value}'.");
+                }
+
                 results.Add(result);
+            }
         }
 
         var details = new EvidenceDevelopmentPlanDetails
