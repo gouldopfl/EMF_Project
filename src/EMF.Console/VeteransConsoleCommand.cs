@@ -231,6 +231,27 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 5 &&
+            args[0] == "evidence" &&
+            args[1] == "package")
+        {
+            var packageDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(packageDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {packageDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunEvidencePackageDocxAsync(
+                packageDatabasePath,
+                new EvidencePackageId(args[3]),
+                args[4]);
+        }
+
         if (args.Length == 4 &&
             args[0] == "evidence" &&
             args[1] == "plan")
@@ -1978,6 +1999,10 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence package " +
             "<database-path> <package-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence package " +
+            "<database-path> <package-id> <output.docx>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence prepare " +

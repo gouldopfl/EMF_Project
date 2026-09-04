@@ -219,3 +219,69 @@ public sealed partial class VeteransEvidencePackageConsoleTests
     }
 }
 
+
+public sealed partial class VeteransEvidencePackageConsoleTests
+{
+    [Fact]
+    public async Task EvidencePackage_WritesDocxFromCommand()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-package-{Guid.NewGuid():N}.db");
+
+        var outputPath =
+            Path.ChangeExtension(
+                databasePath,
+                ".docx");
+
+        try
+        {
+            var issueId =
+                await SeedClaimIssueAsync(
+                    databasePath);
+
+            var packages =
+                new SqliteEvidencePackageRepository(
+                    databasePath);
+
+            var package =
+                new EvidencePackage
+                {
+                    Id =
+                        new EvidencePackageId(
+                            "package-docx-1"),
+                    ClaimIssueId = issueId,
+                    Purpose = "Medical review",
+                    ReviewerRole = "MedicalProfessional"
+                };
+
+            await packages.AddEvidencePackageAsync(
+                package,
+                []);
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "package",
+                        databasePath,
+                        package.Id.Value,
+                        outputPath
+                    ]);
+
+            Assert.Equal(0, exitCode);
+            Assert.True(File.Exists(outputPath));
+            Assert.True(
+                new FileInfo(outputPath).Length > 0);
+        }
+        finally
+        {
+            if (File.Exists(outputPath))
+                File.Delete(outputPath);
+
+            if (File.Exists(databasePath))
+                File.Delete(databasePath);
+        }
+    }
+}
