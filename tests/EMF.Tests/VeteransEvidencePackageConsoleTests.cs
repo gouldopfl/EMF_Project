@@ -80,6 +80,39 @@ public sealed partial class VeteransEvidencePackageConsoleTests
         var packageId =
             new EvidencePackageId("package-1");
 
+        var evidence =
+            new SqliteEvidenceRepository(databasePath);
+
+        await evidence.InitializeAsync();
+
+        await evidence.AddArtifactAsync(
+            new Artifact
+            {
+                Id = new ArtifactId("source-1"),
+                Name = "Sleep Study",
+                ArtifactType = "text-summary",
+                Metadata =
+                    new Dictionary<string, object>
+                    {
+                        ["summary"] =
+                            "Severe obstructive sleep apnea documented."
+                    }
+            });
+
+        await evidence.AddArtifactAsync(
+            new Artifact
+            {
+                Id = new ArtifactId("summary-1"),
+                Name = "Reviewer Summary",
+                ArtifactType = "text-summary",
+                Metadata =
+                    new Dictionary<string, object>
+                    {
+                        ["summary"] =
+                            "Generated reviewer summary."
+                    }
+            });
+
         await new SqliteEvidencePackageRepository(
                 databasePath)
             .AddEvidencePackageAsync(
@@ -143,7 +176,14 @@ public sealed partial class VeteransEvidencePackageConsoleTests
                     "Reviewer Role: MedicalProfessional",
                     "Artifacts: 2",
                     "- UnderlyingEvidence: source-1",
-                    "- GeneratedOrganizationalMaterial: summary-1"
+                    "- GeneratedOrganizationalMaterial: summary-1",
+                    "Artifact Details:",
+                    "- source-1: Sleep Study [text-summary]",
+                    "- summary-1: Reviewer Summary [text-summary]",
+                    "Artifact Content: Sleep Study [source-1]",
+                    "Severe obstructive sleep apnea documented.",
+                    "Artifact Content: Reviewer Summary [summary-1]",
+                    "Generated reviewer summary."
                 ],
                 output.ToString().Split(
                     Environment.NewLine,
@@ -304,25 +344,6 @@ public sealed partial class VeteransEvidencePackageConsoleTests
         {
             var packageId =
                 await SeedPackageAsync(databasePath);
-
-            var evidence =
-                new SqliteEvidenceRepository(databasePath);
-
-            await evidence.InitializeAsync();
-
-            await evidence.AddArtifactAsync(
-                new Artifact
-                {
-                    Id = new ArtifactId("source-1"),
-                    Name = "Sleep Study",
-                    ArtifactType = "text-summary",
-                    Metadata =
-                        new Dictionary<string, object>
-                        {
-                            ["summary"] =
-                                "Severe obstructive sleep apnea documented."
-                        }
-                });
 
             var classifications =
                 new SqliteEvidenceClassificationRepository(
