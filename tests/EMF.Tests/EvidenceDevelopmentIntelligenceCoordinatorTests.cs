@@ -120,6 +120,44 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
     }
 
     [Fact]
+    public async Task SummarizeAsync_RejectsResultForDifferentGap()
+    {
+        var repository =
+            new FakeDevelopmentRepository
+            {
+                Execution = new EvidenceDevelopmentExecution
+                {
+                    EvidenceDevelopmentPlanId =
+                        new EvidenceDevelopmentPlanId("plan-1"),
+                    EvidenceGapId =
+                        new EvidenceGapId("gap-1"),
+                    WorkflowId =
+                        new WorkflowId("workflow-1")
+                },
+                Result = new EvidenceDevelopmentResult
+                {
+                    EvidenceGapId =
+                        new EvidenceGapId("gap-other"),
+                    RequirementId =
+                        new RequirementId("req-1"),
+                    EvidenceGuidance = []
+                }
+            };
+
+        var coordinator =
+            new EvidenceDevelopmentIntelligenceCoordinator(
+                repository,
+                new FakeGapRepository(),
+                new FakeExecutor());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.SummarizeAsync(
+                new EvidenceDevelopmentPlanId("plan-1"),
+                new EvidenceGapId("gap-1"),
+                TestContext()));
+    }
+
+    [Fact]
     public async Task SummarizeAsync_FailsWhenGapIsMissing()
     {
         var repository =

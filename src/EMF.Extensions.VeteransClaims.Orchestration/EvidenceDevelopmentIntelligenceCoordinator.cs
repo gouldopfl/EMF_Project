@@ -71,6 +71,10 @@ internal sealed class EvidenceDevelopmentIntelligenceCoordinator :
                 "Evidence development result was not found.");
         }
 
+        if (developmentResult.EvidenceGapId != evidenceGapId)
+            throw new InvalidOperationException(
+                "Evidence development result identity mismatch.");
+
         var gap =
             await _gapRepository.GetEvidenceGapAsync(
                 evidenceGapId,
