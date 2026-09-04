@@ -1545,8 +1545,9 @@ public static class VeteransConsoleCommand
         if (!result.IntelligenceResult.Success)
         {
             global::System.Console.Error.WriteLine(
-                result.IntelligenceResult.Message ??
-                "VA decision document interpretation failed.");
+                ConsoleTextSanitizer.Sanitize(
+                    result.IntelligenceResult.Message ??
+                    "VA decision document interpretation failed."));
 
             return 1;
         }
@@ -1576,28 +1577,50 @@ public static class VeteransConsoleCommand
         {
             output.WriteLine();
             output.WriteLine(
-                $"Issue       : {issue.IssueDescription}");
+                ConsoleTextSanitizer.Sanitize(
+                    $"Issue       : {issue.IssueDescription}"));
 
             output.WriteLine(
                 $"Outcome     : {issue.Outcome}");
 
             output.WriteLine(
-                $"Rationale   : {issue.Rationale}");
+                ConsoleTextSanitizer.Sanitize(
+                    $"Rationale   : {issue.Rationale}"));
 
             foreach (var finding in issue.FavorableFindings)
-                output.WriteLine($"Favorable   : {finding}");
+            {
+                output.WriteLine(
+                    ConsoleTextSanitizer.Sanitize(
+                        $"Favorable   : {finding}"));
+            }
 
             foreach (var finding in issue.AdverseFindings)
-                output.WriteLine($"Adverse     : {finding}");
+            {
+                output.WriteLine(
+                    ConsoleTextSanitizer.Sanitize(
+                        $"Adverse     : {finding}"));
+            }
 
             foreach (var regulation in issue.CitedRegulations)
-                output.WriteLine($"Regulation  : {regulation}");
+            {
+                output.WriteLine(
+                    ConsoleTextSanitizer.Sanitize(
+                        $"Regulation  : {regulation}"));
+            }
 
             foreach (var evidence in issue.ReferencedEvidence)
-                output.WriteLine($"Evidence    : {evidence}");
+            {
+                output.WriteLine(
+                    ConsoleTextSanitizer.Sanitize(
+                        $"Evidence    : {evidence}"));
+            }
 
             foreach (var excerpt in issue.SourceExcerpts)
-                output.WriteLine($"Source      : {excerpt.Text}");
+            {
+                output.WriteLine(
+                    ConsoleTextSanitizer.Sanitize(
+                        $"Source      : {excerpt.Text}"));
+            }
         }
 
         return 0;
