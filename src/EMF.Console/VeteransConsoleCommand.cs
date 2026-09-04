@@ -314,7 +314,7 @@ public static class VeteransConsoleCommand
                 new EvidenceDevelopmentPlanId(args[3]));
         }
 
-        if (args.Length == 4 &&
+        if (args.Length is 4 or 5 &&
             args[0] == "evidence" &&
             args[1] == "reviewer")
         {
@@ -343,7 +343,10 @@ public static class VeteransConsoleCommand
             return await RunReviewerPackageAsync(
                 reviewerDatabasePath,
                 new ClaimIssueId(args[3]),
-                runtimeFactory);
+                runtimeFactory,
+                args.Length == 5
+                    ? Path.GetFullPath(args[4])
+                    : null);
         }
 
         var summarize =
@@ -772,7 +775,8 @@ public static class VeteransConsoleCommand
     private static async Task<int> RunReviewerPackageAsync(
         string databasePath,
         ClaimIssueId claimIssueId,
-        Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory)
+        Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory,
+        string? outputPath)
     {
         var details =
             await CreateAdjudicationDetailsService(databasePath)
@@ -853,6 +857,21 @@ public static class VeteransConsoleCommand
 
         global::System.Console.WriteLine(
             $"Package ID          : {prepared.Package.Id.Value}");
+
+        if (outputPath is null)
+            return 0;
+
+        var exportExitCode =
+            await RunEvidencePackageDocxAsync(
+                databasePath,
+                prepared.Package.Id,
+                outputPath);
+
+        if (exportExitCode != 0)
+            return exportExitCode;
+
+        global::System.Console.WriteLine(
+            $"Package DOCX        : {outputPath}");
 
         return 0;
     }
@@ -2007,6 +2026,10 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence reviewer " +
             "<database-path> <claim-issue-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence reviewer " +
+            "<database-path> <claim-issue-id> <output.docx>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence package " +

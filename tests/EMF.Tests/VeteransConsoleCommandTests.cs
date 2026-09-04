@@ -1,6 +1,7 @@
 using EMF.Persistence.Repositories;
 using EMF.Orchestration.Services;
 using EMF.ConsoleApplication;
+using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Claims;
@@ -1352,9 +1353,14 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
-    public async Task EvidenceReviewer_PersistsSummaryAndPackage()
+    public async Task EvidenceReviewer_PersistsSummaryPackageAndDocx()
     {
         var databasePath = Path.GetTempFileName();
+        var outputPath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"{Guid.NewGuid():N}.docx");
+
         var previous =
             Environment.GetEnvironmentVariable("EMF_REVIEWED_BY");
 
@@ -1397,6 +1403,25 @@ public sealed class VeteransConsoleCommandTests
             var sourceArtifactId =
                 new ArtifactId("artifact-reviewer-001");
 
+            var evidenceRepository =
+                new SqliteEvidenceRepository(databasePath);
+
+            await evidenceRepository.InitializeAsync();
+
+            await evidenceRepository.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = sourceArtifactId,
+                    Name = "Reviewer Source",
+                    ArtifactType = "text-summary",
+                    Metadata =
+                        new Dictionary<string, object>
+                        {
+                            ["summary"] =
+                                "Documented reviewer source evidence."
+                        }
+                });
+
             await new SqliteEvidenceClassificationRepository(
                     databasePath)
                 .AddEvidenceClassificationAsync(
@@ -1416,7 +1441,8 @@ public sealed class VeteransConsoleCommandTests
                         "evidence",
                         "reviewer",
                         databasePath,
-                        issue.Id.Value
+                        issue.Id.Value,
+                        outputPath
                     ],
                     () => Task.FromResult(
                         new TextSummarizationConsoleRuntime
@@ -1433,6 +1459,8 @@ public sealed class VeteransConsoleCommandTests
                         }));
 
             Assert.Equal(0, exitCode);
+            Assert.True(File.Exists(outputPath));
+            Assert.True(new FileInfo(outputPath).Length > 0);
 
             var expectedArtifact =
                 new TextSummaryEvidenceArtifactFactory()
@@ -1440,9 +1468,6 @@ public sealed class VeteransConsoleCommandTests
                         "Veterans evidence summary.",
                         $"Claim issue {issue.Id.Value} reviewer summary",
                         DateTimeOffset.UtcNow);
-
-            var evidenceRepository =
-                new SqliteEvidenceRepository(databasePath);
 
             var stored =
                 await evidenceRepository.GetArtifactAsync(
@@ -1510,6 +1535,7 @@ public sealed class VeteransConsoleCommandTests
                 previous);
 
             File.Delete(databasePath);
+            File.Delete(outputPath);
         }
     }
 
