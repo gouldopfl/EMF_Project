@@ -13,6 +13,46 @@ namespace EMF.Tests;
 public sealed class VaDecisionDocumentCoordinatorTests
 {
     [Fact]
+    public async Task ProcessAsync_RejectsClaimIssueForDifferentClaim()
+    {
+        var claimId = new ClaimId("claim-1");
+        var issueId = new ClaimIssueId("issue-1");
+
+        var coordinator =
+            CreateCoordinator(
+                claimId,
+                issueId,
+                new RecordingVaDecisionRepository(),
+                returnedClaimId:
+                    new ClaimId("claim-other"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.ProcessAsync(
+                claimId,
+                CreateInterpretation("Sleep apnea")));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RejectsConditionForDifferentIssue()
+    {
+        var claimId = new ClaimId("claim-1");
+        var issueId = new ClaimIssueId("issue-1");
+
+        var coordinator =
+            CreateCoordinator(
+                claimId,
+                issueId,
+                new RecordingVaDecisionRepository(),
+                returnedConditionIssueId:
+                    new ClaimIssueId("issue-other"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.ProcessAsync(
+                claimId,
+                CreateInterpretation("Sleep apnea")));
+    }
+
+    [Fact]
     public async Task ProcessAsync_PersistsFullyMatchedDocument()
     {
         var claimId = new ClaimId("claim-1");
@@ -453,7 +493,9 @@ public sealed class VaDecisionDocumentCoordinatorTests
             ClaimIssueId? thirdIssueId = null,
             string? thirdConditionName = null,
             RecordingProcessingAttemptRepository? attempts = null,
-            TimeProvider? timeProvider = null)
+            TimeProvider? timeProvider = null,
+              ClaimId? returnedClaimId = null,
+              ClaimIssueId? returnedConditionIssueId = null)
     {
         var persistence =
             new VaDecisionDocumentPersistenceService(
@@ -463,7 +505,7 @@ public sealed class VaDecisionDocumentCoordinatorTests
 
         return new VaDecisionDocumentCoordinator(
             new StubClaimIssueRepository(
-                claimId,
+                  returnedClaimId ?? claimId,
                 thirdIssueId is not null
                     ? [issueId, secondIssueId!.Value, thirdIssueId.Value]
                     : secondIssueId is not null
@@ -474,7 +516,8 @@ public sealed class VaDecisionDocumentCoordinatorTests
                 secondIssueId,
                 secondConditionName,
                 thirdIssueId,
-                thirdConditionName),
+                thirdConditionName,
+                  returnedConditionIssueId),
             new VaDecisionDocumentIssueMatchingService(
                 new VaDecisionDocumentIssueMatcher()),
             persistence,
@@ -543,7 +586,8 @@ public sealed class VaDecisionDocumentCoordinatorTests
             ClaimIssueId? secondIssueId = null,
             string? secondConditionName = null,
             ClaimIssueId? thirdIssueId = null,
-            string? thirdConditionName = null) =>
+            string? thirdConditionName = null,
+              ClaimIssueId? returnedIssueId = null) =>
         Proxy<IConditionRepository>(
             (method, args) =>
             {
@@ -561,7 +605,8 @@ public sealed class VaDecisionDocumentCoordinatorTests
                                     new ClaimedConditionId(
                                         "condition-1"),
                                 ClaimIssueId =
-                                    (ClaimIssueId)args![0]!,
+                                      returnedIssueId ??
+                                      (ClaimIssueId)args![0]!,
                                 Name =
                                     thirdIssueId is not null &&
                                     (ClaimIssueId)args![0]! ==

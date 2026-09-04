@@ -54,6 +54,18 @@ public sealed class VaDecisionDocumentCoordinator
                 claimId,
                 cancellationToken);
 
+        var mismatchedIssue =
+            claimIssues.FirstOrDefault(
+                x => x.ClaimId != claimId);
+
+        if (mismatchedIssue is not null)
+        {
+            throw new InvalidOperationException(
+                $"Claim '{claimId.Value}' lookup returned claim issue " +
+                $"'{mismatchedIssue.Id.Value}' for claim " +
+                $"'{mismatchedIssue.ClaimId.Value}'.");
+        }
+
         var claimedConditions =
             new List<ClaimedCondition>();
 
@@ -63,6 +75,18 @@ public sealed class VaDecisionDocumentCoordinator
                 await _conditions.GetClaimedConditionsAsync(
                     issue.Id,
                     cancellationToken);
+
+            var mismatchedCondition =
+                conditions.FirstOrDefault(
+                    x => x.ClaimIssueId != issue.Id);
+
+            if (mismatchedCondition is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Claim issue '{issue.Id.Value}' lookup returned " +
+                    $"condition '{mismatchedCondition.Id.Value}' for issue " +
+                    $"'{mismatchedCondition.ClaimIssueId.Value}'.");
+            }
 
             claimedConditions.AddRange(conditions);
         }
