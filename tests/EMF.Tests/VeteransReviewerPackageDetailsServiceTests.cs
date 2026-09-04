@@ -87,7 +87,7 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
     }
 
     [Fact]
-    public async Task GetAsync_SkipsMissingArtifacts()
+    public async Task GetAsync_RejectsMissingArtifacts()
     {
         var packageId = new EvidencePackageId("package-1");
         var existing = CreateArtifact("artifact-1");
@@ -106,10 +106,17 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
                 },
                 evidence);
 
-        var result = await service.GetAsync(packageId);
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(packageId));
 
-        Assert.NotNull(result);
-        Assert.Same(existing, Assert.Single(result.Artifacts));
+        Assert.Contains(
+            packageId.Value,
+            exception.Message);
+
+        Assert.Contains(
+            "missing",
+            exception.Message);
     }
 
     [Theory]

@@ -83,7 +83,11 @@ public sealed class VeteransReviewerPackageDetailsService
                     cancellationToken);
 
             if (artifact is null)
-                continue;
+            {
+                throw new InvalidOperationException(
+                    $"Evidence package '{packageId.Value}' references " +
+                    $"missing artifact '{packageArtifact.ArtifactId.Value}'.");
+            }
 
             artifacts.Add(artifact);
 
