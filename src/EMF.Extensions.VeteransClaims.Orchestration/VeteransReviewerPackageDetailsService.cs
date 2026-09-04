@@ -133,10 +133,17 @@ public sealed class VeteransReviewerPackageDetailsService
         if (_classifications is null)
             return null;
 
-        var appendixes =
-            (await _classifications.GetEvidenceClassificationsAsync(
+        var classifications =
+            await _classifications.GetEvidenceClassificationsAsync(
                 artifactId,
-                cancellationToken))
+                cancellationToken);
+
+        if (classifications.Any(x => x.ArtifactId != artifactId))
+            throw new InvalidOperationException(
+                $"Artifact '{artifactId.Value}' classification lookup returned a different artifact.");
+
+        var appendixes =
+            classifications
             .Select(x =>
                 VeteransReviewerPackageAppendix.GetAppendix(
                     x.Classification))

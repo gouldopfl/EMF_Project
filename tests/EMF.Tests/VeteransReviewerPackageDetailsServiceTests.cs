@@ -314,6 +314,8 @@ file sealed class RecordingClassificationRepository :
     public IReadOnlyList<EvidenceClassification>
         ExistingClassifications { get; init; } = [];
 
+    public bool ReturnAll { get; init; }
+
     public Task AddEvidenceClassificationAsync(
         EvidenceClassification classification,
         CancellationToken cancellationToken = default) =>
@@ -328,10 +330,12 @@ file sealed class RecordingClassificationRepository :
         GetEvidenceClassificationsAsync(
             ArtifactId artifactId,
             CancellationToken cancellationToken = default) =>
-        Task.FromResult(
-            ExistingClassifications
-                .Where(x => x.ArtifactId == artifactId)
-                .ToArray() as IReadOnlyList<EvidenceClassification>);
+        Task.FromResult<IReadOnlyList<EvidenceClassification>>(
+            ReturnAll
+                ? ExistingClassifications
+                : ExistingClassifications
+                    .Where(x => x.ArtifactId == artifactId)
+                    .ToArray());
 
     public Task<EvidenceClassification?> FindEvidenceClassificationAsync(
         ArtifactId artifactId,
@@ -366,6 +370,42 @@ file sealed class RecordingClassificationRepository :
 
 public sealed partial class VeteransReviewerPackageDetailsServiceTests
 {
+    [Fact]
+    public async Task GetAsync_RejectsClassificationForDifferentArtifact()
+    {
+        var packageId = new EvidencePackageId("package-1");
+        var artifact = CreateArtifact("artifact-1");
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var classifications = new RecordingClassificationRepository
+        {
+            ReturnAll = true,
+            ExistingClassifications =
+            [
+                new EvidenceClassification
+                {
+                    Id = new EvidenceClassificationId("classification-wrong"),
+                    ArtifactId = new ArtifactId("artifact-other"),
+                    ClaimIssueId = new ClaimIssueId("issue-1"),
+                    Classification = EvidenceClassifications.MedicalEvidence
+                }
+            ]
+        };
+
+        var service = new VeteransReviewerPackageDetailsService(
+            new RecordingPackageService
+            {
+                Details = CreateDetails(packageId, artifact.Id)
+            },
+            evidence,
+            classifications,
+            new RecordingTextExtractor("reviewable text"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(packageId));
+    }
+
     [Fact]
     public async Task GetAsync_RejectsConflictingAppendixes()
     {
