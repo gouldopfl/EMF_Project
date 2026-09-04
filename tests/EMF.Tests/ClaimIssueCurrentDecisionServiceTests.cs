@@ -141,6 +141,22 @@ public sealed class ClaimIssueCurrentDecisionServiceTests
             () => service.GetAsync(requestedIssueId));
     }
 
+    [Fact]
+    public async Task GetAsync_RejectsWrongVaDecisionIdentity()
+    {
+        var issueId = new ClaimIssueId("issue-1");
+        var decision = CreateDecision(
+            issueId, "issue-decision-1", "va-decision-1",
+            EMF.Extensions.VeteransClaims.Models.Adjudication
+                .IssueDecisionOutcomes.Denied);
+
+        var service = new ClaimIssueCurrentDecisionService(
+            new DecisionRepository("va-decision-other", decision));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(issueId));
+    }
+
     private static
         EMF.Extensions.VeteransClaims.Models.Adjudication.IssueDecision
         CreateDecision(
@@ -168,11 +184,20 @@ public sealed class ClaimIssueCurrentDecisionServiceTests
         private readonly IReadOnlyList<
             EMF.Extensions.VeteransClaims.Models.Adjudication.IssueDecision>
             _decisions;
+        private readonly string? _returnedId;
 
         public DecisionRepository(
             params EMF.Extensions.VeteransClaims.Models.Adjudication.IssueDecision[]
                 decisions)
         {
+            _decisions = decisions;
+        }
+
+        public DecisionRepository(
+            string returnedId,
+            params EMF.Extensions.VeteransClaims.Models.Adjudication.IssueDecision[] decisions)
+        {
+            _returnedId = returnedId;
             _decisions = decisions;
         }
 
@@ -203,7 +228,11 @@ public sealed class ClaimIssueCurrentDecisionServiceTests
                 EMF.Extensions.VeteransClaims.Models.Adjudication.VaDecision?>(
                 new EMF.Extensions.VeteransClaims.Models.Adjudication.VaDecision
                 {
-                    Id = id,
+                    Id =
+                        _returnedId is null
+                            ? id
+                            : new EMF.Extensions.VeteransClaims.Models.Identities
+                                .VaDecisionId(_returnedId),
                     DecisionDate =
                         id.Value == "va-decision-2"
                             ? new DateTimeOffset(

@@ -54,6 +54,10 @@ public sealed class ClaimIssueCurrentDecisionService
                     "VA decision could not be read.");
             }
 
+            if (vaDecision.Id != issueDecision.VaDecisionId)
+                throw new InvalidOperationException(
+                    "VA decision identity mismatch.");
+
             return new ClaimIssueCurrentDecision
             {
                 IssueDecision = issueDecision,
@@ -78,6 +82,10 @@ public sealed class ClaimIssueCurrentDecisionService
                 throw new InvalidOperationException(
                     "VA decision could not be read.");
             }
+
+            if (vaDecision.Id != issueDecision.VaDecisionId)
+                throw new InvalidOperationException(
+                    "VA decision identity mismatch.");
 
             resolved.Add(
                 (issueDecision, vaDecision));
