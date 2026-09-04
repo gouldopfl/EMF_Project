@@ -356,6 +356,51 @@ public sealed partial class EvidencePackageServiceTests
             artifact,
             Assert.Single(result.Artifacts));
     }
+
+    [Fact]
+    public async Task GetAsync_RejectsUnsupportedPersistedContentRole()
+    {
+        var package =
+            new EvidencePackage
+            {
+                Id = new EvidencePackageId("package-1"),
+                ClaimIssueId = new ClaimIssueId("issue-1"),
+                Purpose = "Medical review",
+                ReviewerRole = "MedicalProfessional"
+            };
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingPackage = package,
+                ExistingArtifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = package.Id,
+                        ArtifactId = new ArtifactId("artifact-1"),
+                        ContentRole = "UnsupportedRole"
+                    }
+                ]
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(package.Id));
+
+        Assert.Contains(
+            package.Id.Value,
+            exception.Message);
+
+        Assert.Contains(
+            "UnsupportedRole",
+            exception.Message);
+    }
 }
 
 public sealed partial class EvidencePackageServiceTests
