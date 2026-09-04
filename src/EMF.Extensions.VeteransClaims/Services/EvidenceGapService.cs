@@ -35,6 +35,19 @@ public sealed class EvidenceGapService : IEvidenceGapService
                 requirementId,
                 cancellationToken);
 
+        if (checklist.RequirementId != requirementId)
+        {
+            throw new InvalidOperationException(
+                "Evidence gap checklist requirement mismatch.");
+        }
+
+        if (checklist.Items.Any(
+            x => x.RequirementId != requirementId))
+        {
+            throw new InvalidOperationException(
+                "Evidence gap checklist item requirement mismatch.");
+        }
+
         if (!checklist.HasOutstandingItems)
             return null;
 

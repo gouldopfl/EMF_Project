@@ -9,6 +9,73 @@ namespace EMF.Tests;
 public sealed class EvidenceGapServiceTests
 {
     [Fact]
+    public async Task EnsureGapAsync_RejectsChecklistForDifferentRequirement()
+    {
+        var claimIssueId =
+            new ClaimIssueId("issue-1");
+
+        var requirementId =
+            new RequirementId("requirement-1");
+
+        var requirements =
+            new SatisfiedRequirementEvidenceService
+            {
+                ChecklistRequirementId =
+                    new RequirementId("requirement-other")
+            };
+
+        var service =
+            new EvidenceGapService(
+                new RecordingGapRepository(),
+                requirements,
+                new GuidIdGenerator());
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.EnsureGapAsync(
+                    claimIssueId,
+                    requirementId));
+
+        Assert.Equal(
+            "Evidence gap checklist requirement mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task EnsureGapAsync_RejectsChecklistItemForDifferentRequirement()
+    {
+        var claimIssueId =
+            new ClaimIssueId("issue-1");
+
+        var requirementId =
+            new RequirementId("requirement-1");
+
+        var requirements =
+            new SatisfiedRequirementEvidenceService
+            {
+                HasMissingEvidence = true,
+                ChecklistItemRequirementId =
+                    new RequirementId("requirement-other")
+            };
+
+        var service =
+            new EvidenceGapService(
+                new RecordingGapRepository(),
+                requirements,
+                new GuidIdGenerator());
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.EnsureGapAsync(
+                    claimIssueId,
+                    requirementId));
+
+        Assert.Equal(
+            "Evidence gap checklist item requirement mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task EnsureGapAsync_ReturnsNullWhenSatisfied()
     {
         var repository = new RecordingGapRepository();
@@ -182,6 +249,10 @@ public sealed class EvidenceGapServiceTests
     {
         public bool HasMissingEvidence { get; set; }
 
+        public RequirementId? ChecklistRequirementId { get; set; }
+
+        public RequirementId? ChecklistItemRequirementId { get; set; }
+
         public Task<EvidenceDevelopmentChecklist>
             CreateChecklistAsync(
                 RequirementId requirementId,
@@ -189,11 +260,14 @@ public sealed class EvidenceGapServiceTests
             Task.FromResult(
                 new EvidenceDevelopmentChecklist
                 {
-                    RequirementId = requirementId,
+                    RequirementId =
+                        ChecklistRequirementId ?? requirementId,
                     Items = HasMissingEvidence
                         ? [new EvidenceDevelopmentChecklistItem
                             {
-                                RequirementId = requirementId,
+                                RequirementId =
+                                    ChecklistItemRequirementId ??
+                                    requirementId,
                                 EvidenceClassification = "MedicalOpinion",
                                 GuidanceRole = "SupportsRequirement",
                                 Description = "Medical opinion evidence."
