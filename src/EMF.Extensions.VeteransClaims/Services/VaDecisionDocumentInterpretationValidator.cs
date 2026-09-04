@@ -37,11 +37,14 @@ public sealed class VaDecisionDocumentInterpretationValidator
 
         foreach (var issue in interpretation.IssueDecisions)
         {
-            ValidateIssue(issue);
+            ValidateIssue(
+                interpretation.ArtifactId,
+                issue);
         }
     }
 
     private static void ValidateIssue(
+        EMF.Core.Models.Identities.ArtifactId artifactId,
         VaIssueDecisionInterpretation issue)
     {
         ArgumentNullException.ThrowIfNull(issue);
@@ -70,6 +73,13 @@ public sealed class VaDecisionDocumentInterpretationValidator
 
         foreach (var excerpt in issue.SourceExcerpts)
         {
+            if (excerpt.ArtifactId != artifactId)
+            {
+                throw new InvalidOperationException(
+                    "A decision source excerpt must reference " +
+                    "the interpreted artifact.");
+            }
+
             ValidateExcerpt(excerpt);
         }
     }

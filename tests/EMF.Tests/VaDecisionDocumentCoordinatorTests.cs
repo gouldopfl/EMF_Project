@@ -614,7 +614,7 @@ public sealed class VaDecisionDocumentCoordinatorTests
                                         ? thirdConditionName ??
                                             "Sleep apnea"
                                         : secondIssueId is not null &&
-                                          (ClaimIssueId)args[0]! ==
+                                          (ClaimIssueId)args![0]! ==
                                               secondIssueId.Value
                                             ? secondConditionName ??
                                                 "Sleep apnea"

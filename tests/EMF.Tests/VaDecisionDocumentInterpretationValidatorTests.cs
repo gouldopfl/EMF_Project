@@ -88,6 +88,51 @@ public sealed class VaDecisionDocumentInterpretationValidatorTests
                     .Validate(interpretation));
     }
 
+    [Fact]
+    public void Validate_RejectsExcerptForDifferentArtifact()
+    {
+        var interpretation =
+            CreateInterpretation(
+                IssueDecisionOutcomes.Denied,
+                "Nexus was not established.");
+
+        var issue = interpretation.IssueDecisions.Single();
+
+        var mismatched =
+            new VaDecisionDocumentInterpretation
+            {
+                ArtifactId = interpretation.ArtifactId,
+                DecisionDate = interpretation.DecisionDate,
+                IssueDecisions =
+                [
+                    new VaIssueDecisionInterpretation
+                    {
+                        IssueDescription = issue.IssueDescription,
+                        Outcome = issue.Outcome,
+                        Rationale = issue.Rationale,
+                        FavorableFindings = issue.FavorableFindings,
+                        AdverseFindings = issue.AdverseFindings,
+                        CitedRegulations = issue.CitedRegulations,
+                        ReferencedEvidence = issue.ReferencedEvidence,
+                        SourceExcerpts =
+                        [
+                            new DecisionDocumentSourceExcerpt
+                            {
+                                ArtifactId =
+                                    new ArtifactId("artifact-other"),
+                                Text = "Decision text."
+                            }
+                        ]
+                    }
+                ]
+            };
+
+        Assert.Throws<InvalidOperationException>(
+            () =>
+                new VaDecisionDocumentInterpretationValidator()
+                    .Validate(mismatched));
+    }
+
     private static VaDecisionDocumentInterpretation
         CreateInterpretation(
             string outcome,
