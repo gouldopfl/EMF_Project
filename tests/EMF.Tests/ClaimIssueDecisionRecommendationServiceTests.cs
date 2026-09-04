@@ -104,6 +104,61 @@ public sealed class ClaimIssueDecisionRecommendationServiceTests
     }
 
 
+    [Fact]
+    public void Assess_RejectsReadinessForDifferentClaimIssue()
+    {
+        var assessment =
+            CreateAssessment(
+                isReady: true,
+                FindingOutcomes.Favorable);
+
+        assessment =
+            new ClaimIssueAdjudicationAssessment
+            {
+                Details = assessment.Details,
+                Readiness =
+                    new ClaimIssueAdjudicationReadiness
+                    {
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-other"),
+                        BlockingRequirements = []
+                    },
+                Merits = assessment.Merits
+            };
+
+        Assert.Throws<InvalidOperationException>(
+            () => new ClaimIssueDecisionRecommendationService()
+                .Assess(assessment));
+    }
+
+    [Fact]
+    public void Assess_RejectsMeritsForDifferentClaimIssue()
+    {
+        var assessment =
+            CreateAssessment(
+                isReady: true,
+                FindingOutcomes.Favorable);
+
+        assessment =
+            new ClaimIssueAdjudicationAssessment
+            {
+                Details = assessment.Details,
+                Readiness = assessment.Readiness,
+                Merits =
+                    new ClaimIssueMeritsOutcomeAssessment
+                    {
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-other"),
+                        TheoryOutcomes = [],
+                        Outcome = FindingOutcomes.Favorable
+                    }
+            };
+
+        Assert.Throws<InvalidOperationException>(
+            () => new ClaimIssueDecisionRecommendationService()
+                .Assess(assessment));
+    }
+
     private static ClaimIssueAdjudicationAssessment
         CreateAssessment(
             bool isReady,
