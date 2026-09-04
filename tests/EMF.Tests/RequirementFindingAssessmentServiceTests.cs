@@ -9,6 +9,45 @@ namespace EMF.Tests;
 public sealed class RequirementFindingAssessmentServiceTests
 {
     [Fact]
+    public async Task AssessAsync_RejectsFindingForDifferentClaimIssue()
+    {
+        var issueId =
+            new ClaimIssueId("issue-1");
+
+        var requirementId =
+            new RequirementId("requirement-1");
+
+        var findings =
+            Proxy<IFindingRepository>(
+                (method, args) =>
+                    Task.FromResult<IReadOnlyList<Finding>>(
+                    [
+                        new Finding
+                        {
+                            Id = new FindingId("finding-1"),
+                            ClaimIssueId =
+                                new ClaimIssueId("issue-other"),
+                            RequirementId = requirementId,
+                            Outcome = FindingOutcomes.Favorable,
+                            Description = "Foreign finding."
+                        }
+                    ]));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    new RequirementFindingAssessmentService(
+                        findings)
+                        .AssessAsync(
+                            issueId,
+                            [requirementId]));
+
+        Assert.Equal(
+            "Finding claim issue mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task AssessAsync_GroupsFindingsByRequirement()
     {
         var issueId = new ClaimIssueId("issue-1");

@@ -29,6 +29,13 @@ public sealed class RequirementFindingAssessmentService
                 claimIssueId,
                 cancellationToken);
 
+        if (findings.Any(
+            x => x.ClaimIssueId != claimIssueId))
+        {
+            throw new InvalidOperationException(
+                "Finding claim issue mismatch.");
+        }
+
         return requirementIds
             .Distinct()
             .Select(
