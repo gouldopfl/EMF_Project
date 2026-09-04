@@ -10,6 +10,36 @@ namespace EMF.Tests;
 public sealed class ClaimIssueAdjudicationLifecycleServiceTests
 {
     [Fact]
+    public async Task GetAsync_RejectsDifferentReturnedVaDecision()
+    {
+        var issueId =
+            new ClaimIssueId("issue-wrong-decision-id");
+
+        var service =
+            new ClaimIssueAdjudicationLifecycleService(
+                new DecisionRepository(issueId),
+                new SubmissionRepository(issueId));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(issueId));
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsDifferentReturnedSubmission()
+    {
+        var issueId =
+            new ClaimIssueId("issue-wrong-submission-id");
+
+        var service =
+            new ClaimIssueAdjudicationLifecycleService(
+                new DecisionRepository(issueId),
+                new SubmissionRepository(issueId));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(issueId));
+    }
+
+    [Fact]
     public async Task GetAsync_ThrowsWhenVaDecisionCannotBeRead()
     {
         var service =
@@ -181,7 +211,10 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
                     ? null
                     : new VaDecision
                 {
-                    Id = id,
+                    Id =
+                        _issueId.Value == "issue-wrong-decision-id"
+                            ? new VaDecisionId("decision-other")
+                            : id,
                     DecisionDate =
                         id.Value switch
                         {
@@ -256,7 +289,10 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
                     ? null
                     : new Submission
                 {
-                    Id = id,
+                    Id =
+                        _issueId.Value == "issue-wrong-submission-id"
+                            ? new SubmissionId("submission-other")
+                            : id,
                     ClaimId = new ClaimId("claim-001"),
                     SubmissionType =
                         id.Value == "submission-1"

@@ -54,6 +54,11 @@ public sealed class ClaimIssueAdjudicationLifecycleService
                 ?? throw new InvalidOperationException(
                     "VA decision could not be read.");
 
+            if (decision.Id != issueDecision.VaDecisionId)
+                throw new InvalidOperationException(
+                    $"VA decision '{issueDecision.VaDecisionId.Value}' lookup " +
+                    $"returned decision '{decision.Id.Value}'.");
+
             var submissionIds =
                 await _decisions.GetSubmissionIdsAsync(
                     issueDecision.Id,
@@ -67,6 +72,11 @@ public sealed class ClaimIssueAdjudicationLifecycleService
                         cancellationToken)
                     ?? throw new InvalidOperationException(
                         "Submission could not be read.");
+
+                if (submission.Id != submissionId)
+                    throw new InvalidOperationException(
+                        $"Submission '{submissionId.Value}' lookup returned " +
+                        $"submission '{submission.Id.Value}'.");
 
                 entries.Add(
                     new ClaimIssueAdjudicationLifecycleEntry
