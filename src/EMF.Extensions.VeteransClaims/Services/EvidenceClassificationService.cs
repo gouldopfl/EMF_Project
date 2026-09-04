@@ -52,7 +52,29 @@ public sealed class EvidenceClassificationService :
                 cancellationToken);
 
         if (existing is not null)
+        {
+            if (existing.ArtifactId != artifactId)
+            {
+                throw new InvalidOperationException(
+                    $"Classification lookup for artifact '{artifactId.Value}' " +
+                    $"returned artifact '{existing.ArtifactId.Value}'.");
+            }
+
+            if (existing.ClaimIssueId != claimIssueId)
+            {
+                throw new InvalidOperationException(
+                    $"Classification lookup returned a different claim issue.");
+            }
+
+            if (existing.Classification != classification)
+            {
+                throw new InvalidOperationException(
+                    $"Classification lookup for '{classification}' returned " +
+                    $"'{existing.Classification}'.");
+            }
+
             return existing;
+        }
 
         var result = new EvidenceClassification
         {

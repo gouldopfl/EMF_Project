@@ -83,6 +83,80 @@ public sealed class EvidenceClassificationServiceTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_RejectsExistingForDifferentArtifact()
+    {
+        var repository = new RecordingRepository
+        {
+            Existing = new EvidenceClassification
+            {
+                Id = new EvidenceClassificationId("classification-existing"),
+                ArtifactId = new ArtifactId("artifact-other"),
+                Classification = EvidenceClassifications.MedicalEvidence
+            }
+        };
+
+        var service =
+            new EvidenceClassificationService(
+                repository,
+                new GuidIdGenerator());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ClassifyAsync(
+                new ArtifactId("artifact-1"),
+                EvidenceClassifications.MedicalEvidence));
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_RejectsExistingForDifferentClaimIssue()
+    {
+        var repository = new RecordingRepository
+        {
+            Existing = new EvidenceClassification
+            {
+                Id = new EvidenceClassificationId("classification-existing"),
+                ArtifactId = new ArtifactId("artifact-1"),
+                ClaimIssueId = new ClaimIssueId("issue-other"),
+                Classification = EvidenceClassifications.MedicalEvidence
+            }
+        };
+
+        var service =
+            new EvidenceClassificationService(
+                repository,
+                new GuidIdGenerator());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ClassifyAsync(
+                new ArtifactId("artifact-1"),
+                EvidenceClassifications.MedicalEvidence,
+                new ClaimIssueId("issue-1")));
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_RejectsExistingForDifferentClassification()
+    {
+        var repository = new RecordingRepository
+        {
+            Existing = new EvidenceClassification
+            {
+                Id = new EvidenceClassificationId("classification-existing"),
+                ArtifactId = new ArtifactId("artifact-1"),
+                Classification = EvidenceClassifications.MedicalOpinion
+            }
+        };
+
+        var service =
+            new EvidenceClassificationService(
+                repository,
+                new GuidIdGenerator());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ClassifyAsync(
+                new ArtifactId("artifact-1"),
+                EvidenceClassifications.MedicalEvidence));
+    }
+
+    [Fact]
     public async Task ClassifyAsync_RejectsUnsupportedClassification()
     {
         var service = new EvidenceClassificationService(
