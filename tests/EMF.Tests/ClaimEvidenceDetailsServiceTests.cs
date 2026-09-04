@@ -9,6 +9,178 @@ namespace EMF.Tests;
 public sealed class ClaimEvidenceDetailsServiceTests
 {
     [Fact]
+    public async Task GetAsync_RejectsReturnedDifferentClaim()
+    {
+        var requestedId =
+            new ClaimId("claim-requested");
+
+        var returnedClaim =
+            new Claim
+            {
+                Id = new ClaimId("claim-other"),
+                VeteranId = new VeteranId("veteran-1")
+            };
+
+        var service =
+            new ClaimEvidenceDetailsService(
+                new FakeClaimRepository(returnedClaim),
+                new FakeClaimIssueRepository(),
+                new FakeEvidenceDetailsService());
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(requestedId));
+
+        Assert.Equal(
+            "Claim lookup returned a different claim.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsIssueForDifferentClaim()
+    {
+        var claimId =
+            new ClaimId("claim-1");
+
+        var claim =
+            new Claim
+            {
+                Id = claimId,
+                VeteranId = new VeteranId("veteran-1")
+            };
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-1"),
+                ClaimId = new ClaimId("claim-other"),
+                ClaimIssueType = "ServiceConnection"
+            };
+
+        var service =
+            new ClaimEvidenceDetailsService(
+                new FakeClaimRepository(claim),
+                new FakeClaimIssueRepository(issue),
+                new FakeEvidenceDetailsService());
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(claimId));
+
+        Assert.Equal(
+            "Claim lookup returned an issue for a different claim.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsEvidenceForDifferentIssue()
+    {
+        var claimId = new ClaimId("claim-1");
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-1"),
+                ClaimId = claimId,
+                ClaimIssueType = "ServiceConnection"
+            };
+
+        var otherIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-other"),
+                ClaimId = claimId,
+                ClaimIssueType = "ServiceConnection"
+            };
+
+        var evidence =
+            new ClaimIssueEvidenceDetails
+            {
+                ClaimIssue = otherIssue,
+                Checklist =
+                    new ClaimIssueEvidenceChecklist
+                    {
+                        ClaimIssueId = otherIssue.Id,
+                        RequirementChecklists = []
+                    },
+                DevelopmentPlans = []
+            };
+
+        var service =
+            new ClaimEvidenceDetailsService(
+                new FakeClaimRepository(
+                    new Claim
+                    {
+                        Id = claimId,
+                        VeteranId = new VeteranId("veteran-1")
+                    }),
+                new FakeClaimIssueRepository(issue),
+                new FixedEvidenceDetailsService(evidence));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(claimId));
+
+        Assert.Equal(
+            "Claim issue evidence identity mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsEvidenceForDifferentClaim()
+    {
+        var claimId = new ClaimId("claim-1");
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-1"),
+                ClaimId = claimId,
+                ClaimIssueType = "ServiceConnection"
+            };
+
+        var evidenceIssue =
+            new ClaimIssue
+            {
+                Id = issue.Id,
+                ClaimId = new ClaimId("claim-other"),
+                ClaimIssueType = "ServiceConnection"
+            };
+
+        var evidence =
+            new ClaimIssueEvidenceDetails
+            {
+                ClaimIssue = evidenceIssue,
+                Checklist =
+                    new ClaimIssueEvidenceChecklist
+                    {
+                        ClaimIssueId = evidenceIssue.Id,
+                        RequirementChecklists = []
+                    },
+                DevelopmentPlans = []
+            };
+
+        var service =
+            new ClaimEvidenceDetailsService(
+                new FakeClaimRepository(
+                    new Claim
+                    {
+                        Id = claimId,
+                        VeteranId = new VeteranId("veteran-1")
+                    }),
+                new FakeClaimIssueRepository(issue),
+                new FixedEvidenceDetailsService(evidence));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(claimId));
+
+        Assert.Equal(
+            "Claim issue evidence claim ownership mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task GetAsync_ComposesIssueEvidenceDetails()
     {
         var claimId = new ClaimId("claim-001");
@@ -114,6 +286,21 @@ public sealed class ClaimEvidenceDetailsServiceTests
             ClaimIssue issue,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class FixedEvidenceDetailsService :
+        IClaimIssueEvidenceDetailsService
+    {
+        private readonly ClaimIssueEvidenceDetails _details;
+
+        public FixedEvidenceDetailsService(
+            ClaimIssueEvidenceDetails details) =>
+            _details = details;
+
+        public Task<ClaimIssueEvidenceDetails?> GetAsync(
+            ClaimIssueId id,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<ClaimIssueEvidenceDetails?>(_details);
     }
 
     private sealed class FakeEvidenceDetailsService :

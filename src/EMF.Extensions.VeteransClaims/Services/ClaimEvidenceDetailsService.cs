@@ -38,10 +38,21 @@ public sealed class ClaimEvidenceDetailsService :
         if (claim is null)
             return null;
 
+        if (claim.Id != claimId)
+            throw new InvalidOperationException(
+                "Claim lookup returned a different claim.");
+
         var issues =
             await _issues.GetClaimIssuesAsync(
                 claimId,
                 cancellationToken);
+
+        if (issues.Any(
+            x => x.ClaimId != claimId))
+        {
+            throw new InvalidOperationException(
+                "Claim lookup returned an issue for a different claim.");
+        }
 
         var details =
             new List<ClaimIssueEvidenceDetails>();
@@ -53,8 +64,22 @@ public sealed class ClaimEvidenceDetailsService :
                     issue.Id,
                     cancellationToken);
 
-            if (evidence is not null)
-                details.Add(evidence);
+            if (evidence is null)
+                continue;
+
+            if (evidence.ClaimIssue.Id != issue.Id)
+            {
+                throw new InvalidOperationException(
+                    "Claim issue evidence identity mismatch.");
+            }
+
+            if (evidence.ClaimIssue.ClaimId != claimId)
+            {
+                throw new InvalidOperationException(
+                    "Claim issue evidence claim ownership mismatch.");
+            }
+
+            details.Add(evidence);
         }
 
         return new ClaimEvidenceDetails
