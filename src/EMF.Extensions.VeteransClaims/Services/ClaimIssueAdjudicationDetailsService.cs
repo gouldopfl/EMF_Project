@@ -58,10 +58,21 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         if (issue is null)
             return null;
 
+        if (issue.Id != claimIssueId)
+            throw new InvalidOperationException(
+                "Claim issue lookup returned a different issue.");
+
         var claimedConditions =
             await _conditions.GetClaimedConditionsAsync(
                 claimIssueId,
                 cancellationToken);
+
+        if (claimedConditions.Any(
+            x => x.ClaimIssueId != claimIssueId))
+        {
+            throw new InvalidOperationException(
+                "Claimed condition claim issue mismatch.");
+        }
 
         var theories =
             await _serviceConnections
@@ -69,11 +80,36 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     claimIssueId,
                     cancellationToken);
 
+        if (theories.Any(
+            x => x.ClaimIssueId != claimIssueId))
+        {
+            throw new InvalidOperationException(
+                "Service-connection theory claim issue mismatch.");
+        }
+
         var bases =
             await _serviceConnections
                 .GetServiceConnectionBasesAsync(
                     claimIssueId,
                     cancellationToken);
+
+        if (bases.Any(
+            x => x.ClaimIssueId != claimIssueId))
+        {
+            throw new InvalidOperationException(
+                "Service-connection basis claim issue mismatch.");
+        }
+
+        if (bases.Any(
+            basis =>
+                theories.All(
+                    theory =>
+                        theory.Id !=
+                        basis.ServiceConnectionTheoryId)))
+        {
+            throw new InvalidOperationException(
+                "Service-connection basis theory mismatch.");
+        }
 
         var serviceConnectedConditions =
             new List<ServiceConnectionBasisConditionDetails>();

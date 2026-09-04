@@ -34,6 +34,270 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_RejectsReturnedDifferentClaimIssue()
+    {
+        var requestedId =
+            new ClaimIssueId("issue-requested");
+
+        var returnedIssue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-other"),
+                ClaimId = new ClaimId("claim-1"),
+                ClaimIssueType = "service-connection"
+            };
+
+        var service =
+            new ClaimIssueAdjudicationDetailsService(
+                new FakeClaimIssueRepository(returnedIssue),
+                NeverCall<IConditionRepository>(),
+                NeverCall<IServiceConnectionRepository>(),
+                NeverCall<IServiceHistoryRepository>(),
+                NeverCall<IRegulatoryRepository>(),
+                NeverCall<IRequirementEvidenceService>(),
+                NeverCall<IClaimIssueEvidenceDetailsService>(),
+                NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(requestedId));
+
+        Assert.Equal(
+            "Claim issue lookup returned a different issue.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsClaimedConditionForDifferentClaimIssue()
+    {
+        var issueId =
+            new ClaimIssueId("issue-1");
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = issueId,
+                ClaimId = new ClaimId("claim-1"),
+                ClaimIssueType = "service-connection"
+            };
+
+        var condition =
+            new ClaimedCondition
+            {
+                Id = new ClaimedConditionId("condition-1"),
+                ClaimIssueId = new ClaimIssueId("issue-other"),
+                Name = "Sleep apnea"
+            };
+
+        var service =
+            new ClaimIssueAdjudicationDetailsService(
+                new FakeClaimIssueRepository(issue),
+                Proxy<IConditionRepository>(
+                    m => m.Name == "GetClaimedConditionsAsync"
+                        ? Task.FromResult<
+                            IReadOnlyList<ClaimedCondition>>(
+                                [condition])
+                        : throw new NotSupportedException()),
+                NeverCall<IServiceConnectionRepository>(),
+                NeverCall<IServiceHistoryRepository>(),
+                NeverCall<IRegulatoryRepository>(),
+                NeverCall<IRequirementEvidenceService>(),
+                NeverCall<IClaimIssueEvidenceDetailsService>(),
+                NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Claimed condition claim issue mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsTheoryForDifferentClaimIssue()
+    {
+        var issueId =
+            new ClaimIssueId("issue-1");
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = issueId,
+                ClaimId = new ClaimId("claim-1"),
+                ClaimIssueType = "service-connection"
+            };
+
+        var theory =
+            new ServiceConnectionTheory
+            {
+                Id = new ServiceConnectionTheoryId("theory-1"),
+                ClaimIssueId = new ClaimIssueId("issue-other"),
+                TheoryType = ServiceConnectionTheoryTypes.Secondary
+            };
+
+        var service =
+            new ClaimIssueAdjudicationDetailsService(
+                new FakeClaimIssueRepository(issue),
+                Proxy<IConditionRepository>(
+                    m => m.Name == "GetClaimedConditionsAsync"
+                        ? Task.FromResult<
+                            IReadOnlyList<ClaimedCondition>>([])
+                        : throw new NotSupportedException()),
+                Proxy<IServiceConnectionRepository>(
+                    m => m.Name ==
+                            "GetServiceConnectionTheoriesAsync"
+                        ? Task.FromResult<
+                            IReadOnlyList<ServiceConnectionTheory>>(
+                                [theory])
+                        : throw new NotSupportedException()),
+                NeverCall<IServiceHistoryRepository>(),
+                NeverCall<IRegulatoryRepository>(),
+                NeverCall<IRequirementEvidenceService>(),
+                NeverCall<IClaimIssueEvidenceDetailsService>(),
+                NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Service-connection theory claim issue mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsBasisForDifferentClaimIssue()
+    {
+        var issueId =
+            new ClaimIssueId("issue-1");
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = issueId,
+                ClaimId = new ClaimId("claim-1"),
+                ClaimIssueType = "service-connection"
+            };
+
+        var theory =
+            new ServiceConnectionTheory
+            {
+                Id = new ServiceConnectionTheoryId("theory-1"),
+                ClaimIssueId = issueId,
+                TheoryType = ServiceConnectionTheoryTypes.Secondary
+            };
+
+        var basis =
+            new ServiceConnectionBasis
+            {
+                Id = new ServiceConnectionBasisId("basis-1"),
+                ClaimIssueId = new ClaimIssueId("issue-other"),
+                ServiceConnectionTheoryId = theory.Id
+            };
+
+        var service =
+            new ClaimIssueAdjudicationDetailsService(
+                new FakeClaimIssueRepository(issue),
+                Proxy<IConditionRepository>(
+                    m => m.Name == "GetClaimedConditionsAsync"
+                        ? Task.FromResult<
+                            IReadOnlyList<ClaimedCondition>>([])
+                        : throw new NotSupportedException()),
+                Proxy<IServiceConnectionRepository>(
+                    m => m.Name ==
+                            "GetServiceConnectionTheoriesAsync"
+                        ? Task.FromResult<
+                            IReadOnlyList<ServiceConnectionTheory>>(
+                                [theory])
+                        : m.Name ==
+                            "GetServiceConnectionBasesAsync"
+                            ? Task.FromResult<
+                                IReadOnlyList<ServiceConnectionBasis>>(
+                                    [basis])
+                            : throw new NotSupportedException()),
+                NeverCall<IServiceHistoryRepository>(),
+                NeverCall<IRegulatoryRepository>(),
+                NeverCall<IRequirementEvidenceService>(),
+                NeverCall<IClaimIssueEvidenceDetailsService>(),
+                NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Service-connection basis claim issue mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsBasisForDifferentTheory()
+    {
+        var issueId =
+            new ClaimIssueId("issue-1");
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = issueId,
+                ClaimId = new ClaimId("claim-1"),
+                ClaimIssueType = "service-connection"
+            };
+
+        var theory =
+            new ServiceConnectionTheory
+            {
+                Id = new ServiceConnectionTheoryId("theory-1"),
+                ClaimIssueId = issueId,
+                TheoryType = ServiceConnectionTheoryTypes.Secondary
+            };
+
+        var basis =
+            new ServiceConnectionBasis
+            {
+                Id = new ServiceConnectionBasisId("basis-1"),
+                ClaimIssueId = issueId,
+                ServiceConnectionTheoryId =
+                    new ServiceConnectionTheoryId("theory-other")
+            };
+
+        var service =
+            new ClaimIssueAdjudicationDetailsService(
+                new FakeClaimIssueRepository(issue),
+                Proxy<IConditionRepository>(
+                    m => m.Name == "GetClaimedConditionsAsync"
+                        ? Task.FromResult<
+                            IReadOnlyList<ClaimedCondition>>([])
+                        : throw new NotSupportedException()),
+                Proxy<IServiceConnectionRepository>(
+                    m => m.Name ==
+                            "GetServiceConnectionTheoriesAsync"
+                        ? Task.FromResult<
+                            IReadOnlyList<ServiceConnectionTheory>>(
+                                [theory])
+                        : m.Name ==
+                            "GetServiceConnectionBasesAsync"
+                            ? Task.FromResult<
+                                IReadOnlyList<ServiceConnectionBasis>>(
+                                    [basis])
+                            : throw new NotSupportedException()),
+                NeverCall<IServiceHistoryRepository>(),
+                NeverCall<IRegulatoryRepository>(),
+                NeverCall<IRequirementEvidenceService>(),
+                NeverCall<IClaimIssueEvidenceDetailsService>(),
+                NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Service-connection basis theory mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task GetAsync_ComposesAdjudicationDetails()
     {
         var issueId = new ClaimIssueId("issue-001");
