@@ -138,6 +138,45 @@ public sealed class EvidenceGapServiceTests
         Assert.NotEqual(existing.Id, result.Id);
     }
 
+    [Fact]
+    public async Task EnsureGapAsync_RejectsGapForDifferentRequirement()
+    {
+        var claimIssueId = new ClaimIssueId("issue-1");
+        var requirementId = new RequirementId("requirement-1");
+
+        var repository = new RecordingGapRepository
+        {
+            Existing =
+            [
+                new EvidenceGap
+                {
+                    Id = new EvidenceGapId("gap-wrong"),
+                    ClaimIssueId = claimIssueId,
+                    RequirementId = new RequirementId("requirement-other"),
+                    Description = "Wrong requirement."
+                }
+            ]
+        };
+
+        var requirements = new SatisfiedRequirementEvidenceService
+        {
+            HasMissingEvidence = true
+        };
+
+        var service = new EvidenceGapService(
+            repository,
+            requirements,
+            new GuidIdGenerator());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.EnsureGapAsync(
+                claimIssueId,
+                requirementId));
+
+        Assert.Contains(requirementId.Value, ex.Message);
+        Assert.Contains("requirement-other", ex.Message);
+    }
+
     private sealed class SatisfiedRequirementEvidenceService :
         IRequirementEvidenceService
     {

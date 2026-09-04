@@ -43,6 +43,18 @@ public sealed class EvidenceGapService : IEvidenceGapService
                 requirementId,
                 cancellationToken);
 
+        var mismatchedRequirement =
+            existing.FirstOrDefault(
+                x => x.RequirementId != requirementId);
+
+        if (mismatchedRequirement is not null)
+        {
+            throw new InvalidOperationException(
+                $"Requirement '{requirementId.Value}' gap lookup returned " +
+                $"gap '{mismatchedRequirement.Id.Value}' for requirement " +
+                $"'{mismatchedRequirement.RequirementId.Value}'.");
+        }
+
         var matching =
             existing.FirstOrDefault(
                 x => x.ClaimIssueId == claimIssueId);
