@@ -156,6 +156,59 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
 
 
     [Fact]
+    public async Task SummarizeAsync_RejectsUnexpectedSourceArtifactLineage()
+    {
+        var expectedArtifactId =
+            new ArtifactId("expected-source");
+
+        var unexpectedArtifactId =
+            new ArtifactId("unexpected-source");
+
+        var executor =
+            new RecordingTextSummarizationExecutor
+            {
+                SourceArtifactIds =
+                [
+                    unexpectedArtifactId
+                ]
+            };
+
+        var service =
+            new VeteransReviewerPackageIntelligenceService(
+                executor);
+
+        var context = new IntelligenceExecutionContext(
+            "reviewer-package-steward",
+            new IntelligenceCorrelationId(
+                "unexpected-lineage"),
+            new ProtectionClassificationId(
+                "confidential"),
+            [
+                expectedArtifactId
+            ]);
+
+        var result =
+            await service.SummarizeAsync(
+                CreateDetails(),
+                context);
+
+        Assert.False(result.Success);
+
+        Assert.Equal(
+            "Reviewer package summarization returned " +
+            "unexpected source artifact lineage.",
+            result.Message);
+
+        Assert.Contains(
+            expectedArtifactId,
+            result.SourceArtifactIds);
+
+        Assert.Contains(
+            unexpectedArtifactId,
+            result.SourceArtifactIds);
+    }
+
+    [Fact]
     public void Service_ImplementsReviewerIntelligenceContract()
     {
         IVeteransReviewerPackageIntelligenceService service =

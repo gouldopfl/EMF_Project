@@ -65,8 +65,16 @@ public sealed class VeteransReviewerPackageIntelligenceService :
                 context,
                 cancellationToken);
 
+        var hasExpectedSourceArtifactIds =
+            result.SourceArtifactIds is not null &&
+            context.InputArtifactIds
+                .ToHashSet()
+                .SetEquals(
+                    result.SourceArtifactIds);
+
         if (!result.Success ||
-            !string.IsNullOrWhiteSpace(result.Output))
+            (!string.IsNullOrWhiteSpace(result.Output) &&
+             hasExpectedSourceArtifactIds))
         {
             return result;
         }
@@ -74,7 +82,11 @@ public sealed class VeteransReviewerPackageIntelligenceService :
         return new IntelligenceAgentResult<string>
         {
             Success = false,
-            Message = result.Message,
+            Message =
+                hasExpectedSourceArtifactIds
+                    ? result.Message
+                    : "Reviewer package summarization returned " +
+                      "unexpected source artifact lineage.",
             Output = result.Output,
             AgentId = result.AgentId,
             CorrelationId = result.CorrelationId,
@@ -83,7 +95,7 @@ public sealed class VeteransReviewerPackageIntelligenceService :
             CapabilityExecutions =
                 result.CapabilityExecutions,
             SourceArtifactIds =
-                result.SourceArtifactIds,
+                result.SourceArtifactIds ?? [],
             Warnings = result.Warnings,
             RequiresReview = result.RequiresReview
         };

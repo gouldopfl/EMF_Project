@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Intelligence.Capabilities;
 using EMF.Intelligence.Contracts;
 using EMF.Intelligence.Models;
@@ -21,6 +22,9 @@ internal sealed class RecordingTextSummarizationExecutor :
     public string? Output { get; set; } =
         "Reviewer summary";
 
+    public IReadOnlyList<ArtifactId>
+        SourceArtifactIds { get; set; } = [];
+
     public Task<IntelligenceCapabilityResult<string>>
         ExecuteAsync(
             IntelligenceCapabilityId capabilityId,
@@ -36,6 +40,8 @@ internal sealed class RecordingTextSummarizationExecutor :
             {
                 Success = Success,
                 Output = Output,
+                SourceArtifactIds =
+                    SourceArtifactIds,
                 RequiresReview = true,
                 Metadata =
                     new IntelligenceExecutionMetadata
