@@ -197,6 +197,50 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
     }
 
     [Fact]
+    public async Task SummarizeAsync_RejectsWrongReturnedGapIdentity()
+    {
+        var repository = new FakeDevelopmentRepository
+        {
+            Execution = new EvidenceDevelopmentExecution
+            {
+                EvidenceDevelopmentPlanId =
+                    new EvidenceDevelopmentPlanId("plan-1"),
+                EvidenceGapId = new EvidenceGapId("gap-1"),
+                WorkflowId = new WorkflowId("workflow-1")
+            },
+            Result = new EvidenceDevelopmentResult
+            {
+                EvidenceGapId = new EvidenceGapId("gap-1"),
+                RequirementId = new RequirementId("req-1"),
+                EvidenceGuidance = []
+            }
+        };
+
+        var gaps = new FakeGapRepository
+        {
+            Gap = new EvidenceGap
+            {
+                Id = new EvidenceGapId("gap-other"),
+                ClaimIssueId = new ClaimIssueId("issue-1"),
+                RequirementId = new RequirementId("req-1"),
+                Description = "Missing evidence."
+            }
+        };
+
+        var coordinator =
+            new EvidenceDevelopmentIntelligenceCoordinator(
+                repository,
+                gaps,
+                new FakeExecutor());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.SummarizeAsync(
+                new EvidenceDevelopmentPlanId("plan-1"),
+                new EvidenceGapId("gap-1"),
+                TestContext()));
+    }
+
+    [Fact]
     public async Task SummarizeAsync_UsesPersistedDevelopmentResult()
     {
         var repository = new FakeDevelopmentRepository
