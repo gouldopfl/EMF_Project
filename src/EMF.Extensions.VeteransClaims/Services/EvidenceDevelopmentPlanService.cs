@@ -71,14 +71,22 @@ public sealed class EvidenceDevelopmentPlanService :
     }
 
 
-    public Task<IReadOnlyList<EvidenceDevelopmentPlan>>
+    public async Task<IReadOnlyList<EvidenceDevelopmentPlan>>
         GetEvidenceDevelopmentPlansAsync(
             ClaimIssueId claimIssueId,
             CancellationToken cancellationToken = default)
     {
-        return _repository.GetEvidenceDevelopmentPlansAsync(
-            claimIssueId,
-            cancellationToken);
+        var plans =
+            await _repository.GetEvidenceDevelopmentPlansAsync(
+                claimIssueId,
+                cancellationToken);
+
+        if (plans.Any(x => x.ClaimIssueId != claimIssueId))
+            throw new InvalidOperationException(
+                $"Claim issue '{claimIssueId.Value}' plan lookup " +
+                "returned a plan for a different claim issue.");
+
+        return plans;
     }
 
 

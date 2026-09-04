@@ -97,6 +97,30 @@ public sealed class EvidenceDevelopmentPlanServiceTests
     }
 
     [Fact]
+    public async Task GetEvidenceDevelopmentPlansAsync_RejectsPlanForDifferentClaimIssue()
+    {
+        var requestedIssueId =
+            new ClaimIssueId("issue-requested");
+
+        var service =
+            new EvidenceDevelopmentPlanService(
+                new StubRepository(
+                    new EvidenceDevelopmentPlan
+                    {
+                        Id =
+                            new EvidenceDevelopmentPlanId(
+                                "plan-wrong"),
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-other"),
+                        Description = "Wrong claim issue."
+                    }));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetEvidenceDevelopmentPlansAsync(
+                requestedIssueId));
+    }
+
+    [Fact]
     public async Task GetEvidenceDevelopmentPlansAsync_ReturnsPlansForClaimIssue()
     {
         var issueId = new ClaimIssueId("issue-001");
