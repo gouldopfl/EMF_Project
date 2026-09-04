@@ -109,6 +109,18 @@ public sealed class EvidenceDevelopmentPlanService :
                 planId,
                 cancellationToken);
 
+        var badRequirement =
+            requirements.FirstOrDefault(
+                x => x.EvidenceDevelopmentPlanId != planId);
+
+        if (badRequirement is not null)
+        {
+            throw new InvalidOperationException(
+                $"Plan '{planId.Value}' returned requirement " +
+                $"'{badRequirement.RequirementId.Value}' for plan " +
+                $"'{badRequirement.EvidenceDevelopmentPlanId.Value}'.");
+        }
+
         var evidenceGaps =
             await _repository.GetEvidenceDevelopmentPlanEvidenceGapsAsync(
                 planId,
@@ -132,6 +144,18 @@ public sealed class EvidenceDevelopmentPlanService :
             await _repository.GetEvidenceDevelopmentPlanArtifactsAsync(
                 planId,
                 cancellationToken);
+
+        var badArtifact =
+            artifacts.FirstOrDefault(
+                x => x.EvidenceDevelopmentPlanId != planId);
+
+        if (badArtifact is not null)
+        {
+            throw new InvalidOperationException(
+                $"Plan '{planId.Value}' returned artifact " +
+                $"'{badArtifact.ArtifactId.Value}' for plan " +
+                $"'{badArtifact.EvidenceDevelopmentPlanId.Value}'.");
+        }
 
         var gapDetails = new List<EvidenceGap>();
         var executions = new List<EvidenceDevelopmentExecution>();

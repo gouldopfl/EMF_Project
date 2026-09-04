@@ -196,6 +196,52 @@ public sealed class EvidenceDevelopmentPlanServiceTests
 
 
     [Fact]
+    public async Task GetEvidenceDevelopmentPlanAsync_RejectsRequirementForDifferentPlan()
+    {
+        var planId = new EvidenceDevelopmentPlanId("plan-requested");
+        var otherPlanId = new EvidenceDevelopmentPlanId("plan-other");
+
+        var service = new EvidenceDevelopmentPlanService(
+            new StubRepository(
+                new EvidenceDevelopmentPlan
+                {
+                    Id = planId,
+                    ClaimIssueId = new ClaimIssueId("issue-001"),
+                    Description = "Develop evidence."
+                },
+                requirementPlanId: otherPlanId));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetEvidenceDevelopmentPlanAsync(planId));
+
+        Assert.Contains(planId.Value, ex.Message);
+        Assert.Contains(otherPlanId.Value, ex.Message);
+    }
+
+    [Fact]
+    public async Task GetEvidenceDevelopmentPlanAsync_RejectsArtifactForDifferentPlan()
+    {
+        var planId = new EvidenceDevelopmentPlanId("plan-requested");
+        var otherPlanId = new EvidenceDevelopmentPlanId("plan-other");
+
+        var service = new EvidenceDevelopmentPlanService(
+            new StubRepository(
+                new EvidenceDevelopmentPlan
+                {
+                    Id = planId,
+                    ClaimIssueId = new ClaimIssueId("issue-001"),
+                    Description = "Develop evidence."
+                },
+                artifactPlanId: otherPlanId));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetEvidenceDevelopmentPlanAsync(planId));
+
+        Assert.Contains(planId.Value, ex.Message);
+        Assert.Contains(otherPlanId.Value, ex.Message);
+    }
+
+    [Fact]
     public async Task GetEvidenceDevelopmentPlanAsync_ReturnsNullWhenPlanDoesNotExist()
     {
         var service =
@@ -444,13 +490,19 @@ public sealed class EvidenceDevelopmentPlanServiceTests
     {
         private readonly EvidenceDevelopmentPlan _plan;
         private readonly EvidenceDevelopmentPlanId? _evidenceGapPlanId;
+        private readonly EvidenceDevelopmentPlanId? _requirementPlanId;
+        private readonly EvidenceDevelopmentPlanId? _artifactPlanId;
 
         public StubRepository(
             EvidenceDevelopmentPlan plan,
-            EvidenceDevelopmentPlanId? evidenceGapPlanId = null)
+            EvidenceDevelopmentPlanId? evidenceGapPlanId = null,
+            EvidenceDevelopmentPlanId? requirementPlanId = null,
+            EvidenceDevelopmentPlanId? artifactPlanId = null)
         {
             _plan = plan;
             _evidenceGapPlanId = evidenceGapPlanId;
+            _requirementPlanId = requirementPlanId;
+            _artifactPlanId = artifactPlanId;
         }
 
         public Task<EvidenceDevelopmentPlan?>
@@ -468,7 +520,8 @@ public sealed class EvidenceDevelopmentPlanServiceTests
                 {
                     new EvidenceDevelopmentPlanRequirement
                     {
-                        EvidenceDevelopmentPlanId = planId,
+                        EvidenceDevelopmentPlanId =
+                            _requirementPlanId ?? planId,
                         RequirementId =
                             new RequirementId("requirement-001")
                     }
@@ -499,7 +552,8 @@ public sealed class EvidenceDevelopmentPlanServiceTests
                 {
                     new EvidenceDevelopmentPlanArtifact
                     {
-                        EvidenceDevelopmentPlanId = planId,
+                        EvidenceDevelopmentPlanId =
+                            _artifactPlanId ?? planId,
                         ArtifactId =
                             new ArtifactId("artifact-001"),
                         Role = "Supporting"
