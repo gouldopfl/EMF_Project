@@ -45,7 +45,13 @@ public sealed class ClaimIssueDecisionComparisonHistoryService
             var vaDecision =
                 await _decisions.GetDecisionAsync(
                     decision.VaDecisionId,
-                    cancellationToken);
+                    cancellationToken)
+                ?? throw new InvalidOperationException(
+                    "VA decision could not be read.");
+
+            if (vaDecision.Id != decision.VaDecisionId)
+                throw new InvalidOperationException(
+                    "VA decision identity mismatch.");
 
             comparisons.Add(
                 new ClaimIssueDecisionComparison

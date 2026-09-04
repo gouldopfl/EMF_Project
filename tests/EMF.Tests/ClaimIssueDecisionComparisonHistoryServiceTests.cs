@@ -175,6 +175,80 @@ public sealed class ClaimIssueDecisionComparisonHistoryServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_RejectsMissingParentVaDecision()
+    {
+        var issueId = new ClaimIssueId("issue-1");
+
+        var issueDecision =
+            new IssueDecision
+            {
+                Id = new IssueDecisionId("decision-1"),
+                VaDecisionId = new VaDecisionId("va-1"),
+                ClaimIssueId = issueId,
+                Outcome = IssueDecisionOutcomes.Denied
+            };
+
+        var repository =
+            Proxy<IVaDecisionRepository>(
+                (method, args) =>
+                    method.Name == "GetIssueDecisionsAsync"
+                        ? Task.FromResult<IReadOnlyList<IssueDecision>>(
+                            [issueDecision])
+                        : method.Name == "GetDecisionAsync"
+                            ? Task.FromResult<VaDecision?>(null)
+                            : throw new NotSupportedException());
+
+        var service =
+            new ClaimIssueDecisionComparisonHistoryService(
+                repository,
+                new ClaimIssueDecisionComparisonService());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(
+                CreateRecommendation(issueId)));
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsWrongParentVaDecisionIdentity()
+    {
+        var issueId = new ClaimIssueId("issue-1");
+
+        var issueDecision =
+            new IssueDecision
+            {
+                Id = new IssueDecisionId("decision-1"),
+                VaDecisionId = new VaDecisionId("va-1"),
+                ClaimIssueId = issueId,
+                Outcome = IssueDecisionOutcomes.Denied
+            };
+
+        var repository =
+            Proxy<IVaDecisionRepository>(
+                (method, args) =>
+                    method.Name == "GetIssueDecisionsAsync"
+                        ? Task.FromResult<IReadOnlyList<IssueDecision>>(
+                            [issueDecision])
+                        : method.Name == "GetDecisionAsync"
+                            ? Task.FromResult<VaDecision?>(
+                                new VaDecision
+                                {
+                                    Id = new VaDecisionId("va-other"),
+                                    DecisionDate =
+                                        DateTimeOffset.UnixEpoch
+                                })
+                            : throw new NotSupportedException());
+
+        var service =
+            new ClaimIssueDecisionComparisonHistoryService(
+                repository,
+                new ClaimIssueDecisionComparisonService());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(
+                CreateRecommendation(issueId)));
+    }
+
+    [Fact]
     public async Task GetAsync_QueriesRecommendationClaimIssue()
     {
         var issueId = new ClaimIssueId("issue-expected");
