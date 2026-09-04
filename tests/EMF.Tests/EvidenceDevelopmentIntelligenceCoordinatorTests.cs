@@ -285,6 +285,54 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
     }
 
     [Fact]
+    public async Task SummarizeAsync_RejectsArtifactForDifferentGap()
+    {
+        var repository = new FakeDevelopmentRepository
+        {
+            Execution = new EvidenceDevelopmentExecution
+            {
+                EvidenceDevelopmentPlanId = new("plan-1"),
+                EvidenceGapId = new("gap-1"),
+                WorkflowId = new("workflow-1")
+            },
+            Result = new EvidenceDevelopmentResult
+            {
+                EvidenceGapId = new("gap-1"),
+                RequirementId = new("req-1"),
+                EvidenceGuidance = []
+            }
+        };
+
+        var gaps = new FakeGapRepository
+        {
+            Gap = new EvidenceGap
+            {
+                Id = new("gap-1"),
+                ClaimIssueId = new("issue-1"),
+                RequirementId = new("req-1"),
+                Description = "Missing evidence."
+            },
+            Artifacts =
+            [
+                new EvidenceGapArtifact
+                {
+                    EvidenceGapId = new("gap-other"),
+                    ArtifactId = new("artifact-1"),
+                    Role = "supporting"
+                }
+            ]
+        };
+
+        var coordinator =
+            new EvidenceDevelopmentIntelligenceCoordinator(
+                repository, gaps, new FakeExecutor());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.SummarizeAsync(
+                new("plan-1"), new("gap-1"), TestContext()));
+    }
+
+    [Fact]
     public async Task SummarizeAsync_UsesPersistedDevelopmentResult()
     {
         var repository = new FakeDevelopmentRepository

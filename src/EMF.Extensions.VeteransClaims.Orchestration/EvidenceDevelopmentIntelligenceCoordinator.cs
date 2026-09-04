@@ -99,6 +99,10 @@ internal sealed class EvidenceDevelopmentIntelligenceCoordinator :
                 evidenceGapId,
                 cancellationToken);
 
+        if (gapArtifacts.Any(x => x.EvidenceGapId != evidenceGapId))
+            throw new InvalidOperationException(
+                "Evidence gap artifact ownership mismatch.");
+
         var inputArtifactIds =
             context.InputArtifactIds
                 .Concat(
