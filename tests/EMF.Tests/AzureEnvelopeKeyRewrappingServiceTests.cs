@@ -71,6 +71,35 @@ public sealed class
 
 
     [Fact]
+    public async Task RewrapAsync_RejectsWrongHistoricalKeyIdentity()
+    {
+        var service =
+            new AzureEnvelopeKeyRewrappingService(
+                new TestKeyProvider(
+                    CreateKey("v3"),
+                    CreateKey("v2")),
+                new TestCryptographyFactory());
+
+        var envelope =
+            new EncryptedEnvelope
+            {
+                FormatVersion =
+                    EncryptedEnvelopeFormat.CurrentVersion,
+                Ciphertext = [1],
+                Nonce = new byte[12],
+                AuthenticationTag = new byte[16],
+                WrappedDataEncryptionKey =
+                    [1, .. Enumerable.Repeat((byte)42, 32)],
+                KeyEncryptionKeyId = "emf-key/v1",
+                Algorithm =
+                    EncryptedEnvelopeFormat.Aes256GcmAlgorithm
+            };
+
+        await Assert.ThrowsAsync<CryptographicException>(
+            () => service.RewrapAsync(envelope));
+    }
+
+    [Fact]
     public async Task RewrapAsync_RejectsInvalidDataEncryptionKeyLength()
     {
         var service =

@@ -60,6 +60,15 @@ public sealed class AzureEnvelopeKeyRewrappingService :
                 "Historical encryption key not found.");
         }
 
+        if (!string.Equals(
+                GetKeyIdentifier(historicalKey),
+                envelope.KeyEncryptionKeyId,
+                StringComparison.Ordinal))
+        {
+            throw new CryptographicException(
+                "Historical encryption key identity mismatch.");
+        }
+
         var historicalCryptography =
             _cryptographyFactory.Create(
                 historicalKey);
