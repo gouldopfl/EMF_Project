@@ -311,6 +311,66 @@ public sealed class EvidenceDevelopmentPlanServiceTests
     }
 
     [Fact]
+    public async Task GetEvidenceDevelopmentPlanAsync_RejectsDifferentReturnedGap()
+    {
+        var planId = new EvidenceDevelopmentPlanId("plan-requested");
+
+        var service = new EvidenceDevelopmentPlanService(
+            new StubRepository(
+                new EvidenceDevelopmentPlan
+                {
+                    Id = planId,
+                    ClaimIssueId = new ClaimIssueId("issue-001"),
+                    Description = "Develop evidence."
+                }),
+            new StubGapRepository(
+                new EvidenceGap
+                {
+                    Id = new EvidenceGapId("gap-other"),
+                    ClaimIssueId = new ClaimIssueId("issue-001"),
+                    RequirementId = new RequirementId("requirement-001"),
+                    Description = "Unexpected gap.",
+                    Status = EvidenceGapStatuses.Open
+                }));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetEvidenceDevelopmentPlanAsync(planId));
+
+        Assert.Contains("gap-001", ex.Message);
+        Assert.Contains("gap-other", ex.Message);
+    }
+
+    [Fact]
+    public async Task GetEvidenceDevelopmentPlanAsync_RejectsGapForDifferentClaimIssue()
+    {
+        var planId = new EvidenceDevelopmentPlanId("plan-requested");
+
+        var service = new EvidenceDevelopmentPlanService(
+            new StubRepository(
+                new EvidenceDevelopmentPlan
+                {
+                    Id = planId,
+                    ClaimIssueId = new ClaimIssueId("issue-001"),
+                    Description = "Develop evidence."
+                }),
+            new StubGapRepository(
+                new EvidenceGap
+                {
+                    Id = new EvidenceGapId("gap-001"),
+                    ClaimIssueId = new ClaimIssueId("issue-other"),
+                    RequirementId = new RequirementId("requirement-001"),
+                    Description = "Wrong claim issue.",
+                    Status = EvidenceGapStatuses.Open
+                }));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetEvidenceDevelopmentPlanAsync(planId));
+
+        Assert.Contains("issue-001", ex.Message);
+        Assert.Contains("issue-other", ex.Message);
+    }
+
+    [Fact]
     public async Task GetEvidenceDevelopmentPlanAsync_ReturnsNullWhenPlanDoesNotExist()
     {
         var service =

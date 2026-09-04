@@ -171,7 +171,24 @@ public sealed class EvidenceDevelopmentPlanService :
                         cancellationToken);
 
                 if (gap is not null)
+                {
+                    if (gap.Id != evidenceGap.EvidenceGapId)
+                    {
+                        throw new InvalidOperationException(
+                            $"Gap '{evidenceGap.EvidenceGapId.Value}' lookup " +
+                            $"returned gap '{gap.Id.Value}'.");
+                    }
+
+                    if (gap.ClaimIssueId != plan.ClaimIssueId)
+                    {
+                        throw new InvalidOperationException(
+                            $"Gap '{gap.Id.Value}' belongs to claim issue " +
+                            $"'{gap.ClaimIssueId.Value}', not " +
+                            $"'{plan.ClaimIssueId.Value}'.");
+                    }
+
                     gapDetails.Add(gap);
+                }
             }
 
             var execution =
