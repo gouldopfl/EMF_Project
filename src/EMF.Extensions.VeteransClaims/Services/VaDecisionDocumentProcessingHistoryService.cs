@@ -27,6 +27,10 @@ public sealed class VaDecisionDocumentProcessingHistoryService
                 claimId,
                 cancellationToken);
 
+        if (attempts.Any(x => x.ClaimId != claimId))
+            throw new InvalidOperationException(
+                "Processing attempt claim mismatch.");
+
         return attempts
             .Select(
                 attempt =>

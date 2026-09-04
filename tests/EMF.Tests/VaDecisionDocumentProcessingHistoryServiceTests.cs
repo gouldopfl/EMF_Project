@@ -113,6 +113,24 @@ public sealed class VaDecisionDocumentProcessingHistoryServiceTests
     }
 
 
+    [Fact]
+    public async Task GetAsync_RejectsAttemptForDifferentClaim()
+    {
+        var service =
+            new VaDecisionDocumentProcessingHistoryService(
+                new RecordingRepository(
+                    new VaDecisionDocumentProcessingAttempt
+                    {
+                        ClaimId = new ClaimId("claim-other"),
+                        ArtifactId = new ArtifactId("artifact-001"),
+                        ProcessedAt = DateTimeOffset.UtcNow,
+                        Matches = []
+                    }));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(new ClaimId("claim-001")));
+    }
+
     private static VaDecisionDocumentIssueMatch Match(
         string status,
         string? claimIssueId = null) =>
