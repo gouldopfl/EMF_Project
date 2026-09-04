@@ -234,6 +234,23 @@ public sealed class VeteransClaimsSqliteEvidenceClassificationRepositoryTests
                 .AddEvidenceClassificationAsync(
                     classification);
 
+            var otherClassification =
+                new EvidenceClassification
+                {
+                    Id =
+                        new EvidenceClassificationId(
+                            "classification-requirement-2"),
+                    ArtifactId =
+                        new ArtifactId(
+                            "artifact-requirement-2"),
+                    Classification =
+                        EvidenceClassifications.MedicalOpinion
+                };
+
+            await repository
+                .AddEvidenceClassificationAsync(
+                    otherClassification);
+
             var regulatory =
                 new SqliteRegulatoryRepository(
                     databasePath);
@@ -280,6 +297,34 @@ public sealed class VeteransClaimsSqliteEvidenceClassificationRepositoryTests
             await regulatory.AddRequirementAsync(
                 requirement);
 
+            var otherProvision =
+                new RegulatoryProvision
+                {
+                    Id =
+                        new RegulatoryProvisionId(
+                            "provision-requirement-2"),
+                    RegulatoryAuthorityId = authority.Id,
+                    ProvisionType =
+                        RegulatoryProvisionTypes.Requirement,
+                    Citation = "38 CFR"
+                };
+
+            await regulatory.AddRegulatoryProvisionAsync(
+                otherProvision);
+
+            var otherRequirement =
+                new Requirement
+                {
+                    Id =
+                        new RequirementId(
+                            "requirement-trace-2"),
+                    RegulatoryProvisionId = otherProvision.Id,
+                    Description = "Other required evidence."
+                };
+
+            await regulatory.AddRequirementAsync(
+                otherRequirement);
+
             await repository
                 .AddEvidenceClassificationRequirementAsync(
                     new EvidenceClassificationRequirement
@@ -288,6 +333,16 @@ public sealed class VeteransClaimsSqliteEvidenceClassificationRepositoryTests
                             classification.Id,
                         RequirementId =
                             requirement.Id
+                    });
+
+            await repository
+                .AddEvidenceClassificationRequirementAsync(
+                    new EvidenceClassificationRequirement
+                    {
+                        EvidenceClassificationId =
+                            otherClassification.Id,
+                        RequirementId =
+                            otherRequirement.Id
                     });
 
             var stored =
@@ -299,6 +354,11 @@ public sealed class VeteransClaimsSqliteEvidenceClassificationRepositoryTests
                 await repository
                     .GetEvidenceClassificationsAsync(
                         requirement.Id);
+
+            var otherByRequirement =
+                await repository
+                    .GetEvidenceClassificationsAsync(
+                        otherRequirement.Id);
 
             var association = Assert.Single(stored);
 
@@ -312,6 +372,10 @@ public sealed class VeteransClaimsSqliteEvidenceClassificationRepositoryTests
             Assert.Equal(
                 classification.Id,
                 Assert.Single(byRequirement).Id);
+
+            Assert.Equal(
+                otherClassification.Id,
+                Assert.Single(otherByRequirement).Id);
         }
         finally
         {
