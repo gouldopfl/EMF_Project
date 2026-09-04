@@ -542,8 +542,9 @@ public static class VeteransConsoleCommand
                 if (!intelligenceResult.Success)
                 {
                     global::System.Console.Error.WriteLine(
-                        intelligenceResult.Message ??
-                        "Evidence development summarization failed.");
+                        ConsoleTextSanitizer.Sanitize(
+                            intelligenceResult.Message ??
+                            "Evidence development summarization failed."));
 
                     return 1;
                 }
@@ -552,7 +553,8 @@ public static class VeteransConsoleCommand
                 global::System.Console.WriteLine("Summary");
                 global::System.Console.WriteLine("-------");
                 global::System.Console.WriteLine(
-                    intelligenceResult.Output);
+                    ConsoleTextSanitizer.Sanitize(
+                        intelligenceResult.Output));
 
                 if (promote)
                 {
@@ -597,7 +599,8 @@ public static class VeteransConsoleCommand
         catch (Exception ex)
         {
             global::System.Console.Error.WriteLine(
-                $"Evidence development failed: {ex.Message}");
+                ConsoleTextSanitizer.Sanitize(
+                    $"Evidence development failed: {ex.Message}"));
 
             return 1;
         }
