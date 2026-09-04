@@ -89,6 +89,33 @@ public sealed class AuthorizationPolicyTests
     }
 
     [Fact]
+    public async Task EvaluateAsync_MismatchedReturnedSubject_Denies()
+    {
+        var policy =
+            new AuthorizationPolicy(
+                new MismatchedContextProvider(
+                    new AuthorizationContext
+                    {
+                        SubjectId = "user-other",
+                        RoleIds = [],
+                        PermissionIds =
+                        [
+                            new PermissionId("evidence.read")
+                        ]
+                    }));
+
+        var decision =
+            await policy.EvaluateAsync(
+                CreateRequest(
+                    "user-001",
+                    "evidence.read"));
+
+        Assert.Equal(
+            AuthorizationDecision.Deny,
+            decision);
+    }
+
+    [Fact]
     public async Task EvaluateAsync_UnknownSubject_Denies()
     {
         var policy =
@@ -165,4 +192,21 @@ public sealed class AuthorizationPolicyTests
             AuthorizationDecision.Deny,
             await policy.EvaluateAsync(malformed));
     }
+    private sealed class MismatchedContextProvider :
+        IAuthorizationContextProvider
+    {
+        private readonly AuthorizationContext _context;
+
+        public MismatchedContextProvider(
+            AuthorizationContext context)
+        {
+            _context = context;
+        }
+
+        public Task<AuthorizationContext?> GetContextAsync(
+            string subjectId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<AuthorizationContext?>(_context);
+    }
+
 }

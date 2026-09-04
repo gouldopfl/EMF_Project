@@ -35,6 +35,14 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
             return AuthorizationDecision.Deny;
         }
 
+        if (!string.Equals(
+                context.SubjectId,
+                request.SubjectId,
+                StringComparison.Ordinal))
+        {
+            return AuthorizationDecision.Deny;
+        }
+
         return context.PermissionIds.Contains(
             request.PermissionId)
             ? AuthorizationDecision.Allow
