@@ -137,6 +137,10 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     ?? throw new InvalidOperationException(
                         "Service-connected condition could not be read.");
 
+                if (condition.Id != conditionId)
+                    throw new InvalidOperationException(
+                        "Service-connected condition identity mismatch.");
+
                 serviceConnectedConditions.Add(
                     new ServiceConnectionBasisConditionDetails
                     {
@@ -158,6 +162,10 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                         cancellationToken)
                     ?? throw new InvalidOperationException(
                         "Service event could not be read.");
+
+                if (serviceEvent.Id != serviceEventId)
+                    throw new InvalidOperationException(
+                        "Service event identity mismatch.");
 
                 serviceEvents.Add(
                     new ServiceConnectionBasisServiceEventDetails
@@ -181,12 +189,20 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     ?? throw new InvalidOperationException(
                         "Service-connection requirement could not be read.");
 
+                if (requirement.Id != requirementId)
+                    throw new InvalidOperationException(
+                        "Service-connection requirement identity mismatch.");
+
                 var provision =
                     await _regulatory.GetRegulatoryProvisionAsync(
                         requirement.RegulatoryProvisionId,
                         cancellationToken)
                     ?? throw new InvalidOperationException(
                         "Regulatory provision could not be read.");
+
+                if (provision.Id != requirement.RegulatoryProvisionId)
+                    throw new InvalidOperationException(
+                        "Regulatory provision identity mismatch.");
 
                 var responsiveness =
                     await _requirementEvidence

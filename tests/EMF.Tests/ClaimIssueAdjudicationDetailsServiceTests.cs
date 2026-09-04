@@ -527,6 +527,65 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_RejectsWrongServiceConnectedConditionIdentity()
+    {
+        var issueId = new ClaimIssueId("issue-001");
+
+        var issue = new ClaimIssue
+        {
+            Id = issueId,
+            ClaimId = new ClaimId("claim-001"),
+            ClaimIssueType = "service-connection"
+        };
+
+        var theory = new ServiceConnectionTheory
+        {
+            Id = new ServiceConnectionTheoryId("theory-001"),
+            ClaimIssueId = issueId,
+            TheoryType = ServiceConnectionTheoryTypes.Secondary
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-001"),
+            ClaimIssueId = issueId,
+            ServiceConnectionTheoryId = theory.Id
+        };
+
+        var requestedId = new MedicalConditionId("condition-001");
+
+        var service = new ClaimIssueAdjudicationDetailsService(
+            new FakeClaimIssueRepository(issue),
+            Proxy<IConditionRepository>(
+                m => m.Name == "GetClaimedConditionsAsync"
+                    ? Task.FromResult<IReadOnlyList<ClaimedCondition>>([])
+                    : m.Name == "GetMedicalConditionAsync"
+                        ? Task.FromResult<MedicalCondition?>(
+                            new MedicalCondition
+                            {
+                                Id = new MedicalConditionId("condition-other"),
+                                Name = "Wrong condition"
+                            })
+                        : throw new NotSupportedException()),
+            Proxy<IServiceConnectionRepository>(
+                m => m.Name == "GetServiceConnectionTheoriesAsync"
+                    ? Task.FromResult<IReadOnlyList<ServiceConnectionTheory>>([theory])
+                    : m.Name == "GetServiceConnectionBasesAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasis>>([basis])
+                        : m.Name == "GetServiceConnectedConditionIdsAsync"
+                            ? Task.FromResult<IReadOnlyList<MedicalConditionId>>([requestedId])
+                            : throw new NotSupportedException()),
+            NeverCall<IServiceHistoryRepository>(),
+            NeverCall<IRegulatoryRepository>(),
+            NeverCall<IRequirementEvidenceService>(),
+            NeverCall<IClaimIssueEvidenceDetailsService>(),
+            NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(issueId));
+    }
+
+    [Fact]
     public async Task GetAsync_ThrowsWhenLinkedServiceConnectedConditionCannotBeRead()
     {
         var issueId = new ClaimIssueId("issue-001");
@@ -597,6 +656,69 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             exception.Message);
     }
 
+
+    [Fact]
+    public async Task GetAsync_RejectsWrongServiceEventIdentity()
+    {
+        var issueId = new ClaimIssueId("issue-001");
+
+        var issue = new ClaimIssue
+        {
+            Id = issueId,
+            ClaimId = new ClaimId("claim-001"),
+            ClaimIssueType = "service-connection"
+        };
+
+        var theory = new ServiceConnectionTheory
+        {
+            Id = new ServiceConnectionTheoryId("theory-001"),
+            ClaimIssueId = issueId,
+            TheoryType = ServiceConnectionTheoryTypes.Direct
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-001"),
+            ClaimIssueId = issueId,
+            ServiceConnectionTheoryId = theory.Id
+        };
+
+        var requestedId = new ServiceEventId("service-event-001");
+
+        var service = new ClaimIssueAdjudicationDetailsService(
+            new FakeClaimIssueRepository(issue),
+            Proxy<IConditionRepository>(
+                m => m.Name == "GetClaimedConditionsAsync"
+                    ? Task.FromResult<IReadOnlyList<ClaimedCondition>>([])
+                    : throw new NotSupportedException()),
+            Proxy<IServiceConnectionRepository>(
+                m => m.Name == "GetServiceConnectionTheoriesAsync"
+                    ? Task.FromResult<IReadOnlyList<ServiceConnectionTheory>>([theory])
+                    : m.Name == "GetServiceConnectionBasesAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasis>>([basis])
+                        : m.Name == "GetServiceConnectedConditionIdsAsync"
+                            ? Task.FromResult<IReadOnlyList<MedicalConditionId>>([])
+                            : m.Name == "GetServiceEventIdsAsync"
+                                ? Task.FromResult<IReadOnlyList<ServiceEventId>>([requestedId])
+                                : throw new NotSupportedException()),
+            Proxy<IServiceHistoryRepository>(
+                m => m.Name == "GetServiceEventAsync"
+                    ? Task.FromResult<ServiceEvent?>(
+                        new ServiceEvent
+                        {
+                            Id = new ServiceEventId("service-event-other"),
+                            VeteranId = new VeteranId("veteran-001"),
+                            Description = "Wrong event"
+                        })
+                    : throw new NotSupportedException()),
+            NeverCall<IRegulatoryRepository>(),
+            NeverCall<IRequirementEvidenceService>(),
+            NeverCall<IClaimIssueEvidenceDetailsService>(),
+            NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(issueId));
+    }
 
     [Fact]
     public async Task GetAsync_ThrowsWhenLinkedServiceEventCannotBeRead()
@@ -717,6 +839,72 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             ex.Message);
     }
 
+
+    [Fact]
+    public async Task GetAsync_RejectsWrongRequirementIdentity()
+    {
+        var issueId = new ClaimIssueId("issue-001");
+
+        var issue = new ClaimIssue
+        {
+            Id = issueId,
+            ClaimId = new ClaimId("claim-001"),
+            ClaimIssueType = "service-connection"
+        };
+
+        var theory = new ServiceConnectionTheory
+        {
+            Id = new ServiceConnectionTheoryId("theory-001"),
+            ClaimIssueId = issueId,
+            TheoryType = ServiceConnectionTheoryTypes.Secondary
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-001"),
+            ClaimIssueId = issueId,
+            ServiceConnectionTheoryId = theory.Id
+        };
+
+        var requestedId = new RequirementId("requirement-001");
+
+        var service = new ClaimIssueAdjudicationDetailsService(
+            new FakeClaimIssueRepository(issue),
+            Proxy<IConditionRepository>(
+                m => m.Name == "GetClaimedConditionsAsync"
+                    ? Task.FromResult<IReadOnlyList<ClaimedCondition>>([])
+                    : throw new NotSupportedException()),
+            Proxy<IServiceConnectionRepository>(
+                m => m.Name == "GetServiceConnectionTheoriesAsync"
+                    ? Task.FromResult<IReadOnlyList<ServiceConnectionTheory>>([theory])
+                    : m.Name == "GetServiceConnectionBasesAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasis>>([basis])
+                        : m.Name == "GetServiceConnectedConditionIdsAsync"
+                            ? Task.FromResult<IReadOnlyList<MedicalConditionId>>([])
+                            : m.Name == "GetServiceEventIdsAsync"
+                                ? Task.FromResult<IReadOnlyList<ServiceEventId>>([])
+                                : m.Name == "GetRequirementIdsAsync"
+                                    ? Task.FromResult<IReadOnlyList<RequirementId>>([requestedId])
+                                    : throw new NotSupportedException()),
+            NeverCall<IServiceHistoryRepository>(),
+            Proxy<IRegulatoryRepository>(
+                m => m.Name == "GetRequirementAsync"
+                    ? Task.FromResult<Requirement?>(
+                        new Requirement
+                        {
+                            Id = new RequirementId("requirement-other"),
+                            RegulatoryProvisionId =
+                                new RegulatoryProvisionId("provision-001"),
+                            Description = "Wrong requirement"
+                        })
+                    : throw new NotSupportedException()),
+            NeverCall<IRequirementEvidenceService>(),
+            NeverCall<IClaimIssueEvidenceDetailsService>(),
+            NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(issueId));
+    }
 
     [Fact]
     public async Task GetAsync_ThrowsWhenLinkedRequirementCannotBeRead()
@@ -855,6 +1043,88 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
 
         Assert.Equal(
             "Regulatory provision could not be read.",
+            ex.Message);
+    }
+
+
+    [Fact]
+    public async Task GetAsync_RejectsWrongRegulatoryProvisionIdentity()
+    {
+        var issueId = new ClaimIssueId("issue-001");
+
+        var issue = new ClaimIssue
+        {
+            Id = issueId,
+            ClaimId = new ClaimId("claim-001"),
+            ClaimIssueType = "service-connection"
+        };
+
+        var theory = new ServiceConnectionTheory
+        {
+            Id = new ServiceConnectionTheoryId("theory-001"),
+            ClaimIssueId = issueId,
+            TheoryType = ServiceConnectionTheoryTypes.Secondary
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-001"),
+            ClaimIssueId = issueId,
+            ServiceConnectionTheoryId = theory.Id
+        };
+
+        var requirement = new Requirement
+        {
+            Id = new RequirementId("requirement-001"),
+            RegulatoryProvisionId =
+                new RegulatoryProvisionId("missing-provision"),
+            Description = "Requirement"
+        };
+
+        var service =
+            new ClaimIssueAdjudicationDetailsService(
+                new FakeClaimIssueRepository(issue),
+                Proxy<IConditionRepository>(
+                    m => m.Name == "GetClaimedConditionsAsync"
+                        ? Task.FromResult<IReadOnlyList<ClaimedCondition>>([])
+                        : throw new NotSupportedException()),
+                Proxy<IServiceConnectionRepository>(
+                    m => m.Name == "GetServiceConnectionTheoriesAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionTheory>>([theory])
+                        : m.Name == "GetServiceConnectionBasesAsync"
+                            ? Task.FromResult<IReadOnlyList<ServiceConnectionBasis>>([basis])
+                            : m.Name == "GetServiceConnectedConditionIdsAsync"
+                                ? Task.FromResult<IReadOnlyList<MedicalConditionId>>([])
+                                : m.Name == "GetServiceEventIdsAsync"
+                                    ? Task.FromResult<IReadOnlyList<ServiceEventId>>([])
+                                    : m.Name == "GetRequirementIdsAsync"
+                                        ? Task.FromResult<IReadOnlyList<RequirementId>>([requirement.Id])
+                                        : throw new NotSupportedException()),
+                NeverCall<IServiceHistoryRepository>(),
+                Proxy<IRegulatoryRepository>(
+                    m => m.Name == "GetRequirementAsync"
+                        ? Task.FromResult<Requirement?>(requirement)
+                        : m.Name == "GetRegulatoryProvisionAsync"
+                            ? Task.FromResult<RegulatoryProvision?>(
+                                new RegulatoryProvision
+                                {
+                                    Id = new RegulatoryProvisionId("provision-other"),
+                                    RegulatoryAuthorityId =
+                                        new RegulatoryAuthorityId("authority-1"),
+                                    ProvisionType = "Test",
+                                    Citation = "38 CFR"
+                                })
+                            : throw new NotSupportedException()),
+                NeverCall<IRequirementEvidenceService>(),
+                NeverCall<IClaimIssueEvidenceDetailsService>(),
+                NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Regulatory provision identity mismatch.",
             ex.Message);
     }
 
