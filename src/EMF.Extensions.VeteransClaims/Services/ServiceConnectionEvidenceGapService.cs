@@ -30,6 +30,10 @@ public sealed class ServiceConnectionEvidenceGapService :
                 claimIssueId,
                 cancellationToken);
 
+        if (bases.Any(x => x.ClaimIssueId != claimIssueId))
+            throw new InvalidOperationException(
+                "Service connection basis claim issue mismatch.");
+
         var requirementIds = new HashSet<RequirementId>();
 
         foreach (var basis in bases)

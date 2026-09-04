@@ -93,6 +93,31 @@ public sealed class ServiceConnectionEvidenceGapServiceTests
     }
 
     [Fact]
+    public async Task EnsureGapsAsync_RejectsBasisForDifferentClaimIssue()
+    {
+        var requested = new ClaimIssueId("issue-1");
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-1"),
+            ClaimIssueId = new ClaimIssueId("issue-other"),
+            ServiceConnectionTheoryId =
+                new ServiceConnectionTheoryId("theory-1")
+        };
+
+        var service = new ServiceConnectionEvidenceGapService(
+            Proxy<IServiceConnectionRepository>(
+                (m, a) => m.Name == "GetServiceConnectionBasesAsync"
+                    ? Task.FromResult<IReadOnlyList<ServiceConnectionBasis>>([basis])
+                    : throw new NotSupportedException()),
+            Proxy<IEvidenceGapService>(
+                (m, a) => throw new NotSupportedException()));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.EnsureGapsAsync(requested));
+    }
+
+    [Fact]
     public async Task EnsureGapsAsync_DeduplicatesSharedRequirements()
     {
         var claimIssueId = new ClaimIssueId("issue-1");
