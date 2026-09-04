@@ -10,6 +10,22 @@ namespace EMF.Tests;
 public sealed class ClaimAdjudicationLifecycleServiceTests
 {
     [Fact]
+    public async Task GetAsync_RejectsIssueForDifferentClaim()
+    {
+        var requestedClaimId = new ClaimId("claim-1");
+        var wrongClaimId = new ClaimId("claim-other");
+
+        var service =
+            new ClaimAdjudicationLifecycleService(
+                new FakeClaimIssueRepository(
+                    CreateIssue("issue-wrong", wrongClaimId)),
+                CreateIssueLifecycleService());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(requestedClaimId));
+    }
+
+    [Fact]
     public async Task GetAsync_CombinesClaimIssueLifecycles()
     {
         var claimId = new ClaimId("claim-1");

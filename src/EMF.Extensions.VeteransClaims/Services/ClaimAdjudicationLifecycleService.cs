@@ -30,6 +30,15 @@ public sealed class ClaimAdjudicationLifecycleService
                 claimId,
                 cancellationToken);
 
+        var mismatchedIssue =
+            issues.FirstOrDefault(x => x.ClaimId != claimId);
+
+        if (mismatchedIssue is not null)
+            throw new InvalidOperationException(
+                $"Claim '{claimId.Value}' issue lookup returned issue " +
+                $"'{mismatchedIssue.Id.Value}' for claim " +
+                $"'{mismatchedIssue.ClaimId.Value}'.");
+
         var entries =
             new List<ClaimIssueAdjudicationLifecycleEntry>();
 
