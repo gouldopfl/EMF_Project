@@ -12,6 +12,25 @@ public static class VeteransReviewerPackageDocxRenderer
     {
         ArgumentNullException.ThrowIfNull(details);
 
+        var package =
+            details.PackageDetails.Package;
+
+        foreach (var packageArtifact in
+            details.PackageDetails.Artifacts)
+        {
+            if (details.ArtifactContents.Any(
+                content =>
+                    content.Artifact.Id ==
+                        packageArtifact.ArtifactId))
+            {
+                continue;
+            }
+
+            throw new InvalidOperationException(
+                $"Evidence package '{package.Id.Value}' has no reviewable " +
+                $"content for artifact '{packageArtifact.ArtifactId.Value}'.");
+        }
+
         using var stream =
             new MemoryStream();
 
@@ -22,9 +41,6 @@ public static class VeteransReviewerPackageDocxRenderer
         {
             var mainPart =
                 document.AddMainDocumentPart();
-
-            var package =
-                details.PackageDetails.Package;
 
             var body =
                 new Body(

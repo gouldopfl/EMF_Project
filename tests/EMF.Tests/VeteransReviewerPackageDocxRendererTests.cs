@@ -168,6 +168,63 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             text);
     }
 
+    [Fact]
+    public void Render_RejectsMissingReviewerArtifactContent()
+    {
+        var packageId =
+            new EvidencePackageId("package-1");
+
+        var artifactId =
+            new ArtifactId("source-1");
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId =
+                                    new ClaimIssueId("issue-1"),
+                                Purpose =
+                                    "Physician reviewer package",
+                                ReviewerRole =
+                                    "MedicalProfessional"
+                            },
+                        Artifacts =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = packageId,
+                                ArtifactId = artifactId,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence
+                            }
+                        ]
+                    },
+                Artifacts = [],
+                ArtifactContents = []
+            };
+
+        var exception =
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    VeteransReviewerPackageDocxRenderer.Render(
+                        details));
+
+        Assert.Contains(
+            packageId.Value,
+            exception.Message);
+
+        Assert.Contains(
+            artifactId.Value,
+            exception.Message);
+    }
+
 
     [Fact]
     public void Render_IdentifiesArtifactContentRoles()
