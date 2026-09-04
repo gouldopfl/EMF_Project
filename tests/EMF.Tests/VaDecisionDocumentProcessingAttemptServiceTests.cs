@@ -21,13 +21,11 @@ public sealed class VaDecisionDocumentProcessingAttemptServiceTests
         var processedAt =
             new DateTimeOffset(2026, 8, 27, 20, 0, 0, TimeSpan.Zero);
 
+        var issue = CreateIssue();
+
         await service.RecordAsync(
             claimId,
-            new VaDecisionDocumentInterpretation
-            {
-                ArtifactId = artifactId,
-                IssueDecisions = []
-            },
+            CreateInterpretation(artifactId, issue),
             new VaDecisionDocumentProcessingResult
             {
                 Decision =
@@ -36,7 +34,13 @@ public sealed class VaDecisionDocumentProcessingAttemptServiceTests
                         Id = decisionId,
                         DecisionDate = processedAt
                     },
-                Matches = []
+                Matches =
+                [
+                    CreateMatch(
+                        issue,
+                        VaDecisionDocumentIssueMatchStatuses.Matched,
+                        new ClaimIssueId("issue-1"))
+                ]
             },
             processedAt);
 
@@ -60,35 +64,21 @@ public sealed class VaDecisionDocumentProcessingAttemptServiceTests
         var processedAt =
             new DateTimeOffset(2026, 8, 27, 20, 0, 0, TimeSpan.Zero);
 
+        var issue = CreateIssue();
+
         await service.RecordAsync(
             claimId,
-            new VaDecisionDocumentInterpretation
-            {
-                ArtifactId = new ArtifactId("artifact-1"),
-                IssueDecisions = []
-            },
+            CreateInterpretation(
+                new ArtifactId("artifact-1"),
+                issue),
             new VaDecisionDocumentProcessingResult
             {
                 Matches =
                 [
-                    new VaDecisionDocumentIssueMatch
-                    {
-                        Interpretation =
-                            new VaIssueDecisionInterpretation
-                            {
-                                IssueDescription = "GERD",
-                                Outcome = "Denied",
-                                Rationale = "Test rationale",
-                                FavorableFindings = [],
-                                AdverseFindings = [],
-                                CitedRegulations = [],
-                                ReferencedEvidence = [],
-                                SourceExcerpts = []
-                            },
-                        Status =
-                            VaDecisionDocumentIssueMatchStatuses.Unmatched,
-                        CandidateClaimIssueIds = []
-                    }
+                    CreateMatch(
+                        issue,
+                        VaDecisionDocumentIssueMatchStatuses.Unmatched,
+                        null)
                 ]
             },
             processedAt);
@@ -100,6 +90,108 @@ public sealed class VaDecisionDocumentProcessingAttemptServiceTests
         Assert.True(attempt.HasUnresolvedIssues);
         Assert.Single(attempt.Matches);
     }
+
+    [Fact]
+    public async Task RecordAsync_RejectsPersistedResultWithUnresolvedMatch()
+    {
+        var repository = new RecordingRepository();
+        var service =
+            new VaDecisionDocumentProcessingAttemptService(repository);
+        var issue = CreateIssue();
+
+        var result = new VaDecisionDocumentProcessingResult
+        {
+            Decision = new VaDecision
+            {
+                Id = new VaDecisionId("decision-1"),
+                DecisionDate = DateTimeOffset.UtcNow
+            },
+            Matches =
+            [
+                CreateMatch(
+                    issue,
+                    VaDecisionDocumentIssueMatchStatuses.Unmatched,
+                    null)
+            ]
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.RecordAsync(
+                new ClaimId("claim-1"),
+                CreateInterpretation(
+                    new ArtifactId("artifact-1"),
+                    issue),
+                result,
+                DateTimeOffset.UtcNow));
+
+        Assert.Empty(repository.Attempts);
+    }
+
+    [Fact]
+    public async Task RecordAsync_RejectsUnpersistedResultWithAllMatchesResolved()
+    {
+        var repository = new RecordingRepository();
+        var service =
+            new VaDecisionDocumentProcessingAttemptService(repository);
+        var issue = CreateIssue();
+
+        var result = new VaDecisionDocumentProcessingResult
+        {
+            Matches =
+            [
+                CreateMatch(
+                    issue,
+                    VaDecisionDocumentIssueMatchStatuses.Matched,
+                    new ClaimIssueId("issue-1"))
+            ]
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.RecordAsync(
+                new ClaimId("claim-1"),
+                CreateInterpretation(
+                    new ArtifactId("artifact-1"),
+                    issue),
+                result,
+                DateTimeOffset.UtcNow));
+
+        Assert.Empty(repository.Attempts);
+    }
+
+    private static VaIssueDecisionInterpretation CreateIssue() =>
+        new()
+        {
+            IssueDescription = "GERD",
+            Outcome = IssueDecisionOutcomes.Denied,
+            Rationale = "Test rationale",
+            FavorableFindings = [],
+            AdverseFindings = [],
+            CitedRegulations = [],
+            ReferencedEvidence = [],
+            SourceExcerpts = []
+        };
+
+    private static VaDecisionDocumentInterpretation CreateInterpretation(
+        ArtifactId artifactId,
+        VaIssueDecisionInterpretation issue) =>
+        new()
+        {
+            ArtifactId = artifactId,
+            IssueDecisions = [issue]
+        };
+
+    private static VaDecisionDocumentIssueMatch CreateMatch(
+        VaIssueDecisionInterpretation issue,
+        string status,
+        ClaimIssueId? claimIssueId) =>
+        new()
+        {
+            Interpretation = issue,
+            Status = status,
+            ClaimIssueId = claimIssueId,
+            CandidateClaimIssueIds =
+                claimIssueId is null ? [] : [claimIssueId.Value]
+        };
 
     private sealed class RecordingRepository :
         IVaDecisionDocumentProcessingAttemptRepository
