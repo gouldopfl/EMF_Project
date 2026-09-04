@@ -53,6 +53,19 @@ public sealed class EvidencePackageService :
         ArgumentNullException.ThrowIfNull(
             generatedOrganizationalMaterialArtifactIds);
 
+        var conflictingArtifactIds =
+            underlyingEvidenceArtifactIds
+                .Intersect(
+                    generatedOrganizationalMaterialArtifactIds)
+                .ToArray();
+
+        if (conflictingArtifactIds.Length != 0)
+        {
+            throw new InvalidOperationException(
+                $"Artifact '{conflictingArtifactIds[0].Value}' cannot be " +
+                "both underlying evidence and generated organizational material.");
+        }
+
         var package =
             new EvidencePackage
             {

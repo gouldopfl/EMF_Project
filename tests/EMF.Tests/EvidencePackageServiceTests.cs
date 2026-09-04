@@ -95,6 +95,37 @@ public sealed partial class EvidencePackageServiceTests
                         .GeneratedOrganizationalMaterial);
     }
 
+    [Fact]
+    public async Task CreateAsync_RejectsConflictingArtifactRoles()
+    {
+        var repository = new RecordingRepository();
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var artifactId =
+            new ArtifactId("artifact-1");
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    service.CreateAsync(
+                        new ClaimIssueId("issue-1"),
+                        "Medical review",
+                        "MedicalProfessional",
+                        [artifactId],
+                        [artifactId]));
+
+        Assert.Contains(
+            artifactId.Value,
+            exception.Message);
+
+        Assert.Null(repository.Package);
+        Assert.Empty(repository.InitialArtifacts);
+    }
+
     private sealed class RecordingRepository :
         IEvidencePackageRepository
     {
