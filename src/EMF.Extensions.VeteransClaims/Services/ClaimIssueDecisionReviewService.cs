@@ -8,6 +8,22 @@ public sealed class ClaimIssueDecisionReviewService
         ClaimIssueDecisionComparison comparison)
     {
         ArgumentNullException.ThrowIfNull(comparison);
+        ArgumentNullException.ThrowIfNull(comparison.IssueDecision);
+        ArgumentNullException.ThrowIfNull(comparison.Recommendation);
+
+        if (comparison.ClaimIssueId !=
+            comparison.IssueDecision.ClaimIssueId)
+        {
+            throw new InvalidOperationException(
+                "Decision review issue decision claim issue mismatch.");
+        }
+
+        if (comparison.ClaimIssueId !=
+            comparison.Recommendation.ClaimIssueId)
+        {
+            throw new InvalidOperationException(
+                "Decision review recommendation claim issue mismatch.");
+        }
 
         return new ClaimIssueDecisionReview
         {
