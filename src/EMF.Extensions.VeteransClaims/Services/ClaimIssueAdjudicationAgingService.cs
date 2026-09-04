@@ -36,6 +36,13 @@ public sealed class ClaimIssueAdjudicationAgingService
     {
         ArgumentNullException.ThrowIfNull(timeline);
 
+        if (timeline.Any(
+            x => x.ClaimIssueId != claimIssueId))
+        {
+            throw new InvalidOperationException(
+                "Adjudication timeline claim issue mismatch.");
+        }
+
         if (timeline.Count == 0)
             throw new InvalidOperationException(
                 "Cannot assess aging without timeline events.");

@@ -7,6 +7,45 @@ namespace EMF.Tests;
 public sealed partial class ClaimIssueAdjudicationAgingServiceTests
 {
     [Fact]
+    public void Assess_RejectsEventForDifferentClaimIssue()
+    {
+        var issueId =
+            new ClaimIssueId("issue-1");
+
+        var timeline =
+            new[]
+            {
+                new ClaimIssueAdjudicationEvent
+                {
+                    ClaimIssueId =
+                        new ClaimIssueId("issue-other"),
+                    EventType =
+                        ClaimIssueAdjudicationEventTypes
+                            .SubmissionSubmitted,
+                    OccurredAt =
+                        new DateTimeOffset(
+                            2026, 5, 22, 0, 0, 0,
+                            TimeSpan.Zero)
+                }
+            };
+
+        var ex =
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    new ClaimIssueAdjudicationAgingService()
+                        .Assess(
+                            issueId,
+                            timeline,
+                            new DateTimeOffset(
+                                2026, 8, 28, 0, 0, 0,
+                                TimeSpan.Zero)));
+
+        Assert.Equal(
+            "Adjudication timeline claim issue mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
     public void Assess_calculates_age_from_first_event()
     {
         var issueId = new ClaimIssueId("issue-001");
