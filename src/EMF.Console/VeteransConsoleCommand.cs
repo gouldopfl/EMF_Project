@@ -1639,6 +1639,12 @@ public static class VeteransConsoleCommand
         EvidenceDevelopmentPlanId planId,
         TextWriter output)
     {
+        ArgumentNullException.ThrowIfNull(output);
+
+        void WriteSanitized(string value) =>
+            output.WriteLine(
+                ConsoleTextSanitizer.Sanitize(value));
+
         var repository =
             new SqliteEvidenceDevelopmentPlanRepository(
                 databasePath);
@@ -1659,87 +1665,87 @@ public static class VeteransConsoleCommand
 
         if (result is null)
         {
-            output.WriteLine(
+            WriteSanitized(
                 $"Evidence development plan not found: {planId.Value}");
 
             return 1;
         }
 
-        output.WriteLine(
+        WriteSanitized(
             $"Plan ID     : {result.Plan.Id.Value}");
 
-        output.WriteLine(
+        WriteSanitized(
             $"Claim Issue : {result.Plan.ClaimIssueId.Value}");
 
-        output.WriteLine(
+        WriteSanitized(
             $"Description : {result.Plan.Description}");
 
-        output.WriteLine(
+        WriteSanitized(
             $"Status      : {result.Status?.Status ?? "Unknown"}");
 
-        output.WriteLine(
+        WriteSanitized(
             $"Requirements: {result.Requirements.Count}");
 
         foreach (var requirement in result.Requirements)
         {
-            output.WriteLine(
+            WriteSanitized(
                 $"Plan Requirement: {requirement.RequirementId.Value}");
         }
 
-        output.WriteLine(
+        WriteSanitized(
             $"Evidence Gaps: {result.EvidenceGaps.Count}");
 
         foreach (var gap in result.GapDetails)
         {
-            output.WriteLine(
+            WriteSanitized(
                 $"Gap         : {gap.Id.Value}");
 
-            output.WriteLine(
+            WriteSanitized(
                 $"Requirement : {gap.RequirementId.Value}");
 
-            output.WriteLine(
+            WriteSanitized(
                 $"Gap Status  : {gap.Status}");
 
-            output.WriteLine(
+            WriteSanitized(
                 $"Gap Detail  : {gap.Description}");
         }
 
-        output.WriteLine(
+        WriteSanitized(
             $"Artifacts   : {result.Artifacts.Count}");
 
         foreach (var artifact in result.Artifacts)
         {
-            output.WriteLine(
+            WriteSanitized(
                 $"Plan Artifact: {artifact.ArtifactId.Value} ({artifact.Role})");
         }
 
-        output.WriteLine(
+        WriteSanitized(
             $"Executions  : {result.Executions.Count}");
 
         foreach (var execution in result.Executions)
         {
-            output.WriteLine(
+            WriteSanitized(
                 $"Execution   : {execution.EvidenceGapId.Value} -> {execution.WorkflowId.Value}");
         }
 
-        output.WriteLine(
+        WriteSanitized(
             $"Results     : {result.Results.Count}");
 
         foreach (var developmentResult in result.Results)
         {
-            output.WriteLine(
+            WriteSanitized(
                 $"Result      : {developmentResult.EvidenceGapId.Value}");
 
-            output.WriteLine(
+            WriteSanitized(
                 $"Result Req  : {developmentResult.RequirementId.Value}");
 
-            output.WriteLine(
+            WriteSanitized(
                 $"Matched     : {developmentResult.MatchingGuidanceItemCount?.ToString() ?? "Unknown"}");
 
-            output.WriteLine(
+            WriteSanitized(
                 $"Missing     : {developmentResult.MissingGuidanceItemCount?.ToString() ?? "Unknown"}");
 
-            output.WriteLine(
+            WriteSanitized(
                 $"Result Status: {developmentResult.ResultingGapStatus ?? "Unknown"}");
         }
 
