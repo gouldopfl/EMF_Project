@@ -177,6 +177,14 @@ public sealed class EvidencePackageService :
 
         foreach (var package in packages)
         {
+            if (package.ClaimIssueId != claimIssueId)
+            {
+                throw new InvalidOperationException(
+                    $"Claim issue lookup for '{claimIssueId.Value}' returned " +
+                    $"evidence package '{package.Id.Value}' for claim issue " +
+                    $"'{package.ClaimIssueId.Value}'.");
+            }
+
             var artifacts =
                 await _repository.GetEvidencePackageArtifactsAsync(
                     package.Id,

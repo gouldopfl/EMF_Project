@@ -580,4 +580,50 @@ public sealed partial class EvidencePackageServiceTests
             "artifact-1",
             artifact.ArtifactId.Value);
     }
+
+    [Fact]
+    public async Task GetAsync_ByClaimIssue_RejectsDifferentClaimIssue()
+    {
+        var requestedClaimIssueId =
+            new ClaimIssueId("issue-1");
+
+        var returnedClaimIssueId =
+            new ClaimIssueId("issue-2");
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingPackages =
+                [
+                    new EvidencePackage
+                    {
+                        Id = new EvidencePackageId("package-1"),
+                        ClaimIssueId = returnedClaimIssueId,
+                        Purpose = "Medical review",
+                        ReviewerRole = "MedicalProfessional"
+                    }
+                ]
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(requestedClaimIssueId));
+
+        Assert.Contains(
+            requestedClaimIssueId.Value,
+            exception.Message);
+
+        Assert.Contains(
+            returnedClaimIssueId.Value,
+            exception.Message);
+
+        Assert.Equal(
+            0,
+            repository.ArtifactQueryCount);
+    }
 }
