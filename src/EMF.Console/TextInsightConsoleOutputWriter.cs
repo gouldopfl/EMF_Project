@@ -25,7 +25,8 @@ internal static class TextInsightConsoleOutputWriter
         global::System.Console.WriteLine("Summary");
         global::System.Console.WriteLine("-------");
         global::System.Console.WriteLine(
-            result.Output!.Summary);
+            ConsoleTextSanitizer.Sanitize(
+                result.Output!.Summary));
         global::System.Console.WriteLine();
 
         global::System.Console.WriteLine("Keywords");
@@ -34,8 +35,9 @@ internal static class TextInsightConsoleOutputWriter
         foreach (var keyword in result.Output.Keywords)
         {
             global::System.Console.WriteLine(
-                $"- {keyword.Term} " +
-                $"({keyword.Occurrences})");
+                ConsoleTextSanitizer.Sanitize(
+                    $"- {keyword.Term} " +
+                    $"({keyword.Occurrences})"));
         }
 
         if (result.Warnings.Count > 0)
@@ -45,23 +47,33 @@ internal static class TextInsightConsoleOutputWriter
             global::System.Console.WriteLine("--------");
 
             foreach (var warning in result.Warnings)
-                global::System.Console.WriteLine($"- {warning}");
+                global::System.Console.WriteLine(
+                    ConsoleTextSanitizer.Sanitize(
+                        $"- {warning}"));
         }
 
         global::System.Console.WriteLine();
         global::System.Console.WriteLine(
-            $"Correlation : {result.CorrelationId.Value}");
+            ConsoleTextSanitizer.Sanitize(
+                $"Correlation : {result.CorrelationId.Value}"));
+
         global::System.Console.WriteLine(
-            $"Artifact    : {sourceArtifactId.Value}");
+            ConsoleTextSanitizer.Sanitize(
+                $"Artifact    : {sourceArtifactId.Value}"));
+
         global::System.Console.WriteLine(
-            $"Audit DB    : {auditDatabasePath}");
+            ConsoleTextSanitizer.Sanitize(
+                $"Audit DB    : {auditDatabasePath}"));
 
         if (evidenceArtifact is not null)
         {
             global::System.Console.WriteLine(
-                $"Evidence    : {evidenceArtifact.Id.Value}");
+                ConsoleTextSanitizer.Sanitize(
+                    $"Evidence    : {evidenceArtifact.Id.Value}"));
+
             global::System.Console.WriteLine(
-                $"Evidence DB : {evidenceDatabasePath}");
+                ConsoleTextSanitizer.Sanitize(
+                    $"Evidence DB : {evidenceDatabasePath}"));
         }
     }
 }

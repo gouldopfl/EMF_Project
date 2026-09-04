@@ -830,8 +830,9 @@ public static class VeteransConsoleCommand
         if (!result.Success)
         {
             global::System.Console.Error.WriteLine(
-                result.Message ??
-                "Reviewer package summarization failed.");
+                ConsoleTextSanitizer.Sanitize(
+                    result.Message ??
+                    "Reviewer package summarization failed."));
 
             return 1;
         }
@@ -850,7 +851,8 @@ public static class VeteransConsoleCommand
                 result);
 
         global::System.Console.WriteLine(
-            result.Output);
+            ConsoleTextSanitizer.Sanitize(
+                result.Output));
 
         global::System.Console.WriteLine(
             $"Summary Artifact ID : {prepared.SummaryArtifact.Id.Value}");

@@ -120,8 +120,9 @@ public static class IntelligenceConsoleCommand
             result.Output is null)
         {
             global::System.Console.Error.WriteLine(
-                result.Message ??
-                "Text intelligence failed.");
+                ConsoleTextSanitizer.Sanitize(
+                    result.Message ??
+                    "Text intelligence failed."));
             return 1;
         }
 

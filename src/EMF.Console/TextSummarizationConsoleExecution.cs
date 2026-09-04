@@ -48,8 +48,9 @@ internal static class
             result.Output is null)
         {
             global::System.Console.Error.WriteLine(
-                result.Message ??
-                "Text summarization failed.");
+                ConsoleTextSanitizer.Sanitize(
+                    result.Message ??
+                    "Text summarization failed."));
             return 1;
         }
 

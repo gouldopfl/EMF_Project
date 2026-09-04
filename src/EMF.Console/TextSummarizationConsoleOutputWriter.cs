@@ -18,15 +18,24 @@ internal static class
         global::System.Console.WriteLine();
         global::System.Console.WriteLine("Summary");
         global::System.Console.WriteLine("-------");
-        global::System.Console.WriteLine(result.Output);
+        global::System.Console.WriteLine(
+            ConsoleTextSanitizer.Sanitize(
+                result.Output));
         global::System.Console.WriteLine();
         global::System.Console.WriteLine(
-            $"Provider    : {result.Metadata.ProviderId.Value}");
+            ConsoleTextSanitizer.Sanitize(
+                $"Provider    : {result.Metadata.ProviderId.Value}"));
+
         global::System.Console.WriteLine(
-            $"Engine      : {result.Metadata.EngineName}");
+            ConsoleTextSanitizer.Sanitize(
+                $"Engine      : {result.Metadata.EngineName}"));
+
         global::System.Console.WriteLine(
-            $"Correlation : {result.Metadata.CorrelationId.Value}");
+            ConsoleTextSanitizer.Sanitize(
+                $"Correlation : {result.Metadata.CorrelationId.Value}"));
+
         global::System.Console.WriteLine(
-            $"Audit DB    : {auditDatabasePath}");
+            ConsoleTextSanitizer.Sanitize(
+                $"Audit DB    : {auditDatabasePath}"));
     }
 }
