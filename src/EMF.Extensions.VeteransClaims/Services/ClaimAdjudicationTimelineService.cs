@@ -31,15 +31,31 @@ public sealed class ClaimAdjudicationTimelineService :
                 claimId,
                 cancellationToken);
 
+        if (issues.Any(
+            x => x.ClaimId != claimId))
+        {
+            throw new InvalidOperationException(
+                "Claim timeline issue ownership mismatch.");
+        }
+
         var events =
             new List<ClaimIssueAdjudicationEvent>();
 
         foreach (var issue in issues)
         {
-            events.AddRange(
+            var issueEvents =
                 await _timeline.GetAsync(
                     issue.Id,
-                    cancellationToken));
+                    cancellationToken);
+
+            if (issueEvents.Any(
+                x => x.ClaimIssueId != issue.Id))
+            {
+                throw new InvalidOperationException(
+                    "Claim timeline event ownership mismatch.");
+            }
+
+            events.AddRange(issueEvents);
         }
 
         return events
