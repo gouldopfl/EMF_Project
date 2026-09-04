@@ -996,7 +996,8 @@ public static class VeteransConsoleCommand
         foreach (var claimedCondition in result.Details.ClaimedConditions)
         {
             output.WriteLine(
-                $"Claimed Condition: {claimedCondition.Id.Value} ({claimedCondition.Name})");
+                ConsoleTextSanitizer.Sanitize(
+                    $"Claimed Condition: {claimedCondition.Id.Value} ({claimedCondition.Name})"));
         }
 
         output.WriteLine(
@@ -1081,9 +1082,10 @@ public static class VeteransConsoleCommand
                         x => x.Basis.Id == basis.Id))
                 {
                     output.WriteLine(
-                        $"Service Connected: " +
-                        $"{condition.ServiceConnectedCondition.Id.Value} " +
-                        $"({condition.ServiceConnectedCondition.Name})");
+                        ConsoleTextSanitizer.Sanitize(
+                            $"Service Connected: " +
+                            $"{condition.ServiceConnectedCondition.Id.Value} " +
+                            $"({condition.ServiceConnectedCondition.Name})"));
                 }
 
                 foreach (var serviceEvent in
@@ -1091,9 +1093,10 @@ public static class VeteransConsoleCommand
                         x => x.Basis.Id == basis.Id))
                 {
                     output.WriteLine(
-                        $"Service Event: " +
-                        $"{serviceEvent.ServiceEvent.Id.Value} " +
-                        $"({serviceEvent.ServiceEvent.Description})");
+                        ConsoleTextSanitizer.Sanitize(
+                            $"Service Event: " +
+                            $"{serviceEvent.ServiceEvent.Id.Value} " +
+                            $"({serviceEvent.ServiceEvent.Description})"));
                 }
 
                 foreach (var requirement in
@@ -1116,15 +1119,17 @@ public static class VeteransConsoleCommand
                     }
 
                     output.WriteLine(
-                        $"Description : {requirement.Requirement.Description}");
+                        ConsoleTextSanitizer.Sanitize(
+                            $"Description : {requirement.Requirement.Description}"));
 
                     output.WriteLine(
                         $"Provision   : " +
                         $"{requirement.Requirement.RegulatoryProvisionId.Value}");
 
                     output.WriteLine(
-                        $"Citation    : " +
-                        $"{requirement.RegulatoryProvision.Citation}");
+                        ConsoleTextSanitizer.Sanitize(
+                            $"Citation    : " +
+                            $"{requirement.RegulatoryProvision.Citation}"));
 
                     output.WriteLine(
                         $"Evidence Matched : " +
@@ -1148,8 +1153,9 @@ public static class VeteransConsoleCommand
             result.Readiness.BlockingRequirements)
         {
             output.WriteLine(
-                $"- {blocking.Requirement.Id.Value}: " +
-                blocking.Requirement.Description);
+                ConsoleTextSanitizer.Sanitize(
+                    $"- {blocking.Requirement.Id.Value}: " +
+                    blocking.Requirement.Description));
         }
 
         output.WriteLine(
@@ -1158,8 +1164,9 @@ public static class VeteransConsoleCommand
         foreach (var item in result.Readiness.BlockingItems)
         {
             output.WriteLine(
-                $"  - {item.EvidenceClassification} / " +
-                $"{item.GuidanceRole}: {item.Description}");
+                ConsoleTextSanitizer.Sanitize(
+                    $"  - {item.EvidenceClassification} / " +
+                    $"{item.GuidanceRole}: {item.Description}"));
         }
 
         if (result.Aging is not null)
@@ -1188,14 +1195,15 @@ public static class VeteransConsoleCommand
         foreach (var item in result.Details.Timeline)
         {
             output.WriteLine(
-                $"- {item.OccurredAt:O} " +
-                $"{item.EventType}" +
-                (item.Outcome is null
-                    ? string.Empty
-                    : $" [{item.Outcome}]") +
-                (item.Description is null
-                    ? string.Empty
-                    : $": {item.Description}"));
+                ConsoleTextSanitizer.Sanitize(
+                    $"- {item.OccurredAt:O} " +
+                    $"{item.EventType}" +
+                    (item.Outcome is null
+                        ? string.Empty
+                        : $" [{item.Outcome}]") +
+                    (item.Description is null
+                        ? string.Empty
+                        : $": {item.Description}")));
         }
 
         return 0;
