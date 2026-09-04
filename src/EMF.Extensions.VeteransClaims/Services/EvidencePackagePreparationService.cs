@@ -52,6 +52,19 @@ public sealed class EvidencePackagePreparationService :
                 claimIssueId,
                 cancellationToken);
 
+        var mismatchedClassification =
+            classifications.FirstOrDefault(
+                x => x.ClaimIssueId != claimIssueId);
+
+        if (mismatchedClassification is not null)
+        {
+            throw new InvalidOperationException(
+                $"Claim issue '{claimIssueId.Value}' classification lookup " +
+                $"returned classification " +
+                $"'{mismatchedClassification.Id.Value}' for claim issue " +
+                $"'{mismatchedClassification.ClaimIssueId?.Value ?? "<none>"}'.");
+        }
+
         var underlyingEvidenceArtifactIds =
             classifications
                 .Select(x => x.ArtifactId)

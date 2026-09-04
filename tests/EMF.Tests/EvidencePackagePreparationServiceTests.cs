@@ -250,6 +250,62 @@ public sealed partial class EvidencePackagePreparationServiceTests
 public sealed partial class EvidencePackagePreparationServiceTests
 {
     [Fact]
+    public async Task PrepareAsync_RejectsClassificationForDifferentClaimIssue()
+    {
+        var requestedClaimIssueId =
+            new ClaimIssueId("issue-1");
+
+        var returnedClaimIssueId =
+            new ClaimIssueId("issue-other");
+
+        var classifications =
+            new RecordingClassificationRepository
+            {
+                ExistingClassifications =
+                [
+                    new EvidenceClassification
+                    {
+                        Id =
+                            new EvidenceClassificationId(
+                                "classification-wrong"),
+                        ArtifactId =
+                            new EMF.Core.Models.Identities.ArtifactId(
+                                "artifact-wrong"),
+                        ClaimIssueId = returnedClaimIssueId,
+                        Classification =
+                            EvidenceClassifications.MedicalEvidence
+                    }
+                ]
+            };
+
+        var packages =
+            new RecordingPackageService();
+
+        var service =
+            new EvidencePackagePreparationService(
+                classifications,
+                packages);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.PrepareAsync(
+                    requestedClaimIssueId,
+                    "Medical review",
+                    "MedicalProfessional"));
+
+        Assert.Contains(
+            requestedClaimIssueId.Value,
+            ex.Message);
+
+        Assert.Contains(
+            returnedClaimIssueId.Value,
+            ex.Message);
+
+        Assert.Null(packages.CreatedClaimIssueId);
+        Assert.Empty(packages.AddedArtifacts);
+    }
+
+    [Fact]
     public async Task PrepareAsync_AddsClassifiedEvidence()
     {
         var classifications =
