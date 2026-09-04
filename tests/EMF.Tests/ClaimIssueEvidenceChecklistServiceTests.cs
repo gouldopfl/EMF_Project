@@ -8,6 +8,128 @@ namespace EMF.Tests;
 public sealed class ClaimIssueEvidenceChecklistServiceTests
 {
     [Fact]
+    public async Task CreateChecklistAsync_RejectsGapForDifferentClaimIssue()
+    {
+        var claimIssueId =
+            new ClaimIssueId("issue-1");
+
+        var requirements =
+            new FakeRequirementEvidenceService();
+
+        var service =
+            new ClaimIssueEvidenceChecklistService(
+                new FakeGapRepository(
+                    new EvidenceGap
+                    {
+                        Id = new EvidenceGapId("gap-foreign"),
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-other"),
+                        RequirementId =
+                            new RequirementId("requirement-1"),
+                        Description = "Foreign gap."
+                    }),
+                requirements);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.CreateChecklistAsync(
+                    claimIssueId));
+
+        Assert.Equal(
+            "Evidence gap claim issue mismatch.",
+            ex.Message);
+
+        Assert.Empty(requirements.Requested);
+    }
+
+    [Fact]
+    public async Task CreateChecklistAsync_RejectsChecklistForDifferentRequirement()
+    {
+        var claimIssueId =
+            new ClaimIssueId("issue-1");
+
+        var requirementId =
+            new RequirementId("requirement-1");
+
+        var service =
+            new ClaimIssueEvidenceChecklistService(
+                new FakeGapRepository(
+                    new EvidenceGap
+                    {
+                        Id = new EvidenceGapId("gap-1"),
+                        ClaimIssueId = claimIssueId,
+                        RequirementId = requirementId,
+                        Description = "Gap."
+                    }),
+                new FixedRequirementEvidenceService(
+                    new EvidenceDevelopmentChecklist
+                    {
+                        RequirementId =
+                            new RequirementId(
+                                "requirement-other"),
+                        Items = []
+                    }));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.CreateChecklistAsync(
+                    claimIssueId));
+
+        Assert.Equal(
+            "Evidence checklist requirement mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateChecklistAsync_RejectsItemForDifferentRequirement()
+    {
+        var claimIssueId =
+            new ClaimIssueId("issue-1");
+
+        var requirementId =
+            new RequirementId("requirement-1");
+
+        var service =
+            new ClaimIssueEvidenceChecklistService(
+                new FakeGapRepository(
+                    new EvidenceGap
+                    {
+                        Id = new EvidenceGapId("gap-1"),
+                        ClaimIssueId = claimIssueId,
+                        RequirementId = requirementId,
+                        Description = "Gap."
+                    }),
+                new FixedRequirementEvidenceService(
+                    new EvidenceDevelopmentChecklist
+                    {
+                        RequirementId = requirementId,
+                        Items =
+                        [
+                            new EvidenceDevelopmentChecklistItem
+                            {
+                                RequirementId =
+                                    new RequirementId(
+                                        "requirement-other"),
+                                EvidenceClassification =
+                                    EvidenceClassifications.MedicalOpinion,
+                                GuidanceRole =
+                                    EvidenceGuidanceRoles.SupportsRequirement,
+                                Description = "Foreign item."
+                            }
+                        ]
+                    }));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.CreateChecklistAsync(
+                    claimIssueId));
+
+        Assert.Equal(
+            "Evidence checklist item requirement mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task CreateChecklistAsync_DeduplicatesRequirements()
     {
         var issueId = new ClaimIssueId("issue-1");
@@ -191,6 +313,40 @@ public sealed class ClaimIssueEvidenceChecklistServiceTests
             GetEvidenceGapsAsync(
                 RequirementId requirementId,
                 CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class FixedRequirementEvidenceService :
+        IRequirementEvidenceService
+    {
+        private readonly EvidenceDevelopmentChecklist _checklist;
+
+        public FixedRequirementEvidenceService(
+            EvidenceDevelopmentChecklist checklist) =>
+            _checklist = checklist;
+
+        public Task<EvidenceDevelopmentChecklist>
+            CreateChecklistAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult(_checklist);
+
+        public Task<IReadOnlyList<EvidenceClassification>>
+            GetEvidenceAsync(
+                RequirementId id,
+                CancellationToken c = default) =>
+            throw new NotSupportedException();
+
+        public Task<RequirementEvidenceAssessment>
+            AssessAsync(
+                RequirementId id,
+                CancellationToken c = default) =>
+            throw new NotSupportedException();
+
+        public Task<RequirementEvidenceResponsivenessAssessment>
+            AssessResponsivenessAsync(
+                RequirementId id,
+                CancellationToken c = default) =>
             throw new NotSupportedException();
     }
 

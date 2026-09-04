@@ -31,6 +31,13 @@ public sealed class ClaimIssueEvidenceChecklistService :
                 claimIssueId,
                 cancellationToken);
 
+        if (gaps.Any(
+            x => x.ClaimIssueId != claimIssueId))
+        {
+            throw new InvalidOperationException(
+                "Evidence gap claim issue mismatch.");
+        }
+
         var results =
             new List<EvidenceDevelopmentChecklist>();
 
@@ -44,6 +51,19 @@ public sealed class ClaimIssueEvidenceChecklistService :
                 await _requirements.CreateChecklistAsync(
                     requirementId,
                     cancellationToken);
+
+            if (checklist.RequirementId != requirementId)
+            {
+                throw new InvalidOperationException(
+                    "Evidence checklist requirement mismatch.");
+            }
+
+            if (checklist.Items.Any(
+                x => x.RequirementId != requirementId))
+            {
+                throw new InvalidOperationException(
+                    "Evidence checklist item requirement mismatch.");
+            }
 
             if (checklist.HasOutstandingItems)
                 results.Add(checklist);
