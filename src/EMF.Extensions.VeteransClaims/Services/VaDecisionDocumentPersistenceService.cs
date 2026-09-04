@@ -50,6 +50,71 @@ public sealed class VaDecisionDocumentPersistenceService
                 "A persisted VA decision document must contain at least one matched issue.");
         }
 
+        ArgumentNullException.ThrowIfNull(
+            request.MatchedIssues);
+
+        foreach (var matchedIssue in request.MatchedIssues)
+        {
+            ArgumentNullException.ThrowIfNull(matchedIssue);
+            ArgumentNullException.ThrowIfNull(matchedIssue.Match);
+        }
+
+        if (request.MatchedIssues.Count !=
+            request.Interpretation.IssueDecisions.Count)
+        {
+            throw new InvalidOperationException(
+                "Every interpreted VA decision issue must have " +
+                "exactly one matched issue.");
+        }
+
+        if (request.MatchedIssues
+                .Select(x => x.IssueDecisionId)
+                .Distinct()
+                .Count() != request.MatchedIssues.Count)
+        {
+            throw new InvalidOperationException(
+                "VA decision issue decision IDs must be unique.");
+        }
+
+        foreach (var matchedIssue in request.MatchedIssues)
+        {
+            if (matchedIssue.Match.Status !=
+                    VaDecisionDocumentIssueMatchStatuses.Matched ||
+                matchedIssue.Match.ClaimIssueId is null)
+            {
+                throw new InvalidOperationException(
+                    "Only uniquely matched VA decision issues " +
+                    "may be persisted.");
+            }
+
+            if (matchedIssue.Match.CandidateClaimIssueIds.Count != 1 ||
+                matchedIssue.Match.CandidateClaimIssueIds[0] !=
+                    matchedIssue.Match.ClaimIssueId.Value)
+            {
+                throw new InvalidOperationException(
+                    "A matched VA decision issue must have exactly " +
+                    "one matching claim issue candidate.");
+            }
+        }
+
+        foreach (var interpretationIssue in
+                 request.Interpretation.IssueDecisions)
+        {
+            var matchCount =
+                request.MatchedIssues.Count(
+                    x =>
+                        ReferenceEquals(
+                            x.Match.Interpretation,
+                            interpretationIssue));
+
+            if (matchCount != 1)
+            {
+                throw new InvalidOperationException(
+                    "Every interpreted VA decision issue must be " +
+                    "represented exactly once in the matched issues.");
+            }
+        }
+
         var decision =
             new VaDecision
             {
