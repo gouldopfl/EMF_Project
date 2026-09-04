@@ -10,6 +10,218 @@ namespace EMF.Tests;
 public sealed class ClaimIssueAdjudicationReadinessServiceTests
 {
     [Fact]
+    public void Assess_RejectsRequirementForDifferentClaimIssue()
+    {
+        var requirement =
+            RequirementDetails(
+                "req-foreign",
+                outstanding: true);
+
+        requirement =
+            new ServiceConnectionBasisRequirementDetails
+            {
+                Basis =
+                    new ServiceConnectionBasis
+                    {
+                        Id = requirement.Basis.Id,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-other"),
+                        ServiceConnectionTheoryId =
+                            requirement.Basis
+                                .ServiceConnectionTheoryId
+                    },
+                Requirement = requirement.Requirement,
+                RegulatoryProvision =
+                    requirement.RegulatoryProvision,
+                Responsiveness = requirement.Responsiveness,
+                DevelopmentChecklist =
+                    requirement.DevelopmentChecklist
+            };
+
+        var details =
+            CreateDetails(requirement);
+
+        var ex =
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    new ClaimIssueAdjudicationReadinessService()
+                        .Assess(details));
+
+        Assert.Equal(
+            "Readiness requirement claim issue mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public void Assess_RejectsChecklistForDifferentRequirement()
+    {
+        var original =
+            RequirementDetails(
+                "req-1",
+                outstanding: true);
+
+        var requirement =
+            new ServiceConnectionBasisRequirementDetails
+            {
+                Basis = original.Basis,
+                Requirement = original.Requirement,
+                RegulatoryProvision =
+                    original.RegulatoryProvision,
+                Responsiveness = original.Responsiveness,
+                DevelopmentChecklist =
+                    new EvidenceDevelopmentChecklist
+                    {
+                        RequirementId =
+                            new RequirementId("req-other"),
+                        Items =
+                            original.DevelopmentChecklist.Items
+                    }
+            };
+
+        var ex =
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    new ClaimIssueAdjudicationReadinessService()
+                        .Assess(CreateDetails(requirement)));
+
+        Assert.Equal(
+            "Readiness checklist requirement mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public void Assess_RejectsResponsivenessForDifferentRequirement()
+    {
+        var original =
+            RequirementDetails(
+                "req-1",
+                outstanding: true);
+
+        var requirement =
+            new ServiceConnectionBasisRequirementDetails
+            {
+                Basis = original.Basis,
+                Requirement = original.Requirement,
+                RegulatoryProvision =
+                    original.RegulatoryProvision,
+                Responsiveness =
+                    new RequirementEvidenceResponsivenessAssessment
+                    {
+                        RequirementId =
+                            new RequirementId("req-other"),
+                        Items = original.Responsiveness.Items
+                    },
+                DevelopmentChecklist =
+                    original.DevelopmentChecklist
+            };
+
+        var ex =
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    new ClaimIssueAdjudicationReadinessService()
+                        .Assess(CreateDetails(requirement)));
+
+        Assert.Equal(
+            "Readiness responsiveness requirement mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public void Assess_RejectsChecklistItemForDifferentRequirement()
+    {
+        var original =
+            RequirementDetails(
+                "req-1",
+                outstanding: true);
+
+        var checklist =
+            new EvidenceDevelopmentChecklist
+            {
+                RequirementId =
+                    original.DevelopmentChecklist.RequirementId,
+                Items =
+                [
+                    new EvidenceDevelopmentChecklistItem
+                    {
+                        RequirementId =
+                            new RequirementId("req-other"),
+                        EvidenceClassification =
+                            EvidenceClassifications.MedicalOpinion,
+                        GuidanceRole =
+                            EvidenceGuidanceRoles.SupportsRequirement,
+                        Description = "Missing evidence."
+                    }
+                ]
+            };
+
+        var requirement =
+            new ServiceConnectionBasisRequirementDetails
+            {
+                Basis = original.Basis,
+                Requirement = original.Requirement,
+                RegulatoryProvision =
+                    original.RegulatoryProvision,
+                Responsiveness = original.Responsiveness,
+                DevelopmentChecklist = checklist
+            };
+
+        var ex =
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    new ClaimIssueAdjudicationReadinessService()
+                        .Assess(CreateDetails(requirement)));
+
+        Assert.Equal(
+            "Readiness checklist item requirement mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public void Assess_RejectsRegulatoryProvisionMismatch()
+    {
+        var original =
+            RequirementDetails(
+                "req-1",
+                outstanding: true);
+
+        var requirement =
+            new ServiceConnectionBasisRequirementDetails
+            {
+                Basis = original.Basis,
+                Requirement = original.Requirement,
+                RegulatoryProvision =
+                    new RegulatoryProvision
+                    {
+                        Id =
+                            new RegulatoryProvisionId(
+                                "provision-other"),
+                        RegulatoryAuthorityId =
+                            original.RegulatoryProvision
+                                .RegulatoryAuthorityId,
+                        ProvisionType =
+                            original.RegulatoryProvision
+                                .ProvisionType,
+                        Citation =
+                            original.RegulatoryProvision
+                                .Citation
+                    },
+                Responsiveness = original.Responsiveness,
+                DevelopmentChecklist =
+                    original.DevelopmentChecklist
+            };
+
+        var ex =
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    new ClaimIssueAdjudicationReadinessService()
+                        .Assess(CreateDetails(requirement)));
+
+        Assert.Equal(
+            "Readiness regulatory provision mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
     public void Assess_ReturnsReadyWhenNoRequirementsAreOutstanding()
     {
         var details =
