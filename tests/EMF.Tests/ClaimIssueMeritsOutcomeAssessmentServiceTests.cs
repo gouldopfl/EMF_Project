@@ -110,4 +110,37 @@ public sealed class ClaimIssueMeritsOutcomeAssessmentServiceTests
             outcomes.Length,
             result.TheoryOutcomes.Count);
     }
+
+    [Fact]
+    public void Assess_RejectsTheoryForDifferentClaimIssue()
+    {
+        var claimIssueId =
+            new ClaimIssueId("issue-1");
+
+        var theoryOutcome =
+            new ServiceConnectionTheoryOutcomeAssessment
+            {
+                Theory =
+                    new ServiceConnectionTheory
+                    {
+                        Id =
+                            new ServiceConnectionTheoryId(
+                                "theory-other"),
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-other"),
+                        TheoryType =
+                            ServiceConnectionTheoryTypes.Secondary
+                    },
+                BasisOutcomes = [],
+                Outcome = FindingOutcomes.Favorable
+            };
+
+        Assert.Throws<InvalidOperationException>(
+            () =>
+                new ClaimIssueMeritsOutcomeAssessmentService()
+                    .Assess(
+                        claimIssueId,
+                        [theoryOutcome]));
+    }
+
 }

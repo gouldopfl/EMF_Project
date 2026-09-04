@@ -13,6 +13,24 @@ public sealed class ServiceConnectionTheoryOutcomeAssessmentService
         ArgumentNullException.ThrowIfNull(theory);
         ArgumentNullException.ThrowIfNull(basisOutcomes);
 
+        foreach (var outcome in basisOutcomes)
+        {
+            ArgumentNullException.ThrowIfNull(outcome);
+            ArgumentNullException.ThrowIfNull(outcome.Basis);
+
+            if (outcome.Basis.ClaimIssueId != theory.ClaimIssueId)
+            {
+                throw new InvalidOperationException(
+                    "Service-connection basis claim issue mismatch.");
+            }
+
+            if (outcome.Basis.ServiceConnectionTheoryId != theory.Id)
+            {
+                throw new InvalidOperationException(
+                    "Service-connection basis theory mismatch.");
+            }
+        }
+
         return new ServiceConnectionTheoryOutcomeAssessment
         {
             Theory = theory,

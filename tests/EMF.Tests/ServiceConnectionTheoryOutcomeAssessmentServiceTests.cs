@@ -131,4 +131,60 @@ public sealed class ServiceConnectionTheoryOutcomeAssessmentServiceTests
             outcomes.Length,
             result.BasisOutcomes.Count);
     }
+
+    [Fact]
+    public void Assess_RejectsBasisForDifferentClaimIssue()
+    {
+        var theory = CreateTheory();
+
+        var outcome =
+            CreateBasisOutcome(
+                new ClaimIssueId("issue-other"),
+                theory.Id);
+
+        Assert.Throws<InvalidOperationException>(
+            () => new ServiceConnectionTheoryOutcomeAssessmentService()
+                .Assess(theory, [outcome]));
+    }
+
+    [Fact]
+    public void Assess_RejectsBasisForDifferentTheory()
+    {
+        var theory = CreateTheory();
+
+        var outcome =
+            CreateBasisOutcome(
+                theory.ClaimIssueId,
+                new ServiceConnectionTheoryId("theory-other"));
+
+        Assert.Throws<InvalidOperationException>(
+            () => new ServiceConnectionTheoryOutcomeAssessmentService()
+                .Assess(theory, [outcome]));
+    }
+
+    private static ServiceConnectionTheory CreateTheory() =>
+        new()
+        {
+            Id = new ServiceConnectionTheoryId("theory-test"),
+            ClaimIssueId = new ClaimIssueId("issue-1"),
+            TheoryType = ServiceConnectionTheoryTypes.Secondary
+        };
+
+    private static ServiceConnectionBasisOutcomeAssessment
+        CreateBasisOutcome(
+            ClaimIssueId claimIssueId,
+            ServiceConnectionTheoryId theoryId) =>
+        new()
+        {
+            Basis =
+                new ServiceConnectionBasis
+                {
+                    Id = new ServiceConnectionBasisId("basis-test"),
+                    ClaimIssueId = claimIssueId,
+                    ServiceConnectionTheoryId = theoryId
+                },
+            RequirementOutcomes = [],
+            Outcome = FindingOutcomes.Favorable
+        };
+
 }

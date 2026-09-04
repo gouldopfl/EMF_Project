@@ -12,6 +12,18 @@ public sealed class ClaimIssueMeritsOutcomeAssessmentService
     {
         ArgumentNullException.ThrowIfNull(theoryOutcomes);
 
+        foreach (var outcome in theoryOutcomes)
+        {
+            ArgumentNullException.ThrowIfNull(outcome);
+            ArgumentNullException.ThrowIfNull(outcome.Theory);
+
+            if (outcome.Theory.ClaimIssueId != claimIssueId)
+            {
+                throw new InvalidOperationException(
+                    "Service-connection theory claim issue mismatch.");
+            }
+        }
+
         return new ClaimIssueMeritsOutcomeAssessment
         {
             ClaimIssueId = claimIssueId,
