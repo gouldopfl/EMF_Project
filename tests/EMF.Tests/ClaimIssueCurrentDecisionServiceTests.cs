@@ -119,6 +119,28 @@ public sealed class ClaimIssueCurrentDecisionServiceTests
             () => service.GetAsync(issueId));
     }
 
+    [Fact]
+    public async Task GetAsync_RejectsDecisionForDifferentClaimIssue()
+    {
+        var requestedIssueId =
+            new ClaimIssueId("issue-1");
+
+        var returnedDecision =
+            CreateDecision(
+                new ClaimIssueId("issue-other"),
+                "issue-decision-1",
+                "va-decision-1",
+                EMF.Extensions.VeteransClaims.Models.Adjudication
+                    .IssueDecisionOutcomes.Denied);
+
+        var service =
+            new ClaimIssueCurrentDecisionService(
+                new DecisionRepository(returnedDecision));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(requestedIssueId));
+    }
+
     private static
         EMF.Extensions.VeteransClaims.Models.Adjudication.IssueDecision
         CreateDecision(
