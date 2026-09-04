@@ -75,6 +75,18 @@ public sealed class RequirementEvidenceService :
                     requirementId,
                     cancellationToken);
 
+        var mismatchedGuidance =
+            guidance.FirstOrDefault(
+                x => x.RequirementId != requirementId);
+
+        if (mismatchedGuidance is not null)
+        {
+            throw new InvalidOperationException(
+                $"Requirement '{requirementId.Value}' guidance lookup " +
+                $"returned guidance '{mismatchedGuidance.Id.Value}' for " +
+                $"requirement '{mismatchedGuidance.RequirementId.Value}'.");
+        }
+
         var items =
             guidance
                 .Select(

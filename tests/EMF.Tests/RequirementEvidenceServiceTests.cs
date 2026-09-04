@@ -245,6 +245,42 @@ public sealed class RequirementEvidenceServiceTests
             item.Description);
     }
 
+    [Fact]
+    public async Task AssessResponsivenessAsync_RejectsGuidanceForDifferentRequirement()
+    {
+        var requirementId =
+            new RequirementId("requirement-1");
+
+        var guidance =
+            new EvidenceRequirementGuidance
+            {
+                Id =
+                    new EvidenceRequirementGuidanceId(
+                        "guidance-wrong"),
+                RequirementId =
+                    new RequirementId("requirement-other"),
+                EvidenceClassification =
+                    EvidenceClassifications.MedicalOpinion,
+                GuidanceRole =
+                    EvidenceGuidanceRoles.EstablishesElement,
+                Description = "Wrong requirement."
+            };
+
+        var service =
+            new RequirementEvidenceService(
+                new RecordingRepository(),
+                new RecordingGuidanceRepository(guidance));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    service.AssessResponsivenessAsync(
+                        requirementId));
+
+        Assert.Contains(requirementId.Value, ex.Message);
+        Assert.Contains("requirement-other", ex.Message);
+    }
+
     private sealed class RecordingGuidanceRepository :
         IEvidenceRequirementGuidanceRepository
     {
