@@ -265,5 +265,23 @@ public sealed class EvidencePackageService :
                 $"Evidence package '{evidencePackageId.Value}' " +
                 $"contains unsupported content role '{artifact.ContentRole}'.");
         }
+
+        var conflictingArtifact =
+            artifacts
+                .GroupBy(artifact => artifact.ArtifactId)
+                .FirstOrDefault(
+                    group =>
+                        group
+                            .Select(artifact => artifact.ContentRole)
+                            .Distinct(StringComparer.Ordinal)
+                            .Count() > 1);
+
+        if (conflictingArtifact is not null)
+        {
+            throw new InvalidOperationException(
+                $"Evidence package '{evidencePackageId.Value}' contains " +
+                $"conflicting content roles for artifact " +
+                $"'{conflictingArtifact.Key.Value}'.");
+        }
     }
 }

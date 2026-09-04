@@ -496,6 +496,64 @@ public sealed partial class EvidencePackageServiceTests
             0,
             repository.ArtifactQueryCount);
     }
+
+    [Fact]
+    public async Task GetAsync_RejectsConflictingPersistedArtifactRoles()
+    {
+        var package =
+            new EvidencePackage
+            {
+                Id = new EvidencePackageId("package-1"),
+                ClaimIssueId = new ClaimIssueId("issue-1"),
+                Purpose = "Medical review",
+                ReviewerRole = "MedicalProfessional"
+            };
+
+        var artifactId =
+            new ArtifactId("artifact-1");
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingPackage = package,
+                ExistingArtifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = package.Id,
+                        ArtifactId = artifactId,
+                        ContentRole =
+                            EvidencePackageContentRoles
+                                .UnderlyingEvidence
+                    },
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = package.Id,
+                        ArtifactId = artifactId,
+                        ContentRole =
+                            EvidencePackageContentRoles
+                                .GeneratedOrganizationalMaterial
+                    }
+                ]
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(package.Id));
+
+        Assert.Contains(
+            package.Id.Value,
+            exception.Message);
+
+        Assert.Contains(
+            artifactId.Value,
+            exception.Message);
+    }
 }
 
 public sealed partial class EvidencePackageServiceTests
