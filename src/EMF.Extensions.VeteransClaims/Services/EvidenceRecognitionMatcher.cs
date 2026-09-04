@@ -29,6 +29,10 @@ public sealed class EvidenceRecognitionMatcher
                 requirementId,
                 cancellationToken);
 
+        if (terms.Any(x => x.RequirementId != requirementId))
+            throw new InvalidOperationException(
+                "Evidence recognition term requirement mismatch.");
+
         var matches = new List<EvidenceRecognitionMatch>();
 
         foreach (var term in terms)

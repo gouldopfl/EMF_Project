@@ -1,3 +1,4 @@
+using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Services;
@@ -102,6 +103,55 @@ public sealed class EvidenceRecognitionMatcherTests
             result[0].EvidenceClassification);
     }
 
+
+    [Fact]
+    public async Task FindMatchesAsync_RejectsTermForDifferentRequirement()
+    {
+        var requested =
+            new RequirementId("requirement-001");
+
+        var repository =
+            new MismatchedRepository(
+                CreateTerm(
+                    "term-001",
+                    new RequirementId("requirement-other"),
+                    "chronic"));
+
+        var matcher =
+            new EvidenceRecognitionMatcher(repository);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => matcher.FindMatchesAsync(
+                requested,
+                "Veteran has chronic ankle pain."));
+    }
+
+    private sealed class MismatchedRepository :
+        IEvidenceRecognitionTermRepository
+    {
+        private readonly EvidenceRecognitionTerm _term;
+
+        public MismatchedRepository(EvidenceRecognitionTerm term) =>
+            _term = term;
+
+        public Task<IReadOnlyList<EvidenceRecognitionTerm>>
+            GetEvidenceRecognitionTermsAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<EvidenceRecognitionTerm>>(
+                [_term]);
+
+        public Task AddEvidenceRecognitionTermAsync(
+            EvidenceRecognitionTerm term,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<EvidenceRecognitionTerm?>
+            GetEvidenceRecognitionTermAsync(
+                EvidenceRecognitionTermId termId,
+                CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
 
     private static EvidenceRecognitionTerm CreateTerm(
         string id,
