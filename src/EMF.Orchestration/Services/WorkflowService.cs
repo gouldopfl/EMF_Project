@@ -124,6 +124,10 @@ public sealed class WorkflowService : IWorkflowService
                 $"Workflow execution '{workflowId}' was not found.");
         }
 
+        if (execution.WorkflowId != workflowId)
+            throw new InvalidOperationException(
+                "Workflow execution identity mismatch.");
+
         EnsureTransition(
             execution.CurrentStatus,
             WorkflowStatus.Completed);
@@ -180,6 +184,10 @@ public sealed class WorkflowService : IWorkflowService
             throw new InvalidOperationException(
                 $"Workflow execution '{workflowId}' was not found.");
         }
+
+        if (execution.WorkflowId != workflowId)
+            throw new InvalidOperationException(
+                "Workflow execution identity mismatch.");
 
         EnsureTransition(
             execution.CurrentStatus,

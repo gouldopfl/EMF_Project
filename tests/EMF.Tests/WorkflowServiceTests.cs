@@ -187,6 +187,30 @@ public sealed class WorkflowServicePersistenceTests
     }
 
     [Fact]
+    public async Task CompleteAsync_rejects_different_returned_workflow()
+    {
+        var repository = new RecordingWorkflowRepository();
+        var service = new WorkflowService(repository);
+
+        var workflowId =
+            await service.StartAsync(CreateDefinition());
+
+        repository.ReturnedExecution =
+            new WorkflowExecutionRecord
+            {
+                WorkflowId = new WorkflowId("workflow-other"),
+                DefinitionId = "evidence-processing",
+                DefinitionVersion = "1",
+                CreatedUtc = DateTimeOffset.UtcNow,
+                CurrentStatus = WorkflowStatus.Running,
+                RecoveryStatus = WorkflowRecoveryStatus.None
+            };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.CompleteAsync(workflowId));
+    }
+
+    [Fact]
     public async Task CompleteAsync_rejects_already_completed_workflow()
     {
         var repository = new RecordingWorkflowRepository();
@@ -199,6 +223,32 @@ public sealed class WorkflowServicePersistenceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.CompleteAsync(workflowId));
+    }
+
+    [Fact]
+    public async Task FailAsync_rejects_different_returned_workflow()
+    {
+        var repository = new RecordingWorkflowRepository();
+        var service = new WorkflowService(repository);
+
+        var workflowId =
+            await service.StartAsync(CreateDefinition());
+
+        repository.ReturnedExecution =
+            new WorkflowExecutionRecord
+            {
+                WorkflowId = new WorkflowId("workflow-other"),
+                DefinitionId = "evidence-processing",
+                DefinitionVersion = "1",
+                CreatedUtc = DateTimeOffset.UtcNow,
+                CurrentStatus = WorkflowStatus.Running,
+                RecoveryStatus = WorkflowRecoveryStatus.None
+            };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.FailAsync(
+                workflowId,
+                "Activity failed."));
     }
 
     [Fact]
@@ -276,6 +326,8 @@ private sealed class RecordingWorkflowRepository : IWorkflowRepository
     {
         public WorkflowExecutionRecord? Execution { get; private set; }
 
+        public WorkflowExecutionRecord? ReturnedExecution { get; set; }
+
     public WorkflowStatusTransition? LastTransition { get; private set; }
 
         public Task CreateExecutionAsync(
@@ -298,7 +350,8 @@ private sealed class RecordingWorkflowRepository : IWorkflowRepository
             WorkflowId workflowId,
             CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(Execution);
+            return Task.FromResult(
+                ReturnedExecution ?? Execution);
         }
 
         public Task<WorkflowOperationRecord?> GetOperationAsync(
