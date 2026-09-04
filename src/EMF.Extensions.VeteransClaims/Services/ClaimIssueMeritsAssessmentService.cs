@@ -43,6 +43,13 @@ public sealed class ClaimIssueMeritsAssessmentService
                     claimIssueId,
                     cancellationToken);
 
+        if (theories.Any(
+            x => x.ClaimIssueId != claimIssueId))
+        {
+            throw new InvalidOperationException(
+                "Merits theory claim issue mismatch.");
+        }
+
         var theoryAssessments =
             new List<ServiceConnectionTheoryOutcomeAssessment>();
 
@@ -53,6 +60,15 @@ public sealed class ClaimIssueMeritsAssessmentService
                     .GetServiceConnectionBasesAsync(
                         theory.Id,
                         cancellationToken);
+
+            if (bases.Any(
+                x =>
+                    x.ClaimIssueId != claimIssueId ||
+                    x.ServiceConnectionTheoryId != theory.Id))
+            {
+                throw new InvalidOperationException(
+                    "Merits basis ownership mismatch.");
+            }
 
             var basisAssessments =
                 new List<ServiceConnectionBasisOutcomeAssessment>();

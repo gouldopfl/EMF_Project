@@ -10,6 +10,167 @@ namespace EMF.Tests;
 public sealed class ClaimIssueMeritsAssessmentServiceTests
 {
     [Fact]
+    public async Task AssessAsync_RejectsTheoryForDifferentClaimIssue()
+    {
+        var issueId =
+            new ClaimIssueId("issue-1");
+
+        var theory =
+            new ServiceConnectionTheory
+            {
+                Id = new ServiceConnectionTheoryId("theory-1"),
+                ClaimIssueId =
+                    new ClaimIssueId("issue-other"),
+                TheoryType =
+                    ServiceConnectionTheoryTypes.Secondary
+            };
+
+        var connections =
+            Proxy<IServiceConnectionRepository>(
+                (method, args) =>
+                    method.Name ==
+                        "GetServiceConnectionTheoriesAsync"
+                        ? Task.FromResult<
+                            IReadOnlyList<ServiceConnectionTheory>>(
+                                [theory])
+                        : throw new NotSupportedException());
+
+        var findings =
+            Proxy<IFindingRepository>(
+                (method, args) =>
+                    throw new InvalidOperationException(
+                        "Findings should not be read."));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    new ClaimIssueMeritsAssessmentService(
+                        connections,
+                        findings)
+                        .AssessAsync(issueId));
+
+        Assert.Equal(
+            "Merits theory claim issue mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task AssessAsync_RejectsBasisForDifferentTheory()
+    {
+        var issueId =
+            new ClaimIssueId("issue-1");
+
+        var theory =
+            new ServiceConnectionTheory
+            {
+                Id = new ServiceConnectionTheoryId("theory-1"),
+                ClaimIssueId = issueId,
+                TheoryType =
+                    ServiceConnectionTheoryTypes.Secondary
+            };
+
+        var basis =
+            new ServiceConnectionBasis
+            {
+                Id = new ServiceConnectionBasisId("basis-1"),
+                ClaimIssueId = issueId,
+                ServiceConnectionTheoryId =
+                    new ServiceConnectionTheoryId("theory-other")
+            };
+
+        var connections =
+            Proxy<IServiceConnectionRepository>(
+                (method, args) =>
+                    method.Name ==
+                        "GetServiceConnectionTheoriesAsync"
+                        ? Task.FromResult<
+                            IReadOnlyList<ServiceConnectionTheory>>(
+                                [theory])
+                        : method.Name ==
+                            "GetServiceConnectionBasesAsync"
+                            ? Task.FromResult<
+                                IReadOnlyList<ServiceConnectionBasis>>(
+                                    [basis])
+                            : throw new NotSupportedException());
+
+        var findings =
+            Proxy<IFindingRepository>(
+                (method, args) =>
+                    throw new InvalidOperationException(
+                        "Findings should not be read."));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    new ClaimIssueMeritsAssessmentService(
+                        connections,
+                        findings)
+                        .AssessAsync(issueId));
+
+        Assert.Equal(
+            "Merits basis ownership mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task AssessAsync_RejectsBasisForDifferentClaimIssue()
+    {
+        var issueId =
+            new ClaimIssueId("issue-1");
+
+        var theory =
+            new ServiceConnectionTheory
+            {
+                Id = new ServiceConnectionTheoryId("theory-1"),
+                ClaimIssueId = issueId,
+                TheoryType =
+                    ServiceConnectionTheoryTypes.Secondary
+            };
+
+        var basis =
+            new ServiceConnectionBasis
+            {
+                Id = new ServiceConnectionBasisId("basis-1"),
+                ClaimIssueId =
+                    new ClaimIssueId("issue-other"),
+                ServiceConnectionTheoryId = theory.Id
+            };
+
+        var connections =
+            Proxy<IServiceConnectionRepository>(
+                (method, args) =>
+                    method.Name ==
+                        "GetServiceConnectionTheoriesAsync"
+                        ? Task.FromResult<
+                            IReadOnlyList<ServiceConnectionTheory>>(
+                                [theory])
+                        : method.Name ==
+                            "GetServiceConnectionBasesAsync"
+                            ? Task.FromResult<
+                                IReadOnlyList<ServiceConnectionBasis>>(
+                                    [basis])
+                            : throw new NotSupportedException());
+
+        var findings =
+            Proxy<IFindingRepository>(
+                (method, args) =>
+                    throw new InvalidOperationException(
+                        "Findings should not be read."));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    new ClaimIssueMeritsAssessmentService(
+                        connections,
+                        findings)
+                        .AssessAsync(issueId));
+
+        Assert.Equal(
+            "Merits basis ownership mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task AssessAsync_ComposesFavorableMerits()
     {
         var issueId = new ClaimIssueId("issue-1");
