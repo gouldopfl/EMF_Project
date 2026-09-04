@@ -61,6 +61,12 @@ public sealed class ClaimIssueAdjudicationAssessmentService :
         if (details is null)
             return null;
 
+        if (details.ClaimIssue.Id != claimIssueId)
+        {
+            throw new InvalidOperationException(
+                "Adjudication details claim issue mismatch.");
+        }
+
         var merits =
             await _merits.AssessAsync(
                 claimIssueId,

@@ -41,6 +41,45 @@ public sealed class ClaimIssueAdjudicationAssessmentServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_RejectsDetailsForDifferentClaimIssue()
+    {
+        var requestedIssueId =
+            new ClaimIssueId("issue-requested");
+
+        var details =
+            CreateDetails(
+                new ClaimIssue
+                {
+                    Id = new ClaimIssueId("issue-other"),
+                    ClaimId = new ClaimId("claim-1"),
+                    ClaimIssueType =
+                        ClaimIssueTypes.ServiceConnection
+                },
+                []);
+
+        var service =
+            new ClaimIssueAdjudicationAssessmentService(
+                Proxy<IClaimIssueAdjudicationDetailsService>(
+                    (method, args) =>
+                        Task.FromResult<
+                            ClaimIssueAdjudicationDetails?>(details)),
+                new ClaimIssueAdjudicationReadinessService(),
+                CreateMeritsService(),
+                new ClaimIssueDecisionRecommendationService(),
+                new ClaimIssueCurrentDecisionService(
+                    new EmptyDecisionRepository()),
+                CreateReviewHistoryService(),
+                new ClaimIssueAdjudicationAgingStatusService(
+                    new ClaimIssueAdjudicationAgingService(),
+                    new ClaimIssueAdjudicationAgingPolicyService()),
+                ClaimIssueAdjudicationAgingPolicies.Default,
+                TimeProvider.System);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(requestedIssueId));
+    }
+
+    [Fact]
     public async Task GetAsync_ComposesReadiness()
     {
         var issue =
