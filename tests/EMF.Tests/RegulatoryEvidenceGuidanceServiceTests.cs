@@ -9,6 +9,55 @@ namespace EMF.Tests;
 public sealed class RegulatoryEvidenceGuidanceServiceTests
 {
     [Fact]
+    public async Task GetEvidenceGuidanceAsync_RejectsRequirementForDifferentProvision()
+    {
+        var service =
+            new RegulatoryEvidenceGuidanceService(
+                new StubRegulatoryRepository(
+                    new Requirement
+                    {
+                        Id = new RequirementId("requirement-wrong"),
+                        RegulatoryProvisionId =
+                            new RegulatoryProvisionId("provision-other"),
+                        Description = "Wrong provision."
+                    }),
+                new EmptyGuidanceRepository());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetEvidenceGuidanceAsync(
+                new RegulatoryProvisionId("provision-001")));
+    }
+
+    [Fact]
+    public async Task GetEvidenceGuidanceAsync_RejectsGuidanceForDifferentRequirement()
+    {
+        var provisionId = new RegulatoryProvisionId("provision-001");
+        var requirement = new Requirement
+        {
+            Id = new RequirementId("requirement-001"),
+            RegulatoryProvisionId = provisionId,
+            Description = "Required element."
+        };
+
+        var guidance = new EvidenceRequirementGuidance
+        {
+            Id = new EvidenceRequirementGuidanceId("guidance-wrong"),
+            RequirementId = new RequirementId("requirement-other"),
+            EvidenceClassification = EvidenceClassifications.MedicalOpinion,
+            GuidanceRole = EvidenceGuidanceRoles.SupportsRequirement,
+            Description = "Wrong requirement."
+        };
+
+        var service =
+            new RegulatoryEvidenceGuidanceService(
+                new StubRegulatoryRepository(requirement),
+                new StubGuidanceRepository(guidance));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetEvidenceGuidanceAsync(provisionId));
+    }
+
+    [Fact]
     public async Task GetEvidenceGuidanceAsync_ComposesRequirementsAndGuidance()
     {
         var provisionId = new RegulatoryProvisionId("provision-001");
