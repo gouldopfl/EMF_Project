@@ -90,6 +90,10 @@ internal sealed class EvidenceDevelopmentIntelligenceCoordinator :
             throw new InvalidOperationException(
                 "Evidence gap identity mismatch.");
 
+        if (developmentResult.RequirementId != gap.RequirementId)
+            throw new InvalidOperationException(
+                "Evidence development result requirement mismatch.");
+
         var gapArtifacts =
             await _gapRepository.GetEvidenceGapArtifactsAsync(
                 evidenceGapId,
