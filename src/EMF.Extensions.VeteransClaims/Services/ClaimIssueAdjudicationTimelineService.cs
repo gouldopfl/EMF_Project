@@ -44,6 +44,13 @@ public sealed class ClaimIssueAdjudicationTimelineService :
                 claimIssueId,
                 cancellationToken);
 
+        if (appeals.Any(
+            x => x.ClaimIssueId != claimIssueId))
+        {
+            throw new InvalidOperationException(
+                "Court appeal claim issue mismatch.");
+        }
+
         var courtEvents =
             new List<ClaimIssueAdjudicationEvent>();
 
@@ -76,6 +83,20 @@ public sealed class ClaimIssueAdjudicationTimelineService :
     {
         ArgumentNullException.ThrowIfNull(vaEntries);
         ArgumentNullException.ThrowIfNull(otherEvents);
+
+        var issueIds =
+            vaEntries
+                .Select(x => x.ClaimIssueId)
+                .Concat(otherEvents.Select(x => x.ClaimIssueId))
+                .Distinct()
+                .Take(2)
+                .ToArray();
+
+        if (issueIds.Length > 1)
+        {
+            throw new InvalidOperationException(
+                "Timeline claim issue mismatch.");
+        }
 
         var vaEvents =
             new List<ClaimIssueAdjudicationEvent>();

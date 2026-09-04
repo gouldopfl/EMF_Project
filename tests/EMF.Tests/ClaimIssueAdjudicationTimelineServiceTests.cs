@@ -40,6 +40,37 @@ public sealed class ClaimIssueAdjudicationTimelineServiceTests
     }
 
     [Fact]
+    public void Compose_RejectsMixedClaimIssues()
+    {
+        var vaIssueId =
+            new ClaimIssueId("issue-va");
+
+        var courtIssueId =
+            new ClaimIssueId("issue-court");
+
+        var service =
+            new ClaimIssueAdjudicationTimelineService();
+
+        var ex =
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    service.Compose(
+                        [Entry(
+                            vaIssueId,
+                            "1",
+                            "InitialClaim",
+                            1)],
+                        [Event(
+                            courtIssueId,
+                            "CourtAppeal",
+                            2)]));
+
+        Assert.Equal(
+            "Timeline claim issue mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task GetAsync_ThrowsWhenTimelineRetrievalIsNotConfigured()
     {
         var service =
@@ -53,6 +84,32 @@ public sealed class ClaimIssueAdjudicationTimelineServiceTests
 
         Assert.Equal(
             "Timeline retrieval is not configured.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsCourtAppealForDifferentClaimIssue()
+    {
+        var issueId =
+            new ClaimIssueId("issue-1");
+
+        var lifecycle =
+            new ClaimIssueAdjudicationLifecycleService(
+                new DecisionRepository(issueId),
+                new SubmissionRepository());
+
+        var service =
+            new ClaimIssueAdjudicationTimelineService(
+                lifecycle,
+                new CourtAppealRepository(
+                    new ClaimIssueId("issue-other")));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Court appeal claim issue mismatch.",
             ex.Message);
     }
 
