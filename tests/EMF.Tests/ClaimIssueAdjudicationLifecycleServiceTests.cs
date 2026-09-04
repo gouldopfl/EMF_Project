@@ -112,6 +112,23 @@ public sealed class ClaimIssueAdjudicationLifecycleServiceTests
             entries[2].Submission.SubmissionType);
     }
 
+    [Fact]
+    public async Task GetAsync_RejectsDecisionForDifferentClaimIssue()
+    {
+        var requestedIssueId =
+            new ClaimIssueId("issue-requested");
+
+        var service =
+            new ClaimIssueAdjudicationLifecycleService(
+                new DecisionRepository(
+                    new ClaimIssueId("issue-other")),
+                new SubmissionRepository(
+                    new ClaimIssueId("issue-other")));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(requestedIssueId));
+    }
+
     private sealed class DecisionRepository : IVaDecisionRepository
     {
         private readonly ClaimIssueId _issueId;
