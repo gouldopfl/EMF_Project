@@ -1932,9 +1932,33 @@ public static class VeteransConsoleCommand
 
         try
         {
-            await File.WriteAllBytesAsync(
-                temporaryPath,
-                content);
+            var options =
+                new FileStreamOptions
+                {
+                    Mode = FileMode.CreateNew,
+                    Access = FileAccess.Write,
+                    Share = FileShare.None,
+                    BufferSize = 4096,
+                    Options =
+                        FileOptions.Asynchronous |
+                        FileOptions.WriteThrough
+                };
+
+            if (!OperatingSystem.IsWindows())
+            {
+                options.UnixCreateMode =
+                    UnixFileMode.UserRead |
+                    UnixFileMode.UserWrite;
+            }
+
+            await using (var stream =
+                new FileStream(
+                    temporaryPath,
+                    options))
+            {
+                await stream.WriteAsync(content);
+                await stream.FlushAsync();
+            }
 
             File.Move(
                 temporaryPath,

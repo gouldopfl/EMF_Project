@@ -288,6 +288,14 @@ public sealed partial class VeteransEvidencePackageConsoleTests
             Assert.Equal(0, exitCode);
             Assert.True(File.Exists(outputPath));
             Assert.True(new FileInfo(outputPath).Length > 0);
+
+            if (!OperatingSystem.IsWindows())
+            {
+                Assert.Equal(
+                    UnixFileMode.UserRead |
+                    UnixFileMode.UserWrite,
+                    File.GetUnixFileMode(outputPath));
+            }
         }
         finally
         {
