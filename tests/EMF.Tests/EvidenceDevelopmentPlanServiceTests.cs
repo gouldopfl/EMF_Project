@@ -123,6 +123,42 @@ public sealed class EvidenceDevelopmentPlanServiceTests
     }
 
     [Fact]
+    public async Task GetEvidenceDevelopmentPlanAsync_RejectsDifferentReturnedPlan()
+    {
+        var requestedPlanId =
+            new EvidenceDevelopmentPlanId("plan-requested");
+
+        var returnedPlanId =
+            new EvidenceDevelopmentPlanId("plan-returned");
+
+        var service =
+            new EvidenceDevelopmentPlanService(
+                new StubRepository(
+                    new EvidenceDevelopmentPlan
+                    {
+                        Id = returnedPlanId,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-001"),
+                        Description = "Unexpected plan."
+                    }));
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    service.GetEvidenceDevelopmentPlanAsync(
+                        requestedPlanId));
+
+        Assert.Contains(
+            requestedPlanId.Value,
+            exception.Message);
+
+        Assert.Contains(
+            returnedPlanId.Value,
+            exception.Message);
+    }
+
+
+    [Fact]
     public async Task GetEvidenceDevelopmentPlanAsync_ReturnsNullWhenPlanDoesNotExist()
     {
         var service =

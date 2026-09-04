@@ -97,6 +97,13 @@ public sealed class EvidenceDevelopmentPlanService :
             return null;
         }
 
+        if (plan.Id != planId)
+        {
+            throw new InvalidOperationException(
+                $"Evidence development plan lookup for '{planId.Value}' " +
+                $"returned plan '{plan.Id.Value}'.");
+        }
+
         var requirements =
             await _repository.GetEvidenceDevelopmentPlanRequirementsAsync(
                 planId,
