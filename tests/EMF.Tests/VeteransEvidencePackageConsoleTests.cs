@@ -1,3 +1,6 @@
+using DocumentFormat.OpenXml.Packaging;
+using EMF.Core.Models;
+using EMF.Persistence.Repositories;
 using EMF.ConsoleApplication;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
@@ -282,6 +285,102 @@ public sealed partial class VeteransEvidencePackageConsoleTests
 
             if (File.Exists(databasePath))
                 File.Delete(databasePath);
+        }
+    }
+}
+
+public sealed partial class VeteransEvidencePackageConsoleTests
+{
+    [Fact]
+    public async Task EvidencePackage_WritesMedicalEvidenceAppendix()
+    {
+        var databasePath = Path.GetTempFileName();
+        var outputPath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"{Guid.NewGuid():N}.docx");
+
+        try
+        {
+            var packageId =
+                await SeedPackageAsync(databasePath);
+
+            var evidence =
+                new SqliteEvidenceRepository(databasePath);
+
+            await evidence.InitializeAsync();
+
+            await evidence.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = new ArtifactId("source-1"),
+                    Name = "Sleep Study",
+                    ArtifactType = "text-summary",
+                    Metadata =
+                        new Dictionary<string, object>
+                        {
+                            ["summary"] =
+                                "Severe obstructive sleep apnea documented."
+                        }
+                });
+
+            var classifications =
+                new SqliteEvidenceClassificationRepository(
+                    databasePath);
+
+            await classifications.AddEvidenceClassificationAsync(
+                new EvidenceClassification
+                {
+                    Id =
+                        new EvidenceClassificationId(
+                            "classification-1"),
+                    ArtifactId =
+                        new ArtifactId("source-1"),
+                    ClaimIssueId =
+                        new ClaimIssueId("issue-package-1"),
+                    Classification =
+                        EvidenceClassifications.MedicalEvidence
+                });
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunEvidencePackageDocxAsync(
+                        databasePath,
+                        packageId,
+                        outputPath);
+
+            Assert.Equal(0, exitCode);
+
+            using var document =
+                WordprocessingDocument.Open(
+                    outputPath,
+                    false);
+
+            var mainPart =
+                Assert.IsType<MainDocumentPart>(
+                    document.MainDocumentPart);
+
+            var documentRoot =
+                mainPart.Document;
+
+            Assert.NotNull(documentRoot);
+
+            var body =
+                documentRoot!.Body;
+
+            Assert.NotNull(body);
+
+            var text =
+                body!.InnerText;
+
+            Assert.Contains(
+                "Appendix A — Medical Evidence",
+                text);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+            File.Delete(outputPath);
         }
     }
 }

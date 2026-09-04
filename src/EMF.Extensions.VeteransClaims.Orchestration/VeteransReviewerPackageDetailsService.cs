@@ -27,6 +27,16 @@ public sealed class VeteransReviewerPackageDetailsService
     public VeteransReviewerPackageDetailsService(
         IEvidencePackageService packages,
         IEvidenceRepository evidence,
+        IEvidenceClassificationRepository classifications)
+        : this(packages, evidence)
+    {
+        ArgumentNullException.ThrowIfNull(classifications);
+        _classifications = classifications;
+    }
+
+    public VeteransReviewerPackageDetailsService(
+        IEvidencePackageService packages,
+        IEvidenceRepository evidence,
         IArtifactTextExtractor textExtractor)
     {
         ArgumentNullException.ThrowIfNull(packages);

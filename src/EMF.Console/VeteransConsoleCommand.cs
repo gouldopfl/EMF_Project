@@ -1775,6 +1775,10 @@ public static class VeteransConsoleCommand
 
         await evidenceRepository.InitializeAsync();
 
+        var classifications =
+            new SqliteEvidenceClassificationRepository(
+                databasePath);
+
         var contentStore =
             ArtifactContentStoreFactory.Create();
 
@@ -1782,10 +1786,12 @@ public static class VeteransConsoleCommand
             contentStore is null
                 ? new VeteransReviewerPackageDetailsService(
                     packageService,
-                    evidenceRepository)
+                    evidenceRepository,
+                    classifications)
                 : new VeteransReviewerPackageDetailsService(
                     packageService,
                     evidenceRepository,
+                    classifications,
                     ArtifactTextExtractionFactory.Create(
                         evidenceRepository,
                         contentStore));
@@ -1830,6 +1836,10 @@ public static class VeteransConsoleCommand
 
         await evidenceRepository.InitializeAsync();
 
+        var classifications =
+            new SqliteEvidenceClassificationRepository(
+                databasePath);
+
         var contentStore =
             ArtifactContentStoreFactory.Create();
 
@@ -1837,10 +1847,12 @@ public static class VeteransConsoleCommand
             contentStore is null
                 ? new VeteransReviewerPackageDetailsService(
                     packageService,
-                    evidenceRepository)
+                    evidenceRepository,
+                    classifications)
                 : new VeteransReviewerPackageDetailsService(
                     packageService,
                     evidenceRepository,
+                    classifications,
                     ArtifactTextExtractionFactory.Create(
                         evidenceRepository,
                         contentStore));
