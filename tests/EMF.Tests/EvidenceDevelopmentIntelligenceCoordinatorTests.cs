@@ -30,6 +30,66 @@ public sealed class EvidenceDevelopmentIntelligenceCoordinatorTests
     }
 
     [Fact]
+    public async Task SummarizeAsync_RejectsExecutionForDifferentPlan()
+    {
+        var repository =
+            new FakeDevelopmentRepository
+            {
+                Execution = new EvidenceDevelopmentExecution
+                {
+                    EvidenceDevelopmentPlanId =
+                        new EvidenceDevelopmentPlanId("plan-other"),
+                    EvidenceGapId =
+                        new EvidenceGapId("gap-1"),
+                    WorkflowId =
+                        new WorkflowId("workflow-1")
+                }
+            };
+
+        var coordinator =
+            new EvidenceDevelopmentIntelligenceCoordinator(
+                repository,
+                new FakeGapRepository(),
+                new FakeExecutor());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.SummarizeAsync(
+                new EvidenceDevelopmentPlanId("plan-1"),
+                new EvidenceGapId("gap-1"),
+                TestContext()));
+    }
+
+    [Fact]
+    public async Task SummarizeAsync_RejectsExecutionForDifferentGap()
+    {
+        var repository =
+            new FakeDevelopmentRepository
+            {
+                Execution = new EvidenceDevelopmentExecution
+                {
+                    EvidenceDevelopmentPlanId =
+                        new EvidenceDevelopmentPlanId("plan-1"),
+                    EvidenceGapId =
+                        new EvidenceGapId("gap-other"),
+                    WorkflowId =
+                        new WorkflowId("workflow-1")
+                }
+            };
+
+        var coordinator =
+            new EvidenceDevelopmentIntelligenceCoordinator(
+                repository,
+                new FakeGapRepository(),
+                new FakeExecutor());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.SummarizeAsync(
+                new EvidenceDevelopmentPlanId("plan-1"),
+                new EvidenceGapId("gap-1"),
+                TestContext()));
+    }
+
+    [Fact]
     public async Task SummarizeAsync_FailsWhenResultIsMissing()
     {
         var repository =

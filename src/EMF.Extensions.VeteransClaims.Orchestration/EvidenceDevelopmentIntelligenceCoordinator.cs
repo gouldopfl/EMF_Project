@@ -53,6 +53,13 @@ internal sealed class EvidenceDevelopmentIntelligenceCoordinator :
                 "Evidence development execution was not found.");
         }
 
+        if (execution.EvidenceDevelopmentPlanId != planId ||
+            execution.EvidenceGapId != evidenceGapId)
+        {
+            throw new InvalidOperationException(
+                "Evidence development execution identity mismatch.");
+        }
+
         var developmentResult =
             await _repository.GetEvidenceDevelopmentResultAsync(
                 evidenceGapId,
