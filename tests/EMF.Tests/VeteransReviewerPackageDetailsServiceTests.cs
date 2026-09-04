@@ -1,3 +1,5 @@
+using System.Reflection;
+using EMF.Core.Contracts;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
@@ -84,6 +86,34 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         Assert.Same(artifact, content.Artifact);
         Assert.Equal("reviewable text", content.Text);
         Assert.Equal(artifact.Id, extractor.ArtifactId);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsWrongReturnedArtifactIdentity()
+    {
+        var packageId = new EvidencePackageId("package-1");
+        var requestedId = new ArtifactId("artifact-1");
+        var returned = CreateArtifact("artifact-other");
+
+        var evidence =
+            Proxy<IEvidenceRepository>(
+                (method, args) =>
+                    method.Name == "GetArtifactAsync"
+                        ? Task.FromResult<Artifact?>(returned)
+                        : throw new NotSupportedException());
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService
+                {
+                    Details = CreateDetails(
+                        packageId,
+                        requestedId)
+                },
+                evidence);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAsync(packageId));
     }
 
     [Fact]
@@ -175,6 +205,26 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         Assert.Same(artifact, content.Artifact);
         Assert.Equal("reviewer summary", content.Text);
         Assert.Null(extractor.ArtifactId);
+    }
+
+    private static T Proxy<T>(
+        Func<MethodInfo, object?[]?, object?> handler)
+        where T : class
+    {
+        var proxy = DispatchProxy.Create<T, TestProxy>();
+        ((TestProxy)(object)proxy).Handler = handler;
+        return proxy;
+    }
+
+    private class TestProxy : DispatchProxy
+    {
+        public Func<MethodInfo, object?[]?, object?>? Handler
+            { get; set; }
+
+        protected override object? Invoke(
+            MethodInfo? targetMethod,
+            object?[]? args) =>
+            Handler!(targetMethod!, args);
     }
 
     private static Artifact CreateArtifact(string id) =>

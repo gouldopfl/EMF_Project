@@ -89,6 +89,10 @@ public sealed class VeteransReviewerPackageDetailsService
                     $"missing artifact '{packageArtifact.ArtifactId.Value}'.");
             }
 
+            if (artifact.Id != packageArtifact.ArtifactId)
+                throw new InvalidOperationException(
+                    "Evidence package artifact identity mismatch.");
+
             artifacts.Add(artifact);
 
             var text =
