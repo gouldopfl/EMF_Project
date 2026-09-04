@@ -451,6 +451,51 @@ public sealed partial class EvidencePackageServiceTests
             otherPackageId.Value,
             exception.Message);
     }
+
+    [Fact]
+    public async Task GetAsync_RejectsDifferentReturnedPackage()
+    {
+        var requestedPackageId =
+            new EvidencePackageId("package-1");
+
+        var returnedPackageId =
+            new EvidencePackageId("package-2");
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingPackage =
+                    new EvidencePackage
+                    {
+                        Id = returnedPackageId,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-1"),
+                        Purpose = "Medical review",
+                        ReviewerRole = "MedicalProfessional"
+                    }
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(requestedPackageId));
+
+        Assert.Contains(
+            requestedPackageId.Value,
+            exception.Message);
+
+        Assert.Contains(
+            returnedPackageId.Value,
+            exception.Message);
+
+        Assert.Equal(
+            0,
+            repository.ArtifactQueryCount);
+    }
 }
 
 public sealed partial class EvidencePackageServiceTests

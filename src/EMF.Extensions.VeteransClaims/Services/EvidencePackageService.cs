@@ -209,6 +209,13 @@ public sealed class EvidencePackageService :
         if (package is null)
             return null;
 
+        if (package.Id != evidencePackageId)
+        {
+            throw new InvalidOperationException(
+                $"Evidence package lookup for '{evidencePackageId.Value}' " +
+                $"returned package '{package.Id.Value}'.");
+        }
+
         var artifacts =
             await _repository.GetEvidencePackageArtifactsAsync(
                 evidencePackageId,
