@@ -159,6 +159,43 @@ public sealed class EvidenceDevelopmentPlanServiceTests
 
 
     [Fact]
+    public async Task GetEvidenceDevelopmentPlanAsync_RejectsEvidenceGapForDifferentPlan()
+    {
+        var planId =
+            new EvidenceDevelopmentPlanId("plan-requested");
+
+        var otherPlanId =
+            new EvidenceDevelopmentPlanId("plan-other");
+
+        var service =
+            new EvidenceDevelopmentPlanService(
+                new StubRepository(
+                    new EvidenceDevelopmentPlan
+                    {
+                        Id = planId,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-001"),
+                        Description = "Develop evidence."
+                    },
+                    otherPlanId));
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    service.GetEvidenceDevelopmentPlanAsync(
+                        planId));
+
+        Assert.Contains(
+            planId.Value,
+            exception.Message);
+
+        Assert.Contains(
+            otherPlanId.Value,
+            exception.Message);
+    }
+
+
+    [Fact]
     public async Task GetEvidenceDevelopmentPlanAsync_ReturnsNullWhenPlanDoesNotExist()
     {
         var service =
@@ -406,9 +443,15 @@ public sealed class EvidenceDevelopmentPlanServiceTests
         IEvidenceDevelopmentPlanRepository
     {
         private readonly EvidenceDevelopmentPlan _plan;
+        private readonly EvidenceDevelopmentPlanId? _evidenceGapPlanId;
 
-        public StubRepository(EvidenceDevelopmentPlan plan) =>
+        public StubRepository(
+            EvidenceDevelopmentPlan plan,
+            EvidenceDevelopmentPlanId? evidenceGapPlanId = null)
+        {
             _plan = plan;
+            _evidenceGapPlanId = evidenceGapPlanId;
+        }
 
         public Task<EvidenceDevelopmentPlan?>
             GetEvidenceDevelopmentPlanAsync(
@@ -440,7 +483,8 @@ public sealed class EvidenceDevelopmentPlanServiceTests
                 {
                     new EvidenceDevelopmentPlanEvidenceGap
                     {
-                        EvidenceDevelopmentPlanId = planId,
+                        EvidenceDevelopmentPlanId =
+                            _evidenceGapPlanId ?? planId,
                         EvidenceGapId =
                             new EvidenceGapId("gap-001")
                     }

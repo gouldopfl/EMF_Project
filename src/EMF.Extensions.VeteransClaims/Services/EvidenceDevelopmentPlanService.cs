@@ -114,6 +114,20 @@ public sealed class EvidenceDevelopmentPlanService :
                 planId,
                 cancellationToken);
 
+        var mismatchedEvidenceGap =
+            evidenceGaps.FirstOrDefault(
+                x =>
+                    x.EvidenceDevelopmentPlanId != planId);
+
+        if (mismatchedEvidenceGap is not null)
+        {
+            throw new InvalidOperationException(
+                $"Evidence development plan '{planId.Value}' lookup returned " +
+                $"evidence gap '{mismatchedEvidenceGap.EvidenceGapId.Value}' " +
+                $"associated with plan " +
+                $"'{mismatchedEvidenceGap.EvidenceDevelopmentPlanId.Value}'.");
+        }
+
         var artifacts =
             await _repository.GetEvidenceDevelopmentPlanArtifactsAsync(
                 planId,
