@@ -1844,20 +1844,43 @@ public static class VeteransConsoleCommand
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
+        var fullDatabasePath =
+            Path.GetFullPath(databasePath);
+
+        var fullOutputPath =
+            Path.GetFullPath(outputPath);
+
+        var pathComparison =
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+
+        if (string.Equals(
+            fullDatabasePath,
+            fullOutputPath,
+            pathComparison))
+        {
+            global::System.Console.Error.WriteLine(
+                "Reviewer package output cannot overwrite " +
+                "the Veterans Claims database.");
+
+            return 2;
+        }
+
         var packageService =
             new EvidencePackageService(
                 new SqliteEvidencePackageRepository(
-                    databasePath),
+                    fullDatabasePath),
                 new GuidIdGenerator());
 
         var evidenceRepository =
-            new SqliteEvidenceRepository(databasePath);
+            new SqliteEvidenceRepository(fullDatabasePath);
 
         await evidenceRepository.InitializeAsync();
 
         var classifications =
             new SqliteEvidenceClassificationRepository(
-                databasePath);
+                fullDatabasePath);
 
         var contentStore =
             ArtifactContentStoreFactory.Create();
@@ -1886,11 +1909,43 @@ public static class VeteransConsoleCommand
             VeteransReviewerPackageDocxRenderer.Render(
                 details);
 
-        await File.WriteAllBytesAsync(
-            Path.GetFullPath(outputPath),
+        await WriteFileAtomicallyAsync(
+            fullOutputPath,
             content);
 
         return 0;
+    }
+
+    private static async Task WriteFileAtomicallyAsync(
+        string outputPath,
+        byte[] content)
+    {
+        var directory =
+            Path.GetDirectoryName(outputPath) ??
+            throw new InvalidOperationException(
+                "Reviewer package output directory could not be resolved.");
+
+        var temporaryPath =
+            Path.Combine(
+                directory,
+                $".{Path.GetFileName(outputPath)}.{Guid.NewGuid():N}.tmp");
+
+        try
+        {
+            await File.WriteAllBytesAsync(
+                temporaryPath,
+                content);
+
+            File.Move(
+                temporaryPath,
+                outputPath,
+                true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+                File.Delete(temporaryPath);
+        }
     }
 
 

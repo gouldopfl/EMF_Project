@@ -14,6 +14,41 @@ namespace EMF.Tests;
 public sealed partial class VeteransEvidencePackageConsoleTests
 {
     [Fact]
+    public async Task EvidencePackage_RejectsDatabaseAsDocxOutput()
+    {
+        var databasePath =
+            Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(
+                    databasePath)
+                .InitializeAsync();
+
+            var originalContent =
+                await File.ReadAllBytesAsync(
+                    databasePath);
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunEvidencePackageDocxAsync(
+                        databasePath,
+                        new EvidencePackageId("package-1"),
+                        databasePath);
+
+            Assert.Equal(2, exitCode);
+            Assert.Equal(
+                originalContent,
+                await File.ReadAllBytesAsync(
+                    databasePath));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task EvidencePackage_RejectsMissingDatabase()
     {
         var exitCode =
