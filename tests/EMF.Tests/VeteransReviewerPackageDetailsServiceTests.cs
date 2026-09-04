@@ -356,3 +356,66 @@ file sealed class RecordingClassificationRepository :
             CancellationToken cancellationToken = default) =>
         Task.FromResult(ExistingClassifications);
 }
+
+public sealed partial class VeteransReviewerPackageDetailsServiceTests
+{
+    [Fact]
+    public async Task GetAsync_RejectsConflictingAppendixes()
+    {
+        var packageId = new EvidencePackageId("package-1");
+        var artifact = CreateArtifact("artifact-1");
+
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var classifications =
+            new RecordingClassificationRepository
+            {
+                ExistingClassifications =
+                [
+                    new EvidenceClassification
+                    {
+                        Id =
+                            new EvidenceClassificationId(
+                                "classification-medical"),
+                        ArtifactId = artifact.Id,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-1"),
+                        Classification =
+                            EvidenceClassifications.MedicalEvidence
+                    },
+                    new EvidenceClassification
+                    {
+                        Id =
+                            new EvidenceClassificationId(
+                                "classification-lay"),
+                        ArtifactId = artifact.Id,
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-1"),
+                        Classification =
+                            EvidenceClassifications.LayEvidence
+                    }
+                ]
+            };
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService
+                {
+                    Details = CreateDetails(
+                        packageId,
+                        artifact.Id)
+                },
+                evidence,
+                classifications,
+                new RecordingTextExtractor("reviewable text"));
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(packageId));
+
+        Assert.Contains(
+            artifact.Id.Value,
+            exception.Message);
+    }
+}
