@@ -130,6 +130,24 @@ public sealed class EvidencePackageService :
                 nameof(contentRole));
         }
 
+        var existingArtifacts =
+            await _repository.GetEvidencePackageArtifactsAsync(
+                evidencePackageId,
+                cancellationToken);
+
+        if (existingArtifacts.Any(
+            existing =>
+                existing.ArtifactId == artifactId &&
+                !string.Equals(
+                    existing.ContentRole,
+                    contentRole,
+                    StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                $"Artifact '{artifactId.Value}' already has a different " +
+                $"content role in evidence package '{evidencePackageId.Value}'.");
+        }
+
         var artifact =
             new EvidencePackageArtifact
             {

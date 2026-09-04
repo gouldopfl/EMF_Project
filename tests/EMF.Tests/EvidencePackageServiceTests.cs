@@ -254,6 +254,56 @@ public sealed partial class EvidencePackageServiceTests
                         "artifact-1"),
                     "UnsupportedRole"));
     }
+
+    [Fact]
+    public async Task AddArtifactAsync_RejectsConflictingContentRole()
+    {
+        var packageId =
+            new EvidencePackageId("package-1");
+
+        var artifactId =
+            new ArtifactId("artifact-1");
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingArtifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = artifactId,
+                        ContentRole =
+                            EvidencePackageContentRoles
+                                .UnderlyingEvidence
+                    }
+                ]
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    service.AddArtifactAsync(
+                        packageId,
+                        artifactId,
+                        EvidencePackageContentRoles
+                            .GeneratedOrganizationalMaterial));
+
+        Assert.Contains(
+            packageId.Value,
+            exception.Message);
+
+        Assert.Contains(
+            artifactId.Value,
+            exception.Message);
+
+        Assert.Null(repository.Artifact);
+    }
 }
 
 public sealed partial class EvidencePackageServiceTests
