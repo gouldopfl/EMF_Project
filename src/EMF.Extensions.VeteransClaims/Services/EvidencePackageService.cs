@@ -182,7 +182,9 @@ public sealed class EvidencePackageService :
                     package.Id,
                     cancellationToken);
 
-            ValidateContentRoles(artifacts);
+            ValidateArtifacts(
+                package.Id,
+                artifacts);
 
             details.Add(
                 new EvidencePackageDetails
@@ -212,7 +214,9 @@ public sealed class EvidencePackageService :
                 evidencePackageId,
                 cancellationToken);
 
-        ValidateContentRoles(artifacts);
+        ValidateArtifacts(
+            package.Id,
+            artifacts);
 
         return new EvidencePackageDetails
         {
@@ -221,11 +225,20 @@ public sealed class EvidencePackageService :
         };
     }
 
-    private static void ValidateContentRoles(
+    private static void ValidateArtifacts(
+        EvidencePackageId evidencePackageId,
         IReadOnlyList<EvidencePackageArtifact> artifacts)
     {
         foreach (var artifact in artifacts)
         {
+            if (artifact.EvidencePackageId != evidencePackageId)
+            {
+                throw new InvalidOperationException(
+                    $"Evidence package '{evidencePackageId.Value}' received " +
+                    $"artifact '{artifact.ArtifactId.Value}' associated with " +
+                    $"package '{artifact.EvidencePackageId.Value}'.");
+            }
+
             if (artifact.ContentRole is
                 EvidencePackageContentRoles.UnderlyingEvidence or
                 EvidencePackageContentRoles.GeneratedOrganizationalMaterial)
@@ -234,7 +247,7 @@ public sealed class EvidencePackageService :
             }
 
             throw new InvalidOperationException(
-                $"Evidence package '{artifact.EvidencePackageId.Value}' " +
+                $"Evidence package '{evidencePackageId.Value}' " +
                 $"contains unsupported content role '{artifact.ContentRole}'.");
         }
     }
