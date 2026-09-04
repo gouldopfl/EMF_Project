@@ -83,6 +83,73 @@ public sealed class RequirementFindingOutcomeAssessmentServiceTests
         ];
     }
 
+    [Fact]
+    public void Assess_RejectsFindingForDifferentRequirement()
+    {
+        var assessment =
+            new RequirementFindingAssessment
+            {
+                RequirementId =
+                    new RequirementId("requirement-1"),
+                Findings =
+                [
+                    new Finding
+                    {
+                        Id = new FindingId("finding-1"),
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-1"),
+                        RequirementId =
+                            new RequirementId("requirement-other"),
+                        Outcome = FindingOutcomes.Favorable,
+                        Description = "Foreign requirement."
+                    }
+                ]
+            };
+
+        var ex =
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    new RequirementFindingOutcomeAssessmentService()
+                        .Assess(assessment));
+
+        Assert.Equal(
+            "Finding requirement mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public void Assess_RejectsFindingWithoutRequirement()
+    {
+        var assessment =
+            new RequirementFindingAssessment
+            {
+                RequirementId =
+                    new RequirementId("requirement-1"),
+                Findings =
+                [
+                    new Finding
+                    {
+                        Id = new FindingId("finding-1"),
+                        ClaimIssueId =
+                            new ClaimIssueId("issue-1"),
+                        RequirementId = null,
+                        Outcome = FindingOutcomes.Favorable,
+                        Description = "Claim-level finding."
+                    }
+                ]
+            };
+
+        var ex =
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    new RequirementFindingOutcomeAssessmentService()
+                        .Assess(assessment));
+
+        Assert.Equal(
+            "Finding requirement mismatch.",
+            ex.Message);
+    }
+
     [Theory]
     [MemberData(nameof(Cases))]
     public void Assess_DerivesExpectedOutcome(

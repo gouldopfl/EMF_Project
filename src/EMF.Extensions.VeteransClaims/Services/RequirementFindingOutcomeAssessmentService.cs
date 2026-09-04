@@ -9,6 +9,13 @@ public sealed class RequirementFindingOutcomeAssessmentService
     {
         ArgumentNullException.ThrowIfNull(assessment);
 
+        if (assessment.Findings.Any(
+            x => x.RequirementId != assessment.RequirementId))
+        {
+            throw new InvalidOperationException(
+                "Finding requirement mismatch.");
+        }
+
         var outcomes =
             assessment.Findings
                 .Select(x => x.Outcome)
