@@ -113,6 +113,107 @@ public sealed class XlsxArtifactTextExtractionProviderTests
             provider.CanExtract("application/pdf"));
     }
 
+    [Theory]
+    [InlineData(
+        "package-entries",
+        "XLSX package exceeds the maximum allowed entry count.")]
+    [InlineData(
+        "package-entry-size",
+        "XLSX package entry exceeds the maximum allowed size.")]
+    [InlineData(
+        "package-total-size",
+        "XLSX package exceeds the maximum allowed extracted size.")]
+    [InlineData(
+        "worksheets",
+        "XLSX exceeds the maximum allowed worksheet count.")]
+    [InlineData(
+        "rows",
+        "XLSX exceeds the maximum allowed row count.")]
+    [InlineData(
+        "cells",
+        "XLSX exceeds the maximum allowed cell count.")]
+    [InlineData(
+        "text",
+        "XLSX extracted text exceeds the maximum allowed size.")]
+    public async Task ExtractTextAsync_EnforcesResourceLimit(
+        string limit,
+        string expectedMessage)
+    {
+        var path =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.xlsx");
+
+        var content =
+            await File.ReadAllBytesAsync(path);
+
+        var maxPackageEntryCount =
+            XlsxArtifactTextExtractionProvider
+                .DefaultMaxPackageEntryCount;
+        var maxPackageEntryBytes =
+            XlsxArtifactTextExtractionProvider
+                .DefaultMaxPackageEntryBytes;
+        var maxPackageTotalBytes =
+            XlsxArtifactTextExtractionProvider
+                .DefaultMaxPackageTotalBytes;
+        var maxWorksheetCount =
+            XlsxArtifactTextExtractionProvider
+                .DefaultMaxWorksheetCount;
+        var maxRowCount =
+            XlsxArtifactTextExtractionProvider
+                .DefaultMaxRowCount;
+        var maxCellCount =
+            XlsxArtifactTextExtractionProvider
+                .DefaultMaxCellCount;
+        var maxExtractedTextChars =
+            XlsxArtifactTextExtractionProvider
+                .DefaultMaxExtractedTextChars;
+
+        switch (limit)
+        {
+            case "package-entries":
+                maxPackageEntryCount = 1;
+                break;
+            case "package-entry-size":
+                maxPackageEntryBytes = 1;
+                break;
+            case "package-total-size":
+                maxPackageTotalBytes = 1;
+                break;
+            case "worksheets":
+                maxWorksheetCount = 1;
+                break;
+            case "rows":
+                maxRowCount = 1;
+                break;
+            case "cells":
+                maxCellCount = 1;
+                break;
+            case "text":
+                maxExtractedTextChars = 1;
+                break;
+        }
+
+        var provider =
+            new XlsxArtifactTextExtractionProvider(
+                new StubContentStore(content),
+                maxPackageEntryCount: maxPackageEntryCount,
+                maxPackageEntryBytes: maxPackageEntryBytes,
+                maxPackageTotalBytes: maxPackageTotalBytes,
+                maxWorksheetCount: maxWorksheetCount,
+                maxRowCount: maxRowCount,
+                maxCellCount: maxCellCount,
+                maxExtractedTextChars: maxExtractedTextChars);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId($"xlsx-{limit}")));
+
+        Assert.Equal(expectedMessage, ex.Message);
+    }
+
     private sealed class StubContentStore :
         IArtifactContentStore
     {
