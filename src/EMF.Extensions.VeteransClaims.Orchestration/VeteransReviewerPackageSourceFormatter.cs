@@ -18,7 +18,7 @@ internal static class VeteransReviewerPackageSourceFormatter
             $"Claim Issue: {details.ClaimIssue.Id.Value}");
 
         builder.AppendLine(
-            $"Claim Type: {details.ClaimIssue.ClaimIssueType}");
+            $"Claim Type: {SingleLine(details.ClaimIssue.ClaimIssueType)}");
 
         builder.AppendLine();
         builder.AppendLine("Claimed Conditions:");
@@ -26,7 +26,7 @@ internal static class VeteransReviewerPackageSourceFormatter
         foreach (var condition in details.ClaimedConditions)
         {
             builder.AppendLine(
-                $"- {condition.Id.Value}: {condition.Name}");
+                $"- {condition.Id.Value}: {SingleLine(condition.Name)}");
         }
 
         builder.AppendLine();
@@ -37,7 +37,7 @@ internal static class VeteransReviewerPackageSourceFormatter
             builder.AppendLine(
                 $"- basis {item.Basis.Id.Value}: " +
                 $"{item.ClaimedCondition.Id.Value}: " +
-                $"{item.ClaimedCondition.Name}");
+                $"{SingleLine(item.ClaimedCondition.Name)}");
         }
 
         builder.AppendLine();
@@ -47,7 +47,7 @@ internal static class VeteransReviewerPackageSourceFormatter
         foreach (var theory in details.ServiceConnectionTheories)
         {
             builder.AppendLine(
-                $"- {theory.Id.Value}: {theory.TheoryType}");
+                $"- {theory.Id.Value}: {SingleLine(theory.TheoryType)}");
         }
 
         builder.AppendLine();
@@ -71,7 +71,7 @@ internal static class VeteransReviewerPackageSourceFormatter
             builder.AppendLine(
                 $"- basis {item.Basis.Id.Value}: " +
                 $"{item.ServiceConnectedCondition.Id.Value}: " +
-                $"{item.ServiceConnectedCondition.Name}");
+                $"{SingleLine(item.ServiceConnectedCondition.Name)}");
         }
 
         builder.AppendLine();
@@ -81,7 +81,7 @@ internal static class VeteransReviewerPackageSourceFormatter
         {
             builder.AppendLine(
                 $"- basis {item.Basis.Id.Value}: " +
-                $"{item.MedicationName}");
+                $"{SingleLine(item.MedicationName)}");
         }
 
         builder.AppendLine();
@@ -92,7 +92,7 @@ internal static class VeteransReviewerPackageSourceFormatter
             builder.AppendLine(
                 $"- basis {item.Basis.Id.Value}: " +
                 $"{item.Exposure.Id.Value}: " +
-                $"{item.Exposure.ExposureType}");
+                $"{SingleLine(item.Exposure.ExposureType)}");
         }
 
         builder.AppendLine();
@@ -103,7 +103,7 @@ internal static class VeteransReviewerPackageSourceFormatter
             builder.AppendLine(
                 $"- basis {item.Basis.Id.Value}: " +
                 $"{item.PreexistingCondition.Id.Value}: " +
-                $"{item.PreexistingCondition.Name}");
+                $"{SingleLine(item.PreexistingCondition.Name)}");
         }
 
         builder.AppendLine();
@@ -114,7 +114,7 @@ internal static class VeteransReviewerPackageSourceFormatter
             builder.AppendLine(
                 $"- basis {item.Basis.Id.Value}: " +
                 $"{item.PresumptionProvision.Id.Value}: " +
-                $"{item.PresumptionProvision.Citation}");
+                $"{SingleLine(item.PresumptionProvision.Citation)}");
         }
 
         builder.AppendLine();
@@ -124,7 +124,7 @@ internal static class VeteransReviewerPackageSourceFormatter
         {
             builder.AppendLine(
                 $"- basis {item.Basis.Id.Value}: " +
-                $"{item.Role}: " +
+                $"{SingleLine(item.Role)}: " +
                 $"{item.ArtifactId.Value}");
         }
 
@@ -135,10 +135,10 @@ internal static class VeteransReviewerPackageSourceFormatter
         {
             builder.AppendLine(
                 $"- basis {item.Basis.Id.Value}: " +
-                $"{item.Role}: " +
+                $"{SingleLine(item.Role)}: " +
                 $"{item.MedicalOpinion.Id.Value}: " +
-                $"{item.MedicalOpinion.Question}: " +
-                $"{item.MedicalOpinion.Opinion}");
+                $"{SingleLine(item.MedicalOpinion.Question)}: " +
+                $"{SingleLine(item.MedicalOpinion.Opinion)}");
         }
 
         builder.AppendLine();
@@ -149,7 +149,7 @@ internal static class VeteransReviewerPackageSourceFormatter
             builder.AppendLine(
                 $"- basis {item.Basis.Id.Value}: " +
                 $"{item.ServiceEvent.Id.Value}: " +
-                $"{item.ServiceEvent.Description}");
+                $"{SingleLine(item.ServiceEvent.Description)}");
         }
 
         builder.AppendLine();
@@ -160,11 +160,11 @@ internal static class VeteransReviewerPackageSourceFormatter
             builder.AppendLine(
                 $"- basis {item.Basis.Id.Value}: " +
                 $"{item.Requirement.Id.Value}: " +
-                $"{item.Requirement.Description}");
+                $"{SingleLine(item.Requirement.Description)}");
 
             builder.AppendLine(
                 $"  Regulation: " +
-                $"{item.RegulatoryProvision.Citation}");
+                $"{SingleLine(item.RegulatoryProvision.Citation)}");
 
             builder.AppendLine(
                 $"  Evidence Responsiveness: " +
@@ -180,9 +180,9 @@ internal static class VeteransReviewerPackageSourceFormatter
                     item.DevelopmentChecklist.Items)
                 {
                     builder.AppendLine(
-                        $"  - {checklistItem.EvidenceClassification} / " +
-                        $"{checklistItem.GuidanceRole}: " +
-                        $"{checklistItem.Description}");
+                        $"  - {SingleLine(checklistItem.EvidenceClassification)} / " +
+                        $"{SingleLine(checklistItem.GuidanceRole)}: " +
+                        $"{SingleLine(checklistItem.Description)}");
                 }
             }
         }
@@ -201,9 +201,9 @@ internal static class VeteransReviewerPackageSourceFormatter
             foreach (var item in requirement.Items)
             {
                 builder.AppendLine(
-                    $"    - {item.EvidenceClassification} / " +
-                    $"{item.GuidanceRole}: " +
-                    $"{item.Description}");
+                    $"    - {SingleLine(item.EvidenceClassification)} / " +
+                    $"{SingleLine(item.GuidanceRole)}: " +
+                    $"{SingleLine(item.Description)}");
             }
         }
 
@@ -214,7 +214,7 @@ internal static class VeteransReviewerPackageSourceFormatter
         {
             builder.AppendLine(
                 $"  - {plan.Id.Value}: " +
-                $"{plan.Description}");
+                $"{SingleLine(plan.Description)}");
         }
 
         if (evidenceSources is not null)
@@ -270,26 +270,26 @@ internal static class VeteransReviewerPackageSourceFormatter
         foreach (var item in details.Timeline)
         {
             builder.Append(
-                $"- {item.OccurredAt:O} | {item.EventType}");
+                $"- {item.OccurredAt:O} | {SingleLine(item.EventType)}");
 
             if (!string.IsNullOrWhiteSpace(
                 item.ReferenceId))
             {
                 builder.Append(
-                    $" | reference {item.ReferenceId}");
+                    $" | reference {SingleLine(item.ReferenceId)}");
             }
 
             if (!string.IsNullOrWhiteSpace(item.Outcome))
             {
                 builder.Append(
-                    $" | outcome {item.Outcome}");
+                    $" | outcome {SingleLine(item.Outcome)}");
             }
 
             if (!string.IsNullOrWhiteSpace(
                 item.Description))
             {
                 builder.Append(
-                    $": {item.Description}");
+                    $": {SingleLine(item.Description)}");
             }
 
             builder.AppendLine();

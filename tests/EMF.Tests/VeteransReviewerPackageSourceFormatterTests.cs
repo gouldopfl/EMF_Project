@@ -34,7 +34,7 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
                             new ClaimedConditionId(
                                 "condition-reviewer-1"),
                         ClaimIssueId = issue.Id,
-                        Name = "Sleep apnea"
+                        Name = "Sleep apnea\nInjected condition"
                     }
                 ],
                 ServiceConnectionTheories = [],
@@ -74,7 +74,7 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
             text);
 
         Assert.Contains(
-            "- condition-reviewer-1: Sleep apnea",
+            "- condition-reviewer-1: Sleep apnea Injected condition",
             text);
     }
 
