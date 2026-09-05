@@ -313,6 +313,64 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
     }
 
 
+
+    [Fact]
+    public void Format_IncludesBasisExposures()
+    {
+        var issue = new ClaimIssue
+        {
+            Id = new ClaimIssueId("issue-exposure-1"),
+            ClaimId = new ClaimId("claim-exposure-1"),
+            ClaimIssueType = "ServiceConnection"
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-exposure-1"),
+            ClaimIssueId = issue.Id,
+            ServiceConnectionTheoryId =
+                new ServiceConnectionTheoryId("theory-exposure-1")
+        };
+
+        var exposure = new Exposure
+        {
+            Id = new ExposureId("exposure-reviewer-1"),
+            VeteranId = new VeteranId("veteran-reviewer-1"),
+            ExposureType = "Hazardous material"
+        };
+
+        var details = CreateDetails(issue, []);
+        details = new ClaimIssueAdjudicationDetails
+        {
+            ClaimIssue = details.ClaimIssue,
+            ClaimedConditions = details.ClaimedConditions,
+            ServiceConnectionTheories = details.ServiceConnectionTheories,
+            ServiceConnectionBases = details.ServiceConnectionBases,
+            ServiceConnectedConditions = details.ServiceConnectedConditions,
+            PrescribedMedications = details.PrescribedMedications,
+            Exposures =
+            [
+                new ServiceConnectionBasisExposureDetails
+                {
+                    Basis = basis,
+                    Exposure = exposure
+                }
+            ],
+            ServiceEvents = details.ServiceEvents,
+            Requirements = details.Requirements,
+            Evidence = details.Evidence,
+            Timeline = details.Timeline
+        };
+
+        var text =
+            VeteransReviewerPackageSourceFormatter.Format(details);
+
+        Assert.Contains("Exposures:", text);
+        Assert.Contains(
+            "- basis basis-exposure-1: exposure-reviewer-1: Hazardous material",
+            text);
+    }
+
     [Fact]
     public void Format_IncludesRequirementAndRegulation()
     {

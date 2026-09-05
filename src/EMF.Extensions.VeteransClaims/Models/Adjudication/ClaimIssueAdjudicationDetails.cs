@@ -23,6 +23,9 @@ public sealed class ClaimIssueAdjudicationDetails
     public IReadOnlyList<ServiceConnectionBasisMedicationDetails>
         PrescribedMedications { get; init; } = [];
 
+    public IReadOnlyList<ServiceConnectionBasisExposureDetails>
+        Exposures { get; init; } = [];
+
     public required IReadOnlyList<ServiceConnectionBasisServiceEventDetails>
         ServiceEvents { get; init; }
 

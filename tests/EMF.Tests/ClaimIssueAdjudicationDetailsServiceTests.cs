@@ -376,6 +376,14 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 Items = []
             };
 
+        var exposure =
+            new Exposure
+            {
+                Id = new ExposureId("exposure-001"),
+                VeteranId = new VeteranId("veteran-001"),
+                ExposureType = "Hazardous material"
+            };
+
         var evidence = new ClaimIssueEvidenceDetails
         {
             ClaimIssue = issue,
@@ -429,6 +437,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                     : method.Name == "GetPrescribedMedicationNamesAsync"
                                     ? Task.FromResult<IReadOnlyList<string>>(
                                         ["Pantoprazole"])
+                                : method.Name == "GetExposureIdsAsync"
+                                    ? Task.FromResult<IReadOnlyList<ExposureId>>(
+                                        [exposure.Id])
                                 : method.Name == "GetServiceEventIdsAsync"
                                         ? Task.FromResult<IReadOnlyList<ServiceEventId>>(
                                             [serviceEvent.Id])
@@ -441,6 +452,8 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                         method.Name == "GetServiceEventAsync"
                             ? Task.FromResult<ServiceEvent?>(
                                 serviceEvent)
+                            : method.Name == "GetExposureAsync"
+                                ? Task.FromResult<Exposure?>(exposure)
                             : throw new NotSupportedException()),
                 Proxy<IRegulatoryRepository>(
                     method =>
@@ -504,6 +517,12 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         Assert.Equal(
             "Pantoprazole",
             resolvedMedication.MedicationName);
+
+        var resolvedExposure =
+            Assert.Single(result.Exposures);
+
+        Assert.Same(basis, resolvedExposure.Basis);
+        Assert.Same(exposure, resolvedExposure.Exposure);
 
         var resolvedServiceEvent =
             Assert.Single(result.ServiceEvents);
@@ -1205,6 +1224,11 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                     "GetPrescribedMedicationNamesAsync")
             {
                 return Task.FromResult<IReadOnlyList<string>>([]);
+            }
+            catch (NotSupportedException)
+                when (targetMethod!.Name == "GetExposureIdsAsync")
+            {
+                return Task.FromResult<IReadOnlyList<ExposureId>>([]);
             }
         }
     }

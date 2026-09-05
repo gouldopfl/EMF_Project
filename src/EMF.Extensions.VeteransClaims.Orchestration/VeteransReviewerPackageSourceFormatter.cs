@@ -74,6 +74,17 @@ internal static class VeteransReviewerPackageSourceFormatter
         }
 
         builder.AppendLine();
+        builder.AppendLine("Exposures:");
+
+        foreach (var item in details.Exposures)
+        {
+            builder.AppendLine(
+                $"- basis {item.Basis.Id.Value}: " +
+                $"{item.Exposure.Id.Value}: " +
+                $"{item.Exposure.ExposureType}");
+        }
+
+        builder.AppendLine();
         builder.AppendLine("Service Events:");
 
         foreach (var item in details.ServiceEvents)

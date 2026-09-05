@@ -117,6 +117,9 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         var prescribedMedications =
             new List<ServiceConnectionBasisMedicationDetails>();
 
+        var exposures =
+            new List<ServiceConnectionBasisExposureDetails>();
+
         var serviceEvents =
             new List<ServiceConnectionBasisServiceEventDetails>();
 
@@ -165,6 +168,32 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     {
                         Basis = basis,
                         MedicationName = medicationName
+                    });
+            }
+
+            var exposureIds =
+                await _serviceConnections.GetExposureIdsAsync(
+                    basis.Id,
+                    cancellationToken);
+
+            foreach (var exposureId in exposureIds)
+            {
+                var exposure =
+                    await _serviceHistory.GetExposureAsync(
+                        exposureId,
+                        cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        "Exposure could not be read.");
+
+                if (exposure.Id != exposureId)
+                    throw new InvalidOperationException(
+                        "Exposure identity mismatch.");
+
+                exposures.Add(
+                    new ServiceConnectionBasisExposureDetails
+                    {
+                        Basis = basis,
+                        Exposure = exposure
                     });
             }
 
@@ -267,6 +296,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
             ServiceConnectionBases = bases,
             ServiceConnectedConditions = serviceConnectedConditions,
             PrescribedMedications = prescribedMedications,
+            Exposures = exposures,
             ServiceEvents = serviceEvents,
             Requirements = requirements,
             Evidence = evidence,
