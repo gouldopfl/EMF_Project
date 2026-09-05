@@ -280,7 +280,9 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
         IReadOnlyList<ServiceConnectionBasisRequirementDetails>
             requirements,
         ClaimIssueEvidenceDetails? evidence = null,
-        IReadOnlyList<ClaimIssueAdjudicationEvent>? timeline = null)
+        IReadOnlyList<ClaimIssueAdjudicationEvent>? timeline = null,
+        IReadOnlyList<ServiceConnectionBasisMedicationDetails>?
+            prescribedMedications = null)
     {
         return new ClaimIssueAdjudicationDetails
         {
@@ -289,6 +291,8 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
             ServiceConnectionTheories = [],
             ServiceConnectionBases = [],
             ServiceConnectedConditions = [],
+            PrescribedMedications =
+                prescribedMedications ?? [],
             ServiceEvents = [],
             Requirements = requirements,
             Evidence =
@@ -663,6 +667,51 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
 
         Assert.Contains(
             "--- END EVIDENCE TEXT ---",
+            text);
+    }
+
+
+
+    [Fact]
+    public void Format_IncludesPrescribedMedicationBasis()
+    {
+        var issue = new ClaimIssue
+        {
+            Id = new ClaimIssueId("issue-reviewer-medication"),
+            ClaimId = new ClaimId("claim-reviewer-medication"),
+            ClaimIssueType = "ServiceConnection"
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId(
+                "basis-reviewer-medication"),
+            ClaimIssueId = issue.Id,
+            ServiceConnectionTheoryId =
+                new ServiceConnectionTheoryId(
+                    "theory-reviewer-medication")
+        };
+
+        var text =
+            VeteransReviewerPackageSourceFormatter.Format(
+                CreateDetails(
+                    issue,
+                    [],
+                    prescribedMedications:
+                    [
+                        new ServiceConnectionBasisMedicationDetails
+                        {
+                            Basis = basis,
+                            MedicationName = "Pantoprazole"
+                        }
+                    ]));
+
+        Assert.Contains(
+            "Prescribed Medications:",
+            text);
+
+        Assert.Contains(
+            "- basis basis-reviewer-medication: Pantoprazole",
             text);
     }
 

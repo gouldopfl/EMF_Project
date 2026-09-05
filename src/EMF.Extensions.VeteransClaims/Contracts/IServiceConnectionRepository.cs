@@ -93,6 +93,21 @@ public interface IServiceConnectionRepository
             MedicalConditionId serviceConnectedConditionId,
             CancellationToken cancellationToken = default);
 
+
+    Task AddBasisPrescribedMedicationAsync(
+        ServiceConnectionBasisPrescribedMedication association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>>
+        GetPrescribedMedicationNamesAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetPrescribedMedicationBasisIdsAsync(
+            string medicationName,
+            CancellationToken cancellationToken = default);
+
     Task AddBasisPreexistingConditionAsync(
         ServiceConnectionBasisPreexistingCondition association,
         CancellationToken cancellationToken = default);

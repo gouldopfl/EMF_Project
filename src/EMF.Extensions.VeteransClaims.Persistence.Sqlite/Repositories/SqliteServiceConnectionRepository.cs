@@ -926,6 +926,141 @@ public sealed class SqliteServiceConnectionRepository :
             cancellationToken);
     }
 
+    public async Task AddBasisPrescribedMedicationAsync(
+        ServiceConnectionBasisPrescribedMedication association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            association.MedicationName);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var validationCommand =
+            connection.CreateCommand();
+
+        validationCommand.CommandText =
+            """
+            SELECT COUNT(*)
+            FROM VeteransClaims_ServiceConnectionBases
+            WHERE Id = $basisId;
+            """;
+
+        validationCommand.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        var matchingCount =
+            Convert.ToInt32(
+                await validationCommand.ExecuteScalarAsync(
+                    cancellationToken));
+
+        if (matchingCount != 1)
+        {
+            throw new InvalidOperationException(
+                "The service connection basis must exist.");
+        }
+
+        await using var insertCommand =
+            connection.CreateCommand();
+
+        insertCommand.CommandText =
+            """
+            INSERT INTO VeteransClaims_BasisPrescribedMedications (
+                ServiceConnectionBasisId,
+                MedicationName
+            )
+            VALUES ($basisId, $medicationName);
+            """;
+
+        insertCommand.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        insertCommand.Parameters.AddWithValue(
+            "$medicationName",
+            association.MedicationName);
+
+        await insertCommand.ExecuteNonQueryAsync(
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<string>>
+        GetPrescribedMedicationNamesAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT MedicationName
+            FROM VeteransClaims_BasisPrescribedMedications
+            WHERE ServiceConnectionBasisId = $basisId
+            ORDER BY MedicationName;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$basisId",
+            basisId.Value);
+
+        var medicationNames =
+            new List<string>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            medicationNames.Add(reader.GetString(0));
+
+        return medicationNames;
+    }
+
+    public async Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetPrescribedMedicationBasisIdsAsync(
+            string medicationName,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            medicationName);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ServiceConnectionBasisId
+            FROM VeteransClaims_BasisPrescribedMedications
+            WHERE MedicationName = $medicationName
+            ORDER BY ServiceConnectionBasisId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$medicationName",
+            medicationName);
+
+        var basisIds =
+            new List<ServiceConnectionBasisId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            basisIds.Add(
+                new ServiceConnectionBasisId(
+                    reader.GetString(0)));
+        }
+
+        return basisIds;
+    }
+
     public async Task<IReadOnlyList<MedicalConditionId>>
         GetServiceConnectedConditionIdsAsync(
             ServiceConnectionBasisId basisId,

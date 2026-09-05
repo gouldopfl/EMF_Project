@@ -888,4 +888,149 @@ public sealed class
         }
     }
 
+
+    [Fact]
+    public async Task PrescribedMedication_RoundTrips()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(
+                databasePath)
+                .InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-medication-001")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-medication-001"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var claimIssue = new ClaimIssue
+            {
+                Id =
+                    new ClaimIssueId(
+                        "claim-issue-medication-001"),
+                ClaimId = claim.Id,
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(claimIssue);
+
+            var theory = new ServiceConnectionTheory
+            {
+                Id =
+                    new ServiceConnectionTheoryId(
+                        "theory-medication-001"),
+                ClaimIssueId = claimIssue.Id,
+                TheoryType =
+                    ServiceConnectionTheoryTypes.Secondary
+            };
+
+            var repository =
+                new SqliteServiceConnectionRepository(
+                    databasePath);
+
+            await repository
+                .AddServiceConnectionTheoryAsync(theory);
+
+            var basis = new ServiceConnectionBasis
+            {
+                Id =
+                    new ServiceConnectionBasisId(
+                        "basis-medication-001"),
+                ClaimIssueId = claimIssue.Id,
+                ServiceConnectionTheoryId = theory.Id
+            };
+
+            await repository
+                .AddServiceConnectionBasisAsync(basis);
+
+            await repository
+                .AddBasisPrescribedMedicationAsync(
+                    new ServiceConnectionBasisPrescribedMedication
+                    {
+                        ServiceConnectionBasisId = basis.Id,
+                        MedicationName = "Pantoprazole"
+                    });
+
+            var names =
+                await repository
+                    .GetPrescribedMedicationNamesAsync(
+                        basis.Id);
+
+            var basisIds =
+                await repository
+                    .GetPrescribedMedicationBasisIdsAsync(
+                        "Pantoprazole");
+
+            Assert.Equal(
+                "Pantoprazole",
+                Assert.Single(names));
+
+            Assert.Equal(
+                basis.Id,
+                Assert.Single(basisIds));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
+
+    [Fact]
+    public async Task PrescribedMedication_RejectsMissingBasis()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(
+                databasePath)
+                .InitializeAsync();
+
+            var repository =
+                new SqliteServiceConnectionRepository(
+                    databasePath);
+
+            var exception =
+                await Assert.ThrowsAsync<
+                    InvalidOperationException>(
+                        () => repository
+                            .AddBasisPrescribedMedicationAsync(
+                                new ServiceConnectionBasisPrescribedMedication
+                                {
+                                    ServiceConnectionBasisId =
+                                        new ServiceConnectionBasisId(
+                                            "missing-basis"),
+                                    MedicationName =
+                                        "Pantoprazole"
+                                }));
+
+            Assert.Contains(
+                "must exist",
+                exception.Message);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
 }

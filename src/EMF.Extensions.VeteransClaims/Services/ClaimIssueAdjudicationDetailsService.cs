@@ -114,6 +114,9 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         var serviceConnectedConditions =
             new List<ServiceConnectionBasisConditionDetails>();
 
+        var prescribedMedications =
+            new List<ServiceConnectionBasisMedicationDetails>();
+
         var serviceEvents =
             new List<ServiceConnectionBasisServiceEventDetails>();
 
@@ -146,6 +149,22 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     {
                         Basis = basis,
                         ServiceConnectedCondition = condition
+                    });
+            }
+
+            var medicationNames =
+                await _serviceConnections
+                    .GetPrescribedMedicationNamesAsync(
+                        basis.Id,
+                        cancellationToken);
+
+            foreach (var medicationName in medicationNames)
+            {
+                prescribedMedications.Add(
+                    new ServiceConnectionBasisMedicationDetails
+                    {
+                        Basis = basis,
+                        MedicationName = medicationName
                     });
             }
 
@@ -247,6 +266,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
             ServiceConnectionTheories = theories,
             ServiceConnectionBases = bases,
             ServiceConnectedConditions = serviceConnectedConditions,
+            PrescribedMedications = prescribedMedications,
             ServiceEvents = serviceEvents,
             Requirements = requirements,
             Evidence = evidence,

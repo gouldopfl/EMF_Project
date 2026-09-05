@@ -1683,5 +1683,31 @@ internal static class VeteransClaimsSqliteMigrations
                     ArtifactId
                 );
                 """)
+,
+            new VeteransClaimsSqliteMigration(
+                58,
+                "AddBasisPrescribedMedications",
+                """
+                CREATE TABLE
+                    VeteransClaims_BasisPrescribedMedications (
+                        ServiceConnectionBasisId TEXT NOT NULL,
+                        MedicationName TEXT NOT NULL,
+                        PRIMARY KEY (
+                            ServiceConnectionBasisId,
+                            MedicationName
+                        ),
+                        FOREIGN KEY (ServiceConnectionBasisId)
+                            REFERENCES
+                                VeteransClaims_ServiceConnectionBases (
+                                    Id
+                                )
+                    );
+
+                CREATE INDEX
+                    IX_VeteransClaims_BasisPrescribedMedications_Medication
+                ON VeteransClaims_BasisPrescribedMedications (
+                    MedicationName
+                );
+                """)
         };
 }

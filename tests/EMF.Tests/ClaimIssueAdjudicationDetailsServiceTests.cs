@@ -426,7 +426,10 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                 : method.Name == "GetServiceConnectedConditionIdsAsync"
                                     ? Task.FromResult<IReadOnlyList<MedicalConditionId>>(
                                         [serviceConnectedCondition.Id])
-                                    : method.Name == "GetServiceEventIdsAsync"
+                                    : method.Name == "GetPrescribedMedicationNamesAsync"
+                                    ? Task.FromResult<IReadOnlyList<string>>(
+                                        ["Pantoprazole"])
+                                : method.Name == "GetServiceEventIdsAsync"
                                         ? Task.FromResult<IReadOnlyList<ServiceEventId>>(
                                             [serviceEvent.Id])
                                     : method.Name == "GetRequirementIdsAsync"
@@ -490,6 +493,17 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         Assert.Same(
             serviceConnectedCondition,
             resolved.ServiceConnectedCondition);
+
+        var resolvedMedication =
+            Assert.Single(result.PrescribedMedications);
+
+        Assert.Same(
+            basis,
+            resolvedMedication.Basis);
+
+        Assert.Equal(
+            "Pantoprazole",
+            resolvedMedication.MedicationName);
 
         var resolvedServiceEvent =
             Assert.Single(result.ServiceEvents);
@@ -1180,8 +1194,19 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
 
         protected override object? Invoke(
             MethodInfo? targetMethod,
-            object?[]? args) =>
-            Handler!(targetMethod!);
+            object?[]? args)
+        {
+            try
+            {
+                return Handler!(targetMethod!);
+            }
+            catch (NotSupportedException)
+                when (targetMethod!.Name ==
+                    "GetPrescribedMedicationNamesAsync")
+            {
+                return Task.FromResult<IReadOnlyList<string>>([]);
+            }
+        }
     }
 
 }

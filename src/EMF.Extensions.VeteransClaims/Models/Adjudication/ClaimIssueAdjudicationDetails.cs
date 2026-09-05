@@ -20,6 +20,9 @@ public sealed class ClaimIssueAdjudicationDetails
     public required IReadOnlyList<ServiceConnectionBasisConditionDetails>
         ServiceConnectedConditions { get; init; }
 
+    public IReadOnlyList<ServiceConnectionBasisMedicationDetails>
+        PrescribedMedications { get; init; } = [];
+
     public required IReadOnlyList<ServiceConnectionBasisServiceEventDetails>
         ServiceEvents { get; init; }
 
