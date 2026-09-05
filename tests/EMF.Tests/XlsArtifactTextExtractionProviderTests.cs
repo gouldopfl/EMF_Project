@@ -19,6 +19,79 @@ public sealed class XlsArtifactTextExtractionProviderTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RejectsTooManyRows()
+    {
+        var provider =
+            new XlsArtifactTextExtractionProvider(
+                new StubContentStore(ReadSample()),
+                maxRowCount: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("xls-row-limit")));
+
+        Assert.Equal(
+            "XLS workbook exceeds the maximum " +
+            "allowed row count.",
+            exception.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsTooManyCells()
+    {
+        var provider =
+            new XlsArtifactTextExtractionProvider(
+                new StubContentStore(ReadSample()),
+                maxCellCount: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("xls-cell-limit")));
+
+        Assert.Equal(
+            "XLS workbook exceeds the maximum " +
+            "allowed cell count.",
+            exception.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_AllowsWorksheetLimitBoundary()
+    {
+        var provider =
+            new XlsArtifactTextExtractionProvider(
+                new StubContentStore(ReadSample()),
+                maxWorksheetCount: 1);
+
+        var text =
+            await provider.ExtractTextAsync(
+                new ArtifactId("xls-worksheet-boundary"));
+
+        Assert.NotNull(text);
+        Assert.NotEmpty(text);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedExtractedText()
+    {
+        var provider =
+            new XlsArtifactTextExtractionProvider(
+                new StubContentStore(ReadSample()),
+                maxExtractedTextChars: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("xls-text-limit")));
+
+        Assert.Equal(
+            "XLS extracted text exceeds " +
+            "the maximum allowed size.",
+            exception.Message);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_ExtractsTextFromMicrosoftXls()
     {
         var path =
@@ -90,6 +163,13 @@ public sealed class XlsArtifactTextExtractionProviderTests
                 new ArtifactId("xls-cancelled"),
                 cancellation.Token));
     }
+
+    private static byte[] ReadSample() =>
+        File.ReadAllBytes(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.xls"));
 
     private sealed class StubContentStore :
         IArtifactContentStore
