@@ -4,14 +4,11 @@ public readonly record struct ServiceConnectionBasisId
 {
     public ServiceConnectionBasisId(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException(
-                "Service Connection Basis ID cannot be empty.",
-                nameof(value));
-        }
-
-        Value = value;
+        Value =
+            global::EMF.Core.Models.Identities.IdentityValueValidator.Validate(
+                value,
+                nameof(value),
+                "Service Connection Basis ID");
     }
 
     public string Value { get; }

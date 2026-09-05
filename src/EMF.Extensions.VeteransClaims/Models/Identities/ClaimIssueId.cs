@@ -4,14 +4,11 @@ public readonly record struct ClaimIssueId
 {
     public ClaimIssueId(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException(
-                "Claim Issue ID cannot be empty.",
-                nameof(value));
-        }
-
-        Value = value;
+        Value =
+            global::EMF.Core.Models.Identities.IdentityValueValidator.Validate(
+                value,
+                nameof(value),
+                "Claim Issue ID");
     }
 
     public string Value { get; }

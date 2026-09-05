@@ -4,14 +4,11 @@ public readonly record struct RequirementId
 {
     public RequirementId(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException(
-                "Requirement ID cannot be empty.",
-                nameof(value));
-        }
-
-        Value = value;
+        Value =
+            global::EMF.Core.Models.Identities.IdentityValueValidator.Validate(
+                value,
+                nameof(value),
+                "Requirement ID");
     }
 
     public string Value { get; }

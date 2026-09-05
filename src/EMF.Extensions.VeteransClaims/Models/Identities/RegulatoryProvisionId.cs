@@ -4,14 +4,11 @@ public readonly record struct RegulatoryProvisionId
 {
     public RegulatoryProvisionId(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException(
-                "Regulatory Provision ID cannot be empty.",
-                nameof(value));
-        }
-
-        Value = value;
+        Value =
+            global::EMF.Core.Models.Identities.IdentityValueValidator.Validate(
+                value,
+                nameof(value),
+                "Regulatory Provision ID");
     }
 
     public string Value { get; }

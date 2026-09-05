@@ -4,14 +4,11 @@ public readonly record struct ExposureId
 {
     public ExposureId(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException(
-                "Exposure ID cannot be empty.",
-                nameof(value));
-        }
-
-        Value = value;
+        Value =
+            global::EMF.Core.Models.Identities.IdentityValueValidator.Validate(
+                value,
+                nameof(value),
+                "Exposure ID");
     }
 
     public string Value { get; }

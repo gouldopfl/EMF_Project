@@ -4,14 +4,11 @@ public readonly record struct ClaimedConditionId
 {
     public ClaimedConditionId(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException(
-                "Claimed Condition ID cannot be empty.",
-                nameof(value));
-        }
-
-        Value = value;
+        Value =
+            global::EMF.Core.Models.Identities.IdentityValueValidator.Validate(
+                value,
+                nameof(value),
+                "Claimed Condition ID");
     }
 
     public string Value { get; }

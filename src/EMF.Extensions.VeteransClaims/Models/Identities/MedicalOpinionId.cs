@@ -4,14 +4,11 @@ public readonly record struct MedicalOpinionId
 {
     public MedicalOpinionId(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException(
-                "Medical Opinion ID cannot be empty.",
-                nameof(value));
-        }
-
-        Value = value;
+        Value =
+            global::EMF.Core.Models.Identities.IdentityValueValidator.Validate(
+                value,
+                nameof(value),
+                "Medical Opinion ID");
     }
 
     public string Value { get; }

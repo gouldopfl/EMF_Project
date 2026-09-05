@@ -53,6 +53,28 @@ public sealed class VeteransClaimsIdentityTests
     }
 
     [Theory]
+    [InlineData("id\rInjected")]
+    [InlineData("id\nInjected")]
+    [InlineData("id\tInjected")]
+    public void ReviewerFacingIds_RejectControlCharacters(string value)
+    {
+        Assert.Throws<ArgumentException>(
+            () => new EMF.Core.Models.Identities.ArtifactId(value));
+
+        Assert.Throws<ArgumentException>(() => new ClaimIssueId(value));
+        Assert.Throws<ArgumentException>(() => new ClaimedConditionId(value));
+        Assert.Throws<ArgumentException>(() => new ServiceConnectionBasisId(value));
+        Assert.Throws<ArgumentException>(() => new ServiceConnectionTheoryId(value));
+        Assert.Throws<ArgumentException>(() => new MedicalConditionId(value));
+        Assert.Throws<ArgumentException>(() => new ExposureId(value));
+        Assert.Throws<ArgumentException>(() => new RegulatoryProvisionId(value));
+        Assert.Throws<ArgumentException>(() => new MedicalOpinionId(value));
+        Assert.Throws<ArgumentException>(() => new ServiceEventId(value));
+        Assert.Throws<ArgumentException>(() => new RequirementId(value));
+        Assert.Throws<ArgumentException>(() => new EvidenceDevelopmentPlanId(value));
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("   ")]
     public void VeteranId_RejectsBlankValue(string value)

@@ -4,14 +4,11 @@ public readonly record struct ArtifactId
 {
     public ArtifactId(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException(
-                "Artifact ID cannot be empty.",
-                nameof(value));
-        }
-
-        Value = value;
+        Value =
+            global::EMF.Core.Models.Identities.IdentityValueValidator.Validate(
+                value,
+                nameof(value),
+                "Artifact ID");
     }
 
     public string Value { get; }
