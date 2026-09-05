@@ -432,6 +432,68 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
 
 
     [Fact]
+    public void Format_IncludesClaimedConditionBases()
+    {
+        var issue = new ClaimIssue
+        {
+            Id = new ClaimIssueId("issue-ccb-1"),
+            ClaimId = new ClaimId("claim-ccb-1"),
+            ClaimIssueType = "ServiceConnection"
+        };
+
+        var condition = new ClaimedCondition
+        {
+            Id = new ClaimedConditionId("condition-ccb-1"),
+            ClaimIssueId = issue.Id,
+            Name = "Sleep apnea"
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-ccb-1"),
+            ClaimIssueId = issue.Id,
+            ServiceConnectionTheoryId =
+                new ServiceConnectionTheoryId("theory-ccb-1")
+        };
+
+        var details = CreateDetails(issue, []);
+
+        details = new ClaimIssueAdjudicationDetails
+        {
+            ClaimIssue = details.ClaimIssue,
+            ClaimedConditions = [condition],
+            ClaimedConditionBases =
+            [
+                new ServiceConnectionBasisClaimedConditionDetails
+                {
+                    Basis = basis,
+                    ClaimedCondition = condition
+                }
+            ],
+            ServiceConnectionTheories = details.ServiceConnectionTheories,
+            ServiceConnectionBases = details.ServiceConnectionBases,
+            ServiceConnectedConditions = details.ServiceConnectedConditions,
+            PrescribedMedications = details.PrescribedMedications,
+            Exposures = details.Exposures,
+            PreexistingConditions = details.PreexistingConditions,
+            Presumptions = details.Presumptions,
+            MedicalOpinions = details.MedicalOpinions,
+            ServiceEvents = details.ServiceEvents,
+            Requirements = details.Requirements,
+            Evidence = details.Evidence,
+            Timeline = details.Timeline
+        };
+
+        var text =
+            VeteransReviewerPackageSourceFormatter.Format(details);
+
+        Assert.Contains("Claimed Condition Bases:", text);
+        Assert.Contains(
+            "- basis basis-ccb-1: condition-ccb-1: Sleep apnea",
+            text);
+    }
+
+    [Fact]
     public void Format_IncludesPresumptions()
     {
         var issue = new ClaimIssue

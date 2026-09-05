@@ -114,6 +114,9 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                 "Service-connection basis theory mismatch.");
         }
 
+        var claimedConditionBases =
+            new List<ServiceConnectionBasisClaimedConditionDetails>();
+
         var serviceConnectedConditions =
             new List<ServiceConnectionBasisConditionDetails>();
 
@@ -140,6 +143,27 @@ public sealed class ClaimIssueAdjudicationDetailsService :
 
         foreach (var basis in bases)
         {
+            var claimedConditionIds =
+                await _serviceConnections.GetClaimedConditionIdsAsync(
+                    basis.Id,
+                    cancellationToken);
+
+            foreach (var claimedConditionId in claimedConditionIds)
+            {
+                var claimedCondition =
+                    claimedConditions.SingleOrDefault(
+                        x => x.Id == claimedConditionId)
+                    ?? throw new InvalidOperationException(
+                        "Basis claimed condition could not be read.");
+
+                claimedConditionBases.Add(
+                    new ServiceConnectionBasisClaimedConditionDetails
+                    {
+                        Basis = basis,
+                        ClaimedCondition = claimedCondition
+                    });
+            }
+
             var conditionIds =
                 await _serviceConnections
                     .GetServiceConnectedConditionIdsAsync(
@@ -402,6 +426,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         {
             ClaimIssue = issue,
             ClaimedConditions = claimedConditions,
+            ClaimedConditionBases = claimedConditionBases,
             ServiceConnectionTheories = theories,
             ServiceConnectionBases = bases,
             ServiceConnectedConditions = serviceConnectedConditions,

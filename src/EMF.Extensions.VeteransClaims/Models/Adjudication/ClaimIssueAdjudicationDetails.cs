@@ -11,6 +11,9 @@ public sealed class ClaimIssueAdjudicationDetails
     public required IReadOnlyList<ClaimedCondition>
         ClaimedConditions { get; init; }
 
+    public IReadOnlyList<ServiceConnectionBasisClaimedConditionDetails>
+        ClaimedConditionBases { get; init; } = [];
+
     public required IReadOnlyList<ServiceConnectionTheory>
         ServiceConnectionTheories { get; init; }
 

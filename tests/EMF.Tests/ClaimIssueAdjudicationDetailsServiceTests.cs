@@ -1372,6 +1372,11 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 return Handler!(targetMethod!);
             }
             catch (NotSupportedException)
+                when (targetMethod!.Name == "GetClaimedConditionIdsAsync")
+            {
+                return Task.FromResult<IReadOnlyList<ClaimedConditionId>>([]);
+            }
+            catch (NotSupportedException)
                 when (targetMethod!.Name ==
                     "GetPrescribedMedicationNamesAsync")
             {

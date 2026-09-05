@@ -30,6 +30,17 @@ internal static class VeteransReviewerPackageSourceFormatter
         }
 
         builder.AppendLine();
+        builder.AppendLine("Claimed Condition Bases:");
+
+        foreach (var item in details.ClaimedConditionBases)
+        {
+            builder.AppendLine(
+                $"- basis {item.Basis.Id.Value}: " +
+                $"{item.ClaimedCondition.Id.Value}: " +
+                $"{item.ClaimedCondition.Name}");
+        }
+
+        builder.AppendLine();
         builder.AppendLine(
             "Service-Connection Theories:");
 
