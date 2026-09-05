@@ -8,18 +8,23 @@ namespace EMF.Orchestration.Services;
 public sealed class EvidenceFileIngestionService :
     IEvidenceFileIngestionService
 {
+    public const long DefaultMaxFileBytes =
+        100L * 1024 * 1024;
+
     private readonly IEvidenceRepository _repository;
     private readonly IArtifactContentStore _contentStore;
     private readonly IContentFingerprintService _fingerprintService;
     private readonly IArtifactIdGenerator _artifactIdGenerator;
     private readonly IArtifactFactory _artifactFactory;
+    private readonly long _maxFileBytes;
 
     public EvidenceFileIngestionService(
         IEvidenceRepository repository,
         IArtifactContentStore contentStore,
         IContentFingerprintService fingerprintService,
         IArtifactIdGenerator artifactIdGenerator,
-        IArtifactFactory artifactFactory)
+        IArtifactFactory artifactFactory,
+        long maxFileBytes = DefaultMaxFileBytes)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(contentStore);
@@ -27,11 +32,19 @@ public sealed class EvidenceFileIngestionService :
         ArgumentNullException.ThrowIfNull(artifactIdGenerator);
         ArgumentNullException.ThrowIfNull(artifactFactory);
 
+        if (maxFileBytes <= 0 ||
+            maxFileBytes > Array.MaxLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxFileBytes));
+        }
+
         _repository = repository;
         _contentStore = contentStore;
         _fingerprintService = fingerprintService;
         _artifactIdGenerator = artifactIdGenerator;
         _artifactFactory = artifactFactory;
+        _maxFileBytes = maxFileBytes;
     }
 
     public async Task<EvidenceFileIngestionResult> IngestAsync(
@@ -49,9 +62,33 @@ public sealed class EvidenceFileIngestionService :
                 fullPath);
         }
 
+        var file = new FileInfo(fullPath);
+
+        if (file.Length > _maxFileBytes)
+            throw new InvalidDataException(
+                "Evidence file exceeds the maximum allowed size.");
+
+        await using var stream = File.OpenRead(fullPath);
+
+        var length = stream.Length;
+
+        if (length > _maxFileBytes)
+            throw new InvalidDataException(
+                "Evidence file exceeds the maximum allowed size.");
+
+        var content = new byte[(int)length];
+
+        await stream.ReadExactlyAsync(
+            content,
+            cancellationToken);
+
+        if (stream.Position != stream.Length)
+            throw new IOException(
+                "Evidence file changed during ingestion.");
+
         var fingerprint =
             await _fingerprintService.ComputeAsync(
-                fullPath,
+                content,
                 cancellationToken);
 
         var existing =
@@ -76,7 +113,6 @@ public sealed class EvidenceFileIngestionService :
             };
         }
 
-        var file = new FileInfo(fullPath);
         var artifactId = _artifactIdGenerator.Generate();
 
         var item =
@@ -85,7 +121,7 @@ public sealed class EvidenceFileIngestionService :
                 Name = file.Name,
                 SourcePath = fullPath,
                 SourceType = "file",
-                SizeBytes = file.Length,
+                SizeBytes = content.LongLength,
                 CreatedUtc = file.CreationTimeUtc,
                 ModifiedUtc = file.LastWriteTimeUtc
             };
@@ -96,10 +132,6 @@ public sealed class EvidenceFileIngestionService :
                 artifactId,
                 fingerprint);
 
-        var content =
-            await File.ReadAllBytesAsync(
-                fullPath,
-                cancellationToken);
 
         await _contentStore.WriteAsync(
             artifactId,

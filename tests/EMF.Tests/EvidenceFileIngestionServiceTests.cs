@@ -137,6 +137,33 @@ public sealed class EvidenceFileIngestionServiceTests
     }
 
     [Fact]
+    public async Task IngestAsync_RejectsOversizedFile()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            await File.WriteAllBytesAsync(path, [1, 2]);
+
+            var service =
+                new EvidenceFileIngestionService(
+                    new RecordingRepository(),
+                    new RecordingContentStore(),
+                    new StubFingerprintService(),
+                    new StubIdGenerator(),
+                    new ArtifactFactory(),
+                    maxFileBytes: 1);
+
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => service.IngestAsync(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task IngestAsync_ReusesExistingFile()
     {
         var path = Path.GetTempFileName();
@@ -355,6 +382,11 @@ public sealed class EvidenceFileIngestionServiceTests
         public Task<ContentFingerprint> ComputeAsync(
             ReadOnlyMemory<byte> content,
             CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            Task.FromResult(
+                new ContentFingerprint
+                {
+                    Algorithm = "SHA256",
+                    Value = "test-fingerprint"
+                });
     }
 }
