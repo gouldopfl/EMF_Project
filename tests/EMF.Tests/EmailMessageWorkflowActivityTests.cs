@@ -166,6 +166,54 @@ public sealed class EmailMessageWorkflowActivityTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_RejectsOversizedEmailWhenDiscoverySizeIsStale()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-email-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(path);
+
+        try
+        {
+            await File.WriteAllBytesAsync(
+                Path.Combine(path, "message.eml"),
+                new byte[2]);
+
+            var repository = new InMemoryEvidenceRepository();
+            var store = new RecordingContentStore();
+
+            var activity = new EmailMessageWorkflowActivity(
+                new SingleItemDiscoveryService(
+                    new DiscoveredItem
+                    {
+                        Name = "message.eml",
+                        SourcePath = Path.Combine(path, "message.eml"),
+                        SourceType = "file",
+                        SizeBytes = 1
+                    }),
+                repository,
+                store,
+                new Sha256ContentFingerprintService(),
+                new StubIdGenerator(),
+                new ArtifactFactory(),
+                path,
+                new DiscoveryOptions(),
+                maxMessageBytes: 1);
+
+            var result =
+                await activity.ExecuteAsync(CreateContext());
+
+            Assert.False(result.Succeeded);
+            Assert.Empty(store.Written);
+        }
+        finally
+        {
+            Directory.Delete(path, true);
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsync_CleansUpWhenPersistenceFails()
     {
         var path = Path.Combine(
@@ -224,6 +272,30 @@ public sealed class EmailMessageWorkflowActivityTests
         {
             WorkflowId = new WorkflowId("workflow-email")
         };
+
+    private sealed class SingleItemDiscoveryService :
+        IStreamingDiscoveryService
+    {
+        private readonly DiscoveredItem _item;
+
+        public SingleItemDiscoveryService(
+            DiscoveredItem item)
+        {
+            _item = item;
+        }
+
+        public async IAsyncEnumerable<DiscoveredItem>
+            DiscoverItemsAsync(
+                string sourcePath,
+                DiscoveryOptions options,
+                [System.Runtime.CompilerServices.EnumeratorCancellation]
+                CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.CompletedTask;
+            yield return _item;
+        }
+    }
 
     private sealed class StubIdGenerator :
         IArtifactIdGenerator

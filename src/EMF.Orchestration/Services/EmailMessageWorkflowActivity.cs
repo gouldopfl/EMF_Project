@@ -11,6 +11,9 @@ namespace EMF.Orchestration.Services;
 public sealed class EmailMessageWorkflowActivity :
     IEmailMessageWorkflowActivity
 {
+    public const long DefaultMaxMessageBytes =
+        100L * 1024 * 1024;
+
     private readonly IStreamingDiscoveryService _discovery;
     private readonly IEvidenceRepository _repository;
     private readonly IArtifactContentStore _contentStore;
@@ -19,6 +22,7 @@ public sealed class EmailMessageWorkflowActivity :
     private readonly IArtifactFactory _artifactFactory;
     private readonly string _sourcePath;
     private readonly DiscoveryOptions _options;
+    private readonly long _maxMessageBytes;
 
     public EmailMessageWorkflowActivity(
         IStreamingDiscoveryService discovery,
@@ -28,7 +32,8 @@ public sealed class EmailMessageWorkflowActivity :
         IArtifactIdGenerator artifactIdGenerator,
         IArtifactFactory artifactFactory,
         string sourcePath,
-        DiscoveryOptions options)
+        DiscoveryOptions options,
+        long maxMessageBytes = DefaultMaxMessageBytes)
     {
         ArgumentNullException.ThrowIfNull(discovery);
         ArgumentNullException.ThrowIfNull(repository);
@@ -39,6 +44,13 @@ public sealed class EmailMessageWorkflowActivity :
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         ArgumentNullException.ThrowIfNull(options);
 
+        if (maxMessageBytes <= 0 ||
+            maxMessageBytes > Array.MaxLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxMessageBytes));
+        }
+
         _discovery = discovery;
         _repository = repository;
         _contentStore = contentStore;
@@ -47,6 +59,7 @@ public sealed class EmailMessageWorkflowActivity :
         _artifactFactory = artifactFactory;
         _sourcePath = sourcePath;
         _options = options;
+        _maxMessageBytes = maxMessageBytes;
     }
 
     public string Id => "email-messages";
@@ -103,10 +116,28 @@ public sealed class EmailMessageWorkflowActivity :
         DiscoveredItem item,
         CancellationToken cancellationToken)
     {
-        var content =
-            await File.ReadAllBytesAsync(
-                item.SourcePath,
-                cancellationToken);
+        if (item.SizeBytes > _maxMessageBytes)
+            throw new InvalidDataException(
+                "Email message exceeds the maximum allowed size.");
+
+        await using var stream =
+            File.OpenRead(item.SourcePath);
+
+        var length = stream.Length;
+
+        if (length > _maxMessageBytes)
+            throw new InvalidDataException(
+                "Email message exceeds the maximum allowed size.");
+
+        var content = new byte[(int)length];
+
+        await stream.ReadExactlyAsync(
+            content,
+            cancellationToken);
+
+        if (stream.Position != stream.Length)
+            throw new IOException(
+                "Email message changed during processing.");
 
         var fingerprint =
             await _fingerprintService.ComputeAsync(
