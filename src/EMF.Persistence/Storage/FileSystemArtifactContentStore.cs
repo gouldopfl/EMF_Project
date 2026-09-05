@@ -31,10 +31,20 @@ public sealed class FileSystemArtifactContentStore :
 
         try
         {
-            await File.WriteAllBytesAsync(
-                temporaryPath,
-                content.ToArray(),
-                cancellationToken);
+            await using (var stream =
+                new FileStream(
+                    temporaryPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    81920,
+                    FileOptions.Asynchronous |
+                    FileOptions.SequentialScan))
+            {
+                await stream.WriteAsync(
+                    content,
+                    cancellationToken);
+            }
 
             File.Move(
                 temporaryPath,
