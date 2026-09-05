@@ -55,6 +55,10 @@ internal sealed class EvidenceRecognitionCoordinator :
         var matchArtifacts =
             new List<EvidenceRecognitionMatchArtifact>();
 
+        if (artifacts.Any(x => x.EvidenceGapId != evidenceGapId))
+            throw new InvalidOperationException(
+                "Evidence gap artifact ownership mismatch.");
+
         foreach (var artifact in artifacts)
         {
             var text =

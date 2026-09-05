@@ -104,6 +104,43 @@ public sealed class EvidenceRecognitionCoordinatorTests
     }
 
     [Fact]
+    public async Task RecognizeAsync_RejectsArtifactForDifferentGap()
+    {
+        var requested = new EvidenceGapId("gap-001");
+
+        var gaps = new FakeGapRepository
+        {
+            Gap = new EvidenceGap
+            {
+                Id = requested,
+                ClaimIssueId = new ClaimIssueId("issue-001"),
+                RequirementId = new RequirementId("req-001"),
+                Description = "Missing evidence."
+            },
+            Artifacts =
+            [
+                new EvidenceGapArtifact
+                {
+                    EvidenceGapId =
+                        new EvidenceGapId("gap-other"),
+                    ArtifactId =
+                        new ArtifactId("artifact-001"),
+                    Role = "primary"
+                }
+            ]
+        };
+
+        var coordinator =
+            new EvidenceRecognitionCoordinator(
+                gaps,
+                new FakeTextExtractor("text"),
+                new InMemoryEvidenceRecognitionTermRepository());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.RecognizeAsync(requested));
+    }
+
+    [Fact]
     public async Task RecognizeAsync_DeduplicatesTermAcrossArtifacts()
     {
         var gapId = new EvidenceGapId("gap-002");
