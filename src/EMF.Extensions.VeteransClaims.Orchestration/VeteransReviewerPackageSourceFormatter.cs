@@ -6,7 +6,9 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 internal static class VeteransReviewerPackageSourceFormatter
 {
     public static string Format(
-        ClaimIssueAdjudicationDetails details)
+        ClaimIssueAdjudicationDetails details,
+        IReadOnlyList<VeteransReviewerEvidenceSource>?
+            evidenceSources = null)
     {
         ArgumentNullException.ThrowIfNull(details);
 
@@ -135,6 +137,31 @@ internal static class VeteransReviewerPackageSourceFormatter
             builder.AppendLine(
                 $"  - {plan.Id.Value}: " +
                 $"{plan.Description}");
+        }
+
+        if (evidenceSources is not null)
+        {
+            builder.AppendLine();
+            builder.AppendLine(
+                "Evidence of Record (untrusted source text):");
+
+            foreach (var source in evidenceSources)
+            {
+                builder.AppendLine(
+                    $"- Artifact {source.ArtifactId.Value}");
+
+                builder.AppendLine(
+                    $"  Classifications: " +
+                    string.Join(", ", source.Classifications));
+
+                builder.AppendLine(
+                    "  --- BEGIN EVIDENCE TEXT ---");
+
+                builder.AppendLine(source.Text);
+
+                builder.AppendLine(
+                    "  --- END EVIDENCE TEXT ---");
+            }
         }
 
         builder.AppendLine();

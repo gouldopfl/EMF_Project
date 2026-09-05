@@ -1418,7 +1418,9 @@ public sealed class VeteransConsoleCommandTests
                         new Dictionary<string, object>
                         {
                             ["summary"] =
-                                "Documented reviewer source evidence."
+                                "Documented reviewer source evidence.",
+                            [ArtifactMetadataKeys.FileExtension] =
+                                ".txt"
                         }
                 });
 
@@ -1434,6 +1436,20 @@ public sealed class VeteransConsoleCommandTests
                         Classification =
                             EvidenceClassifications.MedicalEvidence
                     });
+
+            var contentPath =
+                Path.Combine(
+                    Path.GetTempPath(),
+                    $"emf-reviewer-content-{Guid.NewGuid():N}");
+
+            var contentStore =
+                new EMF.Persistence.Storage
+                    .FileSystemArtifactContentStore(contentPath);
+
+            await contentStore.WriteAsync(
+                new ArtifactId("artifact-reviewer-001"),
+                System.Text.Encoding.UTF8.GetBytes(
+                    "Reviewer medical evidence source text."));
 
             var exitCode =
                 await VeteransConsoleCommand.RunAsync(
@@ -1456,7 +1472,8 @@ public sealed class VeteransConsoleCommandTests
                                 new ProtectionClassificationId(
                                     "confidential"),
                             AuditDatabasePath = "test-audit.db"
-                        }));
+                        }),
+                    () => contentStore);
 
             Assert.Equal(0, exitCode);
             Assert.True(File.Exists(outputPath));

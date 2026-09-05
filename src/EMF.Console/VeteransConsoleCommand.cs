@@ -26,9 +26,13 @@ public static class VeteransConsoleCommand
 
     internal static async Task<int> RunAsync(
         string[] args,
-        Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory)
+        Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory,
+        Func<IArtifactContentStore?>? contentStoreFactory = null)
     {
         ArgumentNullException.ThrowIfNull(runtimeFactory);
+
+        contentStoreFactory ??=
+            ArtifactContentStoreFactory.Create;
 
         if (args.Length == 4 &&
             args[0] == "adjudication" &&
@@ -344,6 +348,7 @@ public static class VeteransConsoleCommand
                 reviewerDatabasePath,
                 new ClaimIssueId(args[3]),
                 runtimeFactory,
+                contentStoreFactory,
                 args.Length == 5
                     ? Path.GetFullPath(args[4])
                     : null);
@@ -779,6 +784,7 @@ public static class VeteransConsoleCommand
         string databasePath,
         ClaimIssueId claimIssueId,
         Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory,
+        Func<IArtifactContentStore?> contentStoreFactory,
         string? outputPath)
     {
         var details =
@@ -812,6 +818,48 @@ public static class VeteransConsoleCommand
             return 1;
         }
 
+        var contentStore =
+            contentStoreFactory();
+
+        if (contentStore is null)
+            throw new InvalidOperationException(
+                "Artifact content store is not configured.");
+
+        var evidenceRepository =
+            new SqliteEvidenceRepository(databasePath);
+
+        await evidenceRepository.InitializeAsync();
+
+        var textExtractor =
+            ArtifactTextExtractionFactory.Create(
+                evidenceRepository,
+                contentStore);
+
+        var evidenceSources =
+            new List<VeteransReviewerEvidenceSource>();
+
+        foreach (var group in
+                 classifications.GroupBy(x => x.ArtifactId))
+        {
+            var text =
+                await textExtractor.ExtractTextAsync(group.Key);
+
+            if (string.IsNullOrWhiteSpace(text))
+                throw new InvalidOperationException(
+                    $"Unable to extract reviewer evidence: {group.Key.Value}");
+
+            evidenceSources.Add(
+                new VeteransReviewerEvidenceSource
+                {
+                    ArtifactId = group.Key,
+                    Classifications =
+                        group.Select(x => x.Classification)
+                            .Distinct(StringComparer.Ordinal)
+                            .ToArray(),
+                    Text = text
+                });
+        }
+
         var runtime =
             await runtimeFactory();
 
@@ -823,6 +871,7 @@ public static class VeteransConsoleCommand
         var result =
             await intelligence.SummarizeAsync(
                 details,
+                evidenceSources,
                 new IntelligenceExecutionContext(
                     runtime.SubjectId,
                     new IntelligenceCorrelationId(

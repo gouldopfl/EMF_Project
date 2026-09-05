@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Claims;
 using EMF.Extensions.VeteransClaims.Models.Conditions;
@@ -613,5 +614,57 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
             "outcome Denied: Claim denied",
             text);
     }
+
+
+    [Fact]
+    public void Format_IncludesEvidenceSourceTextAndLineage()
+    {
+        var issue = new ClaimIssue
+        {
+            Id = new ClaimIssueId("issue-reviewer-evidence"),
+            ClaimId = new ClaimId("claim-reviewer-evidence"),
+            ClaimIssueType = "ServiceConnection"
+        };
+
+        var text =
+            VeteransReviewerPackageSourceFormatter.Format(
+                CreateDetails(issue, []),
+                [
+                    new VeteransReviewerEvidenceSource
+                    {
+                        ArtifactId =
+                            new ArtifactId("artifact-blue-button"),
+                        Classifications =
+                            [EvidenceClassifications.MedicalEvidence],
+                        Text =
+                            "Pantoprazole appears in the medication record."
+                    }
+                ]);
+
+        Assert.Contains(
+            "Evidence of Record (untrusted source text):",
+            text);
+
+        Assert.Contains(
+            "- Artifact artifact-blue-button",
+            text);
+
+        Assert.Contains(
+            "Classifications: MedicalEvidence",
+            text);
+
+        Assert.Contains(
+            "Pantoprazole appears in the medication record.",
+            text);
+
+        Assert.Contains(
+            "--- BEGIN EVIDENCE TEXT ---",
+            text);
+
+        Assert.Contains(
+            "--- END EVIDENCE TEXT ---",
+            text);
+    }
+
 
 }
