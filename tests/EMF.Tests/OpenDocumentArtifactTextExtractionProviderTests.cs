@@ -44,6 +44,90 @@ public sealed class OpenDocumentArtifactTextExtractionProviderTests
         Assert.Contains("Lumbar MRI", text);
     }
 
+    [Fact]
+    public async Task ExtractTextAsync_RejectsTooManyPackageEntries()
+    {
+        var provider =
+            new OpenDocumentArtifactTextExtractionProvider(
+                new StubContentStore(CreateOdt()),
+                "application/vnd.oasis.opendocument.text",
+                "evidence.odt",
+                maxPackageEntryCount: 2);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("odt-entry-count")));
+
+        Assert.Equal(
+            "OpenDocument package exceeds " +
+            "the maximum allowed entry count.",
+            exception.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedPackageEntry()
+    {
+        var provider =
+            new OpenDocumentArtifactTextExtractionProvider(
+                new StubContentStore(CreateOdt()),
+                "application/vnd.oasis.opendocument.text",
+                "evidence.odt",
+                maxPackageEntryBytes: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("odt-entry-size")));
+
+        Assert.Equal(
+            "OpenDocument package entry exceeds " +
+            "the maximum allowed size.",
+            exception.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedPackageTotal()
+    {
+        var provider =
+            new OpenDocumentArtifactTextExtractionProvider(
+                new StubContentStore(CreateOdt()),
+                "application/vnd.oasis.opendocument.text",
+                "evidence.odt",
+                maxPackageTotalBytes: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("odt-total-size")));
+
+        Assert.Equal(
+            "OpenDocument package exceeds " +
+            "the maximum allowed extracted size.",
+            exception.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedExtractedText()
+    {
+        var provider =
+            new OpenDocumentArtifactTextExtractionProvider(
+                new StubContentStore(CreateOdt()),
+                "application/vnd.oasis.opendocument.text",
+                "evidence.odt",
+                maxExtractedTextChars: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("odt-text-size")));
+
+        Assert.Equal(
+            "OpenDocument extracted text exceeds " +
+            "the maximum allowed size.",
+            exception.Message);
+    }
+
     private static byte[] CreateOds()
     {
         using var stream = new MemoryStream();
