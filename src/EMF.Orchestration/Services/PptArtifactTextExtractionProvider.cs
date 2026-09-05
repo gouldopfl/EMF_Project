@@ -12,15 +12,34 @@ public sealed class PptArtifactTextExtractionProvider :
     private const string ContentType =
         "application/vnd.ms-powerpoint";
 
+    public const long DefaultMaxInputBytes =
+        100L * 1024 * 1024;
+    public const int DefaultMaxExtractedTextChars =
+        50 * 1024 * 1024;
+
     private readonly IArtifactContentStore _contentStore;
     private readonly OfficeDocumentReader _reader;
+    private readonly long _maxInputBytes;
+    private readonly int _maxExtractedTextChars;
 
     public PptArtifactTextExtractionProvider(
-        IArtifactContentStore contentStore)
+        IArtifactContentStore contentStore,
+        long maxInputBytes =
+            DefaultMaxInputBytes,
+        int maxExtractedTextChars =
+            DefaultMaxExtractedTextChars)
     {
         ArgumentNullException.ThrowIfNull(contentStore);
+        ValidatePositive(
+            maxInputBytes,
+            nameof(maxInputBytes));
+        ValidatePositive(
+            maxExtractedTextChars,
+            nameof(maxExtractedTextChars));
 
         _contentStore = contentStore;
+        _maxInputBytes = maxInputBytes;
+        _maxExtractedTextChars = maxExtractedTextChars;
         _reader =
             new OfficeDocumentReaderBuilder()
                 .AddPowerPointHandler()
@@ -47,6 +66,12 @@ public sealed class PptArtifactTextExtractionProvider :
 
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (content.LongLength > _maxInputBytes)
+        {
+            throw new InvalidDataException(
+                "PPT input exceeds the maximum allowed size.");
+        }
+
         var result =
             await _reader.ReadDocumentAsync(
                 content,
@@ -54,6 +79,31 @@ public sealed class PptArtifactTextExtractionProvider :
                 options: null,
                 cancellationToken);
 
-        return result.Markdown;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var markdown = result.Markdown;
+
+        if (markdown is not null &&
+            markdown.Length > _maxExtractedTextChars)
+        {
+            throw new InvalidDataException(
+                "PPT extracted text exceeds " +
+                "the maximum allowed size.");
+        }
+
+        return markdown;
+    }
+
+    private static void ValidatePositive(
+        long value,
+        string parameterName)
+    {
+        if (value <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                value,
+                "Resource limit must be greater than zero.");
+        }
     }
 }

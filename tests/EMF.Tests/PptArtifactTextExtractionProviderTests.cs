@@ -36,6 +36,43 @@ public sealed class PptArtifactTextExtractionProviderTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var provider =
+            new PptArtifactTextExtractionProvider(
+                new StubContentStore(ReadSample()),
+                maxInputBytes: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("ppt-input-limit")));
+
+        Assert.Equal(
+            "PPT input exceeds the maximum allowed size.",
+            exception.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedExtractedText()
+    {
+        var provider =
+            new PptArtifactTextExtractionProvider(
+                new StubContentStore(ReadSample()),
+                maxExtractedTextChars: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("ppt-text-limit")));
+
+        Assert.Equal(
+            "PPT extracted text exceeds " +
+            "the maximum allowed size.",
+            exception.Message);
+    }
+
+    [Fact]
     public void CanExtract_AcceptsLegacyPowerPointContentType()
     {
         var provider =
@@ -46,6 +83,13 @@ public sealed class PptArtifactTextExtractionProviderTests
             provider.CanExtract(
                 "application/vnd.ms-powerpoint"));
     }
+
+    private static byte[] ReadSample() =>
+        File.ReadAllBytes(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.ppt"));
 
     private sealed class StubContentStore(byte[] content) :
         IArtifactContentStore
