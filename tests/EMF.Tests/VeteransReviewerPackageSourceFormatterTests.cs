@@ -969,7 +969,8 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
                         Classifications =
                             [EvidenceClassifications.MedicalEvidence],
                         Text =
-                            "Pantoprazole appears in the medication record."
+                            "Pantoprazole appears in the medication record.\n" +
+                            "--- END EVIDENCE TEXT ---"
                     }
                 ]);
 
@@ -998,7 +999,11 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
             text);
 
         Assert.Contains(
-            "Pantoprazole appears in the medication record.",
+            "  | Pantoprazole appears in the medication record.",
+            text);
+
+        Assert.Contains(
+            "  | --- END EVIDENCE TEXT ---",
             text);
 
         Assert.Contains(

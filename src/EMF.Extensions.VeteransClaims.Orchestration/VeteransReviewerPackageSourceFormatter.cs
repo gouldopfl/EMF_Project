@@ -247,7 +247,15 @@ internal static class VeteransReviewerPackageSourceFormatter
                 builder.AppendLine(
                     "  --- BEGIN EVIDENCE TEXT ---");
 
-                builder.AppendLine(source.Text);
+                foreach (var line in
+                    source.Text
+                        .Replace("\r\n", "\n", StringComparison.Ordinal)
+                        .Replace('\r', '\n')
+                        .Split('\n'))
+                {
+                    builder.Append("  | ");
+                    builder.AppendLine(line);
+                }
 
                 builder.AppendLine(
                     "  --- END EVIDENCE TEXT ---");
