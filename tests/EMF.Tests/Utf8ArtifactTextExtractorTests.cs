@@ -36,6 +36,67 @@ public sealed class Utf8ArtifactTextExtractorTests
             () => extractor.ExtractTextAsync(id));
     }
 
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var id = new ArtifactId("artifact-text-003");
+        var store = new StubContentStore(
+            Encoding.UTF8.GetBytes("12345"));
+
+        var extractor =
+            new Utf8ArtifactTextExtractor(
+                store,
+                maxInputBytes: 4,
+                maxExtractedTextChars: 100);
+
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => extractor.ExtractTextAsync(id));
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedExtractedText()
+    {
+        var id = new ArtifactId("artifact-text-004");
+        var store = new StubContentStore(
+            Encoding.UTF8.GetBytes("12345"));
+
+        var extractor =
+            new Utf8ArtifactTextExtractor(
+                store,
+                maxInputBytes: 100,
+                maxExtractedTextChars: 4);
+
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => extractor.ExtractTextAsync(id));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_RejectsNonPositiveInputLimit(long value)
+    {
+        var store = new StubContentStore([]);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new Utf8ArtifactTextExtractor(
+                store,
+                maxInputBytes: value));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_RejectsNonPositiveTextLimit(int value)
+    {
+        var store = new StubContentStore([]);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new Utf8ArtifactTextExtractor(
+                store,
+                maxExtractedTextChars: value));
+    }
+
+
     private sealed class StubContentStore :
         IArtifactContentStore
     {
