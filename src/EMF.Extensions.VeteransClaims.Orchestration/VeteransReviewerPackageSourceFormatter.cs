@@ -96,6 +96,17 @@ internal static class VeteransReviewerPackageSourceFormatter
         }
 
         builder.AppendLine();
+        builder.AppendLine("Presumptions:");
+
+        foreach (var item in details.Presumptions)
+        {
+            builder.AppendLine(
+                $"- basis {item.Basis.Id.Value}: " +
+                $"{item.PresumptionProvision.Id.Value}: " +
+                $"{item.PresumptionProvision.Citation}");
+        }
+
+        builder.AppendLine();
         builder.AppendLine("Service Events:");
 
         foreach (var item in details.ServiceEvents)

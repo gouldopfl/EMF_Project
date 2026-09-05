@@ -430,6 +430,69 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
             text);
     }
 
+
+    [Fact]
+    public void Format_IncludesPresumptions()
+    {
+        var issue = new ClaimIssue
+        {
+            Id = new ClaimIssueId("issue-presumption-1"),
+            ClaimId = new ClaimId("claim-presumption-1"),
+            ClaimIssueType = "ServiceConnection"
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-presumption-1"),
+            ClaimIssueId = issue.Id,
+            ServiceConnectionTheoryId =
+                new ServiceConnectionTheoryId("theory-presumption-1")
+        };
+
+        var provision = new RegulatoryProvision
+        {
+            Id = new RegulatoryProvisionId("presumption-reviewer-1"),
+            RegulatoryAuthorityId =
+                new RegulatoryAuthorityId("authority-1"),
+            ProvisionType = RegulatoryProvisionTypes.Presumption,
+            Citation = "38 CFR 3.307"
+        };
+
+        var details = CreateDetails(issue, []);
+
+        details = new ClaimIssueAdjudicationDetails
+        {
+            ClaimIssue = details.ClaimIssue,
+            ClaimedConditions = details.ClaimedConditions,
+            ServiceConnectionTheories = details.ServiceConnectionTheories,
+            ServiceConnectionBases = details.ServiceConnectionBases,
+            ServiceConnectedConditions = details.ServiceConnectedConditions,
+            PrescribedMedications = details.PrescribedMedications,
+            Exposures = details.Exposures,
+            PreexistingConditions = details.PreexistingConditions,
+            Presumptions =
+            [
+                new ServiceConnectionBasisPresumptionDetails
+                {
+                    Basis = basis,
+                    PresumptionProvision = provision
+                }
+            ],
+            ServiceEvents = details.ServiceEvents,
+            Requirements = details.Requirements,
+            Evidence = details.Evidence,
+            Timeline = details.Timeline
+        };
+
+        var text =
+            VeteransReviewerPackageSourceFormatter.Format(details);
+
+        Assert.Contains("Presumptions:", text);
+        Assert.Contains(
+            "- basis basis-presumption-1: presumption-reviewer-1: 38 CFR 3.307",
+            text);
+    }
+
     [Fact]
     public void Format_IncludesRequirementAndRegulation()
     {

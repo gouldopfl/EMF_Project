@@ -1138,6 +1138,129 @@ public sealed class SqliteServiceConnectionRepository :
         return basisIds;
     }
 
+    public async Task AddBasisPresumptionAsync(
+        ServiceConnectionBasisPresumption association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_BasisPresumptions (
+                ServiceConnectionBasisId,
+                PresumptionProvisionId
+            )
+            SELECT $basisId, $provisionId
+            WHERE EXISTS (
+                SELECT 1
+                FROM VeteransClaims_ServiceConnectionBases
+                WHERE Id = $basisId
+            )
+            AND EXISTS (
+                SELECT 1
+                FROM VeteransClaims_RegulatoryProvisions
+                WHERE Id = $provisionId
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        command.Parameters.AddWithValue(
+            "$provisionId",
+            association.PresumptionProvisionId.Value);
+
+        var affected =
+            await command.ExecuteNonQueryAsync(
+                cancellationToken);
+
+        if (affected != 1)
+            throw new InvalidOperationException(
+                "Service connection basis or presumption " +
+                "provision does not exist.");
+    }
+
+    public async Task<IReadOnlyList<RegulatoryProvisionId>>
+        GetPresumptionProvisionIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT PresumptionProvisionId
+            FROM VeteransClaims_BasisPresumptions
+            WHERE ServiceConnectionBasisId = $basisId
+            ORDER BY PresumptionProvisionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$basisId",
+            basisId.Value);
+
+        var provisionIds =
+            new List<RegulatoryProvisionId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            provisionIds.Add(
+                new RegulatoryProvisionId(
+                    reader.GetString(0)));
+        }
+
+        return provisionIds;
+    }
+
+    public async Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetPresumptionBasisIdsAsync(
+            RegulatoryProvisionId presumptionProvisionId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ServiceConnectionBasisId
+            FROM VeteransClaims_BasisPresumptions
+            WHERE PresumptionProvisionId = $provisionId
+            ORDER BY ServiceConnectionBasisId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$provisionId",
+            presumptionProvisionId.Value);
+
+        var basisIds =
+            new List<ServiceConnectionBasisId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            basisIds.Add(
+                new ServiceConnectionBasisId(
+                    reader.GetString(0)));
+        }
+
+        return basisIds;
+    }
+
     public async Task AddBasisPreexistingConditionAsync(
         ServiceConnectionBasisPreexistingCondition association,
         CancellationToken cancellationToken = default)

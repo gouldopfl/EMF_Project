@@ -29,6 +29,9 @@ public sealed class ClaimIssueAdjudicationDetails
     public IReadOnlyList<ServiceConnectionBasisPreexistingConditionDetails>
         PreexistingConditions { get; init; } = [];
 
+    public IReadOnlyList<ServiceConnectionBasisPresumptionDetails>
+        Presumptions { get; init; } = [];
+
     public required IReadOnlyList<ServiceConnectionBasisServiceEventDetails>
         ServiceEvents { get; init; }
 

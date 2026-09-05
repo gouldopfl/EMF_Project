@@ -108,6 +108,20 @@ public interface IServiceConnectionRepository
             string medicationName,
             CancellationToken cancellationToken = default);
 
+    Task AddBasisPresumptionAsync(
+        ServiceConnectionBasisPresumption association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<RegulatoryProvisionId>>
+        GetPresumptionProvisionIdsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ServiceConnectionBasisId>>
+        GetPresumptionBasisIdsAsync(
+            RegulatoryProvisionId presumptionProvisionId,
+            CancellationToken cancellationToken = default);
+
     Task AddBasisPreexistingConditionAsync(
         ServiceConnectionBasisPreexistingCondition association,
         CancellationToken cancellationToken = default);

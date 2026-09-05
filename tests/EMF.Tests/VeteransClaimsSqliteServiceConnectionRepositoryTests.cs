@@ -390,6 +390,48 @@ public sealed class
                 basis.Id,
                 Assert.Single(
                     preexistingConditionBasisIds));
+
+            var regulatory =
+                new SqliteRegulatoryRepository(databasePath);
+
+            var authority = new RegulatoryAuthority
+            {
+                Id = new RegulatoryAuthorityId("authority-presumption-001"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Presumptions"
+            };
+
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+
+            var provision = new RegulatoryProvision
+            {
+                Id = new RegulatoryProvisionId("provision-presumption-001"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Presumption,
+                Citation = "38 CFR 3.307"
+            };
+
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+
+            await repository.AddBasisPresumptionAsync(
+                new ServiceConnectionBasisPresumption
+                {
+                    ServiceConnectionBasisId = basis.Id,
+                    PresumptionProvisionId = provision.Id
+                });
+
+            Assert.Equal(
+                provision.Id,
+                Assert.Single(
+                    await repository.GetPresumptionProvisionIdsAsync(
+                        basis.Id)));
+
+            Assert.Equal(
+                basis.Id,
+                Assert.Single(
+                    await repository.GetPresumptionBasisIdsAsync(
+                        provision.Id)));
         }
         finally
         {

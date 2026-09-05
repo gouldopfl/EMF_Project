@@ -123,6 +123,9 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         var preexistingConditions =
             new List<ServiceConnectionBasisPreexistingConditionDetails>();
 
+        var presumptions =
+            new List<ServiceConnectionBasisPresumptionDetails>();
+
         var serviceEvents =
             new List<ServiceConnectionBasisServiceEventDetails>();
 
@@ -223,6 +226,32 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     {
                         Basis = basis,
                         PreexistingCondition = condition
+                    });
+            }
+
+            var presumptionProvisionIds =
+                await _serviceConnections.GetPresumptionProvisionIdsAsync(
+                    basis.Id,
+                    cancellationToken);
+
+            foreach (var provisionId in presumptionProvisionIds)
+            {
+                var provision =
+                    await _regulatory.GetRegulatoryProvisionAsync(
+                        provisionId,
+                        cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        "Presumption provision could not be read.");
+
+                if (provision.Id != provisionId)
+                    throw new InvalidOperationException(
+                        "Presumption provision identity mismatch.");
+
+                presumptions.Add(
+                    new ServiceConnectionBasisPresumptionDetails
+                    {
+                        Basis = basis,
+                        PresumptionProvision = provision
                     });
             }
 
@@ -327,6 +356,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
             PrescribedMedications = prescribedMedications,
             Exposures = exposures,
             PreexistingConditions = preexistingConditions,
+            Presumptions = presumptions,
             ServiceEvents = serviceEvents,
             Requirements = requirements,
             Evidence = evidence,

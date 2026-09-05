@@ -363,6 +363,16 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 Citation = "38 CFR"
             };
 
+        var presumptionProvision =
+            new RegulatoryProvision
+            {
+                Id = new RegulatoryProvisionId("presumption-001"),
+                RegulatoryAuthorityId =
+                    new RegulatoryAuthorityId("authority-1"),
+                ProvisionType = RegulatoryProvisionTypes.Presumption,
+                Citation = "38 CFR 3.307"
+            };
+
         var responsiveness =
             new RequirementEvidenceResponsivenessAssessment
             {
@@ -420,6 +430,7 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             };
 
         var medicalConditionLookupCount = 0;
+        var regulatoryProvisionLookupCount = 0;
 
         var service =
             new ClaimIssueAdjudicationDetailsService(
@@ -452,6 +463,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                 : method.Name == "GetPreexistingConditionIdsAsync"
                                     ? Task.FromResult<IReadOnlyList<MedicalConditionId>>(
                                         [preexistingCondition.Id])
+                                : method.Name == "GetPresumptionProvisionIdsAsync"
+                                    ? Task.FromResult<IReadOnlyList<RegulatoryProvisionId>>(
+                                        [presumptionProvision.Id])
                                 : method.Name == "GetExposureIdsAsync"
                                     ? Task.FromResult<IReadOnlyList<ExposureId>>(
                                         [exposure.Id])
@@ -477,7 +491,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                 requirement)
                             : method.Name == "GetRegulatoryProvisionAsync"
                                 ? Task.FromResult<RegulatoryProvision?>(
-                                    provision)
+                                    regulatoryProvisionLookupCount++ == 0
+                                        ? presumptionProvision
+                                        : provision)
                                 : throw new NotSupportedException()),
                 Proxy<IRequirementEvidenceService>(
                     method =>
@@ -549,6 +565,17 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         Assert.Same(
             preexistingCondition,
             resolvedPreexistingCondition.PreexistingCondition);
+
+        var resolvedPresumption =
+            Assert.Single(result.Presumptions);
+
+        Assert.Same(
+            basis,
+            resolvedPresumption.Basis);
+
+        Assert.Same(
+            presumptionProvision,
+            resolvedPresumption.PresumptionProvision);
 
         var resolvedServiceEvent =
             Assert.Single(result.ServiceEvents);
@@ -1260,6 +1287,11 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 when (targetMethod!.Name == "GetPreexistingConditionIdsAsync")
             {
                 return Task.FromResult<IReadOnlyList<MedicalConditionId>>([]);
+            }
+            catch (NotSupportedException)
+                when (targetMethod!.Name == "GetPresumptionProvisionIdsAsync")
+            {
+                return Task.FromResult<IReadOnlyList<RegulatoryProvisionId>>([]);
             }
         }
     }
