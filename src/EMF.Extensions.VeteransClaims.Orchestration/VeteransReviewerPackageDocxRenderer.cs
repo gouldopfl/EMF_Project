@@ -209,6 +209,15 @@ public static class VeteransReviewerPackageDocxRenderer
                         $"{content.Artifact.Fingerprint.Value}"));
             }
 
+            foreach (var provenance in content.Provenance)
+            {
+                body.Append(
+                    ContentParagraph(
+                        $"Provenance: {provenance.Source} | " +
+                        $"{provenance.RecordedBy} | " +
+                        $"{provenance.RecordedUtc:O}"));
+            }
+
             body.Append(
                 ContentParagraph(content.Text));
         }

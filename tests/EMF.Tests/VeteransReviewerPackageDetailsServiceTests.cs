@@ -62,6 +62,17 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         var evidence = new InMemoryEvidenceRepository();
         await evidence.AddArtifactAsync(artifact);
 
+        await evidence.AddProvenanceAsync(
+            new Provenance
+            {
+                ArtifactId = artifact.Id,
+                Source = "/records/sleep-study.pdf",
+                RecordedBy = "EMF.Discovery",
+                RecordedUtc =
+                    new DateTimeOffset(
+                        2026, 8, 1, 12, 0, 0, TimeSpan.Zero)
+            });
+
         var extractor =
             new RecordingTextExtractor("reviewable text");
 
@@ -85,6 +96,11 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
 
         Assert.Same(artifact, content.Artifact);
         Assert.Equal("reviewable text", content.Text);
+
+        var provenance = Assert.Single(content.Provenance);
+        Assert.Equal("/records/sleep-study.pdf", provenance.Source);
+        Assert.Equal("EMF.Discovery", provenance.RecordedBy);
+
         Assert.Equal(artifact.Id, extractor.ArtifactId);
     }
 

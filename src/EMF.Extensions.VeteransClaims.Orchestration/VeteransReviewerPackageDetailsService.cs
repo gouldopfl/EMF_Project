@@ -115,6 +115,10 @@ public sealed class VeteransReviewerPackageDetailsService
                 {
                     Artifact = artifact,
                     Text = text,
+                    Provenance =
+                        await _evidence.GetProvenanceAsync(
+                            artifact.Id,
+                            cancellationToken),
                     Appendix =
                         await GetAppendixAsync(
                             artifact.Id,

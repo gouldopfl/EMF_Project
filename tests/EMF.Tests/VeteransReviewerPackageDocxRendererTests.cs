@@ -136,7 +136,20 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     {
                         Artifact = artifact,
                         Text =
-                            "Severe obstructive sleep apnea documented."
+                            "Severe obstructive sleep apnea documented.",
+                        Provenance =
+                        [
+                            new Provenance
+                            {
+                                ArtifactId = artifact.Id,
+                                Source = "/records/sleep-study.pdf",
+                                RecordedBy = "EMF.Discovery",
+                                RecordedUtc =
+                                    new DateTimeOffset(
+                                        2026, 8, 1, 13, 0, 0,
+                                        TimeSpan.Zero)
+                            }
+                        ]
                     }
                 ]
             };
@@ -182,6 +195,12 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         Assert.Contains(
             "Fingerprint: SHA-256 abc123",
+            text);
+
+        Assert.Contains(
+            "Provenance: /records/sleep-study.pdf | " +
+            "EMF.Discovery | " +
+            "2026-08-01T13:00:00.0000000+00:00",
             text);
 
         Assert.Contains(

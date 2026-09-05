@@ -12,4 +12,7 @@ public sealed class VeteransReviewerArtifactContent
 
     public string? Appendix
     { get; init; }
+
+    public IReadOnlyList<Provenance> Provenance
+    { get; init; } = [];
 }
