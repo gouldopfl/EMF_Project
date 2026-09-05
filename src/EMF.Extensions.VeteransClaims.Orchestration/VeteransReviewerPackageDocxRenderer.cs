@@ -218,6 +218,17 @@ public static class VeteransReviewerPackageDocxRenderer
                         $"{provenance.RecordedUtc:O}"));
             }
 
+            foreach (var relationship in content.Relationships)
+            {
+                body.Append(
+                    ContentParagraph(
+                        $"Relationship: " +
+                        $"{relationship.SourceArtifactId.Value} -> " +
+                        $"{relationship.TargetArtifactId.Value} | " +
+                        $"{relationship.RelationshipType} | " +
+                        $"{relationship.CreatedUtc:O}"));
+            }
+
             body.Append(
                 ContentParagraph(content.Text));
         }

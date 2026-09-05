@@ -15,4 +15,7 @@ public sealed class VeteransReviewerArtifactContent
 
     public IReadOnlyList<Provenance> Provenance
     { get; init; } = [];
+
+    public IReadOnlyList<Relationship> Relationships
+    { get; init; } = [];
 }

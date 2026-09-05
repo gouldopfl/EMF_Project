@@ -119,6 +119,10 @@ public sealed class VeteransReviewerPackageDetailsService
                         await _evidence.GetProvenanceAsync(
                             artifact.Id,
                             cancellationToken),
+                    Relationships =
+                        await _evidence.GetRelationshipsAsync(
+                            artifact.Id,
+                            cancellationToken),
                     Appendix =
                         await GetAppendixAsync(
                             artifact.Id,

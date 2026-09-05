@@ -62,6 +62,17 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         var evidence = new InMemoryEvidenceRepository();
         await evidence.AddArtifactAsync(artifact);
 
+        await evidence.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = artifact.Id,
+                TargetArtifactId = new ArtifactId("derived-1"),
+                RelationshipType = "DerivedFrom",
+                CreatedUtc =
+                    new DateTimeOffset(
+                        2026, 8, 1, 14, 0, 0, TimeSpan.Zero)
+            });
+
         await evidence.AddProvenanceAsync(
             new Provenance
             {
@@ -100,6 +111,13 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         var provenance = Assert.Single(content.Provenance);
         Assert.Equal("/records/sleep-study.pdf", provenance.Source);
         Assert.Equal("EMF.Discovery", provenance.RecordedBy);
+
+        var relationship = Assert.Single(content.Relationships);
+        Assert.Equal(artifact.Id, relationship.SourceArtifactId);
+        Assert.Equal(
+            new ArtifactId("derived-1"),
+            relationship.TargetArtifactId);
+        Assert.Equal("DerivedFrom", relationship.RelationshipType);
 
         Assert.Equal(artifact.Id, extractor.ArtifactId);
     }

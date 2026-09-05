@@ -149,6 +149,20 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                                         2026, 8, 1, 13, 0, 0,
                                         TimeSpan.Zero)
                             }
+                        ],
+                        Relationships =
+                        [
+                            new Relationship
+                            {
+                                SourceArtifactId = artifact.Id,
+                                TargetArtifactId =
+                                    new ArtifactId("derived-1"),
+                                RelationshipType = "DerivedFrom",
+                                CreatedUtc =
+                                    new DateTimeOffset(
+                                        2026, 8, 1, 14, 0, 0,
+                                        TimeSpan.Zero)
+                            }
                         ]
                     }
                 ]
@@ -201,6 +215,12 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "Provenance: /records/sleep-study.pdf | " +
             "EMF.Discovery | " +
             "2026-08-01T13:00:00.0000000+00:00",
+            text);
+
+        Assert.Contains(
+            "Relationship: source-1 -> derived-1 | " +
+            "DerivedFrom | " +
+            "2026-08-01T14:00:00.0000000+00:00",
             text);
 
         Assert.Contains(
