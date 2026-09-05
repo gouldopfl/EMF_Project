@@ -36,6 +36,10 @@ public sealed class ArtifactTextExtractorRouter :
         if (artifact is null)
             return null;
 
+        if (artifact.Id != artifactId)
+            throw new InvalidOperationException(
+                "Artifact identity mismatch.");
+
         var contentType =
             _resolver.ResolveContentType(artifact);
 
