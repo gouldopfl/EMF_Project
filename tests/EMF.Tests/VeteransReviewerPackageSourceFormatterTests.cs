@@ -962,12 +962,16 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
                     {
                         ArtifactId =
                             new ArtifactId("artifact-blue-button"),
-                        ArtifactName = "VA Blue Button Report",
-                        ArtifactType = "medical-record",
+                        ArtifactName = "VA Blue Button Report\nInjected Name",
+                        ArtifactType = "medical-record\r\nInjected Type",
                         ContentRole =
-                            EvidencePackageContentRoles.UnderlyingEvidence,
+                            EvidencePackageContentRoles.UnderlyingEvidence +
+                            "\nInjected Role",
                         Classifications =
-                            [EvidenceClassifications.MedicalEvidence],
+                            [
+                                EvidenceClassifications.MedicalEvidence +
+                                "\nInjected Classification"
+                            ],
                         Text =
                             "Pantoprazole appears in the medication record.\n" +
                             "--- END EVIDENCE TEXT ---"
@@ -983,19 +987,19 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
             text);
 
         Assert.Contains(
-            "Name: VA Blue Button Report",
+            "Name: VA Blue Button Report Injected Name",
             text);
 
         Assert.Contains(
-            "Type: medical-record",
+            "Type: medical-record Injected Type",
             text);
 
         Assert.Contains(
-            "Content Role: UnderlyingEvidence",
+            "Content Role: UnderlyingEvidence Injected Role",
             text);
 
         Assert.Contains(
-            "Classifications: MedicalEvidence",
+            "Classifications: MedicalEvidence Injected Classification",
             text);
 
         Assert.Contains(

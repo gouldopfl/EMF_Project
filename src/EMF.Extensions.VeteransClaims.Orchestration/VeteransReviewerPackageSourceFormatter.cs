@@ -226,23 +226,25 @@ internal static class VeteransReviewerPackageSourceFormatter
             foreach (var source in evidenceSources)
             {
                 builder.AppendLine(
-                    $"- Artifact {source.ArtifactId.Value}");
+                    $"- Artifact {SingleLine(source.ArtifactId.Value)}");
 
                 if (!string.IsNullOrWhiteSpace(source.ArtifactName))
                     builder.AppendLine(
-                        $"  Name: {source.ArtifactName}");
+                        $"  Name: {SingleLine(source.ArtifactName)}");
 
                 if (!string.IsNullOrWhiteSpace(source.ArtifactType))
                     builder.AppendLine(
-                        $"  Type: {source.ArtifactType}");
+                        $"  Type: {SingleLine(source.ArtifactType)}");
 
                 if (!string.IsNullOrWhiteSpace(source.ContentRole))
                     builder.AppendLine(
-                        $"  Content Role: {source.ContentRole}");
+                        $"  Content Role: {SingleLine(source.ContentRole)}");
 
                 builder.AppendLine(
                     $"  Classifications: " +
-                    string.Join(", ", source.Classifications));
+                    string.Join(
+                        ", ",
+                        source.Classifications.Select(SingleLine)));
 
                 builder.AppendLine(
                     "  --- BEGIN EVIDENCE TEXT ---");
@@ -295,4 +297,11 @@ internal static class VeteransReviewerPackageSourceFormatter
 
         return builder.ToString();
     }
+
+    private static string SingleLine(string value) =>
+        value
+            .Replace("\r\n", " ", StringComparison.Ordinal)
+            .Replace('\r', ' ')
+            .Replace('\n', ' ')
+            .Trim();
 }
