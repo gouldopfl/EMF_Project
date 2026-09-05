@@ -138,6 +138,91 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
             Assert.Single(packages.GeneratedArtifactIds));
     }
 
+    [Theory]
+    [InlineData(
+        false, "issue-other", "Purpose", "Role",
+        "Reviewer package belongs to another claim issue.")]
+    [InlineData(
+        true, "issue-other", "Purpose", "Role",
+        "Reviewer package belongs to another claim issue.")]
+    [InlineData(
+        false, "issue-1", "Different", "Role",
+        "Reviewer package purpose mismatch.")]
+    [InlineData(
+        false, "issue-1", "Purpose", "Different",
+        "Reviewer package reviewer role mismatch.")]
+    public async Task PrepareAsync_RejectsMismatchedReturnedPackage(
+        bool gapSpecific,
+        string returnedIssueValue,
+        string returnedPurpose,
+        string returnedRole,
+        string expectedMessage)
+    {
+        var promoted = new RecordingSummaryPromotionService();
+        var packages =
+            new RecordingPreparationService
+            {
+                ReturnedClaimIssueId =
+                    new ClaimIssueId(returnedIssueValue),
+                ReturnedPurpose = returnedPurpose,
+                ReturnedReviewerRole = returnedRole
+            };
+
+        var service =
+            new VeteransReviewerPackagePreparationService(
+                promoted,
+                packages);
+
+        var occurredUtc =
+            new DateTimeOffset(
+                2026, 9, 5, 12, 0, 0,
+                TimeSpan.Zero);
+
+        var result =
+            new IntelligenceAgentResult<string>
+            {
+                Success = true,
+                Output = "Reviewed summary.",
+                AgentId = new AgentId("summary-agent"),
+                CorrelationId =
+                    new IntelligenceCorrelationId("operation-3"),
+                StartedUtc = occurredUtc,
+                CompletedUtc = occurredUtc.AddSeconds(1),
+                SourceArtifactIds =
+                [
+                    new ArtifactId("source-1")
+                ]
+            };
+
+        var claimIssueId = new ClaimIssueId("issue-1");
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => gapSpecific
+                    ? service.PrepareAsync(
+                        claimIssueId,
+                        "Purpose",
+                        "Role",
+                        "Summary",
+                        "promoter",
+                        "reviewer",
+                        occurredUtc,
+                        new EvidenceGapId("gap-1"),
+                        new RequirementId("requirement-1"),
+                        result)
+                    : service.PrepareAsync(
+                        claimIssueId,
+                        "Purpose",
+                        "Role",
+                        "Summary",
+                        "promoter",
+                        "reviewer",
+                        occurredUtc,
+                        result));
+
+        Assert.Equal(expectedMessage, ex.Message);
+    }
+
     private sealed class RecordingSummaryPromotionService :
         IVeteransEvidenceSummaryPromotionService
     {
@@ -198,6 +283,10 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
             GeneratedArtifactIds
         { get; private set; } = [];
 
+        public ClaimIssueId? ReturnedClaimIssueId { get; set; }
+        public string? ReturnedPurpose { get; set; }
+        public string? ReturnedReviewerRole { get; set; }
+
         public Task<EvidencePackage> PrepareAsync(
             ClaimIssueId claimIssueId,
             string purpose,
@@ -220,9 +309,12 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
                 new EvidencePackage
                 {
                     Id = new EvidencePackageId("package-1"),
-                    ClaimIssueId = claimIssueId,
-                    Purpose = purpose,
-                    ReviewerRole = reviewerRole
+                    ClaimIssueId =
+                        ReturnedClaimIssueId ?? claimIssueId,
+                    Purpose =
+                        ReturnedPurpose ?? purpose,
+                    ReviewerRole =
+                        ReturnedReviewerRole ?? reviewerRole
                 });
         }
 
@@ -246,9 +338,12 @@ public sealed class VeteransReviewerPackagePreparationServiceTests
                 new EvidencePackage
                 {
                     Id = new EvidencePackageId("package-1"),
-                    ClaimIssueId = claimIssueId,
-                    Purpose = purpose,
-                    ReviewerRole = reviewerRole
+                    ClaimIssueId =
+                        ReturnedClaimIssueId ?? claimIssueId,
+                    Purpose =
+                        ReturnedPurpose ?? purpose,
+                    ReviewerRole =
+                        ReturnedReviewerRole ?? reviewerRole
                 });
         }
     }

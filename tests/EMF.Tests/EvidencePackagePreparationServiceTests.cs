@@ -93,6 +93,10 @@ public sealed partial class EvidencePackagePreparationServiceTests
         public string? CreatedPurpose { get; private set; }
         public string? CreatedReviewerRole { get; private set; }
 
+        public ClaimIssueId? ReturnedClaimIssueId { get; set; }
+        public string? ReturnedPurpose { get; set; }
+        public string? ReturnedReviewerRole { get; set; }
+
         public List<EvidencePackageArtifact>
             AddedArtifacts { get; } = [];
 
@@ -110,9 +114,12 @@ public sealed partial class EvidencePackagePreparationServiceTests
                 new EvidencePackage
                 {
                     Id = new EvidencePackageId("package-1"),
-                    ClaimIssueId = claimIssueId,
-                    Purpose = purpose,
-                    ReviewerRole = reviewerRole
+                    ClaimIssueId =
+                        ReturnedClaimIssueId ?? claimIssueId,
+                    Purpose =
+                        ReturnedPurpose ?? purpose,
+                    ReviewerRole =
+                        ReturnedReviewerRole ?? reviewerRole
                 });
         }
 
@@ -513,5 +520,56 @@ public sealed partial class EvidencePackagePreparationServiceTests
                         .GeneratedOrganizationalMaterial,
                     artifact.ContentRole);
             });
+    }
+}
+
+public sealed partial class EvidencePackagePreparationServiceTests
+{
+    [Theory]
+    [InlineData(
+        "issue-other",
+        "Medical review",
+        "MedicalProfessional",
+        "Prepared evidence package belongs to another claim issue.")]
+    [InlineData(
+        "issue-1",
+        "Different purpose",
+        "MedicalProfessional",
+        "Prepared evidence package purpose mismatch.")]
+    [InlineData(
+        "issue-1",
+        "Medical review",
+        "DifferentRole",
+        "Prepared evidence package reviewer role mismatch.")]
+    public async Task PrepareAsync_RejectsMismatchedReturnedPackage(
+        string returnedClaimIssueValue,
+        string returnedPurpose,
+        string returnedReviewerRole,
+        string expectedMessage)
+    {
+        var packages =
+            new RecordingPackageService
+            {
+                ReturnedClaimIssueId =
+                    new ClaimIssueId(returnedClaimIssueValue),
+                ReturnedPurpose = returnedPurpose,
+                ReturnedReviewerRole = returnedReviewerRole
+            };
+
+        var service =
+            new EvidencePackagePreparationService(
+                new RecordingClassificationRepository(),
+                packages);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.PrepareAsync(
+                    new ClaimIssueId("issue-1"),
+                    "Medical review",
+                    "MedicalProfessional",
+                    [],
+                    []));
+
+        Assert.Equal(expectedMessage, ex.Message);
     }
 }

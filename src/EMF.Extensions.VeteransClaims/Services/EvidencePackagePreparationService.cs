@@ -80,7 +80,7 @@ public sealed class EvidencePackagePreparationService :
             cancellationToken);
     }
 
-    public Task<EvidencePackage> PrepareAsync(
+    public async Task<EvidencePackage> PrepareAsync(
         ClaimIssueId claimIssueId,
         string purpose,
         string reviewerRole,
@@ -96,15 +96,56 @@ public sealed class EvidencePackagePreparationService :
         ArgumentNullException.ThrowIfNull(
             generatedOrganizationalMaterialArtifactIds);
 
-        return _packages.CreateAsync(
+        var package =
+            await _packages.CreateAsync(
+                claimIssueId,
+                purpose,
+                reviewerRole,
+                underlyingEvidenceArtifactIds.Distinct().ToArray(),
+                generatedOrganizationalMaterialArtifactIds
+                    .Distinct()
+                    .ToArray(),
+                cancellationToken);
+
+        ValidatePackage(
+            package,
             claimIssueId,
             purpose,
-            reviewerRole,
-            underlyingEvidenceArtifactIds.Distinct().ToArray(),
-            generatedOrganizationalMaterialArtifactIds
-                .Distinct()
-                .ToArray(),
-            cancellationToken);
+            reviewerRole);
+
+        return package;
     }
 
+    private static void ValidatePackage(
+        EvidencePackage package,
+        ClaimIssueId claimIssueId,
+        string purpose,
+        string reviewerRole)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+
+        if (package.ClaimIssueId != claimIssueId)
+        {
+            throw new InvalidOperationException(
+                "Prepared evidence package belongs to another claim issue.");
+        }
+
+        if (!string.Equals(
+                package.Purpose,
+                purpose,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Prepared evidence package purpose mismatch.");
+        }
+
+        if (!string.Equals(
+                package.ReviewerRole,
+                reviewerRole,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Prepared evidence package reviewer role mismatch.");
+        }
+    }
 }

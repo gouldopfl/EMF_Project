@@ -46,6 +46,8 @@ public sealed class VeteransReviewerPackagePreparationService
                 summaryResult,
                 cancellationToken);
 
+        ArgumentNullException.ThrowIfNull(summaryArtifact);
+
         var package =
             await _packagePreparation.PrepareAsync(
                 claimIssueId,
@@ -54,6 +56,12 @@ public sealed class VeteransReviewerPackagePreparationService
                 summaryResult.SourceArtifactIds,
                 [summaryArtifact.Id],
                 cancellationToken);
+
+        ValidatePackage(
+            package,
+            claimIssueId,
+            purpose,
+            reviewerRole);
 
         return new VeteransReviewerPackagePreparationResult
         {
@@ -88,6 +96,8 @@ public sealed class VeteransReviewerPackagePreparationService
                 summaryResult,
                 cancellationToken);
 
+        ArgumentNullException.ThrowIfNull(summaryArtifact);
+
         var package =
             await _packagePreparation.PrepareAsync(
                 claimIssueId,
@@ -97,10 +107,49 @@ public sealed class VeteransReviewerPackagePreparationService
                 [summaryArtifact.Id],
                 cancellationToken);
 
+        ValidatePackage(
+            package,
+            claimIssueId,
+            purpose,
+            reviewerRole);
+
         return new VeteransReviewerPackagePreparationResult
         {
             SummaryArtifact = summaryArtifact,
             Package = package
         };
     }
+    private static void ValidatePackage(
+        EvidencePackage package,
+        ClaimIssueId claimIssueId,
+        string purpose,
+        string reviewerRole)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+
+        if (package.ClaimIssueId != claimIssueId)
+        {
+            throw new InvalidOperationException(
+                "Reviewer package belongs to another claim issue.");
+        }
+
+        if (!string.Equals(
+                package.Purpose,
+                purpose,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Reviewer package purpose mismatch.");
+        }
+
+        if (!string.Equals(
+                package.ReviewerRole,
+                reviewerRole,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Reviewer package reviewer role mismatch.");
+        }
+    }
+
 }
