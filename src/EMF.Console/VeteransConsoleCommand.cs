@@ -980,7 +980,8 @@ public static class VeteransConsoleCommand
             regulatory,
             requirementEvidence,
             evidence,
-            timeline);
+            timeline,
+            new SqliteMedicalOpinionRepository(databasePath));
     }
 
     private static ClaimIssueAdjudicationAssessmentService

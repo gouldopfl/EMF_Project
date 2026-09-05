@@ -107,6 +107,19 @@ internal static class VeteransReviewerPackageSourceFormatter
         }
 
         builder.AppendLine();
+        builder.AppendLine("Medical Opinions:");
+
+        foreach (var item in details.MedicalOpinions)
+        {
+            builder.AppendLine(
+                $"- basis {item.Basis.Id.Value}: " +
+                $"{item.Role}: " +
+                $"{item.MedicalOpinion.Id.Value}: " +
+                $"{item.MedicalOpinion.Question}: " +
+                $"{item.MedicalOpinion.Opinion}");
+        }
+
+        builder.AppendLine();
         builder.AppendLine("Service Events:");
 
         foreach (var item in details.ServiceEvents)

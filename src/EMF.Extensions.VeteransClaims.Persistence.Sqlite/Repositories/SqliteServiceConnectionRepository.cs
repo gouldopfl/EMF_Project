@@ -1423,6 +1423,117 @@ public sealed class SqliteServiceConnectionRepository :
     }
 
 
+    public async Task AddBasisMedicalOpinionAsync(
+        ServiceConnectionBasisMedicalOpinion association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        if (association.Role !=
+                ServiceConnectionBasisTraceabilityRoles.Supporting &&
+            association.Role !=
+                ServiceConnectionBasisTraceabilityRoles.Contradicting)
+        {
+            throw new ArgumentException(
+                "Medical opinion basis role is invalid.",
+                nameof(association));
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_BasisMedicalOpinions (
+                ServiceConnectionBasisId,
+                MedicalOpinionId,
+                Role
+            )
+            SELECT $basisId, $medicalOpinionId, $role
+            FROM VeteransClaims_ServiceConnectionBases AS basis
+            INNER JOIN VeteransClaims_MedicalOpinions AS opinion
+                ON opinion.ClaimIssueId = basis.ClaimIssueId
+            WHERE basis.Id = $basisId
+              AND opinion.Id = $medicalOpinionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$basisId",
+            association.ServiceConnectionBasisId.Value);
+
+        command.Parameters.AddWithValue(
+            "$medicalOpinionId",
+            association.MedicalOpinionId.Value);
+
+        command.Parameters.AddWithValue(
+            "$role",
+            association.Role);
+
+        var affected =
+            await command.ExecuteNonQueryAsync(
+                cancellationToken);
+
+        if (affected != 1)
+            throw new InvalidOperationException(
+                "Service connection basis and medical opinion " +
+                "must exist and belong to the same claim issue.");
+    }
+
+    public async Task<IReadOnlyList<ServiceConnectionBasisMedicalOpinion>>
+        GetBasisMedicalOpinionsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ServiceConnectionBasisId, MedicalOpinionId, Role
+            FROM VeteransClaims_BasisMedicalOpinions
+            WHERE ServiceConnectionBasisId = $basisId
+            ORDER BY MedicalOpinionId, Role;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$basisId",
+            basisId.Value);
+
+        var associations =
+            new List<ServiceConnectionBasisMedicalOpinion>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var role = reader.GetString(2);
+
+            if (role != ServiceConnectionBasisTraceabilityRoles.Supporting &&
+                role != ServiceConnectionBasisTraceabilityRoles.Contradicting)
+            {
+                throw new InvalidOperationException(
+                    "Stored medical opinion basis role is invalid.");
+            }
+
+            associations.Add(
+                new ServiceConnectionBasisMedicalOpinion
+                {
+                    ServiceConnectionBasisId =
+                        new ServiceConnectionBasisId(
+                            reader.GetString(0)),
+                    MedicalOpinionId =
+                        new MedicalOpinionId(
+                            reader.GetString(1)),
+                    Role = role
+                });
+        }
+
+        return associations;
+    }
+
     public async Task AddBasisRequirementAsync(
         ServiceConnectionBasisRequirement association,
         CancellationToken cancellationToken = default)

@@ -32,6 +32,9 @@ public sealed class ClaimIssueAdjudicationDetails
     public IReadOnlyList<ServiceConnectionBasisPresumptionDetails>
         Presumptions { get; init; } = [];
 
+    public IReadOnlyList<ServiceConnectionBasisMedicalOpinionDetails>
+        MedicalOpinions { get; init; } = [];
+
     public required IReadOnlyList<ServiceConnectionBasisServiceEventDetails>
         ServiceEvents { get; init; }
 

@@ -494,6 +494,71 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
     }
 
     [Fact]
+    public void Format_IncludesMedicalOpinions()
+    {
+        var issue = new ClaimIssue
+        {
+            Id = new ClaimIssueId("issue-medop-1"),
+            ClaimId = new ClaimId("claim-medop-1"),
+            ClaimIssueType = "ServiceConnection"
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-medop-1"),
+            ClaimIssueId = issue.Id,
+            ServiceConnectionTheoryId =
+                new ServiceConnectionTheoryId("theory-medop-1")
+        };
+
+        var opinion = new MedicalOpinion
+        {
+            Id = new MedicalOpinionId("opinion-medop-1"),
+            ClaimIssueId = issue.Id,
+            Question = "Related to service?",
+            Opinion = "At least as likely as not."
+        };
+
+        var details = CreateDetails(issue, []);
+
+        details = new ClaimIssueAdjudicationDetails
+        {
+            ClaimIssue = details.ClaimIssue,
+            ClaimedConditions = details.ClaimedConditions,
+            ServiceConnectionTheories = details.ServiceConnectionTheories,
+            ServiceConnectionBases = details.ServiceConnectionBases,
+            ServiceConnectedConditions = details.ServiceConnectedConditions,
+            PrescribedMedications = details.PrescribedMedications,
+            Exposures = details.Exposures,
+            PreexistingConditions = details.PreexistingConditions,
+            Presumptions = details.Presumptions,
+            MedicalOpinions =
+            [
+                new ServiceConnectionBasisMedicalOpinionDetails
+                {
+                    Basis = basis,
+                    MedicalOpinion = opinion,
+                    Role =
+                        ServiceConnectionBasisTraceabilityRoles.Supporting
+                }
+            ],
+            ServiceEvents = details.ServiceEvents,
+            Requirements = details.Requirements,
+            Evidence = details.Evidence,
+            Timeline = details.Timeline
+        };
+
+        var text =
+            VeteransReviewerPackageSourceFormatter.Format(details);
+
+        Assert.Contains("Medical Opinions:", text);
+        Assert.Contains(
+            "- basis basis-medop-1: Supporting: opinion-medop-1: " +
+            "Related to service?: At least as likely as not.",
+            text);
+    }
+
+    [Fact]
     public void Format_IncludesRequirementAndRegulation()
     {
         var issue = new ClaimIssue

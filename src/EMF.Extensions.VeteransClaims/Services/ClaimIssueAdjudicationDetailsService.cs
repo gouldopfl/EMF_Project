@@ -10,6 +10,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
     private readonly IClaimIssueRepository _issues;
     private readonly IConditionRepository _conditions;
     private readonly IServiceConnectionRepository _serviceConnections;
+    private readonly IMedicalOpinionRepository? _medicalOpinions;
     private readonly IServiceHistoryRepository _serviceHistory;
     private readonly IRegulatoryRepository _regulatory;
     private readonly IRequirementEvidenceService _requirementEvidence;
@@ -24,7 +25,8 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         IRegulatoryRepository regulatory,
         IRequirementEvidenceService requirementEvidence,
         IClaimIssueEvidenceDetailsService evidence,
-        IClaimIssueAdjudicationTimelineService timeline)
+        IClaimIssueAdjudicationTimelineService timeline,
+        IMedicalOpinionRepository? medicalOpinions = null)
     {
         ArgumentNullException.ThrowIfNull(issues);
         ArgumentNullException.ThrowIfNull(conditions);
@@ -43,6 +45,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         _requirementEvidence = requirementEvidence;
         _evidence = evidence;
         _timeline = timeline;
+        _medicalOpinions = medicalOpinions;
     }
 
     public async Task<ClaimIssueAdjudicationDetails?>
@@ -125,6 +128,9 @@ public sealed class ClaimIssueAdjudicationDetailsService :
 
         var presumptions =
             new List<ServiceConnectionBasisPresumptionDetails>();
+
+        var medicalOpinions =
+            new List<ServiceConnectionBasisMedicalOpinionDetails>();
 
         var serviceEvents =
             new List<ServiceConnectionBasisServiceEventDetails>();
@@ -255,6 +261,52 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     });
             }
 
+            if (_medicalOpinions is not null)
+            {
+                var basisMedicalOpinions =
+                    await _serviceConnections
+                        .GetBasisMedicalOpinionsAsync(
+                            basis.Id,
+                            cancellationToken);
+
+                foreach (var association in basisMedicalOpinions)
+                {
+                    if (association.ServiceConnectionBasisId != basis.Id)
+                    {
+                        throw new InvalidOperationException(
+                            "Medical opinion basis identity mismatch.");
+                    }
+
+                    var medicalOpinion =
+                        await _medicalOpinions.GetMedicalOpinionAsync(
+                            association.MedicalOpinionId,
+                            cancellationToken)
+                        ?? throw new InvalidOperationException(
+                            "Service-connection medical opinion " +
+                            "could not be read.");
+
+                    if (medicalOpinion.Id != association.MedicalOpinionId)
+                    {
+                        throw new InvalidOperationException(
+                            "Medical opinion identity mismatch.");
+                    }
+
+                    if (medicalOpinion.ClaimIssueId != basis.ClaimIssueId)
+                    {
+                        throw new InvalidOperationException(
+                            "Medical opinion claim issue mismatch.");
+                    }
+
+                    medicalOpinions.Add(
+                        new ServiceConnectionBasisMedicalOpinionDetails
+                        {
+                            Basis = basis,
+                            MedicalOpinion = medicalOpinion,
+                            Role = association.Role
+                        });
+                }
+            }
+
             var serviceEventIds =
                 await _serviceConnections.GetServiceEventIdsAsync(
                     basis.Id,
@@ -357,6 +409,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
             Exposures = exposures,
             PreexistingConditions = preexistingConditions,
             Presumptions = presumptions,
+            MedicalOpinions = medicalOpinions,
             ServiceEvents = serviceEvents,
             Requirements = requirements,
             Evidence = evidence,
