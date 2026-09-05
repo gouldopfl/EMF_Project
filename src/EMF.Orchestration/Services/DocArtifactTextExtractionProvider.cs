@@ -14,13 +14,33 @@ public sealed class DocArtifactTextExtractionProvider :
     private const string ContentType =
         "application/msword";
 
+    public const long DefaultMaxInputBytes =
+        100L * 1024 * 1024;
+    public const int DefaultMaxExtractedTextChars =
+        50 * 1024 * 1024;
+
     private readonly IArtifactContentStore _contentStore;
+    private readonly long _maxInputBytes;
+    private readonly int _maxExtractedTextChars;
 
     public DocArtifactTextExtractionProvider(
-        IArtifactContentStore contentStore)
+        IArtifactContentStore contentStore,
+        long maxInputBytes =
+            DefaultMaxInputBytes,
+        int maxExtractedTextChars =
+            DefaultMaxExtractedTextChars)
     {
         ArgumentNullException.ThrowIfNull(contentStore);
+        ValidatePositive(
+            maxInputBytes,
+            nameof(maxInputBytes));
+        ValidatePositive(
+            maxExtractedTextChars,
+            nameof(maxExtractedTextChars));
+
         _contentStore = contentStore;
+        _maxInputBytes = maxInputBytes;
+        _maxExtractedTextChars = maxExtractedTextChars;
     }
 
     public bool CanExtract(string contentType) =>
@@ -43,6 +63,12 @@ public sealed class DocArtifactTextExtractionProvider :
 
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (content.LongLength > _maxInputBytes)
+        {
+            throw new InvalidDataException(
+                "DOC input exceeds the maximum allowed size.");
+        }
+
         using var stream =
             new MemoryStream(content, writable: false);
 
@@ -64,9 +90,34 @@ public sealed class DocArtifactTextExtractionProvider :
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        return DocTextExtractor.ConvertToString(
-            document,
-            textDocument,
-            extractUrls: true);
+        var text =
+            DocTextExtractor.ConvertToString(
+                document,
+                textDocument,
+                extractUrls: true);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (text.Length > _maxExtractedTextChars)
+        {
+            throw new InvalidDataException(
+                "DOC extracted text exceeds " +
+                "the maximum allowed size.");
+        }
+
+        return text;
+    }
+
+    private static void ValidatePositive(
+        long value,
+        string parameterName)
+    {
+        if (value <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                value,
+                "Resource limit must be greater than zero.");
+        }
     }
 }

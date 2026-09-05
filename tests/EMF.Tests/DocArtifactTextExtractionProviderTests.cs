@@ -48,6 +48,43 @@ public sealed class DocArtifactTextExtractionProviderTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var provider =
+            new DocArtifactTextExtractionProvider(
+                new StubContentStore(ReadSample()),
+                maxInputBytes: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("doc-input-limit")));
+
+        Assert.Equal(
+            "DOC input exceeds the maximum allowed size.",
+            exception.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedExtractedText()
+    {
+        var provider =
+            new DocArtifactTextExtractionProvider(
+                new StubContentStore(ReadSample()),
+                maxExtractedTextChars: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("doc-text-limit")));
+
+        Assert.Equal(
+            "DOC extracted text exceeds " +
+            "the maximum allowed size.",
+            exception.Message);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_ReturnsNullWhenContentMissing()
     {
         var provider =
@@ -78,6 +115,13 @@ public sealed class DocArtifactTextExtractionProviderTests
                 new ArtifactId("artifact-doc-cancel"),
                 source.Token));
     }
+
+    private static byte[] ReadSample() =>
+        File.ReadAllBytes(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.doc"));
 
     private sealed class StubContentStore :
         IArtifactContentStore
