@@ -151,7 +151,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                         ? Task.FromResult<
                             IReadOnlyList<ServiceConnectionTheory>>(
                                 [theory])
-                        : throw new NotSupportedException()),
+                        : m.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
                 NeverCall<IServiceHistoryRepository>(),
                 NeverCall<IRegulatoryRepository>(),
                 NeverCall<IRequirementEvidenceService>(),
@@ -216,7 +218,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                             ? Task.FromResult<
                                 IReadOnlyList<ServiceConnectionBasis>>(
                                     [basis])
-                            : throw new NotSupportedException()),
+                            : m.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
                 NeverCall<IServiceHistoryRepository>(),
                 NeverCall<IRegulatoryRepository>(),
                 NeverCall<IRequirementEvidenceService>(),
@@ -282,7 +286,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                             ? Task.FromResult<
                                 IReadOnlyList<ServiceConnectionBasis>>(
                                     [basis])
-                            : throw new NotSupportedException()),
+                            : m.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
                 NeverCall<IServiceHistoryRepository>(),
                 NeverCall<IRegulatoryRepository>(),
                 NeverCall<IRequirementEvidenceService>(),
@@ -475,7 +481,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                     : method.Name == "GetRequirementIdsAsync"
                                         ? Task.FromResult<IReadOnlyList<RequirementId>>(
                                             [requirement.Id])
-                                        : throw new NotSupportedException()),
+                                        : method.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
                 Proxy<IServiceHistoryRepository>(
                     method =>
                         method.Name == "GetServiceEventAsync"
@@ -660,7 +668,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                         ? Task.FromResult<IReadOnlyList<ServiceConnectionBasis>>([basis])
                         : m.Name == "GetServiceConnectedConditionIdsAsync"
                             ? Task.FromResult<IReadOnlyList<MedicalConditionId>>([requestedId])
-                            : throw new NotSupportedException()),
+                            : m.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
             NeverCall<IServiceHistoryRepository>(),
             NeverCall<IRegulatoryRepository>(),
             NeverCall<IRequirementEvidenceService>(),
@@ -726,7 +736,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                     ? Task.FromResult<
                                         IReadOnlyList<MedicalConditionId>>(
                                             [conditionId])
-                                    : throw new NotSupportedException()),
+                                    : method.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
                 NeverCall<IServiceHistoryRepository>(),
                 NeverCall<IRegulatoryRepository>(),
                 NeverCall<IRequirementEvidenceService>(),
@@ -786,7 +798,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                             ? Task.FromResult<IReadOnlyList<MedicalConditionId>>([])
                             : m.Name == "GetServiceEventIdsAsync"
                                 ? Task.FromResult<IReadOnlyList<ServiceEventId>>([requestedId])
-                                : throw new NotSupportedException()),
+                                : m.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
             Proxy<IServiceHistoryRepository>(
                 m => m.Name == "GetServiceEventAsync"
                     ? Task.FromResult<ServiceEvent?>(
@@ -862,7 +876,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                         ? Task.FromResult<
                                             IReadOnlyList<ServiceEventId>>(
                                                 [serviceEventId])
-                                        : throw new NotSupportedException()),
+                                        : method.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
                 Proxy<IServiceHistoryRepository>(
                     method =>
                         method.Name == "GetServiceEventAsync"
@@ -906,7 +922,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                         ? Task.FromResult<IReadOnlyList<ServiceConnectionTheory>>([])
                         : m.Name == "GetServiceConnectionBasesAsync"
                             ? Task.FromResult<IReadOnlyList<ServiceConnectionBasis>>([])
-                            : throw new NotSupportedException()),
+                            : m.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
                 NeverCall<IServiceHistoryRepository>(),
                 NeverCall<IRegulatoryRepository>(),
                 NeverCall<IRequirementEvidenceService>(),
@@ -971,7 +989,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                 ? Task.FromResult<IReadOnlyList<ServiceEventId>>([])
                                 : m.Name == "GetRequirementIdsAsync"
                                     ? Task.FromResult<IReadOnlyList<RequirementId>>([requestedId])
-                                    : throw new NotSupportedException()),
+                                    : m.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
             NeverCall<IServiceHistoryRepository>(),
             Proxy<IRegulatoryRepository>(
                 m => m.Name == "GetRequirementAsync"
@@ -1039,7 +1059,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                     ? Task.FromResult<IReadOnlyList<ServiceEventId>>([])
                                     : m.Name == "GetRequirementIdsAsync"
                                         ? Task.FromResult<IReadOnlyList<RequirementId>>([requirementId])
-                                        : throw new NotSupportedException()),
+                                        : m.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
                 NeverCall<IServiceHistoryRepository>(),
                 Proxy<IRegulatoryRepository>(
                     m => m.Name == "GetRequirementAsync"
@@ -1111,7 +1133,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                     ? Task.FromResult<IReadOnlyList<ServiceEventId>>([])
                                     : m.Name == "GetRequirementIdsAsync"
                                         ? Task.FromResult<IReadOnlyList<RequirementId>>([requirement.Id])
-                                        : throw new NotSupportedException()),
+                                        : m.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
                 NeverCall<IServiceHistoryRepository>(),
                 Proxy<IRegulatoryRepository>(
                     m => m.Name == "GetRequirementAsync"
@@ -1185,7 +1209,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                     ? Task.FromResult<IReadOnlyList<ServiceEventId>>([])
                                     : m.Name == "GetRequirementIdsAsync"
                                         ? Task.FromResult<IReadOnlyList<RequirementId>>([requirement.Id])
-                                        : throw new NotSupportedException()),
+                                        : m.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([])
+                    : throw new NotSupportedException()),
                 NeverCall<IServiceHistoryRepository>(),
                 Proxy<IRegulatoryRepository>(
                     m => m.Name == "GetRequirementAsync"
@@ -1256,6 +1282,14 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             Role = ServiceConnectionBasisTraceabilityRoles.Supporting
         };
 
+        var artifactAssociation = new ServiceConnectionBasisArtifact
+        {
+            ServiceConnectionBasisId = basis.Id,
+            ArtifactId =
+                new EMF.Core.Models.Identities.ArtifactId("artifact-medop-001"),
+            Role = ServiceConnectionBasisTraceabilityRoles.Supporting
+        };
+
         var evidence = new ClaimIssueEvidenceDetails
         {
             ClaimIssue = issue,
@@ -1283,6 +1317,8 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                         ? Task.FromResult<IReadOnlyList<ServiceEventId>>([])
                     : m.Name == "GetRequirementIdsAsync"
                         ? Task.FromResult<IReadOnlyList<RequirementId>>([])
+                    : m.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([artifactAssociation])
                     : throw new NotSupportedException()),
             NeverCall<IServiceHistoryRepository>(),
             NeverCall<IRegulatoryRepository>(),
@@ -1311,6 +1347,13 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         Assert.Equal(
             ServiceConnectionBasisTraceabilityRoles.Supporting,
             details.Role);
+
+        var artifact = Assert.Single(result.BasisArtifacts);
+        Assert.Equal(basis.Id, artifact.Basis.Id);
+        Assert.Equal(artifactAssociation.ArtifactId, artifact.ArtifactId);
+        Assert.Equal(
+            ServiceConnectionBasisTraceabilityRoles.Supporting,
+            artifact.Role);
     }
 
 

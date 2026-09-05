@@ -604,6 +604,18 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
                         ServiceConnectionBasisTraceabilityRoles.Supporting
                 }
             ],
+            BasisArtifacts =
+            [
+                new ServiceConnectionBasisArtifactDetails
+                {
+                    Basis = basis,
+                    ArtifactId =
+                        new EMF.Core.Models.Identities.ArtifactId(
+                            "artifact-medop-1"),
+                    Role =
+                        ServiceConnectionBasisTraceabilityRoles.Supporting
+                }
+            ],
             ServiceEvents = details.ServiceEvents,
             Requirements = details.Requirements,
             Evidence = details.Evidence,
@@ -612,6 +624,11 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
 
         var text =
             VeteransReviewerPackageSourceFormatter.Format(details);
+
+        Assert.Contains("Basis Artifacts:", text);
+        Assert.Contains(
+            "- basis basis-medop-1: Supporting: artifact-medop-1",
+            text);
 
         Assert.Contains("Medical Opinions:", text);
         Assert.Contains(

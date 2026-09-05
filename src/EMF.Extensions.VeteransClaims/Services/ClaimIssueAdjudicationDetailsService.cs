@@ -135,6 +135,9 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         var medicalOpinions =
             new List<ServiceConnectionBasisMedicalOpinionDetails>();
 
+        var basisArtifacts =
+            new List<ServiceConnectionBasisArtifactDetails>();
+
         var serviceEvents =
             new List<ServiceConnectionBasisServiceEventDetails>();
 
@@ -282,6 +285,26 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     {
                         Basis = basis,
                         PresumptionProvision = provision
+                    });
+            }
+
+            var artifactAssociations =
+                await _serviceConnections.GetBasisArtifactsAsync(
+                    basis.Id,
+                    cancellationToken);
+
+            foreach (var association in artifactAssociations)
+            {
+                if (association.ServiceConnectionBasisId != basis.Id)
+                    throw new InvalidOperationException(
+                        "Artifact basis identity mismatch.");
+
+                basisArtifacts.Add(
+                    new ServiceConnectionBasisArtifactDetails
+                    {
+                        Basis = basis,
+                        ArtifactId = association.ArtifactId,
+                        Role = association.Role
                     });
             }
 
@@ -435,6 +458,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
             PreexistingConditions = preexistingConditions,
             Presumptions = presumptions,
             MedicalOpinions = medicalOpinions,
+            BasisArtifacts = basisArtifacts,
             ServiceEvents = serviceEvents,
             Requirements = requirements,
             Evidence = evidence,
