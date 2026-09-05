@@ -2058,7 +2058,8 @@ public static class VeteransConsoleCommand
 
         var planService =
             new EvidenceDevelopmentPlanService(
-                planRepository);
+                planRepository,
+                gapsRepository);
 
         var preparation =
             new EvidenceDevelopmentPreparationService(

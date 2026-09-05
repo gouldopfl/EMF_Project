@@ -94,7 +94,19 @@ public sealed class EvidenceDevelopmentPreparationServiceTests
                                 Description = "Develop missing evidence."
                             },
                             Requirements = [],
-                            EvidenceGaps = [],
+                            EvidenceGaps =
+                            [
+                                new EvidenceDevelopmentPlanEvidenceGap
+                                {
+                                    EvidenceDevelopmentPlanId = planId,
+                                    EvidenceGapId = gap1.Id
+                                },
+                                new EvidenceDevelopmentPlanEvidenceGap
+                                {
+                                    EvidenceDevelopmentPlanId = planId,
+                                    EvidenceGapId = gap2.Id
+                                }
+                            ],
                             Artifacts = [],
                             Executions = [],
                             Results = []
@@ -252,6 +264,293 @@ public sealed class EvidenceDevelopmentPreparationServiceTests
         Assert.Equal(
             "Evidence development plan belongs to another claim issue.",
             ex.Message);
+    }
+
+
+    [Fact]
+    public async Task PrepareAsync_RejectsExistingPlanWithDifferentIdentity()
+    {
+        var requestedPlanId =
+            new EvidenceDevelopmentPlanId("plan-requested");
+
+        var claimIssueId =
+            new ClaimIssueId("issue-1");
+
+        var existing =
+            new EvidenceDevelopmentPlanDetails
+            {
+                Plan = new EvidenceDevelopmentPlan
+                {
+                    Id = new EvidenceDevelopmentPlanId("plan-returned"),
+                    ClaimIssueId = claimIssueId,
+                    Description = "Existing development plan."
+                },
+                Requirements = [],
+                EvidenceGaps = [],
+                Artifacts = [],
+                Executions = [],
+                Results = []
+            };
+
+        var gaps =
+            Proxy<IServiceConnectionEvidenceGapService>(
+                (method, args) =>
+                    throw new InvalidOperationException(
+                        $"{method.Name} should not be called."));
+
+        var plans =
+            Proxy<IEvidenceDevelopmentPlanService>(
+                (method, args) =>
+                    Task.FromResult<
+                        EvidenceDevelopmentPlanDetails?>(existing));
+
+        var service =
+            new EvidenceDevelopmentPreparationService(gaps, plans);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.PrepareAsync(
+                    requestedPlanId,
+                    claimIssueId,
+                    "Develop missing evidence."));
+
+        Assert.Equal(
+            "Evidence development plan identity mismatch.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_RejectsGapForDifferentClaimIssue()
+    {
+        var requestedIssueId =
+            new ClaimIssueId("issue-requested");
+
+        var gaps =
+            Proxy<IServiceConnectionEvidenceGapService>(
+                (method, args) =>
+                    Task.FromResult<IReadOnlyList<EvidenceGap>>(
+                        [
+                            new EvidenceGap
+                            {
+                                Id = new EvidenceGapId("gap-1"),
+                                ClaimIssueId =
+                                    new ClaimIssueId("issue-other"),
+                                RequirementId =
+                                    new RequirementId("requirement-1"),
+                                Description = "Missing evidence."
+                            }
+                        ]));
+
+        var plans =
+            Proxy<IEvidenceDevelopmentPlanService>(
+                (method, args) =>
+                {
+                    if (method.Name == nameof(
+                        IEvidenceDevelopmentPlanService
+                            .GetEvidenceDevelopmentPlanAsync))
+                    {
+                        return Task.FromResult<
+                            EvidenceDevelopmentPlanDetails?>(null);
+                    }
+
+                    throw new InvalidOperationException(
+                        $"{method.Name} should not be called.");
+                });
+
+        var service =
+            new EvidenceDevelopmentPreparationService(gaps, plans);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.PrepareAsync(
+                    new EvidenceDevelopmentPlanId("plan-1"),
+                    requestedIssueId,
+                    "Develop missing evidence."));
+
+        Assert.Equal(
+            "Evidence development gap belongs to another claim issue.",
+            ex.Message);
+    }
+
+    [Theory]
+    [InlineData(
+        "plan-returned",
+        "issue-requested",
+        "Created evidence development plan identity mismatch.")]
+    [InlineData(
+        "plan-requested",
+        "issue-returned",
+        "Created evidence development plan belongs to another claim issue.")]
+    public async Task PrepareAsync_RejectsMismatchedCreatedPlan(
+        string returnedPlanValue,
+        string returnedIssueValue,
+        string expectedMessage)
+    {
+        var requestedPlanId =
+            new EvidenceDevelopmentPlanId("plan-requested");
+        var requestedIssueId =
+            new ClaimIssueId("issue-requested");
+        var gapId = new EvidenceGapId("gap-1");
+
+        var gaps =
+            Proxy<IServiceConnectionEvidenceGapService>(
+                (method, args) =>
+                    Task.FromResult<IReadOnlyList<EvidenceGap>>(
+                        [
+                            new EvidenceGap
+                            {
+                                Id = gapId,
+                                ClaimIssueId = requestedIssueId,
+                                RequirementId =
+                                    new RequirementId("requirement-1"),
+                                Description = "Missing evidence."
+                            }
+                        ]));
+
+        var plans =
+            Proxy<IEvidenceDevelopmentPlanService>(
+                (method, args) =>
+                {
+                    if (method.Name == nameof(
+                        IEvidenceDevelopmentPlanService
+                            .GetEvidenceDevelopmentPlanAsync))
+                    {
+                        return Task.FromResult<
+                            EvidenceDevelopmentPlanDetails?>(null);
+                    }
+
+                    var returnedPlanId =
+                        new EvidenceDevelopmentPlanId(
+                            returnedPlanValue);
+
+                    return Task.FromResult(
+                        new EvidenceDevelopmentPlanDetails
+                        {
+                            Plan = new EvidenceDevelopmentPlan
+                            {
+                                Id = returnedPlanId,
+                                ClaimIssueId =
+                                    new ClaimIssueId(
+                                        returnedIssueValue),
+                                Description =
+                                    "Develop missing evidence."
+                            },
+                            Requirements = [],
+                            EvidenceGaps =
+                            [
+                                new EvidenceDevelopmentPlanEvidenceGap
+                                {
+                                    EvidenceDevelopmentPlanId =
+                                        returnedPlanId,
+                                    EvidenceGapId = gapId
+                                }
+                            ],
+                            Artifacts = [],
+                            Executions = [],
+                            Results = []
+                        });
+                });
+
+        var service =
+            new EvidenceDevelopmentPreparationService(gaps, plans);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.PrepareAsync(
+                    requestedPlanId,
+                    requestedIssueId,
+                    "Develop missing evidence."));
+
+        Assert.Equal(expectedMessage, ex.Message);
+    }
+
+    [Theory]
+    [InlineData(
+        "plan-other",
+        "gap-expected",
+        "Created evidence development gap association has a different plan identity.")]
+    [InlineData(
+        "plan-requested",
+        "gap-unexpected",
+        "Created evidence development plan returned unexpected evidence gaps.")]
+    public async Task PrepareAsync_RejectsMismatchedCreatedGap(
+        string associationPlanValue,
+        string returnedGapValue,
+        string expectedMessage)
+    {
+        var claimIssueId = new ClaimIssueId("issue-1");
+        var planId =
+            new EvidenceDevelopmentPlanId("plan-requested");
+        var expectedGapId =
+            new EvidenceGapId("gap-expected");
+
+        var gaps =
+            Proxy<IServiceConnectionEvidenceGapService>(
+                (method, args) =>
+                    Task.FromResult<IReadOnlyList<EvidenceGap>>(
+                        [
+                            new EvidenceGap
+                            {
+                                Id = expectedGapId,
+                                ClaimIssueId = claimIssueId,
+                                RequirementId =
+                                    new RequirementId("requirement-1"),
+                                Description = "Missing evidence."
+                            }
+                        ]));
+
+        var plans =
+            Proxy<IEvidenceDevelopmentPlanService>(
+                (method, args) =>
+                {
+                    if (method.Name == nameof(
+                        IEvidenceDevelopmentPlanService
+                            .GetEvidenceDevelopmentPlanAsync))
+                    {
+                        return Task.FromResult<
+                            EvidenceDevelopmentPlanDetails?>(null);
+                    }
+
+                    return Task.FromResult(
+                        new EvidenceDevelopmentPlanDetails
+                        {
+                            Plan = new EvidenceDevelopmentPlan
+                            {
+                                Id = planId,
+                                ClaimIssueId = claimIssueId,
+                                Description =
+                                    "Develop missing evidence."
+                            },
+                            Requirements = [],
+                            EvidenceGaps =
+                            [
+                                new EvidenceDevelopmentPlanEvidenceGap
+                                {
+                                    EvidenceDevelopmentPlanId =
+                                        new EvidenceDevelopmentPlanId(
+                                            associationPlanValue),
+                                    EvidenceGapId =
+                                        new EvidenceGapId(
+                                            returnedGapValue)
+                                }
+                            ],
+                            Artifacts = [],
+                            Executions = [],
+                            Results = []
+                        });
+                });
+
+        var service =
+            new EvidenceDevelopmentPreparationService(gaps, plans);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.PrepareAsync(
+                    planId,
+                    claimIssueId,
+                    "Develop missing evidence."));
+
+        Assert.Equal(expectedMessage, ex.Message);
     }
 
 

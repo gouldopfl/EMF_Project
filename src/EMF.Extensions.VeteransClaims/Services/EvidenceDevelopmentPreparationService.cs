@@ -37,6 +37,12 @@ public sealed class EvidenceDevelopmentPreparationService :
 
         if (existing is not null)
         {
+            if (existing.Plan.Id != planId)
+            {
+                throw new InvalidOperationException(
+                    "Evidence development plan identity mismatch.");
+            }
+
             if (existing.Plan.ClaimIssueId != claimIssueId)
             {
                 throw new InvalidOperationException(
@@ -51,18 +57,63 @@ public sealed class EvidenceDevelopmentPreparationService :
                 claimIssueId,
                 cancellationToken);
 
+        if (gaps.Any(x => x.ClaimIssueId != claimIssueId))
+        {
+            throw new InvalidOperationException(
+                "Evidence development gap belongs to another claim issue.");
+        }
+
         if (gaps.Count == 0)
             return null;
 
-        return await _plans.CreateEvidenceDevelopmentPlanAsync(
-            new CreateEvidenceDevelopmentPlanRequest
-            {
-                PlanId = planId,
-                ClaimIssueId = claimIssueId,
-                Description = description,
-                EvidenceGapIds =
-                    gaps.Select(x => x.Id).ToArray()
-            },
-            cancellationToken);
+        var gapIds =
+            gaps
+                .Select(x => x.Id)
+                .Distinct()
+                .ToArray();
+
+        var created =
+            await _plans.CreateEvidenceDevelopmentPlanAsync(
+                new CreateEvidenceDevelopmentPlanRequest
+                {
+                    PlanId = planId,
+                    ClaimIssueId = claimIssueId,
+                    Description = description,
+                    EvidenceGapIds = gapIds
+                },
+                cancellationToken);
+
+        if (created.Plan.Id != planId)
+        {
+            throw new InvalidOperationException(
+                "Created evidence development plan identity mismatch.");
+        }
+
+        if (created.Plan.ClaimIssueId != claimIssueId)
+        {
+            throw new InvalidOperationException(
+                "Created evidence development plan belongs to another claim issue.");
+        }
+
+        if (created.EvidenceGaps.Any(
+                x => x.EvidenceDevelopmentPlanId != planId))
+        {
+            throw new InvalidOperationException(
+                "Created evidence development gap association has a different plan identity.");
+        }
+
+        var returnedGapIds =
+            created.EvidenceGaps
+                .Select(x => x.EvidenceGapId)
+                .ToArray();
+
+        if (returnedGapIds.Length != gapIds.Length ||
+            !returnedGapIds.ToHashSet().SetEquals(gapIds))
+        {
+            throw new InvalidOperationException(
+                "Created evidence development plan returned unexpected evidence gaps.");
+        }
+
+        return created;
     }
 }
