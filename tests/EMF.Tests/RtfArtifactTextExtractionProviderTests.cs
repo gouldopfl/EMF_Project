@@ -49,6 +49,81 @@ public sealed class RtfArtifactTextExtractionProviderTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var provider =
+            new RtfArtifactTextExtractionProvider(
+                new StubContentStore(CreateRtf()),
+                maxInputBytes: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("rtf-input-limit")));
+
+        Assert.Equal(
+            "RTF input exceeds the maximum allowed size.",
+            exception.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsTooManyParagraphs()
+    {
+        var provider =
+            new RtfArtifactTextExtractionProvider(
+                new StubContentStore(CreateRtf()),
+                maxParagraphCount: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("rtf-paragraph-limit")));
+
+        Assert.Equal(
+            "RTF document exceeds the maximum " +
+            "allowed paragraph count.",
+            exception.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsTooManyTextRuns()
+    {
+        var provider =
+            new RtfArtifactTextExtractionProvider(
+                new StubContentStore(CreateRtf()),
+                maxRunCount: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("rtf-run-limit")));
+
+        Assert.Equal(
+            "RTF document exceeds the maximum " +
+            "allowed text run count.",
+            exception.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedText()
+    {
+        var provider =
+            new RtfArtifactTextExtractionProvider(
+                new StubContentStore(CreateRtf()),
+                maxExtractedTextChars: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("rtf-text-limit")));
+
+        Assert.Equal(
+            "RTF extracted text exceeds " +
+            "the maximum allowed size.",
+            exception.Message);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_ReturnsNullWhenContentMissing()
     {
         var provider =
@@ -79,6 +154,13 @@ public sealed class RtfArtifactTextExtractionProviderTests
                 new ArtifactId("artifact-rtf-cancel"),
                 source.Token));
     }
+
+    private static byte[] CreateRtf() =>
+        Encoding.ASCII.GetBytes(
+            @"{\rtf1\ansi " +
+            @"EMF RTF Evidence Test\par " +
+            @"MRI confirms lumbar changes.\par " +
+            @"Pantoprazole medication history.}");
 
     private sealed class StubContentStore :
         IArtifactContentStore
