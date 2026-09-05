@@ -1534,6 +1534,87 @@ public sealed class SqliteServiceConnectionRepository :
         return associations;
     }
 
+    public async Task AddBasisArtifactAsync(
+        ServiceConnectionBasisArtifact a,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+
+        if (a.Role != ServiceConnectionBasisTraceabilityRoles.Supporting &&
+            a.Role != ServiceConnectionBasisTraceabilityRoles.Contradicting)
+            throw new ArgumentException("Artifact basis role is invalid.", nameof(a));
+
+        await using var c = CreateConnection();
+        await c.OpenAsync(ct);
+        await using var cmd = c.CreateCommand();
+
+        cmd.CommandText =
+            """
+            INSERT INTO VeteransClaims_BasisArtifacts
+                (ServiceConnectionBasisId, ArtifactId, Role)
+            SELECT $basisId, $artifactId, $role
+            FROM VeteransClaims_ServiceConnectionBases AS basis
+            INNER JOIN Artifacts AS artifact ON artifact.Id = $artifactId
+            WHERE basis.Id = $basisId;
+            """;
+
+        cmd.Parameters.AddWithValue("$basisId", a.ServiceConnectionBasisId.Value);
+        cmd.Parameters.AddWithValue("$artifactId", a.ArtifactId.Value);
+        cmd.Parameters.AddWithValue("$role", a.Role);
+
+        if (await cmd.ExecuteNonQueryAsync(ct) != 1)
+            throw new InvalidOperationException(
+                "Service connection basis and artifact must exist.");
+    }
+
+    public async Task<IReadOnlyList<ServiceConnectionBasisArtifact>>
+        GetBasisArtifactsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken ct = default)
+    {
+        await using var c = CreateConnection();
+        await c.OpenAsync(ct);
+        await using var cmd = c.CreateCommand();
+
+        cmd.CommandText =
+            """
+            SELECT ServiceConnectionBasisId, ArtifactId, Role
+            FROM VeteransClaims_BasisArtifacts
+            WHERE ServiceConnectionBasisId = $basisId
+            ORDER BY ArtifactId, Role;
+            """;
+
+        cmd.Parameters.AddWithValue("$basisId", basisId.Value);
+
+        var results =
+            new List<ServiceConnectionBasisArtifact>();
+
+        await using var r =
+            await cmd.ExecuteReaderAsync(ct);
+
+        while (await r.ReadAsync(ct))
+        {
+            var role = r.GetString(2);
+
+            if (role != ServiceConnectionBasisTraceabilityRoles.Supporting &&
+                role != ServiceConnectionBasisTraceabilityRoles.Contradicting)
+                throw new InvalidOperationException(
+                    "Stored artifact basis role is invalid.");
+
+            results.Add(
+                new ServiceConnectionBasisArtifact
+                {
+                    ServiceConnectionBasisId =
+                        new ServiceConnectionBasisId(r.GetString(0)),
+                    ArtifactId =
+                        new EMF.Core.Models.Identities.ArtifactId(r.GetString(1)),
+                    Role = role
+                });
+        }
+
+        return results;
+    }
+
     public async Task AddBasisRequirementAsync(
         ServiceConnectionBasisRequirement association,
         CancellationToken cancellationToken = default)

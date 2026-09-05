@@ -146,6 +146,15 @@ public interface IServiceConnectionRepository
             CancellationToken cancellationToken = default);
 
 
+    Task AddBasisArtifactAsync(
+        ServiceConnectionBasisArtifact association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ServiceConnectionBasisArtifact>>
+        GetBasisArtifactsAsync(
+            ServiceConnectionBasisId basisId,
+            CancellationToken cancellationToken = default);
+
     Task AddBasisRequirementAsync(
         ServiceConnectionBasisRequirement association,
         CancellationToken cancellationToken = default);
