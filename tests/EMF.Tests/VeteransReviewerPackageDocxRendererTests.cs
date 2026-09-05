@@ -88,7 +88,16 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             {
                 Id = new ArtifactId("source-1"),
                 Name = "Sleep Study",
-                ArtifactType = "medical-record"
+                ArtifactType = "medical-record",
+                CreatedUtc =
+                    new DateTimeOffset(
+                        2026, 8, 1, 12, 0, 0, TimeSpan.Zero),
+                Fingerprint =
+                    new EMF.Core.Models.Integrity.ContentFingerprint
+                    {
+                        Algorithm = "SHA-256",
+                        Value = "abc123"
+                    }
             };
 
         var details =
@@ -161,6 +170,18 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         Assert.Contains(
             "source-1",
+            text);
+
+        Assert.Contains(
+            "Artifact Type: medical-record",
+            text);
+
+        Assert.Contains(
+            "Created UTC: 2026-08-01T12:00:00.0000000+00:00",
+            text);
+
+        Assert.Contains(
+            "Fingerprint: SHA-256 abc123",
             text);
 
         Assert.Contains(

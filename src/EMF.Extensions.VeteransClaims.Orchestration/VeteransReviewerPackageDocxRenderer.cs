@@ -193,6 +193,23 @@ public static class VeteransReviewerPackageDocxRenderer
                     "Heading2"));
 
             body.Append(
+                ContentParagraph(
+                    $"Artifact Type: {content.Artifact.ArtifactType}"));
+
+            body.Append(
+                ContentParagraph(
+                    $"Created UTC: {content.Artifact.CreatedUtc:O}"));
+
+            if (content.Artifact.Fingerprint is not null)
+            {
+                body.Append(
+                    ContentParagraph(
+                        $"Fingerprint: " +
+                        $"{content.Artifact.Fingerprint.Algorithm} " +
+                        $"{content.Artifact.Fingerprint.Value}"));
+            }
+
+            body.Append(
                 ContentParagraph(content.Text));
         }
     }
