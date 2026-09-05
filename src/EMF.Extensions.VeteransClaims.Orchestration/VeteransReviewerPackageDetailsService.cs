@@ -110,19 +110,41 @@ public sealed class VeteransReviewerPackageDetailsService
             if (string.IsNullOrWhiteSpace(text))
                 continue;
 
+            var provenance =
+                await _evidence.GetProvenanceAsync(
+                    artifact.Id,
+                    cancellationToken);
+
+            if (provenance.Any(
+                    item => item.ArtifactId != artifact.Id))
+            {
+                throw new InvalidOperationException(
+                    $"Artifact '{artifact.Id.Value}' provenance lookup " +
+                    "returned a different artifact.");
+            }
+
+            var relationships =
+                await _evidence.GetRelationshipsAsync(
+                    artifact.Id,
+                    cancellationToken);
+
+            if (relationships.Any(
+                    relationship =>
+                        relationship.SourceArtifactId != artifact.Id &&
+                        relationship.TargetArtifactId != artifact.Id))
+            {
+                throw new InvalidOperationException(
+                    $"Artifact '{artifact.Id.Value}' relationship lookup " +
+                    "returned an unrelated artifact relationship.");
+            }
+
             artifactContents.Add(
                 new VeteransReviewerArtifactContent
                 {
                     Artifact = artifact,
                     Text = text,
-                    Provenance =
-                        await _evidence.GetProvenanceAsync(
-                            artifact.Id,
-                            cancellationToken),
-                    Relationships =
-                        await _evidence.GetRelationshipsAsync(
-                            artifact.Id,
-                            cancellationToken),
+                    Provenance = provenance,
+                    Relationships = relationships,
                     Appendix =
                         await GetAppendixAsync(
                             artifact.Id,

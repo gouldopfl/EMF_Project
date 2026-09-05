@@ -151,6 +151,97 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_RejectsWrongProvenanceArtifactIdentity()
+    {
+        var packageId = new EvidencePackageId("package-1");
+        var artifact = CreateArtifact("artifact-1");
+
+        var evidence =
+            Proxy<IEvidenceRepository>(
+                (method, args) =>
+                    method.Name switch
+                    {
+                        "GetArtifactAsync" =>
+                            Task.FromResult<Artifact?>(artifact),
+                        "GetProvenanceAsync" =>
+                            Task.FromResult<IReadOnlyList<Provenance>>(
+                            [
+                                new Provenance
+                                {
+                                    ArtifactId =
+                                        new ArtifactId("artifact-other"),
+                                    Source = "test",
+                                    RecordedBy = "test"
+                                }
+                            ]),
+                        "GetRelationshipsAsync" =>
+                            Task.FromResult<IReadOnlyList<Relationship>>([]),
+                        _ => throw new NotSupportedException()
+                    });
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService
+                {
+                    Details = CreateDetails(packageId, artifact.Id)
+                },
+                evidence,
+                new RecordingTextExtractor("reviewable text"));
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(packageId));
+
+        Assert.Contains("provenance", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsUnrelatedRelationship()
+    {
+        var packageId = new EvidencePackageId("package-1");
+        var artifact = CreateArtifact("artifact-1");
+
+        var evidence =
+            Proxy<IEvidenceRepository>(
+                (method, args) =>
+                    method.Name switch
+                    {
+                        "GetArtifactAsync" =>
+                            Task.FromResult<Artifact?>(artifact),
+                        "GetProvenanceAsync" =>
+                            Task.FromResult<IReadOnlyList<Provenance>>([]),
+                        "GetRelationshipsAsync" =>
+                            Task.FromResult<IReadOnlyList<Relationship>>(
+                            [
+                                new Relationship
+                                {
+                                    SourceArtifactId =
+                                        new ArtifactId("other-1"),
+                                    TargetArtifactId =
+                                        new ArtifactId("other-2"),
+                                    RelationshipType = "Unrelated"
+                                }
+                            ]),
+                        _ => throw new NotSupportedException()
+                    });
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService
+                {
+                    Details = CreateDetails(packageId, artifact.Id)
+                },
+                evidence,
+                new RecordingTextExtractor("reviewable text"));
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(packageId));
+
+        Assert.Contains("relationship", exception.Message);
+    }
+
+    [Fact]
     public async Task GetAsync_RejectsMissingArtifacts()
     {
         var packageId = new EvidencePackageId("package-1");
