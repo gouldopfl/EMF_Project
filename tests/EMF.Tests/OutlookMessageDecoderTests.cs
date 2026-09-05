@@ -66,4 +66,67 @@ public sealed class OutlookMessageDecoderTests
                 Array.Empty<byte>(),
                 cancellation.Token));
     }
+    [Fact]
+    public void Constructor_RejectsInvalidAttachmentCount()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new OutlookMessageDecoder(
+                maxAttachmentCount: 0));
+    }
+
+    [Fact]
+    public async Task DecodeAsync_RejectsOversizedAttachment()
+    {
+        var path =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "TxtSampleEmailWithAttachment.msg");
+
+        var content =
+            await File.ReadAllBytesAsync(path);
+
+        var decoder =
+            new OutlookMessageDecoder(
+                maxAttachmentCount: 10,
+                maxAttachmentBytes: 1,
+                maxTotalAttachmentBytes: 1024);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => decoder.DecodeAsync(content));
+
+        Assert.Equal(
+            "Outlook attachment exceeds the maximum allowed decoded size.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task DecodeAsync_RejectsOversizedAttachmentTotal()
+    {
+        var path =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "TxtSampleEmailWithAttachment.msg");
+
+        var content =
+            await File.ReadAllBytesAsync(path);
+
+        var decoder =
+            new OutlookMessageDecoder(
+                maxAttachmentCount: 10,
+                maxAttachmentBytes:
+                    OutlookMessageDecoder.DefaultMaxAttachmentBytes,
+                maxTotalAttachmentBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => decoder.DecodeAsync(content));
+
+        Assert.Equal(
+            "Outlook attachments exceed the maximum allowed total decoded size.",
+            ex.Message);
+    }
+
 }
