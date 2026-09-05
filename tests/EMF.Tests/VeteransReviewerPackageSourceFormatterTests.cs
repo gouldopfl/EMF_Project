@@ -964,6 +964,8 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
                             new ArtifactId("artifact-blue-button"),
                         ArtifactName = "VA Blue Button Report",
                         ArtifactType = "medical-record",
+                        ContentRole =
+                            EvidencePackageContentRoles.UnderlyingEvidence,
                         Classifications =
                             [EvidenceClassifications.MedicalEvidence],
                         Text =
@@ -985,6 +987,10 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
 
         Assert.Contains(
             "Type: medical-record",
+            text);
+
+        Assert.Contains(
+            "Content Role: UnderlyingEvidence",
             text);
 
         Assert.Contains(

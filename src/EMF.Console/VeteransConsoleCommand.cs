@@ -863,6 +863,8 @@ public static class VeteransConsoleCommand
                     ArtifactId = group.Key,
                     ArtifactName = artifact.Name,
                     ArtifactType = artifact.ArtifactType,
+                    ContentRole =
+                        EvidencePackageContentRoles.UnderlyingEvidence,
                     Classifications =
                         group.Select(x => x.Classification)
                             .Distinct(StringComparer.Ordinal)

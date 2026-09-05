@@ -10,6 +10,8 @@ public sealed class VeteransReviewerEvidenceSource
 
     public string? ArtifactType { get; init; }
 
+    public string? ContentRole { get; init; }
+
     public required IReadOnlyList<string> Classifications { get; init; }
 
     public required string Text { get; init; }

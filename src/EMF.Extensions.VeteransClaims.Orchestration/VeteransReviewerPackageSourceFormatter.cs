@@ -236,6 +236,10 @@ internal static class VeteransReviewerPackageSourceFormatter
                     builder.AppendLine(
                         $"  Type: {source.ArtifactType}");
 
+                if (!string.IsNullOrWhiteSpace(source.ContentRole))
+                    builder.AppendLine(
+                        $"  Content Role: {source.ContentRole}");
+
                 builder.AppendLine(
                     $"  Classifications: " +
                     string.Join(", ", source.Classifications));
