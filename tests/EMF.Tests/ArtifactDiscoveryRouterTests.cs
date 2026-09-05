@@ -1,3 +1,4 @@
+using System.Reflection;
 using EMF.Core.Contracts;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
@@ -18,6 +19,29 @@ public sealed class ArtifactDiscoveryRouterTests
 
         Assert.Null(await router.DiscoverAsync(
             new ArtifactId("missing")));
+    }
+
+    [Fact]
+    public async Task DiscoverAsync_RejectsDifferentReturnedArtifact()
+    {
+        var requested = new ArtifactId("artifact-001");
+        var returned = CreateArtifact("artifact-other", ".txt");
+
+        var repository =
+            Proxy<IEvidenceRepository>(
+                (method, args) =>
+                    method.Name == "GetArtifactAsync"
+                        ? Task.FromResult<Artifact?>(returned)
+                        : throw new NotSupportedException());
+
+        var router =
+            new ArtifactDiscoveryRouter(
+                repository,
+                new DefaultArtifactContentTypeResolver(),
+                [new StubProvider("text/plain")]);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => router.DiscoverAsync(requested));
     }
 
     [Fact]
@@ -73,6 +97,26 @@ public sealed class ArtifactDiscoveryRouterTests
 
         Assert.NotNull(result);
         Assert.Equal("application/x-sqlite3", result.ContentType);
+    }
+
+    private static T Proxy<T>(
+        Func<MethodInfo, object?[]?, object?> handler)
+        where T : class
+    {
+        var proxy = DispatchProxy.Create<T, TestProxy>();
+        ((TestProxy)(object)proxy).Handler = handler;
+        return proxy;
+    }
+
+    private class TestProxy : DispatchProxy
+    {
+        public Func<MethodInfo, object?[]?, object?>? Handler
+            { get; set; }
+
+        protected override object? Invoke(
+            MethodInfo? targetMethod,
+            object?[]? args) =>
+            Handler!(targetMethod!, args);
     }
 
     private static Artifact CreateArtifact(
