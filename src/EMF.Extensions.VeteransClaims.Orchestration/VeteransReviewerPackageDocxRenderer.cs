@@ -218,6 +218,47 @@ public static class VeteransReviewerPackageDocxRenderer
                         $"{provenance.RecordedUtc:O}"));
             }
 
+            foreach (var provenance in content.Provenance)
+            {
+                if (!string.Equals(
+                        provenance.Source,
+                        "EMF.Intelligence",
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                body.Append(
+                    ContentParagraph(
+                        $"Promoted By: {provenance.RecordedBy}"));
+
+                body.Append(
+                    ContentParagraph(
+                        $"Promoted UTC: {provenance.RecordedUtc:O}"));
+
+                if (provenance.Properties.TryGetValue(
+                        "reviewedBy",
+                        out var reviewedBy) &&
+                    !string.IsNullOrWhiteSpace(reviewedBy?.ToString()))
+                {
+                    body.Append(
+                        ContentParagraph(
+                            $"Reviewed By: {reviewedBy}"));
+                }
+
+                if (provenance.Properties.TryGetValue(
+                        "reviewedUtc",
+                        out var reviewedUtc) &&
+                    DateTimeOffset.TryParse(
+                        reviewedUtc?.ToString(),
+                        out var reviewedAt))
+                {
+                    body.Append(
+                        ContentParagraph(
+                            $"Reviewed UTC: {reviewedAt:O}"));
+                }
+            }
+
             foreach (var relationship in content.Relationships)
             {
                 body.Append(

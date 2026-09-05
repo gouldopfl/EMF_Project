@@ -148,6 +148,25 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                                     new DateTimeOffset(
                                         2026, 8, 1, 13, 0, 0,
                                         TimeSpan.Zero)
+                            },
+                            new Provenance
+                            {
+                                ArtifactId = artifact.Id,
+                                Source = "EMF.Intelligence",
+                                RecordedBy = "promoter",
+                                RecordedUtc =
+                                    new DateTimeOffset(
+                                        2026, 8, 1, 15, 0, 0,
+                                        TimeSpan.Zero),
+                                Properties =
+                                    new Dictionary<string, object>
+                                    {
+                                        ["reviewedBy"] = "reviewer",
+                                        ["reviewedUtc"] =
+                                            new DateTimeOffset(
+                                                2026, 8, 1, 15, 5, 0,
+                                                TimeSpan.Zero)
+                                    }
                             }
                         ],
                         Relationships =
@@ -221,6 +240,15 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "Relationship: source-1 -> derived-1 | " +
             "DerivedFrom | " +
             "2026-08-01T14:00:00.0000000+00:00",
+            text);
+
+        Assert.Contains("Promoted By: promoter", text);
+        Assert.Contains(
+            "Promoted UTC: 2026-08-01T15:00:00.0000000+00:00",
+            text);
+        Assert.Contains("Reviewed By: reviewer", text);
+        Assert.Contains(
+            "Reviewed UTC: 2026-08-01T15:05:00.0000000+00:00",
             text);
 
         Assert.Contains(
