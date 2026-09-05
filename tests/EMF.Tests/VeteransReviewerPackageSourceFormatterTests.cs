@@ -962,6 +962,8 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
                     {
                         ArtifactId =
                             new ArtifactId("artifact-blue-button"),
+                        ArtifactName = "VA Blue Button Report",
+                        ArtifactType = "medical-record",
                         Classifications =
                             [EvidenceClassifications.MedicalEvidence],
                         Text =
@@ -975,6 +977,14 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
 
         Assert.Contains(
             "- Artifact artifact-blue-button",
+            text);
+
+        Assert.Contains(
+            "Name: VA Blue Button Report",
+            text);
+
+        Assert.Contains(
+            "Type: medical-record",
             text);
 
         Assert.Contains(

@@ -841,6 +841,15 @@ public static class VeteransConsoleCommand
         foreach (var group in
                  classifications.GroupBy(x => x.ArtifactId))
         {
+            var artifact =
+                await evidenceRepository.GetArtifactAsync(group.Key)
+                ?? throw new InvalidOperationException(
+                    $"Reviewer evidence artifact not found: {group.Key.Value}");
+
+            if (artifact.Id != group.Key)
+                throw new InvalidOperationException(
+                    "Reviewer evidence artifact identity mismatch.");
+
             var text =
                 await textExtractor.ExtractTextAsync(group.Key);
 
@@ -852,6 +861,8 @@ public static class VeteransConsoleCommand
                 new VeteransReviewerEvidenceSource
                 {
                     ArtifactId = group.Key,
+                    ArtifactName = artifact.Name,
+                    ArtifactType = artifact.ArtifactType,
                     Classifications =
                         group.Select(x => x.Classification)
                             .Distinct(StringComparer.Ordinal)
