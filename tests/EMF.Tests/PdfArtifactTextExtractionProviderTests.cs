@@ -160,15 +160,130 @@ public sealed class PdfArtifactTextExtractionProviderTests
                 new StubPageRenderer()));
     }
 
-    private static byte[] CreateTextlessPdf()
+    [Fact]
+    public async Task ExtractTextAsync_RejectsTooManyPages()
+    {
+        var provider =
+            new PdfArtifactTextExtractionProvider(
+                new StubContentStore(
+                    CreateTextlessPdf(2)),
+                maxPageCount: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("pdf-page-count")));
+
+        Assert.Equal(
+            "PDF exceeds the maximum allowed page count.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsTooManyOcrPages()
+    {
+        var renderer = new StubPageRenderer();
+        var ocr = new StubOcrService("Scanned evidence.");
+
+        var provider =
+            new PdfArtifactTextExtractionProvider(
+                new StubContentStore(
+                    CreateTextlessPdf(2)),
+                renderer,
+                ocr,
+                maxOcrPageCount: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("pdf-ocr-page-count")));
+
+        Assert.Equal(
+            "PDF exceeds the maximum allowed OCR page count.",
+            ex.Message);
+
+        Assert.Equal(1, renderer.CallCount);
+        Assert.Equal(1, ocr.CallCount);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedRenderedPage()
+    {
+        var renderer =
+            new StubPageRenderer(
+                new byte[] { 1, 2, 3, 4 });
+
+        var provider =
+            new PdfArtifactTextExtractionProvider(
+                new StubContentStore(
+                    CreateTextlessPdf()),
+                renderer,
+                new StubOcrService("Scanned evidence."),
+                maxRenderedPageBytes: 3);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("pdf-rendered-page-size")));
+
+        Assert.Equal(
+            "PDF rendered page exceeds the maximum allowed image size.",
+            ex.Message);
+    }
+
+    [Theory]
+    [InlineData(
+        true,
+        "PDF page text exceeds the maximum allowed size.")]
+    [InlineData(
+        false,
+        "PDF extracted text exceeds the maximum allowed size.")]
+    public async Task ExtractTextAsync_RejectsOversizedText(
+        bool pageLimit,
+        string expectedMessage)
+    {
+        var path =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.pdf");
+
+        var content =
+            await File.ReadAllBytesAsync(path);
+
+        var provider =
+            pageLimit
+                ? new PdfArtifactTextExtractionProvider(
+                    new StubContentStore(content),
+                    maxPageTextChars: 1)
+                : new PdfArtifactTextExtractionProvider(
+                    new StubContentStore(content),
+                    maxExtractedTextChars: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("pdf-text-limit")));
+
+        Assert.Equal(expectedMessage, ex.Message);
+    }
+
+    private static byte[] CreateTextlessPdf(
+        int pageCount = 1)
     {
         using var output = new MemoryStream();
 
         using (var document =
             SKDocument.CreatePdf(output))
         {
-            document.BeginPage(612, 792);
-            document.EndPage();
+            for (var index = 0;
+                 index < pageCount;
+                 index++)
+            {
+                document.BeginPage(612, 792);
+                document.EndPage();
+            }
+
             document.Close();
         }
 
@@ -178,6 +293,15 @@ public sealed class PdfArtifactTextExtractionProviderTests
     private sealed class StubPageRenderer :
         IPdfPageImageRenderer
     {
+        private readonly byte[] _image;
+
+        public StubPageRenderer(byte[]? image = null)
+        {
+            _image =
+                image ??
+                new byte[] { 1, 2, 3 };
+        }
+
         public int CallCount { get; private set; }
 
         public Task<byte[]> RenderPageAsync(
@@ -188,8 +312,7 @@ public sealed class PdfArtifactTextExtractionProviderTests
             cancellationToken.ThrowIfCancellationRequested();
             CallCount++;
 
-            return Task.FromResult(
-                new byte[] { 1, 2, 3 });
+            return Task.FromResult(_image);
         }
     }
 
