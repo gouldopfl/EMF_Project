@@ -15,6 +15,7 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
     [Fact]
     public async Task GetAsync_ReturnsNullWhenIssueDoesNotExist()
     {
+
         var service =
             new ClaimIssueAdjudicationDetailsService(
                 new MissingClaimIssueRepository(),
@@ -376,6 +377,13 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 Items = []
             };
 
+        var preexistingCondition =
+            new MedicalCondition
+            {
+                Id = new MedicalConditionId("medical-condition-preexisting-1"),
+                Name = "Preexisting condition"
+            };
+
         var exposure =
             new Exposure
             {
@@ -411,6 +419,8 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 }
             };
 
+        var medicalConditionLookupCount = 0;
+
         var service =
             new ClaimIssueAdjudicationDetailsService(
                 new FakeClaimIssueRepository(issue),
@@ -421,7 +431,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                 [condition])
                             : method.Name == "GetMedicalConditionAsync"
                                 ? Task.FromResult<MedicalCondition?>(
-                                    serviceConnectedCondition)
+                                    medicalConditionLookupCount++ == 0
+                                        ? serviceConnectedCondition
+                                        : preexistingCondition)
                                 : throw new NotSupportedException()),
                 Proxy<IServiceConnectionRepository>(
                     method =>
@@ -437,6 +449,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                     : method.Name == "GetPrescribedMedicationNamesAsync"
                                     ? Task.FromResult<IReadOnlyList<string>>(
                                         ["Pantoprazole"])
+                                : method.Name == "GetPreexistingConditionIdsAsync"
+                                    ? Task.FromResult<IReadOnlyList<MedicalConditionId>>(
+                                        [preexistingCondition.Id])
                                 : method.Name == "GetExposureIdsAsync"
                                     ? Task.FromResult<IReadOnlyList<ExposureId>>(
                                         [exposure.Id])
@@ -523,6 +538,17 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
 
         Assert.Same(basis, resolvedExposure.Basis);
         Assert.Same(exposure, resolvedExposure.Exposure);
+
+        var resolvedPreexistingCondition =
+            Assert.Single(result.PreexistingConditions);
+
+        Assert.Same(
+            basis,
+            resolvedPreexistingCondition.Basis);
+
+        Assert.Same(
+            preexistingCondition,
+            resolvedPreexistingCondition.PreexistingCondition);
 
         var resolvedServiceEvent =
             Assert.Single(result.ServiceEvents);
@@ -1229,6 +1255,11 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 when (targetMethod!.Name == "GetExposureIdsAsync")
             {
                 return Task.FromResult<IReadOnlyList<ExposureId>>([]);
+            }
+            catch (NotSupportedException)
+                when (targetMethod!.Name == "GetPreexistingConditionIdsAsync")
+            {
+                return Task.FromResult<IReadOnlyList<MedicalConditionId>>([]);
             }
         }
     }

@@ -85,6 +85,17 @@ internal static class VeteransReviewerPackageSourceFormatter
         }
 
         builder.AppendLine();
+        builder.AppendLine("Preexisting Conditions:");
+
+        foreach (var item in details.PreexistingConditions)
+        {
+            builder.AppendLine(
+                $"- basis {item.Basis.Id.Value}: " +
+                $"{item.PreexistingCondition.Id.Value}: " +
+                $"{item.PreexistingCondition.Name}");
+        }
+
+        builder.AppendLine();
         builder.AppendLine("Service Events:");
 
         foreach (var item in details.ServiceEvents)

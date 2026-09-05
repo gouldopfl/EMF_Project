@@ -120,6 +120,9 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         var exposures =
             new List<ServiceConnectionBasisExposureDetails>();
 
+        var preexistingConditions =
+            new List<ServiceConnectionBasisPreexistingConditionDetails>();
+
         var serviceEvents =
             new List<ServiceConnectionBasisServiceEventDetails>();
 
@@ -194,6 +197,32 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     {
                         Basis = basis,
                         Exposure = exposure
+                    });
+            }
+
+            var preexistingConditionIds =
+                await _serviceConnections.GetPreexistingConditionIdsAsync(
+                    basis.Id,
+                    cancellationToken);
+
+            foreach (var conditionId in preexistingConditionIds)
+            {
+                var condition =
+                    await _conditions.GetMedicalConditionAsync(
+                        conditionId,
+                        cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        "Preexisting condition could not be read.");
+
+                if (condition.Id != conditionId)
+                    throw new InvalidOperationException(
+                        "Preexisting condition identity mismatch.");
+
+                preexistingConditions.Add(
+                    new ServiceConnectionBasisPreexistingConditionDetails
+                    {
+                        Basis = basis,
+                        PreexistingCondition = condition
                     });
             }
 
@@ -297,6 +326,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
             ServiceConnectedConditions = serviceConnectedConditions,
             PrescribedMedications = prescribedMedications,
             Exposures = exposures,
+            PreexistingConditions = preexistingConditions,
             ServiceEvents = serviceEvents,
             Requirements = requirements,
             Evidence = evidence,

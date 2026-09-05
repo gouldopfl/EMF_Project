@@ -371,6 +371,65 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
             text);
     }
 
+
+    [Fact]
+    public void Format_IncludesPreexistingConditions()
+    {
+        var issue = new ClaimIssue
+        {
+            Id = new ClaimIssueId("issue-preexisting-1"),
+            ClaimId = new ClaimId("claim-preexisting-1"),
+            ClaimIssueType = "ServiceConnection"
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-preexisting-1"),
+            ClaimIssueId = issue.Id,
+            ServiceConnectionTheoryId =
+                new ServiceConnectionTheoryId("theory-preexisting-1")
+        };
+
+        var condition = new MedicalCondition
+        {
+            Id = new MedicalConditionId("medical-preexisting-1"),
+            Name = "Preexisting condition"
+        };
+
+        var details = CreateDetails(issue, []);
+
+        details = new ClaimIssueAdjudicationDetails
+        {
+            ClaimIssue = details.ClaimIssue,
+            ClaimedConditions = details.ClaimedConditions,
+            ServiceConnectionTheories = details.ServiceConnectionTheories,
+            ServiceConnectionBases = details.ServiceConnectionBases,
+            ServiceConnectedConditions = details.ServiceConnectedConditions,
+            PrescribedMedications = details.PrescribedMedications,
+            Exposures = details.Exposures,
+            PreexistingConditions =
+            [
+                new ServiceConnectionBasisPreexistingConditionDetails
+                {
+                    Basis = basis,
+                    PreexistingCondition = condition
+                }
+            ],
+            ServiceEvents = details.ServiceEvents,
+            Requirements = details.Requirements,
+            Evidence = details.Evidence,
+            Timeline = details.Timeline
+        };
+
+        var text =
+            VeteransReviewerPackageSourceFormatter.Format(details);
+
+        Assert.Contains("Preexisting Conditions:", text);
+        Assert.Contains(
+            "- basis basis-preexisting-1: medical-preexisting-1: Preexisting condition",
+            text);
+    }
+
     [Fact]
     public void Format_IncludesRequirementAndRegulation()
     {
