@@ -32,6 +32,43 @@ public sealed class EmlArtifactTextExtractionProviderTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var provider =
+            new EmlArtifactTextExtractionProvider(
+                new StubContentStore(CreateMessage()),
+                maxInputBytes: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("eml-input-limit")));
+
+        Assert.Equal(
+            "EML input exceeds the maximum allowed size.",
+            exception.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedBody()
+    {
+        var provider =
+            new EmlArtifactTextExtractionProvider(
+                new StubContentStore(CreateMessage()),
+                maxExtractedTextChars: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("eml-body-limit")));
+
+        Assert.Equal(
+            "EML message body exceeds " +
+            "the maximum allowed size.",
+            exception.Message);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_ReturnsNullWhenContentMissing()
     {
         var provider =
@@ -90,6 +127,13 @@ public sealed class EmlArtifactTextExtractionProviderTests
         Assert.False(
             provider.CanExtract("text/plain"));
     }
+
+    private static byte[] CreateMessage() =>
+        Encoding.UTF8.GetBytes(
+            "From: sender@example.com\r\n" +
+            "Subject: Evidence\r\n" +
+            "\r\n" +
+            "Veteran has chronic instability.");
 
     private sealed class StubContentStore :
         IArtifactContentStore
