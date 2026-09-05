@@ -38,6 +38,10 @@ internal sealed class EvidenceRecognitionCoordinator :
             ?? throw new InvalidOperationException(
                 "Evidence gap was not found.");
 
+        if (gap.Id != evidenceGapId)
+            throw new InvalidOperationException(
+                "Evidence gap identity mismatch.");
+
         var artifacts =
             await _gapRepository.GetEvidenceGapArtifactsAsync(
                 evidenceGapId,

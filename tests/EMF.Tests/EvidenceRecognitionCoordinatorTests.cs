@@ -78,6 +78,32 @@ public sealed class EvidenceRecognitionCoordinatorTests
     }
 
     [Fact]
+    public async Task RecognizeAsync_RejectsWrongReturnedGapIdentity()
+    {
+        var requested = new EvidenceGapId("gap-001");
+
+        var gaps = new FakeGapRepository
+        {
+            Gap = new EvidenceGap
+            {
+                Id = new EvidenceGapId("gap-other"),
+                ClaimIssueId = new ClaimIssueId("issue-001"),
+                RequirementId = new RequirementId("req-001"),
+                Description = "Missing evidence."
+            }
+        };
+
+        var coordinator =
+            new EvidenceRecognitionCoordinator(
+                gaps,
+                new FakeTextExtractor("text"),
+                new InMemoryEvidenceRecognitionTermRepository());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.RecognizeAsync(requested));
+    }
+
+    [Fact]
     public async Task RecognizeAsync_DeduplicatesTermAcrossArtifacts()
     {
         var gapId = new EvidenceGapId("gap-002");
