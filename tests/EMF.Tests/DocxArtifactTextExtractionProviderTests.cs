@@ -38,6 +38,82 @@ public sealed class DocxArtifactTextExtractionProviderTests
         Assert.Null(text);
     }
 
+    [Fact]
+    public async Task ExtractTextAsync_RejectsTooManyPackageEntries()
+    {
+        var provider =
+            new DocxArtifactTextExtractionProvider(
+                new StubContentStore(
+                    CreateDocument("Evidence")),
+                maxPackageEntryCount: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("docx-entry-count")));
+
+        Assert.Equal(
+            "DOCX package exceeds the maximum allowed entry count.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedPackageEntry()
+    {
+        var provider =
+            new DocxArtifactTextExtractionProvider(
+                new StubContentStore(
+                    CreateDocument("Evidence")),
+                maxPackageEntryBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("docx-entry-size")));
+
+        Assert.Equal(
+            "DOCX package entry exceeds the maximum allowed size.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedPackageTotal()
+    {
+        var provider =
+            new DocxArtifactTextExtractionProvider(
+                new StubContentStore(
+                    CreateDocument("Evidence")),
+                maxPackageTotalBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("docx-total-size")));
+
+        Assert.Equal(
+            "DOCX package exceeds the maximum allowed extracted size.",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedExtractedText()
+    {
+        var provider =
+            new DocxArtifactTextExtractionProvider(
+                new StubContentStore(
+                    CreateDocument("Evidence")),
+                maxExtractedTextChars: 3);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("docx-text-size")));
+
+        Assert.Equal(
+            "DOCX extracted text exceeds the maximum allowed size.",
+            ex.Message);
+    }
+
     private static byte[] CreateDocument(string text)
     {
         using var stream = new MemoryStream();
