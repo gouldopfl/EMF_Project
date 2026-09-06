@@ -7,6 +7,84 @@ namespace EMF.Tests;
 public sealed class FileSystemArtifactContentStoreTests
 {
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_RejectsNonPositiveStoredSizeLimit(
+        long value)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new FileSystemArtifactContentStore(
+                Path.GetTempPath(),
+                value));
+    }
+
+    [Fact]
+    public async Task WriteAsync_RejectsContentOverStoredSizeLimit()
+    {
+        var root =
+            Path.Combine(
+                Path.GetTempPath(),
+                Guid.NewGuid().ToString());
+
+        try
+        {
+            var store =
+                new FileSystemArtifactContentStore(
+                    root,
+                    maxStoredBytes: 4);
+
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => store.WriteAsync(
+                    new ArtifactId("artifact-too-large"),
+                    new byte[5]));
+
+            Assert.False(
+                Directory.Exists(root) &&
+                Directory.EnumerateFiles(root).Any());
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task ReadAsync_RejectsOversizedBackingFile()
+    {
+        var root =
+            Path.Combine(
+                Path.GetTempPath(),
+                Guid.NewGuid().ToString());
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var id =
+                new ArtifactId("artifact-too-large");
+
+            await File.WriteAllBytesAsync(
+                Path.Combine(root, id.Value),
+                new byte[5]);
+
+            var store =
+                new FileSystemArtifactContentStore(
+                    root,
+                    maxStoredBytes: 4);
+
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => store.ReadAsync(id));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+        }
+    }
+
+
     [Fact]
     public async Task DeleteAsync_RemovesStoredContent()
     {

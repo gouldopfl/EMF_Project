@@ -6,16 +6,30 @@ namespace EMF.Persistence.Storage;
 public sealed class FileSystemArtifactContentStore :
     IArtifactContentStore
 {
-    private readonly string _rootPath;
+    public const long DefaultMaxStoredBytes =
+        150L * 1024 * 1024;
 
-    public FileSystemArtifactContentStore(string rootPath)
+    private readonly string _rootPath;
+    private readonly long _maxStoredBytes;
+
+    public FileSystemArtifactContentStore(
+        string rootPath,
+        long maxStoredBytes = DefaultMaxStoredBytes)
     {
         if (string.IsNullOrWhiteSpace(rootPath))
             throw new ArgumentException(
                 "Root path is required.",
                 nameof(rootPath));
 
+        if (maxStoredBytes <= 0 ||
+            maxStoredBytes > Array.MaxLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxStoredBytes));
+        }
+
         _rootPath = Path.GetFullPath(rootPath);
+        _maxStoredBytes = maxStoredBytes;
     }
 
     public async Task WriteAsync(
@@ -23,6 +37,14 @@ public sealed class FileSystemArtifactContentStore :
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (content.Length > _maxStoredBytes)
+        {
+            throw new InvalidDataException(
+                "Artifact content exceeds the maximum stored size.");
+        }
+
         Directory.CreateDirectory(_rootPath);
 
         var path = GetPath(artifactId);
@@ -69,9 +91,35 @@ public sealed class FileSystemArtifactContentStore :
         if (!File.Exists(path))
             return null;
 
-        return await File.ReadAllBytesAsync(
-            path,
+        await using var stream =
+            new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                81920,
+                FileOptions.Asynchronous |
+                FileOptions.SequentialScan);
+
+        if (stream.Length > _maxStoredBytes)
+        {
+            throw new InvalidDataException(
+                "Stored artifact exceeds the maximum allowed size.");
+        }
+
+        var content = new byte[(int)stream.Length];
+
+        await stream.ReadExactlyAsync(
+            content,
             cancellationToken);
+
+        if (stream.Position != stream.Length)
+        {
+            throw new IOException(
+                "Stored artifact changed during read.");
+        }
+
+        return content;
     }
 
     public Task DeleteAsync(
