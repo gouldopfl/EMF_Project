@@ -48,6 +48,81 @@ public sealed class XmlArtifactTextExtractionProviderTests
         Assert.False(provider.CanExtract("application/pdf"));
     }
 
+    [Fact]
+    public async Task ExtractTextAsync_RejectsInvalidUtf8()
+    {
+        var id = new ArtifactId("xml-2");
+        var store = new StubContentStore(
+            new byte[] { 0xC3, 0x28 });
+
+        var provider =
+            new XmlArtifactTextExtractionProvider(store);
+
+        await Assert.ThrowsAsync<DecoderFallbackException>(
+            () => provider.ExtractTextAsync(id));
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var id = new ArtifactId("xml-3");
+        var store = new StubContentStore(
+            Encoding.UTF8.GetBytes("12345"));
+
+        var provider =
+            new XmlArtifactTextExtractionProvider(
+                store,
+                maxInputBytes: 4,
+                maxExtractedTextChars: 100);
+
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => provider.ExtractTextAsync(id));
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedExtractedText()
+    {
+        var id = new ArtifactId("xml-4");
+        var store = new StubContentStore(
+            Encoding.UTF8.GetBytes("12345"));
+
+        var provider =
+            new XmlArtifactTextExtractionProvider(
+                store,
+                maxInputBytes: 100,
+                maxExtractedTextChars: 4);
+
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => provider.ExtractTextAsync(id));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_RejectsNonPositiveInputLimit(long value)
+    {
+        var store = new StubContentStore([]);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new XmlArtifactTextExtractionProvider(
+                store,
+                maxInputBytes: value));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_RejectsNonPositiveTextLimit(int value)
+    {
+        var store = new StubContentStore([]);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new XmlArtifactTextExtractionProvider(
+                store,
+                maxExtractedTextChars: value));
+    }
+
+
     private sealed class StubContentStore :
         IArtifactContentStore
     {
