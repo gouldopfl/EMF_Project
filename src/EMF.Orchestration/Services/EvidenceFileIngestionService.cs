@@ -133,6 +133,21 @@ public sealed class EvidenceFileIngestionService :
                 fingerprint);
 
 
+        if (creation is null || creation.Artifact is null ||
+            creation.Artifact.Id != artifactId)
+            throw new InvalidOperationException("Evidence file factory returned an invalid artifact identity.");
+
+        if (creation.Artifact.Fingerprint is null ||
+            creation.Artifact.Fingerprint != fingerprint)
+            throw new InvalidOperationException("Evidence file factory returned an invalid content fingerprint.");
+
+        if (creation.Provenance is null ||
+            creation.Provenance.ArtifactId != artifactId)
+            throw new InvalidOperationException("Evidence file factory returned an invalid provenance identity.");
+
+        if (!string.Equals(creation.Provenance.Source, fullPath, StringComparison.Ordinal))
+            throw new InvalidOperationException("Evidence file factory returned an invalid provenance source.");
+
         await _contentStore.WriteAsync(
             artifactId,
             content,

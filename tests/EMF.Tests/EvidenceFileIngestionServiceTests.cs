@@ -11,6 +11,175 @@ namespace EMF.Tests;
 public sealed class EvidenceFileIngestionServiceTests
 {
     [Fact]
+    public async Task IngestAsync_RejectsFactoryArtifactIdentityMismatch()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, "evidence content");
+            var repository = new RecordingRepository();
+            var store = new RecordingContentStore();
+            var service = new EvidenceFileIngestionService(
+                repository, store,
+                new StubFingerprintService(),
+                new StubIdGenerator(),
+                new WrongIdentityFactory());
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.IngestAsync(path));
+
+            Assert.Empty(store.Written);
+            Assert.Empty(repository.Persisted);
+        }
+        finally { File.Delete(path); }
+    }
+
+    private sealed class WrongIdentityFactory : IArtifactFactory
+    {
+        public EMF.Orchestration.Models.ArtifactCreationResult Create(
+            EMF.Discovery.Models.DiscoveredItem item,
+            ArtifactId artifactId,
+            ContentFingerprint? fingerprint) =>
+            new ArtifactFactory().Create(
+                item,
+                new ArtifactId("wrong-artifact"),
+                fingerprint);
+    }
+
+    [Fact]
+    public async Task IngestAsync_RejectsFactoryFingerprintMismatch()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, "evidence content");
+            var repository = new RecordingRepository();
+            var store = new RecordingContentStore();
+            var service = new EvidenceFileIngestionService(
+                repository, store,
+                new StubFingerprintService(),
+                new StubIdGenerator(),
+                new WrongFingerprintFactory());
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.IngestAsync(path));
+
+            Assert.Empty(store.Written);
+            Assert.Empty(repository.Persisted);
+        }
+        finally { File.Delete(path); }
+    }
+
+    private sealed class WrongFingerprintFactory : IArtifactFactory
+    {
+        public EMF.Orchestration.Models.ArtifactCreationResult Create(
+            EMF.Discovery.Models.DiscoveredItem item,
+            ArtifactId artifactId,
+            ContentFingerprint? fingerprint) =>
+            new ArtifactFactory().Create(
+                item, artifactId,
+                new ContentFingerprint
+                {
+                    Algorithm = "SHA256",
+                    Value = "different-fingerprint"
+                });
+    }
+
+    [Fact]
+    public async Task IngestAsync_RejectsFactoryProvenanceIdentityMismatch()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, "evidence content");
+            var repository = new RecordingRepository();
+            var store = new RecordingContentStore();
+            var service = new EvidenceFileIngestionService(
+                repository, store,
+                new StubFingerprintService(),
+                new StubIdGenerator(),
+                new WrongProvenanceIdentityFactory());
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.IngestAsync(path));
+
+            Assert.Empty(store.Written);
+            Assert.Empty(repository.Persisted);
+        }
+        finally { File.Delete(path); }
+    }
+
+    private sealed class WrongProvenanceIdentityFactory : IArtifactFactory
+    {
+        public EMF.Orchestration.Models.ArtifactCreationResult Create(
+            EMF.Discovery.Models.DiscoveredItem item,
+            ArtifactId artifactId,
+            ContentFingerprint? fingerprint)
+        {
+            var valid = new ArtifactFactory().Create(
+                item, artifactId, fingerprint);
+
+            return new EMF.Orchestration.Models.ArtifactCreationResult
+            {
+                Artifact = valid.Artifact,
+                Provenance = new Provenance
+                {
+                    ArtifactId = new ArtifactId("wrong-artifact"),
+                    Source = valid.Provenance.Source,
+                    RecordedBy = valid.Provenance.RecordedBy
+                }
+            };
+        }
+    }
+
+    [Fact]
+    public async Task IngestAsync_RejectsFactoryProvenanceSourceMismatch()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, "evidence content");
+            var repository = new RecordingRepository();
+            var store = new RecordingContentStore();
+            var service = new EvidenceFileIngestionService(
+                repository, store,
+                new StubFingerprintService(),
+                new StubIdGenerator(),
+                new WrongProvenanceSourceFactory());
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.IngestAsync(path));
+
+            Assert.Empty(store.Written);
+            Assert.Empty(repository.Persisted);
+        }
+        finally { File.Delete(path); }
+    }
+
+    private sealed class WrongProvenanceSourceFactory : IArtifactFactory
+    {
+        public EMF.Orchestration.Models.ArtifactCreationResult Create(
+            EMF.Discovery.Models.DiscoveredItem item,
+            ArtifactId artifactId,
+            ContentFingerprint? fingerprint)
+        {
+            var valid = new ArtifactFactory().Create(
+                item, artifactId, fingerprint);
+
+            return new EMF.Orchestration.Models.ArtifactCreationResult
+            {
+                Artifact = valid.Artifact,
+                Provenance = new Provenance
+                {
+                    ArtifactId = artifactId,
+                    Source = "different-source",
+                    RecordedBy = valid.Provenance.RecordedBy
+                }
+            };
+        }
+    }
+
+    [Fact]
     public async Task IngestAsync_PersistsFile()
     {
         var path = Path.GetTempFileName();
