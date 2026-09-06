@@ -79,6 +79,10 @@ public sealed class AzureEnvelopeEncryptionService :
             var cryptography =
                 _cryptographyFactory.Create(keyReference);
 
+            if (cryptography is null)
+                throw new CryptographicException(
+                    "Encryption key cryptography factory returned no implementation.");
+
             var wrappedDek =
                 await cryptography.WrapKeyAsync(dek, cancellationToken);
 
@@ -167,6 +171,10 @@ public sealed class AzureEnvelopeEncryptionService :
 
         var cryptography =
             _cryptographyFactory.Create(keyReference);
+
+        if (cryptography is null)
+            throw new CryptographicException(
+                "Encryption key cryptography factory returned no implementation.");
 
         var dek = await cryptography.UnwrapKeyAsync(
             envelope.WrappedDataEncryptionKey,

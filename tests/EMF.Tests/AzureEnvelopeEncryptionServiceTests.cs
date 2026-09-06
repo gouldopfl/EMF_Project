@@ -10,6 +10,28 @@ namespace EMF.Tests;
 public sealed class AzureEnvelopeEncryptionServiceTests
 {
     [Fact]
+    public async Task EncryptAsync_RejectsNullCryptographyFactoryResult()
+    {
+        var service = new AzureEnvelopeEncryptionService(
+            new FakeKeyProvider(new AzureKeyReference
+            {
+                KeyName = "emf-key",
+                KeyVersion = "v1"
+            }),
+            new NullFactory());
+
+        await Assert.ThrowsAsync<CryptographicException>(
+            () => service.EncryptAsync(
+                Encoding.UTF8.GetBytes("protected")));
+    }
+
+    private sealed class NullFactory : IAzureKeyCryptographyFactory
+    {
+        public IAzureKeyCryptography Create(
+            AzureKeyReference keyReference) => null!;
+    }
+
+    [Fact]
     public async Task EncryptThenDecrypt_RoundTripsPlaintext()
     {
         var keyReference =
@@ -110,6 +132,28 @@ public sealed class AzureEnvelopeEncryptionServiceTests
 
         await Assert.ThrowsAsync<CryptographicException>(
             () => decryptingService.DecryptAsync(envelope));
+    }
+
+    [Fact]
+    public async Task DecryptAsync_RejectsNullCryptographyFactoryResult()
+    {
+        var key = new AzureKeyReference
+        {
+            KeyName = "emf-key",
+            KeyVersion = "v1"
+        };
+
+        var envelope = await new AzureEnvelopeEncryptionService(
+            new FakeKeyProvider(key),
+            new FakeFactory(new FakeCryptography()))
+            .EncryptAsync(Encoding.UTF8.GetBytes("protected"));
+
+        var service = new AzureEnvelopeEncryptionService(
+            new FakeKeyProvider(key),
+            new NullFactory());
+
+        await Assert.ThrowsAsync<CryptographicException>(
+            () => service.DecryptAsync(envelope));
     }
 
     [Fact]
