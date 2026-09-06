@@ -16,4 +16,18 @@ public interface IFindingRepository
     Task<IReadOnlyList<Finding>> GetFindingsAsync(
         ClaimIssueId claimIssueId,
         CancellationToken cancellationToken = default);
+
+    Task AddFindingRegulatoryProvisionAsync(
+        FindingRegulatoryProvision association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<FindingRegulatoryProvision>>
+        GetFindingRegulatoryProvisionsAsync(
+            FindingId findingId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<FindingRegulatoryProvision>>
+        GetFindingRegulatoryProvisionsAsync(
+            RegulatoryProvisionId regulatoryProvisionId,
+            CancellationToken cancellationToken = default);
 }

@@ -156,6 +156,138 @@ public sealed class SqliteFindingRepository :
         return findings;
     }
 
+
+    public async Task AddFindingRegulatoryProvisionAsync(
+        FindingRegulatoryProvision association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        ValidateTraceabilityRole(association.Role);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_FindingRegulatoryProvisions (
+                FindingId, RegulatoryProvisionId, Role
+            )
+            SELECT $findingId, $regulatoryProvisionId, $role
+            FROM VeteransClaims_Findings AS finding
+            INNER JOIN VeteransClaims_RegulatoryProvisions AS provision
+                ON provision.Id = $regulatoryProvisionId
+            WHERE finding.Id = $findingId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$findingId", association.FindingId.Value);
+        command.Parameters.AddWithValue(
+            "$regulatoryProvisionId",
+            association.RegulatoryProvisionId.Value);
+        command.Parameters.AddWithValue(
+            "$role", association.Role);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException(
+                "The finding and regulatory provision must exist.");
+        }
+    }
+
+    public Task<IReadOnlyList<FindingRegulatoryProvision>>
+        GetFindingRegulatoryProvisionsAsync(
+            FindingId findingId,
+            CancellationToken cancellationToken = default)
+    {
+        return GetFindingRegulatoryProvisionsAsync(
+            "FindingId",
+            findingId.Value,
+            cancellationToken);
+    }
+
+    public Task<IReadOnlyList<FindingRegulatoryProvision>>
+        GetFindingRegulatoryProvisionsAsync(
+            RegulatoryProvisionId regulatoryProvisionId,
+            CancellationToken cancellationToken = default)
+    {
+        return GetFindingRegulatoryProvisionsAsync(
+            "RegulatoryProvisionId",
+            regulatoryProvisionId.Value,
+            cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<FindingRegulatoryProvision>>
+        GetFindingRegulatoryProvisionsAsync(
+            string columnName,
+            string value,
+            CancellationToken cancellationToken)
+    {
+        if (columnName != "FindingId" &&
+            columnName != "RegulatoryProvisionId")
+        {
+            throw new ArgumentOutOfRangeException(nameof(columnName));
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            $"""
+            SELECT FindingId, RegulatoryProvisionId, Role
+            FROM VeteransClaims_FindingRegulatoryProvisions
+            WHERE {columnName} = $value
+            ORDER BY FindingId, RegulatoryProvisionId, Role;
+            """;
+        command.Parameters.AddWithValue("$value", value);
+
+        var results = new List<FindingRegulatoryProvision>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var role = reader.GetString(2);
+            ValidateStoredTraceabilityRole(role);
+
+            results.Add(
+                new FindingRegulatoryProvision
+                {
+                    FindingId = new FindingId(reader.GetString(0)),
+                    RegulatoryProvisionId =
+                        new RegulatoryProvisionId(reader.GetString(1)),
+                    Role = role
+                });
+        }
+
+        return results;
+    }
+
+    private static void ValidateTraceabilityRole(string role)
+    {
+        if (role != FindingTraceabilityRoles.Supporting &&
+            role != FindingTraceabilityRoles.Contradicting &&
+            role != FindingTraceabilityRoles.Qualifying)
+        {
+            throw new ArgumentException(
+                "Finding regulatory provision role is invalid.",
+                nameof(role));
+        }
+    }
+
+    private static void ValidateStoredTraceabilityRole(string role)
+    {
+        if (role != FindingTraceabilityRoles.Supporting &&
+            role != FindingTraceabilityRoles.Contradicting &&
+            role != FindingTraceabilityRoles.Qualifying)
+        {
+            throw new InvalidOperationException(
+                "Stored finding regulatory provision role is invalid.");
+        }
+    }
+
     private static Finding ReadFinding(
         SqliteDataReader reader)
     {
