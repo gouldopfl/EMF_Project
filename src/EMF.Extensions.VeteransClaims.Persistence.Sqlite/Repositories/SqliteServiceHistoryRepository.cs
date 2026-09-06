@@ -521,4 +521,102 @@ public sealed class SqliteServiceHistoryRepository :
             ids.Add(new ExposureId(reader.GetString(0)));
         return ids;
     }
+
+
+    public async Task AddExposureRequirementAsync(
+        ExposureRequirement association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_ExposureRequirements (
+                ExposureId, RequirementId
+            )
+            SELECT $exposureId, $requirementId
+            WHERE EXISTS (
+                SELECT 1
+                FROM VeteransClaims_Exposures
+                WHERE Id = $exposureId
+            )
+            AND EXISTS (
+                SELECT 1
+                FROM VeteransClaims_Requirements r
+                INNER JOIN VeteransClaims_ExposureRegulatoryProvisions p
+                    ON p.RegulatoryProvisionId = r.RegulatoryProvisionId
+                WHERE r.Id = $requirementId
+                  AND p.ExposureId = $exposureId
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$exposureId", association.ExposureId.Value);
+        command.Parameters.AddWithValue(
+            "$requirementId", association.RequirementId.Value);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException(
+                "The exposure and requirement must exist, and the " +
+                "requirement regulatory provision must be linked to " +
+                "the exposure.");
+        }
+    }
+
+    public async Task<IReadOnlyList<RequirementId>>
+        GetRequirementIdsAsync(
+            ExposureId exposureId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT RequirementId
+            FROM VeteransClaims_ExposureRequirements
+            WHERE ExposureId = $exposureId
+            ORDER BY RequirementId;
+            """;
+        command.Parameters.AddWithValue(
+            "$exposureId", exposureId.Value);
+
+        var ids = new List<RequirementId>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new RequirementId(reader.GetString(0)));
+        return ids;
+    }
+
+    public async Task<IReadOnlyList<ExposureId>>
+        GetExposureIdsAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ExposureId
+            FROM VeteransClaims_ExposureRequirements
+            WHERE RequirementId = $requirementId
+            ORDER BY ExposureId;
+            """;
+        command.Parameters.AddWithValue(
+            "$requirementId", requirementId.Value);
+
+        var ids = new List<ExposureId>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new ExposureId(reader.GetString(0)));
+        return ids;
+    }
 }
