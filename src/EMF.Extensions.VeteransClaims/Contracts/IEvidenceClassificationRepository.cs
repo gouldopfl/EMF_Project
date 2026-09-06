@@ -43,4 +43,22 @@ public interface IEvidenceClassificationRepository
         GetEvidenceClassificationsAsync(
             ClaimIssueId claimIssueId,
             CancellationToken cancellationToken = default);
+
+    Task AddEvidenceClassificationFindingAsync(
+        EvidenceClassificationFinding association,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<EvidenceClassificationFinding>>
+        GetEvidenceClassificationFindingsAsync(
+            EvidenceClassificationId classificationId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<EvidenceClassification>>
+        GetEvidenceClassificationsAsync(
+            FindingId findingId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
 }

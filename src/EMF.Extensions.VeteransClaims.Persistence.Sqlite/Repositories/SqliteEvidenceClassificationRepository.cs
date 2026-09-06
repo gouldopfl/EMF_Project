@@ -323,6 +323,112 @@ public sealed class SqliteEvidenceClassificationRepository :
             cancellationToken);
     }
 
+
+    public async Task AddEvidenceClassificationFindingAsync(
+        EvidenceClassificationFinding association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_EvidenceClassificationFindings (
+                EvidenceClassificationId,
+                FindingId
+            )
+            SELECT classification.Id, finding.Id
+            FROM VeteransClaims_EvidenceClassifications AS classification
+            INNER JOIN VeteransClaims_Findings AS finding
+                ON finding.Id = $findingId
+            WHERE classification.Id = $classificationId
+              AND (
+                  classification.ClaimIssueId IS NULL
+                  OR classification.ClaimIssueId = finding.ClaimIssueId
+              );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$classificationId",
+            association.EvidenceClassificationId.Value);
+        command.Parameters.AddWithValue(
+            "$findingId",
+            association.FindingId.Value);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            throw new InvalidOperationException(
+                "The evidence classification and finding must exist, " +
+                "and a claim-scoped classification must belong to " +
+                "the finding claim issue.");
+    }
+
+    public async Task<IReadOnlyList<EvidenceClassificationFinding>>
+        GetEvidenceClassificationFindingsAsync(
+            EvidenceClassificationId classificationId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT EvidenceClassificationId, FindingId
+            FROM VeteransClaims_EvidenceClassificationFindings
+            WHERE EvidenceClassificationId = $classificationId
+            ORDER BY FindingId;
+            """;
+        command.Parameters.AddWithValue(
+            "$classificationId",
+            classificationId.Value);
+
+        var results = new List<EvidenceClassificationFinding>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            results.Add(
+                new EvidenceClassificationFinding
+                {
+                    EvidenceClassificationId =
+                        new EvidenceClassificationId(reader.GetString(0)),
+                    FindingId =
+                        new FindingId(reader.GetString(1))
+                });
+
+        return results;
+    }
+
+    public async Task<IReadOnlyList<EvidenceClassification>>
+        GetEvidenceClassificationsAsync(
+            FindingId findingId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT c.Id, c.ArtifactId, c.ClaimIssueId, c.Classification
+            FROM VeteransClaims_EvidenceClassifications AS c
+            INNER JOIN VeteransClaims_EvidenceClassificationFindings AS f
+                ON f.EvidenceClassificationId = c.Id
+            WHERE f.FindingId = $findingId
+            ORDER BY c.Id;
+            """;
+        command.Parameters.AddWithValue(
+            "$findingId",
+            findingId.Value);
+
+        return await ReadEvidenceClassificationsAsync(
+            command,
+            cancellationToken);
+    }
+
     private static async Task<IReadOnlyList<EvidenceClassification>>
         ReadEvidenceClassificationsAsync(
             SqliteCommand command,
