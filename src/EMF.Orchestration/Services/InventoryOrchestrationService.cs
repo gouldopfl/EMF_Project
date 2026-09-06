@@ -101,6 +101,22 @@ var artifactResult = _artifactFactory.Create(
     artifactId,
     fingerprint);
 
+                if (artifactResult is null ||
+                    artifactResult.Artifact is null ||
+                    artifactResult.Artifact.Id != artifactId)
+                    throw new InvalidOperationException("Inventory factory returned an invalid artifact identity.");
+
+                if (artifactResult.Artifact.Fingerprint is null ||
+                    artifactResult.Artifact.Fingerprint != fingerprint)
+                    throw new InvalidOperationException("Inventory factory returned an invalid content fingerprint.");
+
+                if (artifactResult.Provenance is null ||
+                    artifactResult.Provenance.ArtifactId != artifactId)
+                    throw new InvalidOperationException("Inventory factory returned an invalid provenance identity.");
+
+                if (!string.Equals(artifactResult.Provenance.Source, item.SourcePath, StringComparison.Ordinal))
+                    throw new InvalidOperationException("Inventory factory returned an invalid provenance source.");
+
                 InventoryOrchestrationResult result;
 
                 try

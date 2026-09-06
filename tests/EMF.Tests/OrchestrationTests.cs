@@ -13,6 +13,169 @@ namespace EMF.Tests;
 
 public sealed class OrchestrationTests
 {
+    private sealed class WrongIdentityFactory :
+        EMF.Orchestration.Contracts.IArtifactFactory
+    {
+        public ArtifactCreationResult Create(
+            DiscoveredItem item, ArtifactId artifactId,
+            EMF.Core.Models.Integrity.ContentFingerprint? fingerprint) =>
+            new ArtifactFactory().Create(
+                item, new ArtifactId("wrong-artifact"), fingerprint);
+    }
+
+
+    [Fact]
+    public async Task InventoryOrchestrationService_RejectsFactoryArtifactIdentityMismatch()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"emf-orchestration-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(path, "bad.db"), "content");
+
+            var service = new InventoryOrchestrationService(
+                new FileSystemDiscoveryService(),
+                new InventoryRoutingService([new SqliteInventoryProvider()]),
+                new WrongIdentityFactory(),
+                new GuidArtifactIdGenerator(),
+                new Sha256ContentFingerprintService());
+
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            {
+                await foreach (var _ in service.ExecuteAsync(path, new DiscoveryOptions())) { }
+            });
+        }
+        finally { Directory.Delete(path, true); }
+    }
+
+    [Fact]
+    public async Task InventoryOrchestrationService_RejectsFactoryFingerprintMismatch()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"emf-orchestration-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(path, "bad.db"), "content");
+
+            var service = new InventoryOrchestrationService(
+                new FileSystemDiscoveryService(),
+                new InventoryRoutingService([new SqliteInventoryProvider()]),
+                new WrongFingerprintFactory(),
+                new GuidArtifactIdGenerator(),
+                new Sha256ContentFingerprintService());
+
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            {
+                await foreach (var _ in service.ExecuteAsync(path, new DiscoveryOptions())) { }
+            });
+        }
+        finally { Directory.Delete(path, true); }
+    }
+
+    private sealed class WrongFingerprintFactory :
+        EMF.Orchestration.Contracts.IArtifactFactory
+    {
+        public ArtifactCreationResult Create(
+            DiscoveredItem item, ArtifactId artifactId,
+            EMF.Core.Models.Integrity.ContentFingerprint? fingerprint) =>
+            new ArtifactFactory().Create(
+                item, artifactId,
+                new EMF.Core.Models.Integrity.ContentFingerprint
+                {
+                    Algorithm = "SHA256",
+                    Value = "different-fingerprint"
+                });
+    }
+
+    [Fact]
+    public async Task InventoryOrchestrationService_RejectsFactoryProvenanceIdentityMismatch()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"emf-orchestration-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(path, "bad.db"), "content");
+
+            var service = new InventoryOrchestrationService(
+                new FileSystemDiscoveryService(),
+                new InventoryRoutingService([new SqliteInventoryProvider()]),
+                new WrongProvenanceIdentityFactory(),
+                new GuidArtifactIdGenerator(),
+                new Sha256ContentFingerprintService());
+
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            {
+                await foreach (var _ in service.ExecuteAsync(path, new DiscoveryOptions())) { }
+            });
+        }
+        finally { Directory.Delete(path, true); }
+    }
+
+    private sealed class WrongProvenanceIdentityFactory :
+        EMF.Orchestration.Contracts.IArtifactFactory
+    {
+        public ArtifactCreationResult Create(
+            DiscoveredItem item, ArtifactId artifactId,
+            EMF.Core.Models.Integrity.ContentFingerprint? fingerprint)
+        {
+            var valid = new ArtifactFactory().Create(item, artifactId, fingerprint);
+            return new ArtifactCreationResult
+            {
+                Artifact = valid.Artifact,
+                Provenance = new Provenance
+                {
+                    ArtifactId = new ArtifactId("wrong-artifact"),
+                    Source = valid.Provenance.Source,
+                    RecordedBy = valid.Provenance.RecordedBy
+                }
+            };
+        }
+    }
+
+    [Fact]
+    public async Task InventoryOrchestrationService_RejectsFactoryProvenanceSourceMismatch()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"emf-orchestration-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(path, "bad.db"), "content");
+
+            var service = new InventoryOrchestrationService(
+                new FileSystemDiscoveryService(),
+                new InventoryRoutingService([new SqliteInventoryProvider()]),
+                new WrongProvenanceSourceFactory(),
+                new GuidArtifactIdGenerator(),
+                new Sha256ContentFingerprintService());
+
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            {
+                await foreach (var _ in service.ExecuteAsync(path, new DiscoveryOptions())) { }
+            });
+        }
+        finally { Directory.Delete(path, true); }
+    }
+
+    private sealed class WrongProvenanceSourceFactory :
+        EMF.Orchestration.Contracts.IArtifactFactory
+    {
+        public ArtifactCreationResult Create(
+            DiscoveredItem item, ArtifactId artifactId,
+            EMF.Core.Models.Integrity.ContentFingerprint? fingerprint)
+        {
+            var valid = new ArtifactFactory().Create(item, artifactId, fingerprint);
+            return new ArtifactCreationResult
+            {
+                Artifact = valid.Artifact,
+                Provenance = new Provenance
+                {
+                    ArtifactId = artifactId,
+                    Source = "different-source",
+                    RecordedBy = valid.Provenance.RecordedBy
+                }
+            };
+        }
+    }
 
     [Fact]
     public async Task InventoryOrchestrationService_DoesNotStoreContentWhenInventoryFails()
