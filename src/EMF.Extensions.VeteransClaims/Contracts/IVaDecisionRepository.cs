@@ -62,4 +62,20 @@ public interface IVaDecisionRepository
         GetArtifactIdsAsync(
             VaDecisionId vaDecisionId,
             CancellationToken cancellationToken = default);
+
+    Task AddIssueDecisionFindingAsync(
+        IssueDecisionFinding association,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<FindingId>> GetFindingIdsAsync(
+        IssueDecisionId issueDecisionId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<IssueDecisionId>> GetIssueDecisionIdsAsync(
+        FindingId findingId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
 }

@@ -657,4 +657,103 @@ public sealed class SqliteVaDecisionRepository :
 
         return submissionIds;
     }
+
+
+    public async Task AddIssueDecisionFindingAsync(
+        IssueDecisionFinding association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_IssueDecisionFindings
+                (IssueDecisionId, FindingId)
+            SELECT decision.Id, finding.Id
+            FROM VeteransClaims_IssueDecisions AS decision
+            JOIN VeteransClaims_Findings AS finding
+                ON finding.Id = $findingId
+            WHERE decision.Id = $issueDecisionId
+              AND decision.ClaimIssueId = finding.ClaimIssueId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$issueDecisionId", association.IssueDecisionId.Value);
+        command.Parameters.AddWithValue(
+            "$findingId", association.FindingId.Value);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            throw new InvalidOperationException(
+                "The issue decision and finding must exist " +
+                "and belong to the same claim issue.");
+    }
+
+
+
+    public async Task<IReadOnlyList<FindingId>> GetFindingIdsAsync(
+        IssueDecisionId issueDecisionId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT FindingId
+            FROM VeteransClaims_IssueDecisionFindings
+            WHERE IssueDecisionId = $issueDecisionId
+            ORDER BY FindingId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$issueDecisionId", issueDecisionId.Value);
+
+        var ids = new List<FindingId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new FindingId(reader.GetString(0)));
+
+        return ids;
+    }
+
+
+
+    public async Task<IReadOnlyList<IssueDecisionId>> GetIssueDecisionIdsAsync(
+        FindingId findingId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT IssueDecisionId
+            FROM VeteransClaims_IssueDecisionFindings
+            WHERE FindingId = $findingId
+            ORDER BY IssueDecisionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$findingId", findingId.Value);
+
+        var ids = new List<IssueDecisionId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new IssueDecisionId(reader.GetString(0)));
+
+        return ids;
+    }
+
 }
