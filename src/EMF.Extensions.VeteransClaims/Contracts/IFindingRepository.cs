@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 
@@ -29,5 +30,19 @@ public interface IFindingRepository
     Task<IReadOnlyList<FindingRegulatoryProvision>>
         GetFindingRegulatoryProvisionsAsync(
             RegulatoryProvisionId regulatoryProvisionId,
+            CancellationToken cancellationToken = default);
+
+    Task AddFindingArtifactAsync(
+        FindingArtifact association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<FindingArtifact>>
+        GetFindingArtifactsAsync(
+            FindingId findingId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<FindingArtifact>>
+        GetFindingArtifactsAsync(
+            ArtifactId artifactId,
             CancellationToken cancellationToken = default);
 }

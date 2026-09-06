@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -263,6 +264,135 @@ public sealed class SqliteFindingRepository :
         }
 
         return results;
+    }
+
+    public async Task AddFindingArtifactAsync(
+        FindingArtifact association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        ValidateArtifactTraceabilityRole(association.Role);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_FindingArtifacts (
+                FindingId, ArtifactId, Role
+            )
+            SELECT $findingId, $artifactId, $role
+            FROM VeteransClaims_Findings AS finding
+            INNER JOIN Artifacts AS artifact
+                ON artifact.Id = $artifactId
+            WHERE finding.Id = $findingId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$findingId", association.FindingId.Value);
+        command.Parameters.AddWithValue(
+            "$artifactId", association.ArtifactId.Value);
+        command.Parameters.AddWithValue(
+            "$role", association.Role);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException(
+                "The finding and artifact must exist.");
+        }
+    }
+
+    public Task<IReadOnlyList<FindingArtifact>>
+        GetFindingArtifactsAsync(
+            FindingId findingId,
+            CancellationToken cancellationToken = default)
+    {
+        return GetFindingArtifactsAsync(
+            "FindingId",
+            findingId.Value,
+            cancellationToken);
+    }
+
+    public Task<IReadOnlyList<FindingArtifact>>
+        GetFindingArtifactsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+    {
+        return GetFindingArtifactsAsync(
+            "ArtifactId",
+            artifactId.Value,
+            cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<FindingArtifact>>
+        GetFindingArtifactsAsync(
+            string columnName,
+            string value,
+            CancellationToken cancellationToken)
+    {
+        if (columnName != "FindingId" &&
+            columnName != "ArtifactId")
+        {
+            throw new ArgumentOutOfRangeException(nameof(columnName));
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            $"""
+            SELECT FindingId, ArtifactId, Role
+            FROM VeteransClaims_FindingArtifacts
+            WHERE {columnName} = $value
+            ORDER BY FindingId, ArtifactId, Role;
+            """;
+        command.Parameters.AddWithValue("$value", value);
+
+        var results = new List<FindingArtifact>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var role = reader.GetString(2);
+            ValidateStoredArtifactTraceabilityRole(role);
+
+            results.Add(
+                new FindingArtifact
+                {
+                    FindingId = new FindingId(reader.GetString(0)),
+                    ArtifactId = new ArtifactId(reader.GetString(1)),
+                    Role = role
+                });
+        }
+
+        return results;
+    }
+
+    private static void ValidateArtifactTraceabilityRole(string role)
+    {
+        if (role != FindingTraceabilityRoles.Supporting &&
+            role != FindingTraceabilityRoles.Contradicting &&
+            role != FindingTraceabilityRoles.Qualifying)
+        {
+            throw new ArgumentException(
+                "Finding artifact role is invalid.",
+                nameof(role));
+        }
+    }
+
+    private static void ValidateStoredArtifactTraceabilityRole(string role)
+    {
+        if (role != FindingTraceabilityRoles.Supporting &&
+            role != FindingTraceabilityRoles.Contradicting &&
+            role != FindingTraceabilityRoles.Qualifying)
+        {
+            throw new InvalidOperationException(
+                "Stored finding artifact role is invalid.");
+        }
     }
 
     private static void ValidateTraceabilityRole(string role)
