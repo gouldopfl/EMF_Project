@@ -1822,6 +1822,27 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_IssueDecisionArtifacts (
                     ArtifactId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                64,
+                "AddDisabilityEvaluationArtifacts",
+                """
+                CREATE TABLE VeteransClaims_DisabilityEvaluationArtifacts (
+                    DisabilityEvaluationId TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    PRIMARY KEY (
+                        DisabilityEvaluationId,
+                        ArtifactId
+                    ),
+                    FOREIGN KEY (DisabilityEvaluationId)
+                        REFERENCES VeteransClaims_DisabilityEvaluations (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_DisabilityEvaluationArtifacts_Artifact
+                ON VeteransClaims_DisabilityEvaluationArtifacts (
+                    ArtifactId
+                );
                 """)
         };
 }

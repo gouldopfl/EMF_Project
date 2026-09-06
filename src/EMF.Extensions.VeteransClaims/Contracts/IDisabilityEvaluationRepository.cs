@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 
@@ -25,4 +26,20 @@ public interface IDisabilityEvaluationRepository
     Task<EffectiveDate?> GetEffectiveDateAsync(
         DisabilityEvaluationId disabilityEvaluationId,
         CancellationToken cancellationToken = default);
+
+    Task AddDisabilityEvaluationArtifactAsync(
+        DisabilityEvaluationArtifact association,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<ArtifactId>> GetArtifactIdsAsync(
+        DisabilityEvaluationId disabilityEvaluationId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<DisabilityEvaluationId>>
+        GetDisabilityEvaluationIdsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }

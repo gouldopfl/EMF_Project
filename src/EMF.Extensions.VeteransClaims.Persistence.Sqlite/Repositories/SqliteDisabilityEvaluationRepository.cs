@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -348,4 +349,112 @@ public sealed class SqliteDisabilityEvaluationRepository :
                 DateOnly.Parse(reader.GetString(2))
         };
     }
+
+    public async Task AddDisabilityEvaluationArtifactAsync(
+        DisabilityEvaluationArtifact association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_DisabilityEvaluationArtifacts (
+                DisabilityEvaluationId,
+                ArtifactId
+            )
+            SELECT evaluation.Id, artifact.Id
+            FROM VeteransClaims_DisabilityEvaluations AS evaluation
+            INNER JOIN Artifacts AS artifact
+                ON artifact.Id = $artifactId
+            WHERE evaluation.Id = $disabilityEvaluationId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$disabilityEvaluationId",
+            association.DisabilityEvaluationId.Value);
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            association.ArtifactId.Value);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException(
+                "The disability evaluation and artifact must exist.");
+        }
+    }
+
+    public async Task<IReadOnlyList<ArtifactId>> GetArtifactIdsAsync(
+        DisabilityEvaluationId disabilityEvaluationId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ArtifactId
+            FROM VeteransClaims_DisabilityEvaluationArtifacts
+            WHERE DisabilityEvaluationId = $disabilityEvaluationId
+            ORDER BY ArtifactId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$disabilityEvaluationId",
+            disabilityEvaluationId.Value);
+
+        var artifactIds = new List<ArtifactId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            artifactIds.Add(new ArtifactId(reader.GetString(0)));
+        }
+
+        return artifactIds;
+    }
+
+    public async Task<IReadOnlyList<DisabilityEvaluationId>>
+        GetDisabilityEvaluationIdsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT DisabilityEvaluationId
+            FROM VeteransClaims_DisabilityEvaluationArtifacts
+            WHERE ArtifactId = $artifactId
+            ORDER BY DisabilityEvaluationId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            artifactId.Value);
+
+        var evaluationIds =
+            new List<DisabilityEvaluationId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            evaluationIds.Add(
+                new DisabilityEvaluationId(
+                    reader.GetString(0)));
+        }
+
+        return evaluationIds;
+    }
+
 }
