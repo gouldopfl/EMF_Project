@@ -6,6 +6,48 @@ namespace EMF.Tests;
 
 public sealed class PaddleImageOcrServiceTests
 {
+    [Fact]
+    public async Task RecognizeTextAsync_RejectsOversizedJpegWithSmallExifDimensions()
+    {
+        using var bitmap = new SKBitmap(100, 100);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.White);
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 90);
+        var jpeg = data.ToArray();
+
+        using var stream = new MemoryStream();
+        stream.Write(jpeg.AsSpan(0, 2));
+
+        // APP1: 44-byte EXIF payload plus the two-byte length field.
+        stream.Write(new byte[] { 0xff, 0xe1, 0x00, 0x2e });
+        stream.Write("Exif\0\0"u8);
+
+        // Little-endian TIFF with IFD0 width and height both set to 1.
+        stream.Write(new byte[]
+        {
+            0x49, 0x49, 42, 0, 8, 0, 0, 0,
+            2, 0,
+            0, 1, 4, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+            1, 1, 4, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+            0, 0, 0, 0
+        });
+
+        stream.Write(jpeg.AsSpan(2));
+
+        var service = new PaddleImageOcrService(
+            maxPixelCount: 5000);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => service.RecognizeTextAsync(
+                    new OcrRequest(stream.ToArray())));
+
+        Assert.Equal(
+            "OCR image dimensions exceed the maximum allowed size.",
+            exception.Message);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
