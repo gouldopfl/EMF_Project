@@ -86,4 +86,18 @@ public interface IServiceHistoryRepository
         GetExposureArtifactsAsync(
             ArtifactId artifactId,
             CancellationToken cancellationToken = default);
+
+    Task AddClaimIssueExposureAsync(
+        ClaimIssueExposure association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ExposureId>>
+        GetExposureIdsAsync(
+            ClaimIssueId claimIssueId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ClaimIssueId>>
+        GetClaimIssueIdsAsync(
+            ExposureId exposureId,
+            CancellationToken cancellationToken = default);
 }

@@ -736,4 +736,98 @@ public sealed class SqliteServiceHistoryRepository :
 
         return results;
     }
+
+
+    public async Task AddClaimIssueExposureAsync(
+        ClaimIssueExposure association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_ClaimIssueExposures (
+                ClaimIssueId,
+                ExposureId
+            )
+            SELECT issue.Id, exposure.Id
+            FROM VeteransClaims_ClaimIssues AS issue
+            INNER JOIN VeteransClaims_Claims AS claim
+                ON claim.Id = issue.ClaimId
+            INNER JOIN VeteransClaims_Exposures AS exposure
+                ON exposure.Id = $exposureId
+            WHERE issue.Id = $claimIssueId
+              AND claim.VeteranId = exposure.VeteranId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$claimIssueId",
+            association.ClaimIssueId.Value);
+        command.Parameters.AddWithValue(
+            "$exposureId",
+            association.ExposureId.Value);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException(
+                "The claim issue and exposure must exist and belong " +
+                "to the same veteran.");
+        }
+    }
+
+    public async Task<IReadOnlyList<ExposureId>>
+        GetExposureIdsAsync(
+            ClaimIssueId claimIssueId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ExposureId
+            FROM VeteransClaims_ClaimIssueExposures
+            WHERE ClaimIssueId = $claimIssueId
+            ORDER BY ExposureId;
+            """;
+        command.Parameters.AddWithValue(
+            "$claimIssueId", claimIssueId.Value);
+
+        var ids = new List<ExposureId>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new ExposureId(reader.GetString(0)));
+        return ids;
+    }
+
+    public async Task<IReadOnlyList<ClaimIssueId>>
+        GetClaimIssueIdsAsync(
+            ExposureId exposureId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ClaimIssueId
+            FROM VeteransClaims_ClaimIssueExposures
+            WHERE ExposureId = $exposureId
+            ORDER BY ClaimIssueId;
+            """;
+        command.Parameters.AddWithValue(
+            "$exposureId", exposureId.Value);
+
+        var ids = new List<ClaimIssueId>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new ClaimIssueId(reader.GetString(0)));
+        return ids;
+    }
 }
