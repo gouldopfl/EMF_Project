@@ -1843,6 +1843,27 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_DisabilityEvaluationArtifacts (
                     ArtifactId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                65,
+                "AddEffectiveDateArtifacts",
+                """
+                CREATE TABLE VeteransClaims_EffectiveDateArtifacts (
+                    EffectiveDateId TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    PRIMARY KEY (
+                        EffectiveDateId,
+                        ArtifactId
+                    ),
+                    FOREIGN KEY (EffectiveDateId)
+                        REFERENCES VeteransClaims_EffectiveDates (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_EffectiveDateArtifacts_Artifact
+                ON VeteransClaims_EffectiveDateArtifacts (
+                    ArtifactId
+                );
                 """)
         };
 }

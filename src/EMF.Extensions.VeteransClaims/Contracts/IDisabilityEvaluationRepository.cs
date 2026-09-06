@@ -42,4 +42,19 @@ public interface IDisabilityEvaluationRepository
             ArtifactId artifactId,
             CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
+
+    Task AddEffectiveDateArtifactAsync(
+        EffectiveDateArtifact association,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<ArtifactId>> GetArtifactIdsAsync(
+        EffectiveDateId effectiveDateId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<EffectiveDateId>> GetEffectiveDateIdsAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }

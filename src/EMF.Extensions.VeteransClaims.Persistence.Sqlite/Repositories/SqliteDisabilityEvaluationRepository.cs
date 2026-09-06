@@ -457,4 +457,110 @@ public sealed class SqliteDisabilityEvaluationRepository :
         return evaluationIds;
     }
 
+
+    public async Task AddEffectiveDateArtifactAsync(
+        EffectiveDateArtifact association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_EffectiveDateArtifacts (
+                EffectiveDateId,
+                ArtifactId
+            )
+            SELECT effectiveDate.Id, artifact.Id
+            FROM VeteransClaims_EffectiveDates AS effectiveDate
+            INNER JOIN Artifacts AS artifact
+                ON artifact.Id = $artifactId
+            WHERE effectiveDate.Id = $effectiveDateId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$effectiveDateId",
+            association.EffectiveDateId.Value);
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            association.ArtifactId.Value);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException(
+                "The effective date and artifact must exist.");
+        }
+    }
+
+    public async Task<IReadOnlyList<ArtifactId>> GetArtifactIdsAsync(
+        EffectiveDateId effectiveDateId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ArtifactId
+            FROM VeteransClaims_EffectiveDateArtifacts
+            WHERE EffectiveDateId = $effectiveDateId
+            ORDER BY ArtifactId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$effectiveDateId",
+            effectiveDateId.Value);
+
+        var artifactIds = new List<ArtifactId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            artifactIds.Add(new ArtifactId(reader.GetString(0)));
+        }
+
+        return artifactIds;
+    }
+
+    public async Task<IReadOnlyList<EffectiveDateId>>
+        GetEffectiveDateIdsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT EffectiveDateId
+            FROM VeteransClaims_EffectiveDateArtifacts
+            WHERE ArtifactId = $artifactId
+            ORDER BY EffectiveDateId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            artifactId.Value);
+
+        var effectiveDateIds = new List<EffectiveDateId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            effectiveDateIds.Add(
+                new EffectiveDateId(reader.GetString(0)));
+        }
+
+        return effectiveDateIds;
+    }
+
 }
