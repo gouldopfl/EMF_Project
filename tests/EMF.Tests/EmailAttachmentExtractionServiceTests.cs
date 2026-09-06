@@ -11,6 +11,42 @@ namespace EMF.Tests;
 public sealed class EmailAttachmentExtractionServiceTests
 {
     [Fact]
+    public async Task ExtractAsync_RejectsFactoryArtifactIdentityMismatch()
+    {
+        var repository = new RecordingRepository();
+        var store = new RecordingContentStore();
+        var service = new EmailAttachmentExtractionService(
+            repository,
+            store,
+            new StubFingerprintService(),
+            new StubIdGenerator(),
+            new WrongIdentityFactory());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ExtractAsync(
+                new ArtifactId("email-identity"),
+                "record.txt",
+                "text/plain",
+                "content"u8.ToArray()));
+
+        Assert.Empty(store.Written);
+        Assert.Empty(store.Deleted);
+        Assert.Empty(repository.Persisted);
+    }
+
+    private sealed class WrongIdentityFactory : IArtifactFactory
+    {
+        public EMF.Orchestration.Models.ArtifactCreationResult Create(
+            EMF.Discovery.Models.DiscoveredItem item,
+            ArtifactId artifactId,
+            ContentFingerprint? fingerprint) =>
+            new ArtifactFactory().Create(
+                item,
+                new ArtifactId("wrong-artifact"),
+                fingerprint);
+    }
+
+    [Fact]
     public async Task ExtractAsync_PersistsAttachment()
     {
         var repository = new RecordingRepository();

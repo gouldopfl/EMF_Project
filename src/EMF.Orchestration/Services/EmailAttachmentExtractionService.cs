@@ -105,6 +105,14 @@ public sealed class EmailAttachmentExtractionService :
                 artifactId,
                 fingerprint);
 
+        if (creation is null ||
+            creation.Artifact is null ||
+            creation.Artifact.Id != artifactId)
+        {
+            throw new InvalidOperationException(
+                "Attachment factory returned an invalid artifact identity.");
+        }
+
         var relationships =
             new[]
             {
