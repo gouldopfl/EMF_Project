@@ -102,6 +102,14 @@ public sealed class ZipEntryExtractionService :
                 artifactId,
                 fingerprint);
 
+        if (creation is null ||
+            creation.Artifact is null ||
+            creation.Artifact.Id != artifactId)
+        {
+            throw new InvalidOperationException(
+                "ZIP entry factory returned an invalid artifact identity.");
+        }
+
         var relationships =
             new[]
             {
