@@ -429,4 +429,96 @@ public sealed class SqliteServiceHistoryRepository :
 
         return serviceEventIds;
     }
+
+
+    public async Task AddExposureRegulatoryProvisionAsync(
+        ExposureRegulatoryProvision association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_ExposureRegulatoryProvisions (
+                ExposureId, RegulatoryProvisionId
+            )
+            SELECT $exposureId, $regulatoryProvisionId
+            WHERE EXISTS (
+                SELECT 1 FROM VeteransClaims_Exposures
+                WHERE Id = $exposureId
+            )
+            AND EXISTS (
+                SELECT 1 FROM VeteransClaims_RegulatoryProvisions
+                WHERE Id = $regulatoryProvisionId
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$exposureId", association.ExposureId.Value);
+        command.Parameters.AddWithValue(
+            "$regulatoryProvisionId",
+            association.RegulatoryProvisionId.Value);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException(
+                "The exposure and regulatory provision must exist.");
+        }
+    }
+
+    public async Task<IReadOnlyList<RegulatoryProvisionId>>
+        GetRegulatoryProvisionIdsAsync(
+            ExposureId exposureId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT RegulatoryProvisionId
+            FROM VeteransClaims_ExposureRegulatoryProvisions
+            WHERE ExposureId = $exposureId
+            ORDER BY RegulatoryProvisionId;
+            """;
+        command.Parameters.AddWithValue(
+            "$exposureId", exposureId.Value);
+
+        var ids = new List<RegulatoryProvisionId>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new RegulatoryProvisionId(reader.GetString(0)));
+        return ids;
+    }
+
+    public async Task<IReadOnlyList<ExposureId>>
+        GetExposureIdsAsync(
+            RegulatoryProvisionId regulatoryProvisionId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ExposureId
+            FROM VeteransClaims_ExposureRegulatoryProvisions
+            WHERE RegulatoryProvisionId = $regulatoryProvisionId
+            ORDER BY ExposureId;
+            """;
+        command.Parameters.AddWithValue(
+            "$regulatoryProvisionId", regulatoryProvisionId.Value);
+
+        var ids = new List<ExposureId>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new ExposureId(reader.GetString(0)));
+        return ids;
+    }
 }

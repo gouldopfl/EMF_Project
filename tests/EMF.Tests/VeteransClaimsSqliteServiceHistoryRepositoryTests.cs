@@ -3,6 +3,7 @@ using EMF.Extensions.VeteransClaims.Models.Claims;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Service;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
+using EMF.Extensions.VeteransClaims.Regulatory;
 
 namespace EMF.Tests;
 
@@ -211,6 +212,101 @@ public sealed class
             Assert.Empty(
                 await repository.GetExposureIdsAsync(
                     serviceEvent.Id));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
+    [Fact]
+    public async Task Repository_RoundTripsExposureRegulatoryProvision()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var veterans = new SqliteVeteranRepository(databasePath);
+            await veterans.InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-001")
+            };
+            await veterans.AddVeteranAsync(veteran);
+
+            IServiceHistoryRepository history =
+                new SqliteServiceHistoryRepository(databasePath);
+            var exposure = new Exposure
+            {
+                Id = new ExposureId("exposure-001"),
+                VeteranId = veteran.Id,
+                ExposureType = "Environmental"
+            };
+            await history.AddExposureAsync(exposure);
+
+            var regulatory = new SqliteRegulatoryRepository(databasePath);
+            var authority = new RegulatoryAuthority
+            {
+                Id = new RegulatoryAuthorityId("authority-001"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Pensions, Bonuses, and Veterans Relief"
+            };
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+
+            var provision = new RegulatoryProvision
+            {
+                Id = new RegulatoryProvisionId("provision-001"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Presumption,
+                Citation = "38 CFR 3.309"
+            };
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+
+            await history.AddExposureRegulatoryProvisionAsync(
+                new ExposureRegulatoryProvision
+                {
+                    ExposureId = exposure.Id,
+                    RegulatoryProvisionId = provision.Id
+                });
+
+            Assert.Equal(
+                provision.Id,
+                Assert.Single(
+                    await history.GetRegulatoryProvisionIdsAsync(
+                        exposure.Id)));
+            Assert.Equal(
+                exposure.Id,
+                Assert.Single(
+                    await history.GetExposureIdsAsync(provision.Id)));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task Repository_RejectsOrphanedExposureRegulatoryProvision()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteServiceHistoryRepository(databasePath);
+            await repository.InitializeAsync();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => repository.AddExposureRegulatoryProvisionAsync(
+                    new ExposureRegulatoryProvision
+                    {
+                        ExposureId = new ExposureId("missing-exposure"),
+                        RegulatoryProvisionId =
+                            new RegulatoryProvisionId("missing-provision")
+                    }));
         }
         finally
         {

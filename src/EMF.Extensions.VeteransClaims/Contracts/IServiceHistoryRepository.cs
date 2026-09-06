@@ -43,4 +43,18 @@ public interface IServiceHistoryRepository
         GetServiceEventIdsAsync(
             ExposureId exposureId,
             CancellationToken cancellationToken = default);
+
+    Task AddExposureRegulatoryProvisionAsync(
+        ExposureRegulatoryProvision association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<RegulatoryProvisionId>>
+        GetRegulatoryProvisionIdsAsync(
+            ExposureId exposureId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ExposureId>>
+        GetExposureIdsAsync(
+            RegulatoryProvisionId regulatoryProvisionId,
+            CancellationToken cancellationToken = default);
 }
