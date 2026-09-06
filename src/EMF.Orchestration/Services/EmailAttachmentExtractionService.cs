@@ -113,6 +113,13 @@ public sealed class EmailAttachmentExtractionService :
                 "Attachment factory returned an invalid artifact identity.");
         }
 
+        if (creation.Provenance is null ||
+            creation.Provenance.ArtifactId != artifactId)
+        {
+            throw new InvalidOperationException(
+                "Attachment factory returned an invalid provenance identity.");
+        }
+
         var relationships =
             new[]
             {
