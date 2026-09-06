@@ -8,6 +8,48 @@ namespace EMF.Tests;
 public sealed class AzureMonitorSecurityAlertSinkTests
 {
     [Theory]
+    [InlineData("-----BEGIN EC PRIVATE KEY-----")]
+    [InlineData("-----BEGIN ENCRYPTED PRIVATE KEY-----")]
+    public async Task WriteAsync_excludes_additional_private_key_formats(
+        string marker)
+    {
+        var client = new RecordingLogsClient();
+        var sink = new AzureMonitorSecurityAlertSink(
+            new AzureMonitorAlertOptions
+            {
+                Endpoint =
+                    "https://example.eastus-1.ingest.monitor.azure.com",
+                RuleId = "rule",
+                StreamName = "stream"
+            },
+            client);
+
+        var observedUtc = DateTimeOffset.UtcNow;
+
+        await sink.WriteAsync(new SecurityAlert
+        {
+            AlertId = "alert-private-key",
+            AlertType = "test",
+            Severity = SecurityAlertSeverity.High,
+            Operation = "artifact.access",
+            ObservedUtc = observedUtc,
+            EventCount = 1,
+            WindowStartedUtc = observedUtc,
+            Facts = new Dictionary<string, string>
+            {
+                ["outcome"] = "Denied",
+                ["diagnostic"] = marker + "\nsynthetic-test-data"
+            }
+        });
+
+        using var doc = JsonDocument.Parse(client.Data!.ToStream());
+        var facts = doc.RootElement.GetProperty("Facts");
+
+        Assert.Equal("Denied", facts.GetProperty("outcome").GetString());
+        Assert.False(facts.TryGetProperty("diagnostic", out _));
+    }
+
+    [Theory]
     [InlineData("http://example.com")]
     [InlineData("https://example.com")]
     public void Constructor_rejects_untrusted_endpoint(

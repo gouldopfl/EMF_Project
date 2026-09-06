@@ -27,7 +27,9 @@ internal static class SecurityAlertFactSanitizer
         "apikey=",
         "api-key=",
         "-----begin private key-----",
-        "-----begin rsa private key-----"
+        "-----begin rsa private key-----",
+        "-----begin ec private key-----",
+        "-----begin encrypted private key-----"
     ];
 
     public static IReadOnlyDictionary<string, string> Sanitize(
