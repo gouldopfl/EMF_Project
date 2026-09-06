@@ -756,4 +756,101 @@ public sealed class SqliteVaDecisionRepository :
         return ids;
     }
 
+
+    public async Task AddIssueDecisionRegulatoryProvisionAsync(
+        IssueDecisionRegulatoryProvision association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_IssueDecisionRegulatoryProvisions
+                (IssueDecisionId, RegulatoryProvisionId)
+            SELECT decision.Id, provision.Id
+            FROM VeteransClaims_IssueDecisions AS decision
+            JOIN VeteransClaims_RegulatoryProvisions AS provision
+                ON provision.Id = $regulatoryProvisionId
+            WHERE decision.Id = $issueDecisionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$issueDecisionId",
+            association.IssueDecisionId.Value);
+        command.Parameters.AddWithValue(
+            "$regulatoryProvisionId",
+            association.RegulatoryProvisionId.Value);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            throw new InvalidOperationException(
+                "The issue decision and regulatory provision must exist.");
+    }
+
+    public async Task<IReadOnlyList<RegulatoryProvisionId>>
+        GetRegulatoryProvisionIdsAsync(
+            IssueDecisionId issueDecisionId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT RegulatoryProvisionId
+            FROM VeteransClaims_IssueDecisionRegulatoryProvisions
+            WHERE IssueDecisionId = $issueDecisionId
+            ORDER BY RegulatoryProvisionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$issueDecisionId",
+            issueDecisionId.Value);
+
+        var ids = new List<RegulatoryProvisionId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new RegulatoryProvisionId(reader.GetString(0)));
+
+        return ids;
+    }
+
+    public async Task<IReadOnlyList<IssueDecisionId>> GetIssueDecisionIdsAsync(
+        RegulatoryProvisionId regulatoryProvisionId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT IssueDecisionId
+            FROM VeteransClaims_IssueDecisionRegulatoryProvisions
+            WHERE RegulatoryProvisionId = $regulatoryProvisionId
+            ORDER BY IssueDecisionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$regulatoryProvisionId",
+            regulatoryProvisionId.Value);
+
+        var ids = new List<IssueDecisionId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new IssueDecisionId(reader.GetString(0)));
+
+        return ids;
+    }
+
 }

@@ -78,4 +78,19 @@ public interface IVaDecisionRepository
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
+    Task AddIssueDecisionRegulatoryProvisionAsync(
+        IssueDecisionRegulatoryProvision association,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<RegulatoryProvisionId>> GetRegulatoryProvisionIdsAsync(
+        IssueDecisionId issueDecisionId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<IssueDecisionId>> GetIssueDecisionIdsAsync(
+        RegulatoryProvisionId regulatoryProvisionId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
 }
