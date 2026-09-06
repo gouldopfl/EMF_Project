@@ -1864,6 +1864,27 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_EffectiveDateArtifacts (
                     ArtifactId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                66,
+                "AddMedicalOpinionArtifacts",
+                """
+                CREATE TABLE VeteransClaims_MedicalOpinionArtifacts (
+                    MedicalOpinionId TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    PRIMARY KEY (
+                        MedicalOpinionId,
+                        ArtifactId
+                    ),
+                    FOREIGN KEY (MedicalOpinionId)
+                        REFERENCES VeteransClaims_MedicalOpinions (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicalOpinionArtifacts_Artifact
+                ON VeteransClaims_MedicalOpinionArtifacts (
+                    ArtifactId
+                );
                 """)
         };
 }

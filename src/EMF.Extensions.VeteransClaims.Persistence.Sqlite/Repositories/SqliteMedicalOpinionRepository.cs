@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -137,6 +138,112 @@ public sealed class SqliteMedicalOpinionRepository :
         }
 
         return opinions;
+    }
+
+    public async Task AddMedicalOpinionArtifactAsync(
+        MedicalOpinionArtifact association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_MedicalOpinionArtifacts (
+                MedicalOpinionId,
+                ArtifactId
+            )
+            SELECT opinion.Id, artifact.Id
+            FROM VeteransClaims_MedicalOpinions AS opinion
+            INNER JOIN Artifacts AS artifact
+                ON artifact.Id = $artifactId
+            WHERE opinion.Id = $medicalOpinionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$medicalOpinionId",
+            association.MedicalOpinionId.Value);
+
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            association.ArtifactId.Value);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException(
+                "The medical opinion and artifact must exist.");
+        }
+    }
+
+    public async Task<IReadOnlyList<ArtifactId>> GetArtifactIdsAsync(
+        MedicalOpinionId medicalOpinionId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT ArtifactId
+            FROM VeteransClaims_MedicalOpinionArtifacts
+            WHERE MedicalOpinionId = $medicalOpinionId
+            ORDER BY ArtifactId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$medicalOpinionId",
+            medicalOpinionId.Value);
+
+        var artifactIds = new List<ArtifactId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            artifactIds.Add(new ArtifactId(reader.GetString(0)));
+        }
+
+        return artifactIds;
+    }
+
+    public async Task<IReadOnlyList<MedicalOpinionId>>
+        GetMedicalOpinionIdsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT MedicalOpinionId
+            FROM VeteransClaims_MedicalOpinionArtifacts
+            WHERE ArtifactId = $artifactId
+            ORDER BY MedicalOpinionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            artifactId.Value);
+
+        var medicalOpinionIds = new List<MedicalOpinionId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            medicalOpinionIds.Add(
+                new MedicalOpinionId(reader.GetString(0)));
+        }
+
+        return medicalOpinionIds;
     }
 
     private static MedicalOpinion ReadMedicalOpinion(
