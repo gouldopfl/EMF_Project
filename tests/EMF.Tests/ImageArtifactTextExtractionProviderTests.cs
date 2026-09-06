@@ -71,6 +71,60 @@ public sealed class ImageArtifactTextExtractionProviderTests
                 cancellation.Token));
     }
 
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var provider =
+            new ImageArtifactTextExtractionProvider(
+                new StubContentStore(new byte[5]),
+                new StubOcrService("unused"),
+                maxInputBytes: 4);
+
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => provider.ExtractTextAsync(
+                new ArtifactId("image-too-large")));
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedText()
+    {
+        var provider =
+            new ImageArtifactTextExtractionProvider(
+                new StubContentStore([1]),
+                new StubOcrService("12345"),
+                maxExtractedTextChars: 4);
+
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => provider.ExtractTextAsync(
+                new ArtifactId("image-text-too-large")));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_RejectsNonPositiveInputLimit(long value)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new ImageArtifactTextExtractionProvider(
+                new StubContentStore(null),
+                new StubOcrService("unused"),
+                maxInputBytes: value));
+    }
+
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_RejectsNonPositiveTextLimit(int value)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new ImageArtifactTextExtractionProvider(
+                new StubContentStore(null),
+                new StubOcrService("unused"),
+                maxExtractedTextChars: value));
+    }
+
+
     private sealed class StubOcrService :
         IImageOcrService
     {
