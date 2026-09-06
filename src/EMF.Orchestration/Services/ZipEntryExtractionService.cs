@@ -110,6 +110,13 @@ public sealed class ZipEntryExtractionService :
                 "ZIP entry factory returned an invalid artifact identity.");
         }
 
+        if (creation.Artifact.Fingerprint is null ||
+            creation.Artifact.Fingerprint != fingerprint)
+        {
+            throw new InvalidOperationException(
+                "ZIP entry factory returned an invalid content fingerprint.");
+        }
+
         if (creation.Provenance is null ||
             creation.Provenance.ArtifactId != artifactId)
         {

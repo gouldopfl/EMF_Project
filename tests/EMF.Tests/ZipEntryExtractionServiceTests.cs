@@ -10,6 +10,45 @@ namespace EMF.Tests;
 
 public sealed class ZipEntryExtractionServiceTests
 {
+    [Fact]
+    public async Task ExtractAsync_RejectsFactoryFingerprintMismatch()
+    {
+        var repository = new RecordingRepository();
+        var store = new RecordingContentStore();
+        var service = new ZipEntryExtractionService(
+            repository,
+            store,
+            new StubFingerprintService(),
+            new StubIdGenerator(),
+            new WrongFingerprintFactory());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ExtractAsync(
+                new ArtifactId("archive-fingerprint"),
+                "record.txt",
+                "content"u8.ToArray()));
+
+        Assert.Empty(store.Written);
+        Assert.Empty(store.Deleted);
+        Assert.Empty(repository.Persisted);
+    }
+
+    private sealed class WrongFingerprintFactory : IArtifactFactory
+    {
+        public EMF.Orchestration.Models.ArtifactCreationResult Create(
+            EMF.Discovery.Models.DiscoveredItem item,
+            ArtifactId artifactId,
+            ContentFingerprint? fingerprint) =>
+            new ArtifactFactory().Create(
+                item,
+                artifactId,
+                new ContentFingerprint
+                {
+                    Algorithm = "SHA256",
+                    Value = "different-fingerprint"
+                });
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
