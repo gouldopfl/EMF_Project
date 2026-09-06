@@ -22,11 +22,37 @@ public sealed class PdfToImagePageRenderer :
 
         cancellationToken.ThrowIfCancellationRequested();
 
+        var content = pdf.ToArray();
+        var pageSize =
+            Conversion.GetPageSize(
+                content,
+                new Index(pageIndex));
+
+        var pixelWidth =
+            Math.Ceiling((double)pageSize.Width * OcrDpi / 72d);
+        var pixelHeight =
+            Math.Ceiling((double)pageSize.Height * OcrDpi / 72d);
+
+        if (!double.IsFinite(pixelWidth) ||
+            !double.IsFinite(pixelHeight) ||
+            pixelWidth <= 0 ||
+            pixelHeight <= 0 ||
+            pixelWidth > PaddleImageOcrService.DefaultMaxDimensionPixels ||
+            pixelHeight > PaddleImageOcrService.DefaultMaxDimensionPixels ||
+            pixelWidth * pixelHeight >
+                PaddleImageOcrService.DefaultMaxPixelCount)
+        {
+            throw new InvalidDataException(
+                "PDF page dimensions exceed the maximum allowed render size.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
         using var output = new MemoryStream();
 
         Conversion.SavePng(
             output,
-            pdf.ToArray(),
+            content,
             new Index(pageIndex),
             options: new RenderOptions
             {

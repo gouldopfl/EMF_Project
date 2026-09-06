@@ -8,6 +8,43 @@ namespace EMF.Tests;
 [SupportedOSPlatform("macos")]
 public sealed class PdfToImagePageRendererTests
 {
+    [Theory]
+    [InlineData(4801, 72)]
+    [InlineData(72, 4801)]
+    [InlineData(1600, 1600)]
+    public async Task RenderPageAsync_RejectsOversizedPage(
+        int widthPoints,
+        int heightPoints)
+    {
+        using var output = new MemoryStream();
+
+        using (var document = SkiaSharp.SKDocument.CreatePdf(output))
+        {
+            var canvas =
+                document.BeginPage(widthPoints, heightPoints);
+
+            using var paint =
+                new SkiaSharp.SKPaint
+                {
+                    Color = SkiaSharp.SKColors.Black
+                };
+
+            canvas.DrawRect(1, 1, 10, 10, paint);
+            document.EndPage();
+            document.Close();
+        }
+
+        var renderer = new PdfToImagePageRenderer();
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => renderer.RenderPageAsync(output.ToArray(), 0));
+
+        Assert.Equal(
+            "PDF page dimensions exceed the maximum allowed render size.",
+            exception.Message);
+    }
+
     [Fact]
     public async Task RenderPageAsync_RendersPdfPageAsPng()
     {
