@@ -66,6 +66,8 @@ public sealed class ImageArtifactTextExtractionProvider :
                 new OcrRequest(content),
                 cancellationToken);
 
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (text is not null &&
             text.Length > _maxExtractedTextChars)
             throw new InvalidDataException(

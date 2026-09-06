@@ -8,6 +8,41 @@ namespace EMF.Tests;
 
 public sealed class ImageArtifactTextExtractionProviderTests
 {
+    [Fact]
+    public async Task ExtractTextAsync_HonorsCancellationDuringOcr()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var provider = new ImageArtifactTextExtractionProvider(
+            new StubContentStore([1]),
+            new CancellingOcrService(cancellation));
+
+        var exception =
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("image-cancelled-during-ocr"),
+                    cancellation.Token));
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+    }
+
+    private sealed class CancellingOcrService : IImageOcrService
+    {
+        private readonly CancellationTokenSource _cancellation;
+
+        public CancellingOcrService(CancellationTokenSource cancellation)
+        {
+            _cancellation = cancellation;
+        }
+
+        public Task<string?> RecognizeTextAsync(
+            OcrRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            _cancellation.Cancel();
+            return Task.FromResult<string?>("recognized text");
+        }
+    }
+
     [Theory]
     [InlineData("image/jpeg")]
     [InlineData("image/png")]
