@@ -853,4 +853,104 @@ public sealed class SqliteVaDecisionRepository :
         return ids;
     }
 
+
+    public async Task AddIssueDecisionArtifactAsync(
+        IssueDecisionArtifact association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_IssueDecisionArtifacts (
+                IssueDecisionId, ArtifactId
+            )
+            SELECT $issueDecisionId, $artifactId
+            FROM VeteransClaims_IssueDecisions AS decision
+            INNER JOIN Artifacts AS artifact
+                ON artifact.Id = $artifactId
+            WHERE decision.Id = $issueDecisionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$issueDecisionId",
+            association.IssueDecisionId.Value);
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            association.ArtifactId.Value);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException(
+                "The issue decision and artifact must exist.");
+        }
+    }
+
+    public async Task<IReadOnlyList<ArtifactId>> GetArtifactIdsAsync(
+        IssueDecisionId issueDecisionId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT ArtifactId
+            FROM VeteransClaims_IssueDecisionArtifacts
+            WHERE IssueDecisionId = $issueDecisionId
+            ORDER BY ArtifactId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$issueDecisionId",
+            issueDecisionId.Value);
+
+        var ids = new List<ArtifactId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new ArtifactId(reader.GetString(0)));
+
+        return ids;
+    }
+
+    public async Task<IReadOnlyList<IssueDecisionId>>
+        GetIssueDecisionIdsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT IssueDecisionId
+            FROM VeteransClaims_IssueDecisionArtifacts
+            WHERE ArtifactId = $artifactId
+            ORDER BY IssueDecisionId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            artifactId.Value);
+
+        var ids = new List<IssueDecisionId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            ids.Add(new IssueDecisionId(reader.GetString(0)));
+
+        return ids;
+    }
+
 }

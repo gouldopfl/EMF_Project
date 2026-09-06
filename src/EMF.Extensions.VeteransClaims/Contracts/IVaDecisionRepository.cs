@@ -93,4 +93,19 @@ public interface IVaDecisionRepository
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
+    Task AddIssueDecisionArtifactAsync(
+        IssueDecisionArtifact association,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<ArtifactId>> GetArtifactIdsAsync(
+        IssueDecisionId issueDecisionId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<IssueDecisionId>> GetIssueDecisionIdsAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
 }
