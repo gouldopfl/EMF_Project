@@ -17,6 +17,184 @@ namespace EMF.Tests;
 public sealed class EmailMessageWorkflowActivityTests
 {
     [Fact]
+    public async Task ExecuteAsync_RejectsFactoryArtifactIdentityMismatch()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"emf-email-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(path, "message.eml"), "From: test@example.com\r\n\r\nHello");
+            var store = new RecordingContentStore();
+            var activity = new EmailMessageWorkflowActivity(
+                new FileSystemDiscoveryService(),
+                new InMemoryEvidenceRepository(),
+                store,
+                new Sha256ContentFingerprintService(),
+                new StubIdGenerator(),
+                new WrongIdentityFactory(),
+                path,
+                new DiscoveryOptions());
+
+            var result = await activity.ExecuteAsync(CreateContext());
+
+            Assert.False(result.Succeeded);
+            Assert.Empty(store.Written);
+        }
+        finally { Directory.Delete(path, true); }
+    }
+
+    private sealed class WrongIdentityFactory : IArtifactFactory
+    {
+        public ArtifactCreationResult Create(
+            DiscoveredItem item,
+            ArtifactId artifactId,
+            ContentFingerprint? fingerprint) =>
+            new ArtifactFactory().Create(
+                item,
+                new ArtifactId("wrong-artifact"),
+                fingerprint);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RejectsFactoryFingerprintMismatch()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"emf-email-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(path, "message.eml"), "From: test@example.com\r\n\r\nHello");
+            var store = new RecordingContentStore();
+            var activity = new EmailMessageWorkflowActivity(
+                new FileSystemDiscoveryService(),
+                new InMemoryEvidenceRepository(),
+                store,
+                new Sha256ContentFingerprintService(),
+                new StubIdGenerator(),
+                new WrongFingerprintFactory(),
+                path,
+                new DiscoveryOptions());
+
+            var result = await activity.ExecuteAsync(CreateContext());
+
+            Assert.False(result.Succeeded);
+            Assert.Empty(store.Written);
+        }
+        finally { Directory.Delete(path, true); }
+    }
+
+    private sealed class WrongFingerprintFactory : IArtifactFactory
+    {
+        public ArtifactCreationResult Create(
+            DiscoveredItem item,
+            ArtifactId artifactId,
+            ContentFingerprint? fingerprint) =>
+            new ArtifactFactory().Create(
+                item,
+                artifactId,
+                new ContentFingerprint
+                {
+                    Algorithm = "SHA256",
+                    Value = "different-fingerprint"
+                });
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RejectsFactoryProvenanceIdentityMismatch()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"emf-email-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(path, "message.eml"), "From: test@example.com\r\n\r\nHello");
+            var store = new RecordingContentStore();
+            var activity = new EmailMessageWorkflowActivity(
+                new FileSystemDiscoveryService(),
+                new InMemoryEvidenceRepository(),
+                store,
+                new Sha256ContentFingerprintService(),
+                new StubIdGenerator(),
+                new WrongProvenanceIdentityFactory(),
+                path,
+                new DiscoveryOptions());
+
+            var result = await activity.ExecuteAsync(CreateContext());
+
+            Assert.False(result.Succeeded);
+            Assert.Empty(store.Written);
+        }
+        finally { Directory.Delete(path, true); }
+    }
+
+    private sealed class WrongProvenanceIdentityFactory : IArtifactFactory
+    {
+        public ArtifactCreationResult Create(
+            DiscoveredItem item,
+            ArtifactId artifactId,
+            ContentFingerprint? fingerprint)
+        {
+            var valid = new ArtifactFactory().Create(item, artifactId, fingerprint);
+            return new ArtifactCreationResult
+            {
+                Artifact = valid.Artifact,
+                Provenance = new Provenance
+                {
+                    ArtifactId = new ArtifactId("wrong-artifact"),
+                    Source = valid.Provenance.Source,
+                    RecordedBy = valid.Provenance.RecordedBy
+                }
+            };
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RejectsFactoryProvenanceSourceMismatch()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"emf-email-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(path, "message.eml"), "From: test@example.com\r\n\r\nHello");
+            var store = new RecordingContentStore();
+            var activity = new EmailMessageWorkflowActivity(
+                new FileSystemDiscoveryService(),
+                new InMemoryEvidenceRepository(),
+                store,
+                new Sha256ContentFingerprintService(),
+                new StubIdGenerator(),
+                new WrongProvenanceSourceFactory(),
+                path,
+                new DiscoveryOptions());
+
+            var result = await activity.ExecuteAsync(CreateContext());
+
+            Assert.False(result.Succeeded);
+            Assert.Empty(store.Written);
+        }
+        finally { Directory.Delete(path, true); }
+    }
+
+    private sealed class WrongProvenanceSourceFactory : IArtifactFactory
+    {
+        public ArtifactCreationResult Create(
+            DiscoveredItem item,
+            ArtifactId artifactId,
+            ContentFingerprint? fingerprint)
+        {
+            var valid = new ArtifactFactory().Create(item, artifactId, fingerprint);
+            return new ArtifactCreationResult
+            {
+                Artifact = valid.Artifact,
+                Provenance = new Provenance
+                {
+                    ArtifactId = artifactId,
+                    Source = "different-source",
+                    RecordedBy = valid.Provenance.RecordedBy
+                }
+            };
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsync_PersistsDiscoveredEmail()
     {
         var sourcePath =
