@@ -120,6 +120,15 @@ public sealed class EmailAttachmentExtractionService :
                 "Attachment factory returned an invalid provenance identity.");
         }
 
+        if (!string.Equals(
+                creation.Provenance.Source,
+                source,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Attachment factory returned an invalid provenance source.");
+        }
+
         var relationships =
             new[]
             {

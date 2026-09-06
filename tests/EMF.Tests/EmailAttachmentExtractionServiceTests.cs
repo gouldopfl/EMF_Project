@@ -10,8 +10,11 @@ namespace EMF.Tests;
 
 public sealed class EmailAttachmentExtractionServiceTests
 {
-    [Fact]
-    public async Task ExtractAsync_RejectsFactoryProvenanceIdentityMismatch()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExtractAsync_RejectsInvalidFactoryProvenance(
+        bool wrongSource)
     {
         var repository = new RecordingRepository();
         var store = new RecordingContentStore();
@@ -20,7 +23,7 @@ public sealed class EmailAttachmentExtractionServiceTests
             store,
             new StubFingerprintService(),
             new StubIdGenerator(),
-            new WrongProvenanceFactory());
+            new WrongProvenanceFactory(wrongSource));
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.ExtractAsync(
@@ -36,6 +39,13 @@ public sealed class EmailAttachmentExtractionServiceTests
 
     private sealed class WrongProvenanceFactory : IArtifactFactory
     {
+        private readonly bool _wrongSource;
+
+        public WrongProvenanceFactory(bool wrongSource)
+        {
+            _wrongSource = wrongSource;
+        }
+
         public EMF.Orchestration.Models.ArtifactCreationResult Create(
             EMF.Discovery.Models.DiscoveredItem item,
             ArtifactId artifactId,
@@ -49,8 +59,12 @@ public sealed class EmailAttachmentExtractionServiceTests
                 Artifact = valid.Artifact,
                 Provenance = new Provenance
                 {
-                    ArtifactId = new ArtifactId("wrong-artifact"),
-                    Source = valid.Provenance.Source,
+                    ArtifactId = _wrongSource
+                        ? artifactId
+                        : new ArtifactId("wrong-artifact"),
+                    Source = _wrongSource
+                        ? "different-email/record.txt"
+                        : valid.Provenance.Source,
                     RecordedBy = valid.Provenance.RecordedBy
                 }
             };
