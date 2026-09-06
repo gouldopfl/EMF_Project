@@ -1732,6 +1732,29 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_BasisArtifacts (
                     ArtifactId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                60,
+                "AddExposureArtifacts",
+                """
+                CREATE TABLE VeteransClaims_ExposureArtifacts (
+                    ExposureId TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    Role TEXT NOT NULL,
+                    PRIMARY KEY (
+                        ExposureId,
+                        ArtifactId,
+                        Role
+                    ),
+                    FOREIGN KEY (ExposureId)
+                        REFERENCES VeteransClaims_Exposures (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ExposureArtifacts_Artifact
+                ON VeteransClaims_ExposureArtifacts (
+                    ArtifactId
+                );
                 """)
         };
 }

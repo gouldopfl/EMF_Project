@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Service;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -618,5 +619,121 @@ public sealed class SqliteServiceHistoryRepository :
         while (await reader.ReadAsync(cancellationToken))
             ids.Add(new ExposureId(reader.GetString(0)));
         return ids;
+    }
+
+    public async Task AddExposureArtifactAsync(
+        ExposureArtifact association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        if (association.Role != ExposureTraceabilityRoles.Supporting &&
+            association.Role != ExposureTraceabilityRoles.Contradicting &&
+            association.Role != ExposureTraceabilityRoles.Qualifying)
+        {
+            throw new ArgumentException(
+                "Exposure artifact role is invalid.",
+                nameof(association));
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_ExposureArtifacts (
+                ExposureId, ArtifactId, Role
+            )
+            SELECT $exposureId, $artifactId, $role
+            FROM VeteransClaims_Exposures AS exposure
+            INNER JOIN Artifacts AS artifact
+                ON artifact.Id = $artifactId
+            WHERE exposure.Id = $exposureId;
+            """;
+        command.Parameters.AddWithValue(
+            "$exposureId", association.ExposureId.Value);
+        command.Parameters.AddWithValue(
+            "$artifactId", association.ArtifactId.Value);
+        command.Parameters.AddWithValue(
+            "$role", association.Role);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException(
+                "The exposure and artifact must exist.");
+        }
+    }
+
+    public Task<IReadOnlyList<ExposureArtifact>>
+        GetExposureArtifactsAsync(
+            ExposureId exposureId,
+            CancellationToken cancellationToken = default)
+    {
+        return GetExposureArtifactsAsync(
+            "ExposureId",
+            exposureId.Value,
+            cancellationToken);
+    }
+
+    public Task<IReadOnlyList<ExposureArtifact>>
+        GetExposureArtifactsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+    {
+        return GetExposureArtifactsAsync(
+            "ArtifactId",
+            artifactId.Value,
+            cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<ExposureArtifact>>
+        GetExposureArtifactsAsync(
+            string columnName,
+            string value,
+            CancellationToken cancellationToken)
+    {
+        if (columnName != "ExposureId" &&
+            columnName != "ArtifactId")
+        {
+            throw new ArgumentOutOfRangeException(nameof(columnName));
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            $"""
+            SELECT ExposureId, ArtifactId, Role
+            FROM VeteransClaims_ExposureArtifacts
+            WHERE {columnName} = $value
+            ORDER BY ExposureId, ArtifactId, Role;
+            """;
+        command.Parameters.AddWithValue("$value", value);
+
+        var results = new List<ExposureArtifact>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var role = reader.GetString(2);
+            if (role != ExposureTraceabilityRoles.Supporting &&
+                role != ExposureTraceabilityRoles.Contradicting &&
+                role != ExposureTraceabilityRoles.Qualifying)
+            {
+                throw new InvalidOperationException(
+                    "Stored exposure artifact role is invalid.");
+            }
+
+            results.Add(
+                new ExposureArtifact
+                {
+                    ExposureId = new ExposureId(reader.GetString(0)),
+                    ArtifactId = new ArtifactId(reader.GetString(1)),
+                    Role = role
+                });
+        }
+
+        return results;
     }
 }

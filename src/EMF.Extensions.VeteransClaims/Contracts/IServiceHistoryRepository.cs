@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Service;
 
@@ -70,5 +71,19 @@ public interface IServiceHistoryRepository
     Task<IReadOnlyList<ExposureId>>
         GetExposureIdsAsync(
             RequirementId requirementId,
+            CancellationToken cancellationToken = default);
+
+    Task AddExposureArtifactAsync(
+        ExposureArtifact association,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ExposureArtifact>>
+        GetExposureArtifactsAsync(
+            ExposureId exposureId,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ExposureArtifact>>
+        GetExposureArtifactsAsync(
+            ArtifactId artifactId,
             CancellationToken cancellationToken = default);
 }
