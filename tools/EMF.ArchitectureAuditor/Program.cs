@@ -1,18 +1,16 @@
 using EMF.ArchitectureAuditor;
 
 const int MaxReportedParseErrors = 50;
+const int MaxReportedFindings = 100;
 
-var repositoryRoot =
-    Path.GetFullPath(
-        args.Length > 0
-            ? args[0]
-            : Directory.GetCurrentDirectory());
+var repositoryRoot = Path.GetFullPath(
+    args.Length > 0 ? args[0] : Directory.GetCurrentDirectory());
 
 using var cancellation = new CancellationTokenSource();
 
-Console.CancelKeyPress += (_, eventArgs) =>
+Console.CancelKeyPress += (_, e) =>
 {
-    eventArgs.Cancel = true;
+    e.Cancel = true;
     cancellation.Cancel();
 };
 
@@ -21,16 +19,23 @@ try
     var inventory = new SourceInventory();
     var parser = new SourceParser();
 
+    IAuditRule[] rules =
+    [
+        new WholeFileReadRule()
+    ];
+
     Console.WriteLine("===== EMF ARCHITECTURE AUDITOR =====");
     Console.WriteLine($"Repository: {repositoryRoot}");
     Console.WriteLine("Mode: Direct C# source analysis");
+    Console.WriteLine($"Rules: {rules.Length}");
     Console.WriteLine();
 
     var sources = inventory.Discover(repositoryRoot);
+    var findings = new List<AuditFinding>();
 
     long totalBytes = 0;
-    var parseErrorCount = 0;
-    var reportedErrors = 0;
+    var parseErrors = 0;
+    var reportedParseErrors = 0;
 
     foreach (var source in sources)
     {
@@ -38,47 +43,83 @@ try
 
         totalBytes = checked(totalBytes + source.SizeBytes);
 
-        var parsed =
-            parser.Parse(
-                source,
-                cancellation.Token);
+        var parsed = parser.Parse(
+            source,
+            cancellation.Token);
 
         foreach (var diagnostic in parsed.ParseErrors)
         {
-            parseErrorCount++;
+            parseErrors++;
 
-            if (reportedErrors >= MaxReportedParseErrors)
+            if (reportedParseErrors >= MaxReportedParseErrors)
                 continue;
 
-            var line = diagnostic.Location.GetLineSpan();
+            var location = diagnostic.Location.GetLineSpan();
 
             Console.WriteLine(
                 $"PARSE ERROR: {source.RelativePath}:" +
-                $"{line.StartLinePosition.Line + 1}:" +
-                $"{line.StartLinePosition.Character + 1} " +
+                $"{location.StartLinePosition.Line + 1}:" +
+                $"{location.StartLinePosition.Character + 1} " +
                 $"{diagnostic.Id} {diagnostic.GetMessage()}");
 
-            reportedErrors++;
+            reportedParseErrors++;
+        }
+
+        if (parsed.ParseErrors.Count != 0)
+            continue;
+
+        foreach (var rule in rules)
+        {
+            findings.AddRange(
+                rule.Analyze(
+                    parsed,
+                    cancellation.Token));
         }
     }
+
+    var ordered = findings
+        .OrderByDescending(x => x.Severity)
+        .ThenByDescending(x => x.Confidence)
+        .ThenBy(x => x.RuleId, StringComparer.Ordinal)
+        .ThenBy(x => x.RelativePath, StringComparer.Ordinal)
+        .ThenBy(x => x.Line)
+        .ThenBy(x => x.Column)
+        .ToArray();
 
     Console.WriteLine();
     Console.WriteLine("===== SOURCE INVENTORY =====");
     Console.WriteLine($"C# files: {sources.Count}");
     Console.WriteLine($"Source bytes: {totalBytes:N0}");
-    Console.WriteLine($"Parse errors: {parseErrorCount}");
+    Console.WriteLine($"Parse errors: {parseErrors}");
 
-    if (parseErrorCount > reportedErrors)
+    Console.WriteLine();
+    Console.WriteLine("===== FINDINGS =====");
+
+    foreach (var finding in ordered.Take(MaxReportedFindings))
     {
         Console.WriteLine(
-            $"Additional parse errors suppressed: " +
-            $"{parseErrorCount - reportedErrors}");
+            $"{finding.RuleId} " +
+            $"[{finding.Severity}/{finding.Confidence}] " +
+            $"{finding.RelativePath}:{finding.Line}:{finding.Column}");
+
+        Console.WriteLine($"  {finding.Message}");
+        Console.WriteLine($"  Review: {finding.Recommendation}");
+    }
+
+    if (ordered.Length > MaxReportedFindings)
+    {
+        Console.WriteLine(
+            $"Additional findings suppressed: " +
+            $"{ordered.Length - MaxReportedFindings}");
     }
 
     Console.WriteLine();
+    Console.WriteLine("===== AUDIT SUMMARY =====");
+    Console.WriteLine($"Rules executed: {rules.Length}");
+    Console.WriteLine($"Findings: {ordered.Length}");
     Console.WriteLine("===== AUDIT COMPLETE =====");
 
-    return parseErrorCount == 0 ? 0 : 2;
+    return parseErrors == 0 ? 0 : 2;
 }
 catch (OperationCanceledException)
 {
