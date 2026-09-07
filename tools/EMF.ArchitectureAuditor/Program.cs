@@ -21,7 +21,8 @@ try
 
     IAuditRule[] rules =
     [
-        new WholeFileReadRule()
+        new WholeFileReadRule(),
+        new InputMaterializationRule()
     ];
 
     Console.WriteLine("===== EMF ARCHITECTURE AUDITOR =====");
@@ -80,6 +81,7 @@ try
     var ordered = findings
         .OrderByDescending(x => x.Severity)
         .ThenByDescending(x => x.Confidence)
+        .ThenBy(x => x.SourceArea)
         .ThenBy(x => x.RuleId, StringComparer.Ordinal)
         .ThenBy(x => x.RelativePath, StringComparer.Ordinal)
         .ThenBy(x => x.Line)
@@ -99,7 +101,8 @@ try
     {
         Console.WriteLine(
             $"{finding.RuleId} " +
-            $"[{finding.Severity}/{finding.Confidence}] " +
+            $"[{finding.Severity}/{finding.Confidence}/" +
+            $"{finding.SourceArea}] " +
             $"{finding.RelativePath}:{finding.Line}:{finding.Column}");
 
         Console.WriteLine($"  {finding.Message}");

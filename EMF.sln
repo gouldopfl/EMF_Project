@@ -53,6 +53,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{07C2787E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMF.ArchitectureAuditor", "tools\EMF.ArchitectureAuditor\EMF.ArchitectureAuditor.csproj", "{9D2A1771-AB75-4D56-A372-3DFAECCCF5DE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMF.ArchitectureAuditor.Tests", "tests\EMF.ArchitectureAuditor.Tests\EMF.ArchitectureAuditor.Tests.csproj", "{7DDBD6F2-604E-4174-A04E-53481AB44C4C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -327,6 +329,18 @@ Global
 		{9D2A1771-AB75-4D56-A372-3DFAECCCF5DE}.Release|x64.Build.0 = Release|Any CPU
 		{9D2A1771-AB75-4D56-A372-3DFAECCCF5DE}.Release|x86.ActiveCfg = Release|Any CPU
 		{9D2A1771-AB75-4D56-A372-3DFAECCCF5DE}.Release|x86.Build.0 = Release|Any CPU
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C}.Debug|x64.Build.0 = Debug|Any CPU
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C}.Debug|x86.Build.0 = Debug|Any CPU
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C}.Release|x64.ActiveCfg = Release|Any CPU
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C}.Release|x64.Build.0 = Release|Any CPU
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C}.Release|x86.ActiveCfg = Release|Any CPU
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -354,5 +368,6 @@ Global
 		{AF45EBB9-0BC4-4099-A0DC-BC4A82C7E1CB} = {717C25BE-9B77-47FF-994F-E4F8714318A1}
 		{A3B70638-2C19-4475-B668-538BE2949C25} = {717C25BE-9B77-47FF-994F-E4F8714318A1}
 		{9D2A1771-AB75-4D56-A372-3DFAECCCF5DE} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
+		{7DDBD6F2-604E-4174-A04E-53481AB44C4C} = {0971015A-F440-4573-B4BA-25888F9645E9}
 	EndGlobalSection
 EndGlobal

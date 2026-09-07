@@ -29,6 +29,7 @@ public sealed record AuditFinding(
     AuditSeverity Severity,
     AuditConfidence Confidence,
     AuditAnalysisMode AnalysisMode,
+    AuditSourceArea SourceArea,
     string RelativePath,
     int Line,
     int Column,

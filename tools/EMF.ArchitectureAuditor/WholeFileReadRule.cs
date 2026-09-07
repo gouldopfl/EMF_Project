@@ -59,6 +59,8 @@ public sealed class WholeFileReadRule : IAuditRule
                 AuditSeverity.Low,
                 AuditConfidence.High,
                 AuditAnalysisMode.Syntax,
+                AuditSourceAreaClassifier.Classify(
+                    source.Source.RelativePath),
                 source.Source.RelativePath,
                 span.Line + 1,
                 span.Character + 1,
