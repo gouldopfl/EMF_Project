@@ -35,6 +35,19 @@ public sealed class OfficeOpenXmlContainerClassifierTests
             classifier.Classify(content));
     }
 
+    [Fact]
+    public void Classify_RejectsOversizedInput()
+    {
+        var classifier =
+            new OfficeOpenXmlContainerClassifier(
+                maxInputBytes: 8);
+
+        var content = new byte[9];
+
+        Assert.Throws<InvalidDataException>(
+            () => classifier.Classify(content));
+    }
+
     private static byte[] CreateZip(
         string entryName)
     {
