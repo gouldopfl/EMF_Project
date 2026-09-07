@@ -31,7 +31,8 @@ try
         new FoundationalDependencyRule(),
         new LaboratoryDependencyRule(),
         new ProviderAdapterDependencyRule(),
-        new VeteransClaimsDependencyRule()
+        new VeteransClaimsDependencyRule(),
+        new ConsoleCompositionDependencyRule()
     ];
 
     Console.WriteLine("===== EMF ARCHITECTURE AUDITOR =====");
