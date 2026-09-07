@@ -53,6 +53,24 @@ public sealed class XmlContentInspectorTests
     }
 
     [Fact]
+    public void Inspect_RejectsOversizedInput()
+    {
+        var inspector =
+            new XmlContentInspector(
+                maxInputBytes: 8);
+
+        var metadata = new Dictionary<string, object>();
+        var findings = new List<string>();
+        var content = new byte[9];
+
+        Assert.Throws<InvalidDataException>(
+            () => inspector.Inspect(
+                content,
+                metadata,
+                findings));
+    }
+
+    [Fact]
     public void Inspect_ReportsMalformedXml()
     {
         var inspector = new XmlContentInspector();

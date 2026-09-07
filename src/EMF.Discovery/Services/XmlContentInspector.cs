@@ -6,6 +6,23 @@ namespace EMF.Discovery.Services;
 public sealed class XmlContentInspector :
     IArtifactContentInspector
 {
+    public const long DefaultMaxInputBytes =
+        100L * 1024 * 1024;
+
+    private readonly long _maxInputBytes;
+
+    public XmlContentInspector(
+        long maxInputBytes = DefaultMaxInputBytes)
+    {
+        if (maxInputBytes <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxInputBytes));
+        }
+
+        _maxInputBytes = maxInputBytes;
+    }
+
     public bool CanInspect(string contentType) =>
         string.Equals(
             contentType,
@@ -21,6 +38,12 @@ public sealed class XmlContentInspector :
         IDictionary<string, object> metadata,
         ICollection<string> findings)
     {
+        if (content.Length > _maxInputBytes)
+        {
+            throw new InvalidDataException(
+                "XML input exceeds the maximum allowed size.");
+        }
+
         try
         {
             using var stream =
@@ -33,7 +56,9 @@ public sealed class XmlContentInspector :
                     {
                         DtdProcessing =
                             DtdProcessing.Prohibit,
-                        XmlResolver = null
+                        XmlResolver = null,
+                        MaxCharactersInDocument =
+                            _maxInputBytes
                     });
 
             var elementCount = 0;
