@@ -1,5 +1,5 @@
 using EMF.Security.Persistence.Sqlite.Auditing;
-using Microsoft.Data.Sqlite;
+using System.Data.Common;
 
 namespace EMF.ConsoleApplication;
 
@@ -52,7 +52,7 @@ public static class SecurityConsoleCommand
                         databasePath)
                     .VerifyAsync();
         }
-        catch (SqliteException exception)
+        catch (DbException exception)
         {
             global::System.Console.Error.WriteLine(
                 "Security audit verification could not run: " +
@@ -120,7 +120,7 @@ public static class SecurityConsoleCommand
                     .CreateAsync(operation);
         }
         catch (Exception exception)
-            when (exception is SqliteException
+            when (exception is DbException
                 or InvalidOperationException)
         {
             global::System.Console.Error.WriteLine(

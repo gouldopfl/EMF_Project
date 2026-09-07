@@ -91,4 +91,43 @@ public sealed class SecurityConsoleCommandTests
             Directory.Delete(root, true);
         }
     }
+
+    [Fact]
+    public async Task AuditCommands_handle_invalid_database_provider_failure()
+    {
+        var root =
+            Path.Combine(
+                Path.GetTempPath(),
+                Guid.NewGuid().ToString());
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var databasePath =
+                Path.Combine(root, "invalid-security-command.db");
+
+            await File.WriteAllTextAsync(
+                databasePath,
+                "not a sqlite database");
+
+            var verifyExitCode =
+                await SecurityConsoleCommand.RunAsync(
+                    ["audit", "verify", databasePath]);
+
+            Assert.Equal(2, verifyExitCode);
+
+            var reportExitCode =
+                await SecurityConsoleCommand.RunAsync(
+                ["audit", "report", databasePath,
+                 "artifact.read"]);
+
+            Assert.Equal(1, reportExitCode);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
 }
