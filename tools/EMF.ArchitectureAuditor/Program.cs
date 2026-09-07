@@ -39,7 +39,7 @@ try
     Console.WriteLine("===== EMF ARCHITECTURE AUDITOR =====");
     Console.WriteLine($"Repository: {repositoryRoot}");
     Console.WriteLine("Mode: Direct C# source analysis");
-    Console.WriteLine($"Rules: {rules.Length}");
+    Console.WriteLine($"Rules: {rules.Length + repositoryRules.Length}");
     Console.WriteLine();
 
     var sources = inventory.Discover(repositoryRoot);
