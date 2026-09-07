@@ -15,6 +15,16 @@ public sealed class InputMaterializationRule : IAuditRule
         ParsedSourceFile source,
         CancellationToken cancellationToken = default)
     {
+        var sourceArea =
+            AuditSourceAreaClassifier.Classify(
+                source.Source.RelativePath);
+
+        if (sourceArea is not AuditSourceArea.Production and
+            not AuditSourceArea.Tools)
+        {
+            yield break;
+        }
+
         var root = source.SyntaxTree.GetRoot(cancellationToken);
 
         foreach (var invocation in root.DescendantNodes()
@@ -57,8 +67,7 @@ public sealed class InputMaterializationRule : IAuditRule
                 AuditSeverity.Medium,
                 AuditConfidence.Medium,
                 AuditAnalysisMode.Syntax,
-                AuditSourceAreaClassifier.Classify(
-                    source.Source.RelativePath),
+                sourceArea,
                 source.Source.RelativePath,
                 position.Line + 1,
                 position.Character + 1,

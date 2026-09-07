@@ -61,7 +61,32 @@ public sealed class InputMaterializationRuleTests
         Assert.Empty(rule.Analyze(parsed));
     }
 
-    private static ParsedSourceFile Parse(string code)
+    [Fact]
+    public void Analyze_DoesNotApplyProductionRuleToTestSource()
+    {
+        const string code = """
+            public sealed class FakeStore
+            {
+                public void Write(ReadOnlyMemory<byte> content)
+                {
+                    var bytes = content.ToArray();
+                }
+            }
+            """;
+
+        var parsed =
+            Parse(
+                code,
+                "tests/Example/FakeStoreTests.cs");
+
+        var rule = new InputMaterializationRule();
+
+        Assert.Empty(rule.Analyze(parsed));
+    }
+
+    private static ParsedSourceFile Parse(
+        string code,
+        string relativePath = "src/EMF.Core/TestSource.cs")
     {
         var path = Path.GetTempFileName();
 
@@ -71,7 +96,7 @@ public sealed class InputMaterializationRuleTests
 
             var info = new FileInfo(path);
             var source = new SourceFile(
-                "src/EMF.Core/TestSource.cs",
+                relativePath,
                 path,
                 info.Length);
 
