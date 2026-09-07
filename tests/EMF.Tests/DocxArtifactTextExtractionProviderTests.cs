@@ -114,6 +114,24 @@ public sealed class DocxArtifactTextExtractionProviderTests
             ex.Message);
     }
 
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var provider =
+            new DocxArtifactTextExtractionProvider(
+                new StubContentStore(new byte[2]),
+                maxInputBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("docx-input-limit")));
+
+        Assert.Equal(
+            "DOCX input exceeds the maximum allowed size.",
+            ex.Message);
+    }
+
     private static byte[] CreateDocument(string text)
     {
         using var stream = new MemoryStream();

@@ -128,6 +128,26 @@ public sealed class OpenDocumentArtifactTextExtractionProviderTests
             exception.Message);
     }
 
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var provider =
+            new OpenDocumentArtifactTextExtractionProvider(
+                new StubContentStore(new byte[2]),
+                "application/vnd.oasis.opendocument.text",
+                "evidence.odt",
+                maxInputBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("odf-input-limit")));
+
+        Assert.Equal(
+            "OpenDocument input exceeds the maximum allowed size.",
+            ex.Message);
+    }
+
     private static byte[] CreateOds()
     {
         using var stream = new MemoryStream();

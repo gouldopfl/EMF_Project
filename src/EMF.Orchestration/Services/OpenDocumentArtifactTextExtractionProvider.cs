@@ -10,6 +10,8 @@ namespace EMF.Orchestration.Services;
 public sealed class OpenDocumentArtifactTextExtractionProvider :
     IArtifactTextExtractionProvider
 {
+    public const long DefaultMaxInputBytes =
+        100L * 1024 * 1024;
     public const int DefaultMaxPackageEntryCount = 1_000;
     public const long DefaultMaxPackageEntryBytes =
         25L * 1024 * 1024;
@@ -22,6 +24,7 @@ public sealed class OpenDocumentArtifactTextExtractionProvider :
     private readonly OfficeDocumentReader _reader;
     private readonly string _contentType;
     private readonly string _fileName;
+    private readonly long _maxInputBytes;
     private readonly int _maxPackageEntryCount;
     private readonly long _maxPackageEntryBytes;
     private readonly long _maxPackageTotalBytes;
@@ -31,6 +34,7 @@ public sealed class OpenDocumentArtifactTextExtractionProvider :
         IArtifactContentStore contentStore,
         string contentType,
         string fileName,
+        long maxInputBytes = DefaultMaxInputBytes,
         int maxPackageEntryCount =
             DefaultMaxPackageEntryCount,
         long maxPackageEntryBytes =
@@ -41,6 +45,9 @@ public sealed class OpenDocumentArtifactTextExtractionProvider :
             DefaultMaxExtractedTextChars)
     {
         ArgumentNullException.ThrowIfNull(contentStore);
+        ValidatePositive(
+            maxInputBytes,
+            nameof(maxInputBytes));
         ValidatePositive(
             maxPackageEntryCount,
             nameof(maxPackageEntryCount));
@@ -57,6 +64,7 @@ public sealed class OpenDocumentArtifactTextExtractionProvider :
         _contentStore = contentStore;
         _contentType = contentType;
         _fileName = fileName;
+        _maxInputBytes = maxInputBytes;
         _maxPackageEntryCount = maxPackageEntryCount;
         _maxPackageEntryBytes = maxPackageEntryBytes;
         _maxPackageTotalBytes = maxPackageTotalBytes;
@@ -87,6 +95,10 @@ public sealed class OpenDocumentArtifactTextExtractionProvider :
             return null;
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (content.LongLength > _maxInputBytes)
+            throw new InvalidDataException(
+                "OpenDocument input exceeds the maximum allowed size.");
 
         ValidatePackage(
             content,

@@ -115,6 +115,24 @@ public sealed class PptxArtifactTextExtractionProviderTests
         Assert.Equal(expectedMessage, ex.Message);
     }
 
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var provider =
+            new PptxArtifactTextExtractionProvider(
+                new StubContentStore(new byte[2]),
+                maxInputBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("pptx-input-limit")));
+
+        Assert.Equal(
+            "PPTX input exceeds the maximum allowed size.",
+            ex.Message);
+    }
+
     private static byte[] CreatePresentation(
         params string[] slideTexts)
     {

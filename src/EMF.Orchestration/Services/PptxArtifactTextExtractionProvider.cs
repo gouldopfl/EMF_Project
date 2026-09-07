@@ -14,6 +14,8 @@ public sealed class PptxArtifactTextExtractionProvider :
     private const string ContentType =
         "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
+    public const long DefaultMaxInputBytes =
+        100L * 1024 * 1024;
     public const int DefaultMaxPackageEntryCount = 1000;
     public const long DefaultMaxPackageEntryBytes = 25L * 1024 * 1024;
     public const long DefaultMaxPackageTotalBytes = 100L * 1024 * 1024;
@@ -22,6 +24,7 @@ public sealed class PptxArtifactTextExtractionProvider :
     public const int DefaultMaxExtractedTextChars = 10 * 1024 * 1024;
 
     private readonly IArtifactContentStore _contentStore;
+    private readonly long _maxInputBytes;
     private readonly int _maxPackageEntryCount;
     private readonly long _maxPackageEntryBytes;
     private readonly long _maxPackageTotalBytes;
@@ -31,6 +34,7 @@ public sealed class PptxArtifactTextExtractionProvider :
 
     public PptxArtifactTextExtractionProvider(
         IArtifactContentStore contentStore,
+        long maxInputBytes = DefaultMaxInputBytes,
         int maxPackageEntryCount = DefaultMaxPackageEntryCount,
         long maxPackageEntryBytes = DefaultMaxPackageEntryBytes,
         long maxPackageTotalBytes = DefaultMaxPackageTotalBytes,
@@ -40,6 +44,9 @@ public sealed class PptxArtifactTextExtractionProvider :
     {
         ArgumentNullException.ThrowIfNull(contentStore);
 
+        ValidatePositive(
+            maxInputBytes,
+            nameof(maxInputBytes));
         ValidatePositive(
             maxPackageEntryCount,
             nameof(maxPackageEntryCount));
@@ -60,6 +67,7 @@ public sealed class PptxArtifactTextExtractionProvider :
             nameof(maxExtractedTextChars));
 
         _contentStore = contentStore;
+        _maxInputBytes = maxInputBytes;
         _maxPackageEntryCount = maxPackageEntryCount;
         _maxPackageEntryBytes = maxPackageEntryBytes;
         _maxPackageTotalBytes = maxPackageTotalBytes;
@@ -87,6 +95,10 @@ public sealed class PptxArtifactTextExtractionProvider :
             return null;
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (content.LongLength > _maxInputBytes)
+            throw new InvalidDataException(
+                "PPTX input exceeds the maximum allowed size.");
 
         ValidatePackage(content);
 

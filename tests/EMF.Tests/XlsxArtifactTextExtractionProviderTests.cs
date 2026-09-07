@@ -229,6 +229,24 @@ public sealed class XlsxArtifactTextExtractionProviderTests
         Assert.Equal(expectedMessage, ex.Message);
     }
 
+    [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var provider =
+            new XlsxArtifactTextExtractionProvider(
+                new StubContentStore(new byte[2]),
+                maxInputBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("xlsx-input-limit")));
+
+        Assert.Equal(
+            "XLSX input exceeds the maximum allowed size.",
+            ex.Message);
+    }
+
     private static byte[] AddSharedString(byte[] content)
     {
         using var stream = new MemoryStream();

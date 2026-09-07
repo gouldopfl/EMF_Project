@@ -14,12 +14,15 @@ public sealed class DocxArtifactTextExtractionProvider :
     private const string ContentType =
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+    public const long DefaultMaxInputBytes =
+        100L * 1024 * 1024;
     public const int DefaultMaxPackageEntryCount = 1000;
     public const long DefaultMaxPackageEntryBytes = 25L * 1024 * 1024;
     public const long DefaultMaxPackageTotalBytes = 100L * 1024 * 1024;
     public const int DefaultMaxExtractedTextChars = 10 * 1024 * 1024;
 
     private readonly IArtifactContentStore _contentStore;
+    private readonly long _maxInputBytes;
     private readonly int _maxPackageEntryCount;
     private readonly long _maxPackageEntryBytes;
     private readonly long _maxPackageTotalBytes;
@@ -27,12 +30,17 @@ public sealed class DocxArtifactTextExtractionProvider :
 
     public DocxArtifactTextExtractionProvider(
         IArtifactContentStore contentStore,
+        long maxInputBytes = DefaultMaxInputBytes,
         int maxPackageEntryCount = DefaultMaxPackageEntryCount,
         long maxPackageEntryBytes = DefaultMaxPackageEntryBytes,
         long maxPackageTotalBytes = DefaultMaxPackageTotalBytes,
         int maxExtractedTextChars = DefaultMaxExtractedTextChars)
     {
         ArgumentNullException.ThrowIfNull(contentStore);
+
+        if (maxInputBytes <= 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(maxInputBytes));
 
         if (maxPackageEntryCount <= 0)
             throw new ArgumentOutOfRangeException(
@@ -51,6 +59,7 @@ public sealed class DocxArtifactTextExtractionProvider :
                 nameof(maxExtractedTextChars));
 
         _contentStore = contentStore;
+        _maxInputBytes = maxInputBytes;
         _maxPackageEntryCount = maxPackageEntryCount;
         _maxPackageEntryBytes = maxPackageEntryBytes;
         _maxPackageTotalBytes = maxPackageTotalBytes;
@@ -76,6 +85,10 @@ public sealed class DocxArtifactTextExtractionProvider :
             return null;
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (content.LongLength > _maxInputBytes)
+            throw new InvalidDataException(
+                "DOCX input exceeds the maximum allowed size.");
 
         ValidatePackage(content);
 
