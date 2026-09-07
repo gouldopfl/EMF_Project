@@ -12,6 +12,24 @@ public sealed class PdfToImagePageRenderer :
 {
     private const int OcrDpi = 300;
 
+    public const long DefaultMaxInputBytes =
+        100L * 1024 * 1024;
+
+    private readonly long _maxInputBytes;
+
+    public PdfToImagePageRenderer(
+        long maxInputBytes = DefaultMaxInputBytes)
+    {
+        if (maxInputBytes <= 0 ||
+            maxInputBytes > Array.MaxLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxInputBytes));
+        }
+
+        _maxInputBytes = maxInputBytes;
+    }
+
     public Task<byte[]> RenderPageAsync(
         ReadOnlyMemory<byte> pdf,
         int pageIndex,
@@ -21,6 +39,12 @@ public sealed class PdfToImagePageRenderer :
             throw new ArgumentOutOfRangeException(nameof(pageIndex));
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (pdf.Length > _maxInputBytes)
+        {
+            throw new InvalidDataException(
+                "PDF render input exceeds the maximum allowed size.");
+        }
 
         var content = pdf.ToArray();
         var pageSize =

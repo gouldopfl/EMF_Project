@@ -111,4 +111,23 @@ public sealed class PdfToImagePageRendererTests
                 0,
                 cancellation.Token));
     }
+
+    [Fact]
+    public async Task RenderPageAsync_RejectsOversizedInput()
+    {
+        var renderer =
+            new PdfToImagePageRenderer(
+                maxInputBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => renderer.RenderPageAsync(
+                    new byte[2],
+                    0));
+
+        Assert.Equal(
+            "PDF render input exceeds the maximum allowed size.",
+            ex.Message);
+    }
+
 }
