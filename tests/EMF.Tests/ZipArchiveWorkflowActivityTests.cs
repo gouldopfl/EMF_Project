@@ -2,6 +2,7 @@ using EMF.Core.Contracts.Storage;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Orchestration.Contracts;
+using EMF.Integrity;
 using EMF.Orchestration.Models;
 using EMF.Orchestration.Services;
 using EMF.Tests.TestInfrastructure;
@@ -39,7 +40,10 @@ public sealed class ZipArchiveWorkflowActivityTests
             new ZipArchiveWorkflowActivity(
                 repository,
                 store,
-                processor);
+                processor,
+                new ContainerProcessingGuard(
+                    repository,
+                    new Sha256ContentFingerprintService()));
 
         var result =
             await activity.ExecuteAsync(
@@ -50,6 +54,56 @@ public sealed class ZipArchiveWorkflowActivityTests
                 });
 
         Assert.True(result.Succeeded);
+        Assert.Equal(1, processor.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SkipsAlreadyProcessedUnchangedArchive()
+    {
+        var repository =
+            new InMemoryEvidenceRepository();
+
+        var archive = new Artifact
+        {
+            Id = new ArtifactId("zip-repeat"),
+            Name = "repeat.zip",
+            ArtifactType = "file",
+            Metadata = new Dictionary<string, object>
+            {
+                [ArtifactMetadataKeys.FileExtension] = ".zip"
+            }
+        };
+
+        await repository.AddArtifactAsync(archive);
+
+        var store =
+            new StubContentStore(
+                archive.Id,
+                "zip"u8.ToArray());
+
+        var processor = new StubProcessingService();
+
+        var activity =
+            new ZipArchiveWorkflowActivity(
+                repository,
+                store,
+                processor,
+                new ContainerProcessingGuard(
+                    repository,
+                    new Sha256ContentFingerprintService()));
+
+        await activity.ExecuteAsync(
+            new WorkflowExecutionContext
+            {
+                WorkflowId = new WorkflowId("workflow-zip-first")
+            });
+
+        await activity.ExecuteAsync(
+            new WorkflowExecutionContext
+            {
+                WorkflowId = new WorkflowId("workflow-zip-second")
+            });
+
         Assert.Equal(1, processor.Calls);
     }
 
@@ -101,6 +155,9 @@ public sealed class ZipArchiveWorkflowActivityTests
                     archive.Id,
                     "zip"u8.ToArray()),
                 processor,
+                new ContainerProcessingGuard(
+                    repository,
+                    new Sha256ContentFingerprintService()),
                 new ContainerAncestryGuard(
                     repository,
                     maxContainerDepth: 1));
@@ -142,7 +199,10 @@ public sealed class ZipArchiveWorkflowActivityTests
             new ZipArchiveWorkflowActivity(
                 repository,
                 new StubContentStore(),
-                processor);
+                processor,
+                new ContainerProcessingGuard(
+                    repository,
+                    new Sha256ContentFingerprintService()));
 
         var result =
             await activity.ExecuteAsync(

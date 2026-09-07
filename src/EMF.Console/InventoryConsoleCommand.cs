@@ -158,7 +158,10 @@ public static class InventoryConsoleCommand
                 new EmailAttachmentWorkflowActivity(
                     evidenceRepository,
                     contentStore,
-                    processingService));
+                    processingService,
+                    new ContainerProcessingGuard(
+                        evidenceRepository,
+                        fingerprintService)));
 
             var outlookProcessingService =
                 new OutlookAttachmentProcessingService(
@@ -169,7 +172,10 @@ public static class InventoryConsoleCommand
                 new OutlookAttachmentWorkflowActivity(
                     evidenceRepository,
                     contentStore,
-                    outlookProcessingService));
+                    outlookProcessingService,
+                    new ContainerProcessingGuard(
+                        evidenceRepository,
+                        fingerprintService)));
 
             var zipExtractionService =
                 new ZipEntryExtractionService(
@@ -188,7 +194,10 @@ public static class InventoryConsoleCommand
                 new ZipArchiveWorkflowActivity(
                     evidenceRepository,
                     contentStore,
-                    zipProcessingService));
+                    zipProcessingService,
+                    new ContainerProcessingGuard(
+                        evidenceRepository,
+                        fingerprintService)));
 
             activityIds.Add("email-messages");
             activityIds.Add("email-attachments");

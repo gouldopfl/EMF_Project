@@ -2,6 +2,7 @@ using EMF.Core.Contracts.Storage;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Orchestration.Contracts;
+using EMF.Integrity;
 using EMF.Orchestration.Models;
 using EMF.Orchestration.Services;
 using EMF.Tests.TestInfrastructure;
@@ -39,7 +40,10 @@ public sealed class OutlookAttachmentWorkflowActivityTests
             new OutlookAttachmentWorkflowActivity(
                 repository,
                 store,
-                processor);
+                processor,
+                new ContainerProcessingGuard(
+                    repository,
+                    new Sha256ContentFingerprintService()));
 
         var result =
             await activity.ExecuteAsync(
@@ -50,6 +54,58 @@ public sealed class OutlookAttachmentWorkflowActivityTests
                 });
 
         Assert.True(result.Succeeded);
+        Assert.Equal(1, processor.Calls);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SkipsAlreadyProcessedUnchangedMessage()
+    {
+        var repository =
+            new InMemoryEvidenceRepository();
+
+        var message = new Artifact
+        {
+            Id = new ArtifactId("outlook-repeat"),
+            Name = "repeat.msg",
+            ArtifactType = "file",
+            Metadata = new Dictionary<string, object>
+            {
+                [ArtifactMetadataKeys.FileExtension] = ".msg"
+            }
+        };
+
+        await repository.AddArtifactAsync(message);
+
+        var store =
+            new StubContentStore(
+                message.Id,
+                "msg"u8.ToArray());
+
+        var processor = new StubProcessingService();
+
+        var activity =
+            new OutlookAttachmentWorkflowActivity(
+                repository,
+                store,
+                processor,
+                new ContainerProcessingGuard(
+                    repository,
+                    new Sha256ContentFingerprintService()));
+
+        await activity.ExecuteAsync(
+            new WorkflowExecutionContext
+            {
+                WorkflowId =
+                    new WorkflowId("workflow-outlook-first")
+            });
+
+        await activity.ExecuteAsync(
+            new WorkflowExecutionContext
+            {
+                WorkflowId =
+                    new WorkflowId("workflow-outlook-second")
+            });
+
         Assert.Equal(1, processor.Calls);
     }
 
@@ -101,6 +157,9 @@ public sealed class OutlookAttachmentWorkflowActivityTests
                     message.Id,
                     "msg"u8.ToArray()),
                 processor,
+                new ContainerProcessingGuard(
+                    repository,
+                    new Sha256ContentFingerprintService()),
                 new ContainerAncestryGuard(
                     repository,
                     maxContainerDepth: 1));
@@ -142,7 +201,10 @@ public sealed class OutlookAttachmentWorkflowActivityTests
             new OutlookAttachmentWorkflowActivity(
                 repository,
                 new StubContentStore(),
-                processor);
+                processor,
+                new ContainerProcessingGuard(
+                    repository,
+                    new Sha256ContentFingerprintService()));
 
         var result =
             await activity.ExecuteAsync(

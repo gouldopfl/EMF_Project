@@ -12,21 +12,28 @@ public sealed class OutlookAttachmentWorkflowActivity :
     private readonly IEvidenceRepository _repository;
     private readonly IArtifactContentStore _contentStore;
     private readonly IOutlookAttachmentProcessingService _processingService;
+    private const string ProcessorId = "outlook-attachment";
+    private const string ProcessorVersion = "1";
+
     private readonly ContainerAncestryGuard _ancestryGuard;
+    private readonly ContainerProcessingGuard _processingGuard;
 
     public OutlookAttachmentWorkflowActivity(
         IEvidenceRepository repository,
         IArtifactContentStore contentStore,
         IOutlookAttachmentProcessingService processingService,
+        ContainerProcessingGuard processingGuard,
         ContainerAncestryGuard? ancestryGuard = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(contentStore);
         ArgumentNullException.ThrowIfNull(processingService);
+        ArgumentNullException.ThrowIfNull(processingGuard);
 
         _repository = repository;
         _contentStore = contentStore;
         _processingService = processingService;
+        _processingGuard = processingGuard;
         _ancestryGuard =
             ancestryGuard ??
             new ContainerAncestryGuard(repository);
@@ -70,9 +77,27 @@ public sealed class OutlookAttachmentWorkflowActivity :
                     message,
                     cancellationToken);
 
+                var decision =
+                    await _processingGuard.EvaluateAsync(
+                        message,
+                        content,
+                        ProcessorId,
+                        ProcessorVersion,
+                        cancellationToken);
+
+                if (!decision.ShouldProcess)
+                    continue;
+
                 await _processingService.ProcessAsync(
                     message.Id,
                     content,
+                    cancellationToken);
+
+                await _processingGuard.MarkProcessedAsync(
+                    message,
+                    decision.Fingerprint,
+                    ProcessorId,
+                    ProcessorVersion,
                     cancellationToken);
 
                 processed++;

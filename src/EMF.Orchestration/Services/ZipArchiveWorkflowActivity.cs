@@ -12,21 +12,28 @@ public sealed class ZipArchiveWorkflowActivity :
     private readonly IEvidenceRepository _repository;
     private readonly IArtifactContentStore _contentStore;
     private readonly IZipArchiveProcessingService _processingService;
+    private const string ProcessorId = "zip-archive";
+    private const string ProcessorVersion = "1";
+
     private readonly ContainerAncestryGuard _ancestryGuard;
+    private readonly ContainerProcessingGuard _processingGuard;
 
     public ZipArchiveWorkflowActivity(
         IEvidenceRepository repository,
         IArtifactContentStore contentStore,
         IZipArchiveProcessingService processingService,
+        ContainerProcessingGuard processingGuard,
         ContainerAncestryGuard? ancestryGuard = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(contentStore);
         ArgumentNullException.ThrowIfNull(processingService);
+        ArgumentNullException.ThrowIfNull(processingGuard);
 
         _repository = repository;
         _contentStore = contentStore;
         _processingService = processingService;
+        _processingGuard = processingGuard;
         _ancestryGuard =
             ancestryGuard ??
             new ContainerAncestryGuard(repository);
@@ -70,9 +77,27 @@ public sealed class ZipArchiveWorkflowActivity :
                     archive,
                     cancellationToken);
 
+                var decision =
+                    await _processingGuard.EvaluateAsync(
+                        archive,
+                        content,
+                        ProcessorId,
+                        ProcessorVersion,
+                        cancellationToken);
+
+                if (!decision.ShouldProcess)
+                    continue;
+
                 await _processingService.ProcessAsync(
                     archive.Id,
                     content,
+                    cancellationToken);
+
+                await _processingGuard.MarkProcessedAsync(
+                    archive,
+                    decision.Fingerprint,
+                    ProcessorId,
+                    ProcessorVersion,
                     cancellationToken);
 
                 processed++;
