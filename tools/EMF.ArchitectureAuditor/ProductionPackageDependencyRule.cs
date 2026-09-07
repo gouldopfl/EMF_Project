@@ -42,7 +42,7 @@ public sealed class ProductionPackageDependencyRule : IRepositoryAuditRule
     ];
 
     public string Id => "EMF-ARCH-007";
-    public string Version => "1";
+    public string Version => "2";
     public string Category => "Architecture";
 
     public IEnumerable<AuditFinding> Analyze(
@@ -115,6 +115,10 @@ public sealed class ProductionPackageDependencyRule : IRepositoryAuditRule
             "Azure.Monitor.Ingestion"
                 or "Azure.Security.KeyVault.Keys" =>
                 project == "EMF.Security.Azure",
+
+            "DocumentFormat.OpenXml" =>
+                project is "EMF.Orchestration"
+                    or "EMF.Extensions.VeteransClaims.Orchestration",
 
             _ =>
                 project == "EMF.Orchestration" &&
