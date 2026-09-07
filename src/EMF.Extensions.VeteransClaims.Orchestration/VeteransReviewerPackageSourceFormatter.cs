@@ -93,6 +93,13 @@ internal static class VeteransReviewerPackageSourceFormatter
                 $"- basis {item.Basis.Id.Value}: " +
                 $"{item.Exposure.Id.Value}: " +
                 $"{SingleLine(item.Exposure.ExposureType)}");
+
+            foreach (var artifact in item.Artifacts)
+            {
+                builder.AppendLine(
+                    $"  - {SingleLine(artifact.Role)} artifact: " +
+                    $"{artifact.ArtifactId.Value}");
+            }
         }
 
         builder.AppendLine();

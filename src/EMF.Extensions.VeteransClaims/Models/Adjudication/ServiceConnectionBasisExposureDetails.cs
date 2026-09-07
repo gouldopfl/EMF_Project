@@ -7,4 +7,6 @@ public sealed class ServiceConnectionBasisExposureDetails
     public required ServiceConnectionBasis Basis { get; init; }
 
     public required Exposure Exposure { get; init; }
+
+    public IReadOnlyList<ExposureArtifact> Artifacts { get; init; } = [];
 }

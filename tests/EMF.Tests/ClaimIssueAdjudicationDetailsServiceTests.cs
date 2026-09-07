@@ -408,6 +408,16 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 ExposureType = "Hazardous material"
             };
 
+        var exposureArtifact =
+            new ExposureArtifact
+            {
+                ExposureId = exposure.Id,
+                ArtifactId =
+                    new EMF.Core.Models.Identities.ArtifactId(
+                        "exposure-artifact-001"),
+                Role = ExposureTraceabilityRoles.Supporting
+            };
+
         var evidence = new ClaimIssueEvidenceDetails
         {
             ClaimIssue = issue,
@@ -491,6 +501,9 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                 serviceEvent)
                             : method.Name == "GetExposureAsync"
                                 ? Task.FromResult<Exposure?>(exposure)
+                            : method.Name == "GetExposureArtifactsAsync"
+                                ? Task.FromResult<IReadOnlyList<ExposureArtifact>>(
+                                    [exposureArtifact])
                             : throw new NotSupportedException()),
                 Proxy<IRegulatoryRepository>(
                     method =>
@@ -562,6 +575,19 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
 
         Assert.Same(basis, resolvedExposure.Basis);
         Assert.Same(exposure, resolvedExposure.Exposure);
+
+        var resolvedExposureArtifact =
+            Assert.Single(resolvedExposure.Artifacts);
+
+        Assert.Equal(
+            exposureArtifact.ExposureId,
+            resolvedExposureArtifact.ExposureId);
+        Assert.Equal(
+            exposureArtifact.ArtifactId,
+            resolvedExposureArtifact.ArtifactId);
+        Assert.Equal(
+            exposureArtifact.Role,
+            resolvedExposureArtifact.Role);
 
         var resolvedPreexistingCondition =
             Assert.Single(result.PreexistingConditions);
@@ -1240,6 +1266,176 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             ex.Message);
     }
 
+
+    [Fact]
+    public async Task GetAsync_RejectsWrongExposureArtifactIdentity()
+    {
+        var issueId = new ClaimIssueId("issue-exposure-artifact-001");
+
+        var issue = new ClaimIssue
+        {
+            Id = issueId,
+            ClaimId = new ClaimId("claim-exposure-artifact-001"),
+            ClaimIssueType = ClaimIssueTypes.ServiceConnection
+        };
+
+        var theory = new ServiceConnectionTheory
+        {
+            Id = new ServiceConnectionTheoryId("theory-exposure-artifact-001"),
+            ClaimIssueId = issueId,
+            TheoryType = ServiceConnectionTheoryTypes.Direct
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-exposure-artifact-001"),
+            ClaimIssueId = issueId,
+            ServiceConnectionTheoryId = theory.Id
+        };
+
+        var exposure = new Exposure
+        {
+            Id = new ExposureId("exposure-artifact-001"),
+            VeteranId = new VeteranId("veteran-exposure-artifact-001"),
+            ExposureType = "Hazardous material"
+        };
+
+        var service = new ClaimIssueAdjudicationDetailsService(
+            new FakeClaimIssueRepository(issue),
+            Proxy<IConditionRepository>(
+                m => m.Name == "GetClaimedConditionsAsync"
+                    ? Task.FromResult<IReadOnlyList<ClaimedCondition>>([])
+                    : throw new NotSupportedException()),
+            Proxy<IServiceConnectionRepository>(
+                m => m.Name == "GetServiceConnectionTheoriesAsync"
+                    ? Task.FromResult<IReadOnlyList<ServiceConnectionTheory>>(
+                        [theory])
+                    : m.Name == "GetServiceConnectionBasesAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasis>>(
+                            [basis])
+                    : m.Name == "GetServiceConnectedConditionIdsAsync"
+                        ? Task.FromResult<IReadOnlyList<MedicalConditionId>>([])
+                    : m.Name == "GetPrescribedMedicationNamesAsync"
+                        ? Task.FromResult<IReadOnlyList<string>>([])
+                    : m.Name == "GetExposureIdsAsync"
+                        ? Task.FromResult<IReadOnlyList<ExposureId>>(
+                            [exposure.Id])
+                    : throw new NotSupportedException()),
+            Proxy<IServiceHistoryRepository>(
+                m => m.Name == "GetExposureAsync"
+                    ? Task.FromResult<Exposure?>(exposure)
+                    : m.Name == "GetExposureArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ExposureArtifact>>(
+                            [
+                                new ExposureArtifact
+                                {
+                                    ExposureId =
+                                        new ExposureId("exposure-other"),
+                                    ArtifactId =
+                                        new EMF.Core.Models.Identities.ArtifactId(
+                                            "artifact-exposure-001"),
+                                    Role =
+                                        ExposureTraceabilityRoles.Supporting
+                                }
+                            ])
+                        : throw new NotSupportedException()),
+            NeverCall<IRegulatoryRepository>(),
+            NeverCall<IRequirementEvidenceService>(),
+            NeverCall<IClaimIssueEvidenceDetailsService>(),
+            NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Exposure artifact identity mismatch.",
+            exception.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsDuplicateExposureArtifactAssociations()
+    {
+        var issueId = new ClaimIssueId("issue-exposure-artifact-002");
+
+        var issue = new ClaimIssue
+        {
+            Id = issueId,
+            ClaimId = new ClaimId("claim-exposure-artifact-002"),
+            ClaimIssueType = ClaimIssueTypes.ServiceConnection
+        };
+
+        var theory = new ServiceConnectionTheory
+        {
+            Id = new ServiceConnectionTheoryId("theory-exposure-artifact-002"),
+            ClaimIssueId = issueId,
+            TheoryType = ServiceConnectionTheoryTypes.Direct
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-exposure-artifact-002"),
+            ClaimIssueId = issueId,
+            ServiceConnectionTheoryId = theory.Id
+        };
+
+        var exposure = new Exposure
+        {
+            Id = new ExposureId("exposure-artifact-002"),
+            VeteranId = new VeteranId("veteran-exposure-artifact-002"),
+            ExposureType = "Hazardous material"
+        };
+
+        var association = new ExposureArtifact
+        {
+            ExposureId = exposure.Id,
+            ArtifactId =
+                new EMF.Core.Models.Identities.ArtifactId(
+                    "artifact-exposure-002"),
+            Role = ExposureTraceabilityRoles.Supporting
+        };
+
+        var service = new ClaimIssueAdjudicationDetailsService(
+            new FakeClaimIssueRepository(issue),
+            Proxy<IConditionRepository>(
+                m => m.Name == "GetClaimedConditionsAsync"
+                    ? Task.FromResult<IReadOnlyList<ClaimedCondition>>([])
+                    : throw new NotSupportedException()),
+            Proxy<IServiceConnectionRepository>(
+                m => m.Name == "GetServiceConnectionTheoriesAsync"
+                    ? Task.FromResult<IReadOnlyList<ServiceConnectionTheory>>(
+                        [theory])
+                    : m.Name == "GetServiceConnectionBasesAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasis>>(
+                            [basis])
+                    : m.Name == "GetServiceConnectedConditionIdsAsync"
+                        ? Task.FromResult<IReadOnlyList<MedicalConditionId>>([])
+                    : m.Name == "GetPrescribedMedicationNamesAsync"
+                        ? Task.FromResult<IReadOnlyList<string>>([])
+                    : m.Name == "GetExposureIdsAsync"
+                        ? Task.FromResult<IReadOnlyList<ExposureId>>(
+                            [exposure.Id])
+                    : throw new NotSupportedException()),
+            Proxy<IServiceHistoryRepository>(
+                m => m.Name == "GetExposureAsync"
+                    ? Task.FromResult<Exposure?>(exposure)
+                    : m.Name == "GetExposureArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ExposureArtifact>>(
+                            [association, association])
+                        : throw new NotSupportedException()),
+            NeverCall<IRegulatoryRepository>(),
+            NeverCall<IRequirementEvidenceService>(),
+            NeverCall<IClaimIssueEvidenceDetailsService>(),
+            NeverCall<IClaimIssueAdjudicationTimelineService>());
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Exposure artifact lookup returned duplicate associations.",
+            exception.Message);
+    }
 
     [Fact]
     public async Task GetAsync_IncludesBasisMedicalOpinionAndRole()

@@ -353,7 +353,18 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
                 new ServiceConnectionBasisExposureDetails
                 {
                     Basis = basis,
-                    Exposure = exposure
+                    Exposure = exposure,
+                    Artifacts =
+                    [
+                        new ExposureArtifact
+                        {
+                            ExposureId = exposure.Id,
+                            ArtifactId =
+                                new EMF.Core.Models.Identities.ArtifactId(
+                                    "exposure-artifact-reviewer-1"),
+                            Role = ExposureTraceabilityRoles.Supporting
+                        }
+                    ]
                 }
             ],
             ServiceEvents = details.ServiceEvents,
@@ -368,6 +379,9 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
         Assert.Contains("Exposures:", text);
         Assert.Contains(
             "- basis basis-exposure-1: exposure-reviewer-1: Hazardous material",
+            text);
+        Assert.Contains(
+            "  - Supporting artifact: exposure-artifact-reviewer-1",
             text);
     }
 

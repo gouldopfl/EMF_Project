@@ -228,11 +228,38 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     throw new InvalidOperationException(
                         "Exposure identity mismatch.");
 
+                var exposureArtifacts =
+                    await _serviceHistory.GetExposureArtifactsAsync(
+                        exposure.Id,
+                        cancellationToken);
+
+                if (exposureArtifacts.Any(
+                        association =>
+                            association.ExposureId != exposure.Id))
+                {
+                    throw new InvalidOperationException(
+                        "Exposure artifact identity mismatch.");
+                }
+
+                if (exposureArtifacts.Count !=
+                    exposureArtifacts
+                        .DistinctBy(
+                            association =>
+                                (association.ArtifactId,
+                                 association.Role))
+                        .Count())
+                {
+                    throw new InvalidOperationException(
+                        "Exposure artifact lookup returned " +
+                        "duplicate associations.");
+                }
+
                 exposures.Add(
                     new ServiceConnectionBasisExposureDetails
                     {
                         Basis = basis,
-                        Exposure = exposure
+                        Exposure = exposure,
+                        Artifacts = exposureArtifacts
                     });
             }
 
