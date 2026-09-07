@@ -28,6 +28,7 @@ public sealed class ProductionPackageDependencyRule : IRepositoryAuditRule
         "OpenCvSharp4",
         "PdfPig",
         "PDFtoImage",
+        "Sdcb.PaddleInference",
         "Sdcb.PaddleOCR",
         "Sdcb.PaddleOCR.Models.Local",
         "Sdcb.PaddleOCR.Models.LocalV5",
@@ -42,7 +43,7 @@ public sealed class ProductionPackageDependencyRule : IRepositoryAuditRule
     ];
 
     public string Id => "EMF-ARCH-007";
-    public string Version => "2";
+    public string Version => "3";
     public string Category => "Architecture";
 
     public IEnumerable<AuditFinding> Analyze(
@@ -111,6 +112,9 @@ public sealed class ProductionPackageDependencyRule : IRepositoryAuditRule
             "Azure.Identity" =>
                 project is "EMF.Intelligence.AzureOpenAI"
                     or "EMF.Security.Azure",
+
+            "Azure.Core" =>
+                project == "EMF.Security.Azure",
 
             "Azure.Monitor.Ingestion"
                 or "Azure.Security.KeyVault.Keys" =>
