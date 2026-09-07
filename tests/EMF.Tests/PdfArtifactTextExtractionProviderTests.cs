@@ -77,6 +77,33 @@ public sealed class PdfArtifactTextExtractionProviderTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var path =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.pdf");
+
+        var content =
+            await File.ReadAllBytesAsync(path);
+
+        var provider =
+            new PdfArtifactTextExtractionProvider(
+                new StubContentStore(content),
+                maxInputBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("pdf-input-limit")));
+
+        Assert.Equal(
+            "PDF input exceeds the maximum allowed size.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_RejectsMalformedPdf()
     {
         var provider =

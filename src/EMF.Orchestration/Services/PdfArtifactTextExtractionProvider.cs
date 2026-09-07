@@ -11,6 +11,8 @@ namespace EMF.Orchestration.Services;
 public sealed class PdfArtifactTextExtractionProvider :
     IArtifactTextExtractionProvider
 {
+    public const long DefaultMaxInputBytes =
+        100L * 1024 * 1024;
     public const int DefaultMaxPageCount = 10_000;
     public const int DefaultMaxOcrPageCount = 2_000;
     public const long DefaultMaxRenderedPageBytes = 50L * 1024 * 1024;
@@ -20,6 +22,7 @@ public sealed class PdfArtifactTextExtractionProvider :
     private readonly IArtifactContentStore _contentStore;
     private readonly IPdfPageImageRenderer? _pageImageRenderer;
     private readonly IImageOcrService? _ocrService;
+    private readonly long _maxInputBytes;
     private readonly int _maxPageCount;
     private readonly int _maxOcrPageCount;
     private readonly long _maxRenderedPageBytes;
@@ -30,6 +33,7 @@ public sealed class PdfArtifactTextExtractionProvider :
         IArtifactContentStore contentStore,
         IPdfPageImageRenderer? pageImageRenderer = null,
         IImageOcrService? ocrService = null,
+        long maxInputBytes = DefaultMaxInputBytes,
         int maxPageCount = DefaultMaxPageCount,
         int maxOcrPageCount = DefaultMaxOcrPageCount,
         long maxRenderedPageBytes = DefaultMaxRenderedPageBytes,
@@ -44,6 +48,9 @@ public sealed class PdfArtifactTextExtractionProvider :
                 "PDF OCR fallback requires both a page renderer and OCR service.");
         }
 
+        ValidatePositive(
+            maxInputBytes,
+            nameof(maxInputBytes));
         ValidatePositive(
             maxPageCount,
             nameof(maxPageCount));
@@ -63,6 +70,7 @@ public sealed class PdfArtifactTextExtractionProvider :
         _contentStore = contentStore;
         _pageImageRenderer = pageImageRenderer;
         _ocrService = ocrService;
+        _maxInputBytes = maxInputBytes;
         _maxPageCount = maxPageCount;
         _maxOcrPageCount = maxOcrPageCount;
         _maxRenderedPageBytes = maxRenderedPageBytes;
@@ -87,6 +95,14 @@ public sealed class PdfArtifactTextExtractionProvider :
 
         if (content is null)
             return null;
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (content.LongLength > _maxInputBytes)
+        {
+            throw new InvalidDataException(
+                "PDF input exceeds the maximum allowed size.");
+        }
 
         using var document =
             PdfDocument.Open(content);
