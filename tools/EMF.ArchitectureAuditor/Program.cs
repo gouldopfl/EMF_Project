@@ -22,7 +22,8 @@ try
     IAuditRule[] rules =
     [
         new WholeFileReadRule(),
-        new InputMaterializationRule()
+        new InputMaterializationRule(),
+        new DirectPackageOwnershipRule(repositoryRoot)
     ];
 
     IRepositoryAuditRule[] repositoryRules =
@@ -44,6 +45,11 @@ try
 
     var sources = inventory.Discover(repositoryRoot);
     var findings = new List<AuditFinding>();
+
+    var sourceRuleResults =
+        rules.ToDictionary(
+            rule => rule,
+            _ => new List<AuditFinding>());
 
     long totalBytes = 0;
     var parseErrors = 0;
@@ -82,10 +88,14 @@ try
 
         foreach (var rule in rules)
         {
-            findings.AddRange(
+            var ruleFindings =
                 rule.Analyze(
-                    parsed,
-                    cancellation.Token));
+                        parsed,
+                        cancellation.Token)
+                    .ToArray();
+
+            sourceRuleResults[rule].AddRange(ruleFindings);
+            findings.AddRange(ruleFindings);
         }
     }
 
@@ -121,6 +131,24 @@ try
     Console.WriteLine($"C# files: {sources.Count}");
     Console.WriteLine($"Source bytes: {totalBytes:N0}");
     Console.WriteLine($"Parse errors: {parseErrors}");
+
+    Console.WriteLine();
+    Console.WriteLine("===== SOURCE RULE ASSURANCE =====");
+
+    foreach (var rule in rules)
+    {
+        var ruleFindings = sourceRuleResults[rule];
+
+        var status =
+            parseErrors != 0
+                ? "INCOMPLETE: PARSE ERRORS"
+                : ruleFindings.Count == 0
+                    ? "PASS"
+                    : $"FINDINGS: {ruleFindings.Count}";
+
+        Console.WriteLine(
+            $"{rule.Id} [{rule.Category}] {status}");
+    }
 
     Console.WriteLine();
     Console.WriteLine("===== REPOSITORY ASSURANCE =====");
