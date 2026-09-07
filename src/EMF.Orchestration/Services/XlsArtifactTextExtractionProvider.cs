@@ -13,6 +13,8 @@ public sealed class XlsArtifactTextExtractionProvider :
     private const string ContentType =
         "application/vnd.ms-excel";
 
+    public const long DefaultMaxInputBytes =
+        100L * 1024 * 1024;
     public const int DefaultMaxWorksheetCount = 1_000;
     public const int DefaultMaxRowCount = 1_000_000;
     public const int DefaultMaxCellCount = 1_000_000;
@@ -20,6 +22,7 @@ public sealed class XlsArtifactTextExtractionProvider :
         10 * 1024 * 1024;
 
     private readonly IArtifactContentStore _contentStore;
+    private readonly long _maxInputBytes;
     private readonly int _maxWorksheetCount;
     private readonly int _maxRowCount;
     private readonly int _maxCellCount;
@@ -27,6 +30,8 @@ public sealed class XlsArtifactTextExtractionProvider :
 
     public XlsArtifactTextExtractionProvider(
         IArtifactContentStore contentStore,
+        long maxInputBytes =
+            DefaultMaxInputBytes,
         int maxWorksheetCount =
             DefaultMaxWorksheetCount,
         int maxRowCount =
@@ -37,6 +42,9 @@ public sealed class XlsArtifactTextExtractionProvider :
             DefaultMaxExtractedTextChars)
     {
         ArgumentNullException.ThrowIfNull(contentStore);
+        ValidatePositive(
+            maxInputBytes,
+            nameof(maxInputBytes));
         ValidatePositive(
             maxWorksheetCount,
             nameof(maxWorksheetCount));
@@ -51,6 +59,7 @@ public sealed class XlsArtifactTextExtractionProvider :
             nameof(maxExtractedTextChars));
 
         _contentStore = contentStore;
+        _maxInputBytes = maxInputBytes;
         _maxWorksheetCount = maxWorksheetCount;
         _maxRowCount = maxRowCount;
         _maxCellCount = maxCellCount;
@@ -76,6 +85,12 @@ public sealed class XlsArtifactTextExtractionProvider :
             return null;
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (content.LongLength > _maxInputBytes)
+        {
+            throw new InvalidDataException(
+                "XLS input exceeds the maximum allowed size.");
+        }
 
         Encoding.RegisterProvider(
             CodePagesEncodingProvider.Instance);
@@ -175,7 +190,7 @@ public sealed class XlsArtifactTextExtractionProvider :
     }
 
     private static void ValidatePositive(
-        int value,
+        long value,
         string parameterName)
     {
         if (value <= 0)

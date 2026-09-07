@@ -19,6 +19,24 @@ public sealed class XlsArtifactTextExtractionProviderTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RejectsOversizedInput()
+    {
+        var provider =
+            new XlsArtifactTextExtractionProvider(
+                new StubContentStore(ReadSample()),
+                maxInputBytes: 1);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractTextAsync(
+                    new ArtifactId("xls-input-limit")));
+
+        Assert.Equal(
+            "XLS input exceeds the maximum allowed size.",
+            exception.Message);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_RejectsTooManyRows()
     {
         var provider =
