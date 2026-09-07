@@ -115,6 +115,12 @@ public sealed class PaddleImageOcrService :
 
     private void ValidateImageDimensions(ReadOnlyMemory<byte> image)
     {
+        if (image.Length > _maxInputBytes)
+        {
+            throw new InvalidDataException(
+                "OCR image exceeds the maximum allowed size.");
+        }
+
         if (!MemoryMarshal.TryGetArray(image, out var segment) ||
             segment.Array is null)
         {
