@@ -118,6 +118,22 @@ public sealed class ZipArchiveDecoderTests
             ex.Message);
     }
 
+    [Fact]
+    public async Task DecodeAsync_RejectsOversizedInput()
+    {
+        var decoder =
+            new ZipArchiveDecoder(
+                maxInputBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => decoder.DecodeAsync(new byte[2]));
+
+        Assert.Equal(
+            "ZIP input exceeds the maximum allowed size.",
+            ex.Message);
+    }
+
     private static byte[] CreateZip(
         params (string Name, string Content)[] entries)
     {

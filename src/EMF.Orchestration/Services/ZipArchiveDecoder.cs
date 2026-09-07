@@ -7,19 +7,30 @@ namespace EMF.Orchestration.Services;
 public sealed class ZipArchiveDecoder :
     IZipArchiveDecoder
 {
+    public const long DefaultMaxInputBytes =
+        100L * 1024 * 1024;
     public const int DefaultMaxEntryCount = 1000;
     public const long DefaultMaxEntryBytes = 25L * 1024 * 1024;
     public const long DefaultMaxTotalBytes = 100L * 1024 * 1024;
 
+    private readonly long _maxInputBytes;
     private readonly int _maxEntryCount;
     private readonly long _maxEntryBytes;
     private readonly long _maxTotalBytes;
 
     public ZipArchiveDecoder(
+        long maxInputBytes = DefaultMaxInputBytes,
         int maxEntryCount = DefaultMaxEntryCount,
         long maxEntryBytes = DefaultMaxEntryBytes,
         long maxTotalBytes = DefaultMaxTotalBytes)
     {
+        if (maxInputBytes <= 0 ||
+            maxInputBytes > Array.MaxLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxInputBytes));
+        }
+
         if (maxEntryCount <= 0)
             throw new ArgumentOutOfRangeException(
                 nameof(maxEntryCount));
@@ -38,6 +49,7 @@ public sealed class ZipArchiveDecoder :
                 nameof(maxTotalBytes));
         }
 
+        _maxInputBytes = maxInputBytes;
         _maxEntryCount = maxEntryCount;
         _maxEntryBytes = maxEntryBytes;
         _maxTotalBytes = maxTotalBytes;
@@ -47,6 +59,14 @@ public sealed class ZipArchiveDecoder :
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (content.Length > _maxInputBytes)
+        {
+            throw new InvalidDataException(
+                "ZIP input exceeds the maximum allowed size.");
+        }
+
         using var stream =
             new MemoryStream(content.ToArray(), writable: false);
 
