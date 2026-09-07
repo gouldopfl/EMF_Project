@@ -28,7 +28,8 @@ try
     IRepositoryAuditRule[] repositoryRules =
     [
         new CoreProjectDependencyRule(),
-        new FoundationalDependencyRule()
+        new FoundationalDependencyRule(),
+        new LaboratoryDependencyRule()
     ];
 
     Console.WriteLine("===== EMF ARCHITECTURE AUDITOR =====");
