@@ -601,7 +601,12 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
                     Basis = basis,
                     MedicalOpinion = opinion,
                     Role =
-                        ServiceConnectionBasisTraceabilityRoles.Supporting
+                        ServiceConnectionBasisTraceabilityRoles.Supporting,
+                    ArtifactIds =
+                    [
+                        new EMF.Core.Models.Identities.ArtifactId(
+                            "medical-opinion-artifact-1")
+                    ]
                 }
             ],
             BasisArtifacts =
@@ -634,6 +639,9 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
         Assert.Contains(
             "- basis basis-medop-1: Supporting: opinion-medop-1: " +
             "Related to service?: At least as likely as not.",
+            text);
+        Assert.Contains(
+            "  Artifact: medical-opinion-artifact-1",
             text);
     }
 

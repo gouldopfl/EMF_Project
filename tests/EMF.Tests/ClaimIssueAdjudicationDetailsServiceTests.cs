@@ -1282,6 +1282,10 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             Role = ServiceConnectionBasisTraceabilityRoles.Supporting
         };
 
+        var medicalOpinionArtifactId =
+            new EMF.Core.Models.Identities.ArtifactId(
+                "medical-opinion-artifact-001");
+
         var artifactAssociation = new ServiceConnectionBasisArtifact
         {
             ServiceConnectionBasisId = basis.Id,
@@ -1334,7 +1338,11 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             Proxy<IMedicalOpinionRepository>(
                 m => m.Name == "GetMedicalOpinionAsync"
                     ? Task.FromResult<MedicalOpinion?>(opinion)
-                    : throw new NotSupportedException()));
+                    : m.Name == "GetArtifactIdsAsync"
+                        ? Task.FromResult<IReadOnlyList<
+                            EMF.Core.Models.Identities.ArtifactId>>(
+                            [medicalOpinionArtifactId])
+                        : throw new NotSupportedException()));
 
         var result = await service.GetAsync(issueId);
 
@@ -1348,6 +1356,10 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             ServiceConnectionBasisTraceabilityRoles.Supporting,
             details.Role);
 
+        Assert.Equal(
+            medicalOpinionArtifactId,
+            Assert.Single(details.ArtifactIds));
+
         var artifact = Assert.Single(result.BasisArtifacts);
         Assert.Equal(basis.Id, artifact.Basis.Id);
         Assert.Equal(artifactAssociation.ArtifactId, artifact.ArtifactId);
@@ -1356,6 +1368,119 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
             artifact.Role);
     }
 
+
+
+    [Fact]
+    public async Task GetAsync_RejectsDuplicateMedicalOpinionArtifacts()
+    {
+        var issueId = new ClaimIssueId("issue-medop-001");
+
+        var issue = new ClaimIssue
+        {
+            Id = issueId,
+            ClaimId = new ClaimId("claim-medop-001"),
+            ClaimIssueType = ClaimIssueTypes.ServiceConnection
+        };
+
+        var theory = new ServiceConnectionTheory
+        {
+            Id = new ServiceConnectionTheoryId("theory-medop-001"),
+            ClaimIssueId = issueId,
+            TheoryType = ServiceConnectionTheoryTypes.Secondary
+        };
+
+        var basis = new ServiceConnectionBasis
+        {
+            Id = new ServiceConnectionBasisId("basis-medop-001"),
+            ClaimIssueId = issueId,
+            ServiceConnectionTheoryId = theory.Id
+        };
+
+        var opinion = new MedicalOpinion
+        {
+            Id = new MedicalOpinionId("opinion-medop-001"),
+            ClaimIssueId = issueId,
+            Question = "Related to service?",
+            Opinion = "At least as likely as not."
+        };
+
+        var association = new ServiceConnectionBasisMedicalOpinion
+        {
+            ServiceConnectionBasisId = basis.Id,
+            MedicalOpinionId = opinion.Id,
+            Role = ServiceConnectionBasisTraceabilityRoles.Supporting
+        };
+
+        var medicalOpinionArtifactId =
+            new EMF.Core.Models.Identities.ArtifactId(
+                "medical-opinion-artifact-001");
+
+        var artifactAssociation = new ServiceConnectionBasisArtifact
+        {
+            ServiceConnectionBasisId = basis.Id,
+            ArtifactId =
+                new EMF.Core.Models.Identities.ArtifactId("artifact-medop-001"),
+            Role = ServiceConnectionBasisTraceabilityRoles.Supporting
+        };
+
+        var evidence = new ClaimIssueEvidenceDetails
+        {
+            ClaimIssue = issue,
+            Checklist = null!,
+            DevelopmentPlans = []
+        };
+
+        var service = new ClaimIssueAdjudicationDetailsService(
+            new FakeClaimIssueRepository(issue),
+            Proxy<IConditionRepository>(
+                m => m.Name == "GetClaimedConditionsAsync"
+                    ? Task.FromResult<IReadOnlyList<ClaimedCondition>>([])
+                    : throw new NotSupportedException()),
+            Proxy<IServiceConnectionRepository>(
+                m => m.Name == "GetServiceConnectionTheoriesAsync"
+                    ? Task.FromResult<IReadOnlyList<ServiceConnectionTheory>>([theory])
+                    : m.Name == "GetServiceConnectionBasesAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasis>>([basis])
+                    : m.Name == "GetServiceConnectedConditionIdsAsync"
+                        ? Task.FromResult<IReadOnlyList<MedicalConditionId>>([])
+                    : m.Name == "GetBasisMedicalOpinionsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisMedicalOpinion>>(
+                            [association])
+                    : m.Name == "GetServiceEventIdsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceEventId>>([])
+                    : m.Name == "GetRequirementIdsAsync"
+                        ? Task.FromResult<IReadOnlyList<RequirementId>>([])
+                    : m.Name == "GetBasisArtifactsAsync"
+                        ? Task.FromResult<IReadOnlyList<ServiceConnectionBasisArtifact>>([artifactAssociation])
+                    : throw new NotSupportedException()),
+            NeverCall<IServiceHistoryRepository>(),
+            NeverCall<IRegulatoryRepository>(),
+            NeverCall<IRequirementEvidenceService>(),
+            Proxy<IClaimIssueEvidenceDetailsService>(
+                m => m.Name == "GetAsync"
+                    ? Task.FromResult<ClaimIssueEvidenceDetails?>(evidence)
+                    : throw new NotSupportedException()),
+            Proxy<IClaimIssueAdjudicationTimelineService>(
+                m => m.Name == "GetAsync"
+                    ? Task.FromResult<IReadOnlyList<ClaimIssueAdjudicationEvent>>([])
+                    : throw new NotSupportedException()),
+            Proxy<IMedicalOpinionRepository>(
+                m => m.Name == "GetMedicalOpinionAsync"
+                    ? Task.FromResult<MedicalOpinion?>(opinion)
+                    : m.Name == "GetArtifactIdsAsync"
+                        ? Task.FromResult<IReadOnlyList<
+                            EMF.Core.Models.Identities.ArtifactId>>(
+                            [medicalOpinionArtifactId, medicalOpinionArtifactId])
+                        : throw new NotSupportedException()));
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(issueId));
+
+        Assert.Equal(
+            "Medical opinion artifact lookup returned duplicate artifacts.",
+            exception.Message);
+    }
 
     private sealed class MissingClaimIssueRepository :
         FakeClaimIssueRepository

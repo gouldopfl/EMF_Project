@@ -344,12 +344,25 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                             "Medical opinion claim issue mismatch.");
                     }
 
+                    var artifactIds =
+                        await _medicalOpinions.GetArtifactIdsAsync(
+                            medicalOpinion.Id,
+                            cancellationToken);
+
+                    if (artifactIds.Count != artifactIds.Distinct().Count())
+                    {
+                        throw new InvalidOperationException(
+                            "Medical opinion artifact lookup returned " +
+                            "duplicate artifacts.");
+                    }
+
                     medicalOpinions.Add(
                         new ServiceConnectionBasisMedicalOpinionDetails
                         {
                             Basis = basis,
                             MedicalOpinion = medicalOpinion,
-                            Role = association.Role
+                            Role = association.Role,
+                            ArtifactIds = artifactIds
                         });
                 }
             }

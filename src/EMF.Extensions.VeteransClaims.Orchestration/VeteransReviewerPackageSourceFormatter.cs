@@ -139,6 +139,12 @@ internal static class VeteransReviewerPackageSourceFormatter
                 $"{item.MedicalOpinion.Id.Value}: " +
                 $"{SingleLine(item.MedicalOpinion.Question)}: " +
                 $"{SingleLine(item.MedicalOpinion.Opinion)}");
+
+            foreach (var artifactId in item.ArtifactIds)
+            {
+                builder.AppendLine(
+                    $"  Artifact: {artifactId.Value}");
+            }
         }
 
         builder.AppendLine();
