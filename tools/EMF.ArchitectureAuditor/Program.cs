@@ -25,6 +25,11 @@ try
         new InputMaterializationRule()
     ];
 
+    IRepositoryAuditRule[] repositoryRules =
+    [
+        new CoreProjectDependencyRule()
+    ];
+
     Console.WriteLine("===== EMF ARCHITECTURE AUDITOR =====");
     Console.WriteLine($"Repository: {repositoryRoot}");
     Console.WriteLine("Mode: Direct C# source analysis");
@@ -78,6 +83,23 @@ try
         }
     }
 
+    var repositoryResults =
+        new List<(IRepositoryAuditRule Rule, AuditFinding[] Findings)>();
+
+    foreach (var rule in repositoryRules)
+    {
+        cancellation.Token.ThrowIfCancellationRequested();
+
+        var ruleFindings =
+            rule.Analyze(
+                    repositoryRoot,
+                    cancellation.Token)
+                .ToArray();
+
+        repositoryResults.Add((rule, ruleFindings));
+        findings.AddRange(ruleFindings);
+    }
+
     var ordered = findings
         .OrderByDescending(x => x.Severity)
         .ThenByDescending(x => x.Confidence)
@@ -93,6 +115,20 @@ try
     Console.WriteLine($"C# files: {sources.Count}");
     Console.WriteLine($"Source bytes: {totalBytes:N0}");
     Console.WriteLine($"Parse errors: {parseErrors}");
+
+    Console.WriteLine();
+    Console.WriteLine("===== REPOSITORY ASSURANCE =====");
+
+    foreach (var result in repositoryResults)
+    {
+        var status =
+            result.Findings.Length == 0
+                ? "PASS"
+                : $"FINDINGS: {result.Findings.Length}";
+
+        Console.WriteLine(
+            $"{result.Rule.Id} [{result.Rule.Category}] {status}");
+    }
 
     Console.WriteLine();
     Console.WriteLine("===== FINDINGS =====");
@@ -118,7 +154,7 @@ try
 
     Console.WriteLine();
     Console.WriteLine("===== AUDIT SUMMARY =====");
-    Console.WriteLine($"Rules executed: {rules.Length}");
+    Console.WriteLine($"Rules executed: {rules.Length + repositoryRules.Length}");
     Console.WriteLine($"Findings: {ordered.Length}");
     Console.WriteLine("===== AUDIT COMPLETE =====");
 
