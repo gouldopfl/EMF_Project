@@ -12,11 +12,13 @@ public sealed class EmailAttachmentWorkflowActivity :
     private readonly IEvidenceRepository _repository;
     private readonly IArtifactContentStore _contentStore;
     private readonly IEmailAttachmentProcessingService _processingService;
+    private readonly ContainerAncestryGuard _ancestryGuard;
 
     public EmailAttachmentWorkflowActivity(
         IEvidenceRepository repository,
         IArtifactContentStore contentStore,
-        IEmailAttachmentProcessingService processingService)
+        IEmailAttachmentProcessingService processingService,
+        ContainerAncestryGuard? ancestryGuard = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(contentStore);
@@ -25,6 +27,9 @@ public sealed class EmailAttachmentWorkflowActivity :
         _repository = repository;
         _contentStore = contentStore;
         _processingService = processingService;
+        _ancestryGuard =
+            ancestryGuard ??
+            new ContainerAncestryGuard(repository);
     }
 
     public string Id => "email-attachments";
@@ -61,6 +66,10 @@ public sealed class EmailAttachmentWorkflowActivity :
 
             try
             {
+                await _ancestryGuard.ValidateAsync(
+                    email,
+                    cancellationToken);
+
                 await _processingService.ProcessAsync(
                     email.Id,
                     content,

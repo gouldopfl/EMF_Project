@@ -54,6 +54,70 @@ public sealed class EmailAttachmentWorkflowActivityTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_RejectsExcessiveContainerDepth()
+    {
+        var repository =
+            new InMemoryEvidenceRepository();
+
+        var parent = new Artifact
+        {
+            Id = new ArtifactId("email-parent"),
+            Name = "parent.zip",
+            ArtifactType = "file",
+            Metadata = new Dictionary<string, object>
+            {
+                [ArtifactMetadataKeys.FileExtension] = ".zip"
+            }
+        };
+
+        var email = new Artifact
+        {
+            Id = new ArtifactId("email-child"),
+            Name = "child.eml",
+            ArtifactType = "file",
+            Metadata = new Dictionary<string, object>
+            {
+                [ArtifactMetadataKeys.FileExtension] = ".eml"
+            }
+        };
+
+        await repository.AddArtifactAsync(parent);
+        await repository.AddArtifactAsync(email);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = email.Id,
+                TargetArtifactId = parent.Id,
+                RelationshipType = RelationshipTypes.DerivedFrom
+            });
+
+        var processor = new StubProcessingService();
+
+        var activity =
+            new EmailAttachmentWorkflowActivity(
+                repository,
+                new StubContentStore(
+                    email.Id,
+                    "eml"u8.ToArray()),
+                processor,
+                new ContainerAncestryGuard(
+                    repository,
+                    maxContainerDepth: 1));
+
+        var result =
+            await activity.ExecuteAsync(
+                new WorkflowExecutionContext
+                {
+                    WorkflowId =
+                        new WorkflowId("workflow-email-depth")
+                });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(0, processor.Calls);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_FailsWhenEmailContentMissing()
     {
         var repository =

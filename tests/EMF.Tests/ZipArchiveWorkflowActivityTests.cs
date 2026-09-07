@@ -54,6 +54,70 @@ public sealed class ZipArchiveWorkflowActivityTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_RejectsExcessiveContainerDepth()
+    {
+        var repository =
+            new InMemoryEvidenceRepository();
+
+        var parent = new Artifact
+        {
+            Id = new ArtifactId("zip-parent"),
+            Name = "parent.eml",
+            ArtifactType = "file",
+            Metadata = new Dictionary<string, object>
+            {
+                [ArtifactMetadataKeys.FileExtension] = ".eml"
+            }
+        };
+
+        var archive = new Artifact
+        {
+            Id = new ArtifactId("zip-child"),
+            Name = "child.zip",
+            ArtifactType = "file",
+            Metadata = new Dictionary<string, object>
+            {
+                [ArtifactMetadataKeys.FileExtension] = ".zip"
+            }
+        };
+
+        await repository.AddArtifactAsync(parent);
+        await repository.AddArtifactAsync(archive);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = archive.Id,
+                TargetArtifactId = parent.Id,
+                RelationshipType = RelationshipTypes.DerivedFrom
+            });
+
+        var processor = new StubProcessingService();
+
+        var activity =
+            new ZipArchiveWorkflowActivity(
+                repository,
+                new StubContentStore(
+                    archive.Id,
+                    "zip"u8.ToArray()),
+                processor,
+                new ContainerAncestryGuard(
+                    repository,
+                    maxContainerDepth: 1));
+
+        var result =
+            await activity.ExecuteAsync(
+                new WorkflowExecutionContext
+                {
+                    WorkflowId =
+                        new WorkflowId("workflow-zip-depth")
+                });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(0, processor.Calls);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_FailsWhenArchiveContentMissing()
     {
         var repository =

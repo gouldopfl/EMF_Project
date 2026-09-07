@@ -12,11 +12,13 @@ public sealed class OutlookAttachmentWorkflowActivity :
     private readonly IEvidenceRepository _repository;
     private readonly IArtifactContentStore _contentStore;
     private readonly IOutlookAttachmentProcessingService _processingService;
+    private readonly ContainerAncestryGuard _ancestryGuard;
 
     public OutlookAttachmentWorkflowActivity(
         IEvidenceRepository repository,
         IArtifactContentStore contentStore,
-        IOutlookAttachmentProcessingService processingService)
+        IOutlookAttachmentProcessingService processingService,
+        ContainerAncestryGuard? ancestryGuard = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(contentStore);
@@ -25,6 +27,9 @@ public sealed class OutlookAttachmentWorkflowActivity :
         _repository = repository;
         _contentStore = contentStore;
         _processingService = processingService;
+        _ancestryGuard =
+            ancestryGuard ??
+            new ContainerAncestryGuard(repository);
     }
 
     public string Id => "outlook-attachments";
@@ -61,6 +66,10 @@ public sealed class OutlookAttachmentWorkflowActivity :
 
             try
             {
+                await _ancestryGuard.ValidateAsync(
+                    message,
+                    cancellationToken);
+
                 await _processingService.ProcessAsync(
                     message.Id,
                     content,

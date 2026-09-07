@@ -12,11 +12,13 @@ public sealed class ZipArchiveWorkflowActivity :
     private readonly IEvidenceRepository _repository;
     private readonly IArtifactContentStore _contentStore;
     private readonly IZipArchiveProcessingService _processingService;
+    private readonly ContainerAncestryGuard _ancestryGuard;
 
     public ZipArchiveWorkflowActivity(
         IEvidenceRepository repository,
         IArtifactContentStore contentStore,
-        IZipArchiveProcessingService processingService)
+        IZipArchiveProcessingService processingService,
+        ContainerAncestryGuard? ancestryGuard = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(contentStore);
@@ -25,6 +27,9 @@ public sealed class ZipArchiveWorkflowActivity :
         _repository = repository;
         _contentStore = contentStore;
         _processingService = processingService;
+        _ancestryGuard =
+            ancestryGuard ??
+            new ContainerAncestryGuard(repository);
     }
 
     public string Id => "zip-archives";
@@ -61,6 +66,10 @@ public sealed class ZipArchiveWorkflowActivity :
 
             try
             {
+                await _ancestryGuard.ValidateAsync(
+                    archive,
+                    cancellationToken);
+
                 await _processingService.ProcessAsync(
                     archive.Id,
                     content,

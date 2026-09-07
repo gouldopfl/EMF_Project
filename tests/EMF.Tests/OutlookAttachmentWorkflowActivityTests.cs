@@ -54,6 +54,70 @@ public sealed class OutlookAttachmentWorkflowActivityTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_RejectsExcessiveContainerDepth()
+    {
+        var repository =
+            new InMemoryEvidenceRepository();
+
+        var parent = new Artifact
+        {
+            Id = new ArtifactId("outlook-parent"),
+            Name = "parent.zip",
+            ArtifactType = "file",
+            Metadata = new Dictionary<string, object>
+            {
+                [ArtifactMetadataKeys.FileExtension] = ".zip"
+            }
+        };
+
+        var message = new Artifact
+        {
+            Id = new ArtifactId("outlook-child"),
+            Name = "child.msg",
+            ArtifactType = "file",
+            Metadata = new Dictionary<string, object>
+            {
+                [ArtifactMetadataKeys.FileExtension] = ".msg"
+            }
+        };
+
+        await repository.AddArtifactAsync(parent);
+        await repository.AddArtifactAsync(message);
+
+        await repository.AddRelationshipAsync(
+            new Relationship
+            {
+                SourceArtifactId = message.Id,
+                TargetArtifactId = parent.Id,
+                RelationshipType = RelationshipTypes.DerivedFrom
+            });
+
+        var processor = new StubProcessingService();
+
+        var activity =
+            new OutlookAttachmentWorkflowActivity(
+                repository,
+                new StubContentStore(
+                    message.Id,
+                    "msg"u8.ToArray()),
+                processor,
+                new ContainerAncestryGuard(
+                    repository,
+                    maxContainerDepth: 1));
+
+        var result =
+            await activity.ExecuteAsync(
+                new WorkflowExecutionContext
+                {
+                    WorkflowId =
+                        new WorkflowId("workflow-outlook-depth")
+                });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(0, processor.Calls);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_FailsWhenOutlookContentMissing()
     {
         var repository =
