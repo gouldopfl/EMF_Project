@@ -7,20 +7,31 @@ namespace EMF.Orchestration.Services;
 public sealed class MimeKitEmailAttachmentDecoder :
     IEmailAttachmentDecoder
 {
+    public const long DefaultMaxInputBytes =
+        100L * 1024 * 1024;
     public const int DefaultMaxAttachmentCount = 100;
     public const long DefaultMaxAttachmentBytes = 25L * 1024 * 1024;
     public const long DefaultMaxTotalAttachmentBytes = 100L * 1024 * 1024;
 
+    private readonly long _maxInputBytes;
     private readonly int _maxAttachmentCount;
     private readonly long _maxAttachmentBytes;
     private readonly long _maxTotalAttachmentBytes;
 
     public MimeKitEmailAttachmentDecoder(
+        long maxInputBytes = DefaultMaxInputBytes,
         int maxAttachmentCount = DefaultMaxAttachmentCount,
         long maxAttachmentBytes = DefaultMaxAttachmentBytes,
         long maxTotalAttachmentBytes =
             DefaultMaxTotalAttachmentBytes)
     {
+        if (maxInputBytes <= 0 ||
+            maxInputBytes > Array.MaxLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxInputBytes));
+        }
+
         if (maxAttachmentCount <= 0)
             throw new ArgumentOutOfRangeException(
                 nameof(maxAttachmentCount));
@@ -39,6 +50,7 @@ public sealed class MimeKitEmailAttachmentDecoder :
                 nameof(maxTotalAttachmentBytes));
         }
 
+        _maxInputBytes = maxInputBytes;
         _maxAttachmentCount = maxAttachmentCount;
         _maxAttachmentBytes = maxAttachmentBytes;
         _maxTotalAttachmentBytes = maxTotalAttachmentBytes;
@@ -48,6 +60,14 @@ public sealed class MimeKitEmailAttachmentDecoder :
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (content.Length > _maxInputBytes)
+        {
+            throw new InvalidDataException(
+                "Email input exceeds the maximum allowed size.");
+        }
+
         await using var stream =
             new MemoryStream(content.ToArray(), writable: false);
 

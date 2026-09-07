@@ -75,6 +75,22 @@ public sealed class OutlookMessageDecoderTests
     }
 
     [Fact]
+    public async Task DecodeAsync_RejectsOversizedInput()
+    {
+        var decoder =
+            new OutlookMessageDecoder(
+                maxInputBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => decoder.DecodeAsync(new byte[2]));
+
+        Assert.Equal(
+            "Outlook message input exceeds the maximum allowed size.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task DecodeAsync_RejectsOversizedAttachment()
     {
         var path =

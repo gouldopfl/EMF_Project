@@ -103,6 +103,22 @@ public sealed class MimeKitEmailAttachmentDecoderTests
             ex.Message);
     }
 
+    [Fact]
+    public async Task DecodeAsync_RejectsOversizedInput()
+    {
+        var decoder =
+            new MimeKitEmailAttachmentDecoder(
+                maxInputBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => decoder.DecodeAsync(new byte[2]));
+
+        Assert.Equal(
+            "Email input exceeds the maximum allowed size.",
+            ex.Message);
+    }
+
     private static byte[] CreateEmail(
         params (string Name, string Content)[] attachments)
     {
