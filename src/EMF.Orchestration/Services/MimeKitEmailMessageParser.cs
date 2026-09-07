@@ -7,10 +7,36 @@ namespace EMF.Orchestration.Services;
 public sealed class MimeKitEmailMessageParser :
     IEmailMessageParser
 {
+    public const long DefaultMaxInputBytes =
+        100L * 1024 * 1024;
+
+    private readonly long _maxInputBytes;
+
+    public MimeKitEmailMessageParser(
+        long maxInputBytes = DefaultMaxInputBytes)
+    {
+        if (maxInputBytes <= 0 ||
+            maxInputBytes > Array.MaxLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxInputBytes));
+        }
+
+        _maxInputBytes = maxInputBytes;
+    }
+
     public async Task<EmailMessage> ParseAsync(
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (content.Length > _maxInputBytes)
+        {
+            throw new InvalidDataException(
+                "Email message input exceeds the maximum allowed size.");
+        }
+
         await using var stream =
             new MemoryStream(content.ToArray(), writable: false);
 

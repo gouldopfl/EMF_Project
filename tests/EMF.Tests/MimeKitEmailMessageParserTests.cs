@@ -36,6 +36,22 @@ public sealed class MimeKitEmailMessageParserTests
     }
 
     [Fact]
+    public async Task ParseAsync_RejectsOversizedInput()
+    {
+        var parser =
+            new MimeKitEmailMessageParser(
+                maxInputBytes: 1);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => parser.ParseAsync(new byte[2]));
+
+        Assert.Equal(
+            "Email message input exceeds the maximum allowed size.",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task ParseAsync_MapsAttachmentMetadata()
     {
         var eml =
