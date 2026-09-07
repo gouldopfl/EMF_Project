@@ -1,3 +1,5 @@
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
 using EMF.Core.Contracts.Storage;
 using EMF.Core.Models.Identities;
 using EMF.Orchestration.Services;
@@ -124,6 +126,9 @@ public sealed class XlsxArtifactTextExtractionProviderTests
         "package-total-size",
         "XLSX package exceeds the maximum allowed extracted size.")]
     [InlineData(
+        "shared-strings",
+        "XLSX shared-string table exceeds the maximum allowed count.")]
+    [InlineData(
         "worksheets",
         "XLSX exceeds the maximum allowed worksheet count.")]
     [InlineData(
@@ -148,6 +153,9 @@ public sealed class XlsxArtifactTextExtractionProviderTests
         var content =
             await File.ReadAllBytesAsync(path);
 
+        if (limit == "shared-strings")
+            content = AddSharedString(content);
+
         var maxPackageEntryCount =
             XlsxArtifactTextExtractionProvider
                 .DefaultMaxPackageEntryCount;
@@ -157,6 +165,9 @@ public sealed class XlsxArtifactTextExtractionProviderTests
         var maxPackageTotalBytes =
             XlsxArtifactTextExtractionProvider
                 .DefaultMaxPackageTotalBytes;
+        var maxSharedStringCount =
+            XlsxArtifactTextExtractionProvider
+                .DefaultMaxSharedStringCount;
         var maxWorksheetCount =
             XlsxArtifactTextExtractionProvider
                 .DefaultMaxWorksheetCount;
@@ -181,6 +192,9 @@ public sealed class XlsxArtifactTextExtractionProviderTests
             case "package-total-size":
                 maxPackageTotalBytes = 1;
                 break;
+            case "shared-strings":
+                maxSharedStringCount = 1;
+                break;
             case "worksheets":
                 maxWorksheetCount = 1;
                 break;
@@ -202,6 +216,7 @@ public sealed class XlsxArtifactTextExtractionProviderTests
                 maxPackageEntryBytes: maxPackageEntryBytes,
                 maxPackageTotalBytes: maxPackageTotalBytes,
                 maxWorksheetCount: maxWorksheetCount,
+                maxSharedStringCount: maxSharedStringCount,
                 maxRowCount: maxRowCount,
                 maxCellCount: maxCellCount,
                 maxExtractedTextChars: maxExtractedTextChars);
@@ -212,6 +227,30 @@ public sealed class XlsxArtifactTextExtractionProviderTests
                     new ArtifactId($"xlsx-{limit}")));
 
         Assert.Equal(expectedMessage, ex.Message);
+    }
+
+    private static byte[] AddSharedString(byte[] content)
+    {
+        using var stream = new MemoryStream();
+        stream.Write(content);
+        stream.Position = 0;
+
+        using (var document =
+            SpreadsheetDocument.Open(stream, true))
+        {
+            var table =
+                document.WorkbookPart!
+                    .SharedStringTablePart!
+                    .SharedStringTable!;
+
+            table.AppendChild(
+                new SharedStringItem(
+                    new Text("Additional shared string")));
+
+            table.Save();
+        }
+
+        return stream.ToArray();
     }
 
     private sealed class StubContentStore :
