@@ -35,7 +35,9 @@ public sealed class TextArtifactPrintRenderingProvider :
         string.Equals(contentType, "text/plain", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(contentType, "text/csv", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(contentType, "application/json", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(contentType, "application/xml", StringComparison.OrdinalIgnoreCase);
+        string.Equals(contentType, "application/xml", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(contentType, "text/markdown", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(contentType, "application/yaml", StringComparison.OrdinalIgnoreCase);
 
     public async Task<IReadOnlyList<PrintableArtifactPage>> RenderAsync(
         ArtifactId artifactId,
