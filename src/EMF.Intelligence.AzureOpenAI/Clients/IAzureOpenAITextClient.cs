@@ -7,5 +7,6 @@ internal interface IAzureOpenAITextClient
     Task<AzureOpenAITextCompletion> CompleteAsync(
         string systemInstruction,
         string input,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        int? maximumOutputTokenCount = null);
 }

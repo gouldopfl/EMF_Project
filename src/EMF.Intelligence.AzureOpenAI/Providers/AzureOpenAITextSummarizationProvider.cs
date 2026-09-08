@@ -71,11 +71,17 @@ public sealed class
             $"in no more than {request.MaximumCharacters} " +
             "characters. Return only the summary.";
 
+        var maximumOutputTokenCount =
+            Math.Max(
+                1,
+                request.MaximumCharacters / 6);
+
         var completion =
             await _textClient.CompleteAsync(
                 instruction,
                 request.Text,
-                cancellationToken);
+                cancellationToken,
+                maximumOutputTokenCount);
 
         if (string.IsNullOrWhiteSpace(
                 completion.Text))

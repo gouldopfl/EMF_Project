@@ -279,6 +279,77 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
 
 
 
+
+    [Fact]
+    public async Task SummarizeAsync_BoundsLargeEvidenceBeforeFinalSummary()
+    {
+        var id = new ArtifactId("large-reviewer-evidence");
+        var executor =
+            new RecordingTextSummarizationExecutor
+            {
+                Output = new string('x', 2_500)
+            };
+
+        var service =
+            new VeteransReviewerPackageIntelligenceService(
+                executor);
+
+        var context = new IntelligenceExecutionContext(
+            "reviewer-package-steward",
+            new IntelligenceCorrelationId(
+                "large-evidence-test"),
+            new ProtectionClassificationId(
+                "confidential"),
+            [id]);
+
+        var largeEvidence =
+            string.Concat(
+                Enumerable.Repeat(
+                    "Documented medical evidence line. ",
+                    1_000));
+
+        var result =
+            await service.SummarizeAsync(
+                CreateDetails(),
+                [
+                    new VeteransReviewerEvidenceSource
+                    {
+                        ArtifactId = id,
+                        Classifications =
+                            [EvidenceClassifications.MedicalEvidence],
+                        Text = largeEvidence
+                    }
+                ],
+                context);
+
+        Assert.True(result.Success);
+        Assert.True(executor.Requests.Count > 1);
+
+        Assert.Contains(
+            executor.Requests,
+            request => request.MaximumCharacters == 3_200);
+
+        Assert.Equal(
+            4_000,
+            executor.Requests[^1].MaximumCharacters);
+
+        Assert.NotNull(result.Output);
+        Assert.Equal(
+            2_000,
+            result.Output.Length);
+
+        Assert.All(
+            executor.Requests,
+            request =>
+                Assert.True(
+                    request.Text.Length < largeEvidence.Length));
+
+        Assert.DoesNotContain(
+            largeEvidence,
+            executor.Requests[^1].Text);
+    }
+
+
     [Fact]
     public async Task SummarizeAsync_RejectsDuplicateEvidenceArtifacts()
     {

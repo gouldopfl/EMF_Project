@@ -31,11 +31,25 @@ internal sealed class AzureOpenAITextClient :
             string systemInstruction,
             string input,
             CancellationToken cancellationToken =
-                default)
+                default,
+            int? maximumOutputTokenCount = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(
             systemInstruction);
         ArgumentException.ThrowIfNullOrWhiteSpace(input);
+
+        if (maximumOutputTokenCount is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maximumOutputTokenCount));
+        }
+
+        var completionOptions =
+            new ChatCompletionOptions
+            {
+                MaxOutputTokenCount =
+                    maximumOutputTokenCount
+            };
 
         ClientResult<ChatCompletion> response;
 
@@ -48,8 +62,8 @@ internal sealed class AzureOpenAITextClient :
                             systemInstruction),
                         new UserChatMessage(input)
                     ],
-                    cancellationToken:
-                        cancellationToken);
+                    completionOptions,
+                    cancellationToken);
         }
         catch (OperationCanceledException)
             when (cancellationToken

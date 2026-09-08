@@ -14,6 +14,9 @@ internal sealed class RecordingTextSummarizationExecutor :
     public TextSummarizationRequest? Request
     { get; private set; }
 
+    public List<TextSummarizationRequest> Requests
+    { get; } = [];
+
     public IntelligenceExecutionContext? Context
     { get; private set; }
 
@@ -33,6 +36,7 @@ internal sealed class RecordingTextSummarizationExecutor :
             CancellationToken cancellationToken = default)
     {
         Request = request;
+        Requests.Add(request);
         Context = context;
 
         return Task.FromResult(

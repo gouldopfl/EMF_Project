@@ -20,17 +20,23 @@ internal sealed class
 
     public string? Input { get; private set; }
 
+    public int? MaximumOutputTokenCount
+    { get; private set; }
+
     public Task<AzureOpenAITextCompletion>
         CompleteAsync(
             string systemInstruction,
             string input,
             CancellationToken cancellationToken =
-                default)
+                default,
+            int? maximumOutputTokenCount = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         SystemInstruction = systemInstruction;
         Input = input;
+        MaximumOutputTokenCount =
+            maximumOutputTokenCount;
 
         return Task.FromResult(Completion);
     }

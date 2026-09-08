@@ -92,6 +92,9 @@ public sealed class
         Assert.Equal(
             "Source evidence text.",
             client.Input);
+        Assert.Equal(
+            16,
+            client.MaximumOutputTokenCount);
     }
 
     [Theory]
