@@ -25,9 +25,13 @@ internal static class ArtifactPrintRenderingFactory
             new TextArtifactPrintRenderingProvider(
                 contentStore);
 
+        var imageProvider =
+            new ImageArtifactPrintRenderingProvider(
+                contentStore);
+
         return new ArtifactPrintRendererRouter(
             repository,
             new DefaultArtifactContentTypeResolver(),
-            [pdfProvider, textProvider]);
+            [pdfProvider, textProvider, imageProvider]);
     }
 }
