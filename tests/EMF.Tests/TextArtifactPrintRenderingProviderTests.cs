@@ -14,6 +14,9 @@ public sealed class TextArtifactPrintRenderingProviderTests
 
         Assert.True(provider.CanRender("text/plain"));
         Assert.True(provider.CanRender("TEXT/PLAIN"));
+        Assert.True(provider.CanRender("text/csv"));
+        Assert.True(provider.CanRender("application/json"));
+        Assert.True(provider.CanRender("application/xml"));
         Assert.False(provider.CanRender("application/pdf"));
     }
 

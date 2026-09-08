@@ -32,10 +32,10 @@ public sealed class TextArtifactPrintRenderingProvider :
     }
 
     public bool CanRender(string contentType) =>
-        string.Equals(
-            contentType,
-            "text/plain",
-            StringComparison.OrdinalIgnoreCase);
+        string.Equals(contentType, "text/plain", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(contentType, "text/csv", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(contentType, "application/json", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(contentType, "application/xml", StringComparison.OrdinalIgnoreCase);
 
     public async Task<IReadOnlyList<PrintableArtifactPage>> RenderAsync(
         ArtifactId artifactId,
