@@ -265,7 +265,7 @@ public sealed partial class VeteransEvidencePackageConsoleTests
 public sealed partial class VeteransEvidencePackageConsoleTests
 {
     [Fact]
-    public async Task EvidencePackage_WritesDocxExport()
+    public async Task EvidencePackage_RejectsUnderlyingEvidenceWithoutContentStore()
     {
         var databasePath = Path.GetTempFileName();
         var outputPath =
@@ -285,17 +285,8 @@ public sealed partial class VeteransEvidencePackageConsoleTests
                         packageId,
                         outputPath);
 
-            Assert.Equal(0, exitCode);
-            Assert.True(File.Exists(outputPath));
-            Assert.True(new FileInfo(outputPath).Length > 0);
-
-            if (!OperatingSystem.IsWindows())
-            {
-                Assert.Equal(
-                    UnixFileMode.UserRead |
-                    UnixFileMode.UserWrite,
-                    File.GetUnixFileMode(outputPath));
-            }
+            Assert.Equal(2, exitCode);
+            Assert.False(File.Exists(outputPath));
         }
         finally
         {
@@ -375,7 +366,7 @@ public sealed partial class VeteransEvidencePackageConsoleTests
 public sealed partial class VeteransEvidencePackageConsoleTests
 {
     [Fact]
-    public async Task EvidencePackage_WritesMedicalEvidenceAppendix()
+    public async Task EvidencePackage_RejectsClassifiedUnderlyingEvidenceWithoutContentStore()
     {
         var databasePath = Path.GetTempFileName();
         var outputPath =
@@ -413,33 +404,8 @@ public sealed partial class VeteransEvidencePackageConsoleTests
                         packageId,
                         outputPath);
 
-            Assert.Equal(0, exitCode);
-
-            using var document =
-                WordprocessingDocument.Open(
-                    outputPath,
-                    false);
-
-            var mainPart =
-                Assert.IsType<MainDocumentPart>(
-                    document.MainDocumentPart);
-
-            var documentRoot =
-                mainPart.Document;
-
-            Assert.NotNull(documentRoot);
-
-            var body =
-                documentRoot!.Body;
-
-            Assert.NotNull(body);
-
-            var text =
-                body!.InnerText;
-
-            Assert.Contains(
-                "Appendix A — Medical Evidence",
-                text);
+            Assert.Equal(2, exitCode);
+            Assert.False(File.Exists(outputPath));
         }
         finally
         {

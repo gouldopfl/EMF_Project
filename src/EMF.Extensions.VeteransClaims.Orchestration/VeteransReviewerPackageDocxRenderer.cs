@@ -1,4 +1,9 @@
+using System.Buffers.Binary;
+using System.Text;
 using DocumentFormat.OpenXml;
+using A = DocumentFormat.OpenXml.Drawing;
+using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
+using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
@@ -61,6 +66,7 @@ public static class VeteransReviewerPackageDocxRenderer
                         "Subtitle"));
 
             AppendRoleSection(
+                mainPart,
                 body,
                 details,
                 EvidencePackageContentRoles
@@ -68,6 +74,7 @@ public static class VeteransReviewerPackageDocxRenderer
                 "Generated Organizational Material");
 
             AppendRoleSection(
+                mainPart,
                 body,
                 details,
                 EvidencePackageContentRoles
@@ -92,6 +99,7 @@ public static class VeteransReviewerPackageDocxRenderer
     }
 
     private static void AppendRoleSection(
+        MainDocumentPart mainPart,
         Body body,
         VeteransReviewerPackageDetails details,
         string contentRole,
@@ -159,12 +167,14 @@ public static class VeteransReviewerPackageDocxRenderer
                         "Heading2"));
 
                 AppendContents(
+                    mainPart,
                     body,
                     group,
                     contentRole);
             }
 
             AppendContents(
+                mainPart,
                 body,
                 contents.Where(content => content.Appendix is null),
                 contentRole);
@@ -173,12 +183,14 @@ public static class VeteransReviewerPackageDocxRenderer
         }
 
         AppendContents(
+            mainPart,
             body,
             contents,
             contentRole);
     }
 
     private static void AppendContents(
+        MainDocumentPart mainPart,
         Body body,
         IEnumerable<VeteransReviewerArtifactContent> contents,
         string contentRole)
@@ -270,8 +282,28 @@ public static class VeteransReviewerPackageDocxRenderer
                         $"{relationship.CreatedUtc:O}"));
             }
 
-            body.Append(
-                ContentParagraph(content.Text));
+            if (content.PrintablePages.Count > 0)
+            {
+                AppendPrintablePages(
+                    mainPart,
+                    body,
+                    content.PrintablePages);
+
+                if (!string.IsNullOrWhiteSpace(content.Text))
+                {
+                    body.Append(
+                        ContentParagraph(
+                            "Extracted Text (Derived):"));
+
+                    body.Append(
+                        ContentParagraph(content.Text));
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(content.Text))
+            {
+                body.Append(
+                    ContentParagraph(content.Text));
+            }
         }
     }
 
@@ -415,6 +447,207 @@ public static class VeteransReviewerPackageDocxRenderer
 
         return paragraph;
     }
+
+    private static void AppendPrintablePages(
+        MainDocumentPart mainPart,
+        Body body,
+        IReadOnlyList<EMF.Core.Models.PrintableArtifactPage> pages)
+    {
+        var expectedPageNumber = 1;
+
+        foreach (var page in pages)
+        {
+            if (page.PageNumber != expectedPageNumber)
+                throw new InvalidOperationException(
+                    "Printable artifact pages are not in sequential order.");
+
+            if (string.Equals(
+                    page.ContentType,
+                    "text/plain",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                body.Append(ContentParagraph($"Source Page {page.PageNumber}"));
+                body.Append(ContentParagraph(DecodePrintableText(page.Content)));
+                expectedPageNumber++;
+                continue;
+            }
+
+            if (!string.Equals(
+                    page.ContentType,
+                    "image/png",
+                    StringComparison.OrdinalIgnoreCase))
+                throw new NotSupportedException(
+                    $"Unsupported printable page content type '{page.ContentType}'.");
+
+            var (width, height) =
+                GetPngDimensions(page.Content);
+
+            var imagePart =
+                mainPart.AddImagePart(
+                    ImagePartType.Png);
+
+            using (var stream =
+                new MemoryStream(
+                    page.Content.ToArray(),
+                    writable: false))
+            {
+                imagePart.FeedData(stream);
+            }
+
+            var relationshipId =
+                mainPart.GetIdOfPart(imagePart);
+
+            var (cx, cy) =
+                FitPageToDocument(width, height);
+
+            var drawingId =
+                checked((uint)mainPart.ImageParts.Count());
+
+            body.Append(
+                ContentParagraph(
+                    $"Source Page {page.PageNumber}"));
+
+            body.Append(
+                ImageParagraph(
+                    relationshipId,
+                    drawingId,
+                    page.PageNumber,
+                    cx,
+                    cy));
+
+            expectedPageNumber++;
+        }
+    }
+
+    private static string DecodePrintableText(ReadOnlyMemory<byte> content)
+    {
+        try
+        {
+            return new UTF8Encoding(false, true).GetString(content.Span).TrimStart('\uFEFF');
+        }
+        catch (DecoderFallbackException ex)
+        {
+            throw new InvalidDataException(
+                "Printable text content is not valid UTF-8.", ex);
+        }
+    }
+
+    private static (uint Width, uint Height) GetPngDimensions(
+        ReadOnlyMemory<byte> content)
+    {
+        ReadOnlySpan<byte> pngHeader =
+        [
+            0x89, 0x50, 0x4E, 0x47,
+            0x0D, 0x0A, 0x1A, 0x0A
+        ];
+
+        if (content.Length < 24 ||
+            !content.Span[..8].SequenceEqual(pngHeader))
+            throw new InvalidDataException(
+                "Printable page is not a valid PNG image.");
+
+        var width =
+            BinaryPrimitives.ReadUInt32BigEndian(
+                content.Span.Slice(16, 4));
+
+        var height =
+            BinaryPrimitives.ReadUInt32BigEndian(
+                content.Span.Slice(20, 4));
+
+        if (width == 0 || height == 0)
+            throw new InvalidDataException(
+                "Printable PNG page has invalid dimensions.");
+
+        return (width, height);
+    }
+
+    private static (long Cx, long Cy) FitPageToDocument(
+        uint width,
+        uint height)
+    {
+        const long maxWidth = 5_943_600;
+        const long maxHeight = 7_772_400;
+
+        var scale =
+            Math.Min(
+                maxWidth / (double)width,
+                maxHeight / (double)height);
+
+        return (
+            checked((long)Math.Round(width * scale)),
+            checked((long)Math.Round(height * scale)));
+    }
+
+    private static Paragraph ImageParagraph(
+        string relationshipId,
+        uint drawingId,
+        int pageNumber,
+        long cx,
+        long cy) =>
+        new(
+            new ParagraphProperties(
+                new Justification
+                {
+                    Val = JustificationValues.Center
+                }),
+            new Run(
+                new Drawing(
+                    new DW.Inline(
+                        new DW.Extent
+                        {
+                            Cx = cx,
+                            Cy = cy
+                        },
+                        new DW.DocProperties
+                        {
+                            Id = drawingId,
+                            Name = $"Source Page {pageNumber}"
+                        },
+                        new DW.NonVisualGraphicFrameDrawingProperties(
+                            new A.GraphicFrameLocks
+                            {
+                                NoChangeAspect = true
+                            }),
+                        new A.Graphic(
+                            new A.GraphicData(
+                                new PIC.Picture(
+                                    new PIC.NonVisualPictureProperties(
+                                        new PIC.NonVisualDrawingProperties
+                                        {
+                                            Id = 0U,
+                                            Name = $"Source Page {pageNumber}.png"
+                                        },
+                                        new PIC.NonVisualPictureDrawingProperties()),
+                                    new PIC.BlipFill(
+                                        new A.Blip
+                                        {
+                                            Embed = relationshipId
+                                        },
+                                        new A.Stretch(
+                                            new A.FillRectangle())),
+                                    new PIC.ShapeProperties(
+                                        new A.Transform2D(
+                                            new A.Offset
+                                            {
+                                                X = 0L,
+                                                Y = 0L
+                                            },
+                                            new A.Extents
+                                            {
+                                                Cx = cx,
+                                                Cy = cy
+                                            }),
+                                        new A.PresetGeometry(
+                                            new A.AdjustValueList())
+                                        {
+                                            Preset =
+                                                A.ShapeTypeValues.Rectangle
+                                        })))
+                            {
+                                Uri =
+                                    "http://schemas.openxmlformats.org/" +
+                                    "drawingml/2006/picture"
+                            })))));
 
     private static Paragraph Paragraph(
         string text) =>

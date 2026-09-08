@@ -12,6 +12,7 @@ public sealed class VeteransReviewerPackageDetailsService
     private readonly IEvidenceRepository _evidence;
     private readonly IEvidenceClassificationRepository? _classifications;
     private readonly IArtifactTextExtractor? _textExtractor;
+    private readonly IArtifactPrintRenderer? _printRenderer;
 
     public VeteransReviewerPackageDetailsService(
         IEvidencePackageService packages,
@@ -57,6 +58,22 @@ public sealed class VeteransReviewerPackageDetailsService
     {
         ArgumentNullException.ThrowIfNull(classifications);
         _classifications = classifications;
+    }
+
+    public VeteransReviewerPackageDetailsService(
+        IEvidencePackageService packages,
+        IEvidenceRepository evidence,
+        IEvidenceClassificationRepository classifications,
+        IArtifactTextExtractor textExtractor,
+        IArtifactPrintRenderer printRenderer)
+        : this(
+            packages,
+            evidence,
+            classifications,
+            textExtractor)
+    {
+        ArgumentNullException.ThrowIfNull(printRenderer);
+        _printRenderer = printRenderer;
     }
 
     public async Task<VeteransReviewerPackageDetails?> GetAsync(
@@ -107,8 +124,27 @@ public sealed class VeteransReviewerPackageDetailsService
                         cancellationToken);
             }
 
-            if (string.IsNullOrWhiteSpace(text))
-                continue;
+            IReadOnlyList<PrintableArtifactPage> printablePages = [];
+
+            if (string.Equals(
+                    packageArtifact.ContentRole,
+                    Models.Adjudication.EvidencePackageContentRoles
+                        .UnderlyingEvidence,
+                    StringComparison.Ordinal) &&
+                _printRenderer is not null)
+            {
+                printablePages =
+                    await _printRenderer.RenderAsync(
+                        artifact.Id,
+                        cancellationToken);
+
+                if (printablePages.Count == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Underlying evidence artifact '{artifact.Id.Value}' " +
+                        "has no printable source representation.");
+                }
+            }
 
             var provenance =
                 await _evidence.GetProvenanceAsync(
@@ -142,7 +178,8 @@ public sealed class VeteransReviewerPackageDetailsService
                 new VeteransReviewerArtifactContent
                 {
                     Artifact = artifact,
-                    Text = text,
+                    Text = text ?? string.Empty,
+                    PrintablePages = printablePages,
                     Provenance = provenance,
                     Relationships = relationships,
                     Appendix =

@@ -10,7 +10,10 @@ namespace EMF.Orchestration.Services;
 public sealed class PdfToImagePageRenderer :
     IPdfPageImageRenderer
 {
-    private const int OcrDpi = 300;
+    public const int DefaultDpi = 300;
+
+    private readonly int _dpi;
+    private readonly bool _grayscale;
 
     public const long DefaultMaxInputBytes =
         100L * 1024 * 1024;
@@ -18,7 +21,9 @@ public sealed class PdfToImagePageRenderer :
     private readonly long _maxInputBytes;
 
     public PdfToImagePageRenderer(
-        long maxInputBytes = DefaultMaxInputBytes)
+        long maxInputBytes = DefaultMaxInputBytes,
+        int dpi = DefaultDpi,
+        bool grayscale = true)
     {
         if (maxInputBytes <= 0 ||
             maxInputBytes > Array.MaxLength)
@@ -27,7 +32,15 @@ public sealed class PdfToImagePageRenderer :
                 nameof(maxInputBytes));
         }
 
+        if (dpi <= 0 || dpi > 1200)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(dpi));
+        }
+
         _maxInputBytes = maxInputBytes;
+        _dpi = dpi;
+        _grayscale = grayscale;
     }
 
     public Task<byte[]> RenderPageAsync(
@@ -53,9 +66,9 @@ public sealed class PdfToImagePageRenderer :
                 new Index(pageIndex));
 
         var pixelWidth =
-            Math.Ceiling((double)pageSize.Width * OcrDpi / 72d);
+            Math.Ceiling((double)pageSize.Width * _dpi / 72d);
         var pixelHeight =
-            Math.Ceiling((double)pageSize.Height * OcrDpi / 72d);
+            Math.Ceiling((double)pageSize.Height * _dpi / 72d);
 
         if (!double.IsFinite(pixelWidth) ||
             !double.IsFinite(pixelHeight) ||
@@ -80,8 +93,8 @@ public sealed class PdfToImagePageRenderer :
             new Index(pageIndex),
             options: new RenderOptions
             {
-                Dpi = OcrDpi,
-                Grayscale = true
+                Dpi = _dpi,
+                Grayscale = _grayscale
             });
 
         cancellationToken.ThrowIfCancellationRequested();

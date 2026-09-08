@@ -932,7 +932,8 @@ public static class VeteransConsoleCommand
             await RunEvidencePackageDocxAsync(
                 databasePath,
                 prepared.Package.Id,
-                outputPath);
+                outputPath,
+                contentStore);
 
         if (exportExitCode != 0)
             return exportExitCode;
@@ -1918,6 +1919,9 @@ public static class VeteransConsoleCommand
                     classifications,
                     ArtifactTextExtractionFactory.Create(
                         evidenceRepository,
+                        contentStore),
+                    ArtifactPrintRenderingFactory.Create(
+                        evidenceRepository,
                         contentStore));
 
         var details =
@@ -1945,7 +1949,8 @@ public static class VeteransConsoleCommand
     internal static async Task<int> RunEvidencePackageDocxAsync(
         string databasePath,
         EvidencePackageId evidencePackageId,
-        string outputPath)
+        string outputPath,
+        IArtifactContentStore? suppliedContentStore = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
@@ -1988,6 +1993,7 @@ public static class VeteransConsoleCommand
                 fullDatabasePath);
 
         var contentStore =
+            suppliedContentStore ??
             ArtifactContentStoreFactory.Create();
 
         var service =
@@ -2002,6 +2008,9 @@ public static class VeteransConsoleCommand
                     classifications,
                     ArtifactTextExtractionFactory.Create(
                         evidenceRepository,
+                        contentStore),
+                    ArtifactPrintRenderingFactory.Create(
+                        evidenceRepository,
                         contentStore));
 
         var details =
@@ -2009,6 +2018,21 @@ public static class VeteransConsoleCommand
 
         if (details is null)
             return 1;
+
+        if (contentStore is null &&
+            details.PackageDetails.Artifacts.Any(
+                artifact =>
+                    string.Equals(
+                        artifact.ContentRole,
+                        EvidencePackageContentRoles.UnderlyingEvidence,
+                        StringComparison.Ordinal)))
+        {
+            global::System.Console.Error.WriteLine(
+                "Reviewer package contains underlying evidence, " +
+                "but preserved artifact content is unavailable.");
+
+            return 2;
+        }
 
         var content =
             VeteransReviewerPackageDocxRenderer.Render(

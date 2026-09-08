@@ -641,3 +641,185 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
             exception.Message);
     }
 }
+
+public sealed partial class VeteransReviewerPackageDetailsServiceTests
+{
+    [Fact]
+    public async Task GetAsync_RendersUnderlyingEvidenceForPrinting()
+    {
+        var packageId = new EvidencePackageId("package-print-1");
+        var artifact = CreateArtifact("artifact-print-1");
+
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var printRenderer =
+            new RecordingPrintRenderer(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 1,
+                    ContentType = "image/png",
+                    Content = new byte[] { 1, 2, 3 }
+                }
+            ]);
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService
+                {
+                    Details = CreateDetails(packageId, artifact.Id)
+                },
+                evidence,
+                new RecordingClassificationRepository(),
+                new RecordingTextExtractor("reviewable text"),
+                printRenderer);
+
+        var result = await service.GetAsync(packageId);
+
+        Assert.NotNull(result);
+
+        var content = Assert.Single(result.ArtifactContents);
+        var page = Assert.Single(content.PrintablePages);
+
+        Assert.Equal(artifact.Id, printRenderer.ArtifactId);
+        Assert.Equal(1, page.PageNumber);
+        Assert.Equal("image/png", page.ContentType);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsUnderlyingEvidenceWithoutPrintablePages()
+    {
+        var packageId = new EvidencePackageId("package-print-2");
+        var artifact = CreateArtifact("artifact-print-2");
+
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService
+                {
+                    Details = CreateDetails(packageId, artifact.Id)
+                },
+                evidence,
+                new RecordingClassificationRepository(),
+                new RecordingTextExtractor("reviewable text"),
+                new RecordingPrintRenderer([]));
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(packageId));
+
+        Assert.Contains(artifact.Id.Value, exception.Message);
+        Assert.Contains("printable", exception.Message);
+    }
+}
+
+public sealed partial class VeteransReviewerPackageDetailsServiceTests
+{
+    [Fact]
+    public async Task GetAsync_RetainsTextlessUnderlyingEvidenceWhenPrintable()
+    {
+        var packageId = new EvidencePackageId("package-print-3");
+        var artifact = CreateArtifact("artifact-print-3");
+
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService
+                {
+                    Details = CreateDetails(packageId, artifact.Id)
+                },
+                evidence,
+                new RecordingClassificationRepository(),
+                new RecordingTextExtractor(null),
+                new RecordingPrintRenderer(
+                [
+                    new PrintableArtifactPage
+                    {
+                        PageNumber = 1,
+                        ContentType = "image/png",
+                        Content = new byte[] { 4, 5, 6 }
+                    }
+                ]));
+
+        var result = await service.GetAsync(packageId);
+
+        Assert.NotNull(result);
+
+        var content = Assert.Single(result.ArtifactContents);
+
+        Assert.Equal(string.Empty, content.Text);
+        Assert.Single(content.PrintablePages);
+    }
+
+    [Fact]
+    public async Task GetAsync_DoesNotPrintGeneratedOrganizationalMaterial()
+    {
+        var packageId = new EvidencePackageId("package-print-4");
+        var artifact = CreateArtifact("artifact-print-4");
+
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var details =
+            new EvidencePackageDetails
+            {
+                Package = new EvidencePackage
+                {
+                    Id = packageId,
+                    ClaimIssueId = new ClaimIssueId("issue-1"),
+                    Purpose = "Physician reviewer package",
+                    ReviewerRole = "MedicalProfessional"
+                },
+                Artifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = artifact.Id,
+                        ContentRole =
+                            EvidencePackageContentRoles
+                                .GeneratedOrganizationalMaterial
+                    }
+                ]
+            };
+
+        var printRenderer = new RecordingPrintRenderer([]);
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService { Details = details },
+                evidence,
+                new RecordingClassificationRepository(),
+                new RecordingTextExtractor("generated content"),
+                printRenderer);
+
+        var result = await service.GetAsync(packageId);
+
+        Assert.NotNull(result);
+        Assert.Single(result.ArtifactContents);
+        Assert.Equal(0, printRenderer.CallCount);
+    }
+}
+
+file sealed class RecordingPrintRenderer(
+    IReadOnlyList<PrintableArtifactPage> pages) :
+    IArtifactPrintRenderer
+{
+    public ArtifactId? ArtifactId { get; private set; }
+
+    public int CallCount { get; private set; }
+
+    public Task<IReadOnlyList<PrintableArtifactPage>> RenderAsync(
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default)
+    {
+        ArtifactId = artifactId;
+        CallCount++;
+        return Task.FromResult(pages);
+    }
+}

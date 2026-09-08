@@ -130,4 +130,48 @@ public sealed class PdfToImagePageRendererTests
             ex.Message);
     }
 
+
+    [Fact]
+    public async Task RenderPageAsync_PreservesColorWhenGrayscaleDisabled()
+    {
+        using var pdf = new MemoryStream();
+
+        using (var document = SkiaSharp.SKDocument.CreatePdf(pdf))
+        {
+            var canvas = document.BeginPage(72, 72);
+
+            using var paint =
+                new SkiaSharp.SKPaint
+                {
+                    Color = SkiaSharp.SKColors.Red
+                };
+
+            canvas.DrawRect(0, 0, 72, 72, paint);
+            document.EndPage();
+            document.Close();
+        }
+
+        var renderer =
+            new PdfToImagePageRenderer(
+                grayscale: false);
+
+        var image =
+            await renderer.RenderPageAsync(
+                pdf.ToArray(),
+                0);
+
+        using var bitmap =
+            SkiaSharp.SKBitmap.Decode(image);
+
+        Assert.NotNull(bitmap);
+
+        var pixel =
+            bitmap.GetPixel(
+                bitmap.Width / 2,
+                bitmap.Height / 2);
+
+        Assert.True(pixel.Red > pixel.Green);
+        Assert.True(pixel.Red > pixel.Blue);
+    }
+
 }

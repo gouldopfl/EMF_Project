@@ -1781,3 +1781,204 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             text);
     }
 }
+
+public sealed partial class VeteransReviewerPackageDocxRendererTests
+{
+    [Fact]
+    public void Render_EmbedsPrintableSourcePageAsImagePart()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 1,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                }
+            ],
+            "Derived evidence text.");
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var mainPart =
+            Assert.IsType<MainDocumentPart>(
+                document.MainDocumentPart);
+
+        Assert.Single(mainPart.ImageParts);
+
+        var text = mainPart.Document!.InnerText;
+
+        Assert.Contains("Source Page 1", text);
+        Assert.Contains("Extracted Text (Derived):", text);
+        Assert.Contains("Derived evidence text.", text);
+    }
+
+    [Fact]
+    public void Render_PreservesPrintableSourcePageOrder()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 1,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                },
+                new PrintableArtifactPage
+                {
+                    PageNumber = 2,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                }
+            ],
+            "");
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var mainPart =
+            Assert.IsType<MainDocumentPart>(
+                document.MainDocumentPart);
+
+        Assert.Equal(2, mainPart.ImageParts.Count());
+
+        var text = mainPart.Document!.InnerText;
+
+        Assert.True(
+            text.IndexOf("Source Page 1", StringComparison.Ordinal) <
+            text.IndexOf("Source Page 2", StringComparison.Ordinal));
+    }
+}
+
+public sealed partial class VeteransReviewerPackageDocxRendererTests
+{
+    [Fact]
+    public void Render_RejectsUnsupportedPrintablePageType()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 1,
+                    ContentType = "image/jpeg",
+                    Content = TinyPng()
+                }
+            ],
+            "");
+
+        Assert.Throws<NotSupportedException>(
+            () => VeteransReviewerPackageDocxRenderer.Render(details));
+    }
+
+    [Fact]
+    public void Render_RejectsMalformedPrintablePng()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 1,
+                    ContentType = "image/png",
+                    Content = new byte[] { 1, 2, 3 }
+                }
+            ],
+            "");
+
+        Assert.Throws<InvalidDataException>(
+            () => VeteransReviewerPackageDocxRenderer.Render(details));
+    }
+
+    [Fact]
+    public void Render_RejectsNonSequentialPrintablePages()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 2,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                }
+            ],
+            "");
+
+        Assert.Throws<InvalidOperationException>(
+            () => VeteransReviewerPackageDocxRenderer.Render(details));
+    }
+}
+
+public sealed partial class VeteransReviewerPackageDocxRendererTests
+{
+    private static VeteransReviewerPackageDetails CreatePrintableDetails(
+        IReadOnlyList<PrintableArtifactPage> pages,
+        string text)
+    {
+        var packageId =
+            new EvidencePackageId("package-print");
+
+        var artifact =
+            new Artifact
+            {
+                Id = new ArtifactId("source-print"),
+                Name = "Source Evidence",
+                ArtifactType = "medical-record"
+            };
+
+        return new VeteransReviewerPackageDetails
+        {
+            PackageDetails =
+                new EvidencePackageDetails
+                {
+                    Package =
+                        new EvidencePackage
+                        {
+                            Id = packageId,
+                            ClaimIssueId =
+                                new ClaimIssueId("issue-print"),
+                            Purpose = "Reviewer package",
+                            ReviewerRole = "MedicalProfessional"
+                        },
+                    Artifacts =
+                    [
+                        new EvidencePackageArtifact
+                        {
+                            EvidencePackageId = packageId,
+                            ArtifactId = artifact.Id,
+                            ContentRole =
+                                EvidencePackageContentRoles
+                                    .UnderlyingEvidence
+                        }
+                    ]
+                },
+            Artifacts = [artifact],
+            ArtifactContents =
+            [
+                new VeteransReviewerArtifactContent
+                {
+                    Artifact = artifact,
+                    Text = text,
+                    PrintablePages = pages
+                }
+            ]
+        };
+    }
+
+    private static byte[] TinyPng() =>
+        Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC" +
+            "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+}
