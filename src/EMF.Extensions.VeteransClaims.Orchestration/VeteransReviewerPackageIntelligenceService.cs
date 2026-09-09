@@ -130,12 +130,23 @@ public sealed class VeteransReviewerPackageIntelligenceService :
                 "Reviewer evidence contains duplicate artifact IDs.");
         }
 
+        var evidenceArtifactIdSet =
+            evidenceArtifactIds.ToHashSet();
+
         if (!context.InputArtifactIds
             .ToHashSet()
-            .SetEquals(evidenceArtifactIds))
+            .SetEquals(evidenceArtifactIdSet))
         {
             throw new InvalidOperationException(
                 "Reviewer evidence does not match input artifact lineage.");
+        }
+
+        if (developmentDetails
+            .SelectMany(x => x.Result.RecognitionMatchArtifacts)
+            .Any(x => !evidenceArtifactIdSet.Contains(x.ArtifactId)))
+        {
+            throw new InvalidOperationException(
+                "Evidence recognition artifact is outside reviewer evidence lineage.");
         }
 
         var source =

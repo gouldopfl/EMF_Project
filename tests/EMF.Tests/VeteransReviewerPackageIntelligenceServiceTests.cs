@@ -432,4 +432,62 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
     }
 
 
+
+    [Fact]
+    public async Task SummarizeAsync_RejectsRecognitionArtifactOutsideEvidence()
+    {
+        var evidenceId = new ArtifactId("reviewer-evidence");
+        var gapId = new EvidenceGapId("gap-1");
+        var requirementId = new RequirementId("req-1");
+
+        var service =
+            new VeteransReviewerPackageIntelligenceService(
+                new RecordingTextSummarizationExecutor());
+
+        var context = new IntelligenceExecutionContext(
+            "reviewer-package-steward",
+            new IntelligenceCorrelationId("recognition-lineage"),
+            new ProtectionClassificationId("confidential"),
+            [evidenceId]);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.SummarizeAsync(
+                CreateDetails(),
+                [new VeteransReviewerEvidenceSource
+                {
+                    ArtifactId = evidenceId,
+                    Classifications = [EvidenceClassifications.MedicalEvidence],
+                    Text = "Evidence text."
+                }],
+                [new VeteransReviewerEvidenceDevelopmentDetails
+                {
+                    Gap = new EvidenceGap
+                    {
+                        Id = gapId,
+                        ClaimIssueId = new ClaimIssueId("issue-intelligence-1"),
+                        RequirementId = requirementId,
+                        Description = "Evidence gap"
+                    },
+                    Result = new EvidenceDevelopmentResult
+                    {
+                        EvidenceGapId = gapId,
+                        RequirementId = requirementId,
+                        EvidenceGuidance = [],
+                        RecognitionMatchArtifacts =
+                        [
+                            new EvidenceRecognitionMatchArtifact
+                            {
+                                RecognitionTermId =
+                                    new EvidenceRecognitionTermId("term-1"),
+                                ArtifactId =
+                                    new ArtifactId("outside-reviewer-evidence"),
+                                Role = "SupportingEvidence"
+                            }
+                        ]
+                    }
+                }],
+                context));
+    }
+
+
 }
