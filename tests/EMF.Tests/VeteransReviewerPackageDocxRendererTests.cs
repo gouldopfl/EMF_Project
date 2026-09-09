@@ -1,6 +1,7 @@
 using DocumentFormat.OpenXml.Packaging;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
+using EMF.Extensions.VeteransClaims.Models;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Orchestration;
@@ -97,6 +98,14 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     {
                         Algorithm = "SHA-256",
                         Value = "abc123"
+                    },
+                Metadata =
+                    new Dictionary<string, object>
+                    {
+                        [VeteransArtifactMetadataKeys.SourceStartPage] = "1003",
+                        [VeteransArtifactMetadataKeys.SourceEndPage] = "1005",
+                        [VeteransArtifactMetadataKeys.NoteDate] = "2025-07-30",
+                        [VeteransArtifactMetadataKeys.NoteTitle] = "PAP SET-UP CONSULT"
                     }
             };
 
@@ -229,6 +238,11 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.Contains(
             "Fingerprint: SHA-256 abc123",
             text);
+
+        Assert.Contains("Source Start Page: 1003", text);
+        Assert.Contains("Source End Page: 1005", text);
+        Assert.Contains("Note Date: 2025-07-30", text);
+        Assert.Contains("Note Title: PAP SET-UP CONSULT", text);
 
         Assert.Contains(
             "Provenance: /records/sleep-study.pdf | " +

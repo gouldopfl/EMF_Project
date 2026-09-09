@@ -221,6 +221,34 @@ public static class VeteransReviewerPackageDocxRenderer
                         $"{content.Artifact.Fingerprint.Value}"));
             }
 
+            AppendMetadata(
+                body,
+                content.Artifact.Metadata,
+                EMF.Extensions.VeteransClaims.Models
+                    .VeteransArtifactMetadataKeys.SourceStartPage,
+                "Source Start Page");
+
+            AppendMetadata(
+                body,
+                content.Artifact.Metadata,
+                EMF.Extensions.VeteransClaims.Models
+                    .VeteransArtifactMetadataKeys.SourceEndPage,
+                "Source End Page");
+
+            AppendMetadata(
+                body,
+                content.Artifact.Metadata,
+                EMF.Extensions.VeteransClaims.Models
+                    .VeteransArtifactMetadataKeys.NoteDate,
+                "Note Date");
+
+            AppendMetadata(
+                body,
+                content.Artifact.Metadata,
+                EMF.Extensions.VeteransClaims.Models
+                    .VeteransArtifactMetadataKeys.NoteTitle,
+                "Note Title");
+
             foreach (var provenance in content.Provenance)
             {
                 body.Append(
@@ -402,6 +430,25 @@ public static class VeteransReviewerPackageDocxRenderer
                 {
                     Space = SpaceProcessingModeValues.Preserve
                 }));
+    }
+
+    private static void AppendMetadata(
+        Body body,
+        IReadOnlyDictionary<string, object> metadata,
+        string key,
+        string label)
+    {
+        if (!metadata.TryGetValue(key, out var value))
+            return;
+
+        var text = value?.ToString();
+
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        body.Append(
+            ContentParagraph(
+                $"{label}: {text}"));
     }
 
     private static Paragraph ContentParagraph(
