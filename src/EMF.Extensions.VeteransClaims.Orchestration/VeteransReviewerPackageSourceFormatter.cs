@@ -184,6 +184,76 @@ internal static class VeteransReviewerPackageSourceFormatter
                 $"{item.Responsiveness.MatchingItemCount} matching, " +
                 $"{item.Responsiveness.MissingItemCount} missing");
 
+            if (item.MedicalLiterature.Count > 0)
+            {
+                builder.AppendLine(
+                    "  Medical / Scientific Literature:");
+
+                foreach (var literature in item.MedicalLiterature)
+                {
+                    var source = literature.Source;
+                    var association = literature.Association;
+
+                    builder.AppendLine(
+                        $"  - {SingleLine(source.Title)}");
+
+                    builder.AppendLine(
+                        $"    Authors: {SingleLine(source.Authors)}");
+
+                    builder.Append(
+                        $"    Publication: " +
+                        $"{SingleLine(source.Publication)}");
+
+                    if (source.PublicationYear is not null)
+                        builder.Append($" ({source.PublicationYear})");
+
+                    builder.AppendLine();
+
+                    builder.AppendLine(
+                        $"    VA Affiliated: " +
+                        $"{(source.VaAffiliated ? "Yes" : "No")}");
+
+                    builder.AppendLine(
+                        $"    VA Funded: " +
+                        $"{(source.VaFunded ? "Yes" : "No")}");
+
+                    builder.AppendLine(
+                        $"    Peer Reviewed: " +
+                        $"{(source.PeerReviewed ? "Yes" : "No")}");
+
+                    if (!string.IsNullOrWhiteSpace(
+                            source.ResearchOrganization))
+                    {
+                        builder.AppendLine(
+                            $"    Research Organization: " +
+                            $"{SingleLine(source.ResearchOrganization)}");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(source.FundingSource))
+                    {
+                        builder.AppendLine(
+                            $"    Funding Source: " +
+                            $"{SingleLine(source.FundingSource)}");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(source.Doi))
+                        builder.AppendLine(
+                            $"    DOI: {SingleLine(source.Doi)}");
+
+                    if (!string.IsNullOrWhiteSpace(source.Pmid))
+                        builder.AppendLine(
+                            $"    PMID: {SingleLine(source.Pmid)}");
+
+                    builder.AppendLine(
+                        $"    Role: " +
+                        $"{SingleLine(association.GuidanceRole)}");
+
+                    builder.AppendLine(
+                        $"    Relevance: " +
+                        $"{SingleLine(association.Description)}");
+                }
+            }
+
             if (item.DevelopmentChecklist.Items.Count > 0)
             {
                 builder.AppendLine(

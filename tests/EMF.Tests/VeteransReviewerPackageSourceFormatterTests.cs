@@ -713,7 +713,46 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
                         {
                             RequirementId = requirement.Id,
                             Items = []
-                        }
+                        },
+                    MedicalLiterature =
+                        [
+                            new RequirementMedicalLiteratureDetails
+                            {
+                                Association =
+                                    new RequirementMedicalLiterature
+                                    {
+                                        RequirementId = requirement.Id,
+                                        MedicalLiteratureSourceId =
+                                            new MedicalLiteratureSourceId(
+                                                "study-va-001"),
+                                        GuidanceRole =
+                                            EvidenceGuidanceRoles
+                                                .SupportsRequirement,
+                                        Description =
+                                            "Supports the medical mechanism."
+                                    },
+                                Source =
+                                    new MedicalLiteratureSource
+                                    {
+                                        Id =
+                                            new MedicalLiteratureSourceId(
+                                                "study-va-001"),
+                                        Title = "VA sleep apnea study",
+                                        Authors = "VA Researchers",
+                                        Publication = "Example Journal",
+                                        PublicationYear = 2026,
+                                        VaAffiliated = true,
+                                        VaFunded = true,
+                                        PeerReviewed = true,
+                                        FundingSource =
+                                            "U.S. Department of Veterans Affairs",
+                                        ResearchOrganization =
+                                            "VA Research",
+                                        Doi = "10.1000/va-study",
+                                        Pmid = "12345678"
+                                    }
+                            }
+                        ]
                 }
             ]);
 
@@ -729,6 +768,18 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
         Assert.Contains(
             "  Evidence Responsiveness: 0 matching, 0 missing",
             text);
+        Assert.Contains(
+            "  Medical / Scientific Literature:",
+            text);
+        Assert.Contains("  - VA sleep apnea study", text);
+        Assert.Contains("    VA Affiliated: Yes", text);
+        Assert.Contains("    VA Funded: Yes", text);
+        Assert.Contains("    Peer Reviewed: Yes", text);
+        Assert.Contains(
+            "    Funding Source: U.S. Department of Veterans Affairs",
+            text);
+        Assert.Contains("    DOI: 10.1000/va-study", text);
+        Assert.Contains("    PMID: 12345678", text);
     }
 
 

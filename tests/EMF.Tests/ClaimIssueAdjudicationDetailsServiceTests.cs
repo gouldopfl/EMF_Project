@@ -445,6 +445,33 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 }
             };
 
+        var literatureSource =
+            new MedicalLiteratureSource
+            {
+                Id = new MedicalLiteratureSourceId("study-va-001"),
+                Title = "VA sleep apnea study",
+                Authors = "VA Researchers",
+                Publication = "Example Journal",
+                PublicationYear = 2026,
+                VaAffiliated = true,
+                VaFunded = true,
+                PeerReviewed = true,
+                FundingSource =
+                    "U.S. Department of Veterans Affairs",
+                ResearchOrganization = "VA Research"
+            };
+
+        var literatureAssociation =
+            new RequirementMedicalLiterature
+            {
+                RequirementId = requirement.Id,
+                MedicalLiteratureSourceId = literatureSource.Id,
+                GuidanceRole =
+                    EvidenceGuidanceRoles.SupportsRequirement,
+                Description =
+                    "Supports the medical mechanism."
+            };
+
         var medicalConditionLookupCount = 0;
         var regulatoryProvisionLookupCount = 0;
 
@@ -536,7 +563,22 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                                 IReadOnlyList<
                                     ClaimIssueAdjudicationEvent>>(
                                 timeline)
-                            : throw new NotSupportedException()));
+                            : throw new NotSupportedException()),
+                null,
+                Proxy<IMedicalLiteratureRepository>(
+                    method =>
+                        method.Name ==
+                            "GetRequirementMedicalLiteratureAsync"
+                            ? Task.FromResult<
+                                IReadOnlyList<
+                                    RequirementMedicalLiterature>>(
+                                [literatureAssociation])
+                            : method.Name ==
+                                "GetMedicalLiteratureSourceAsync"
+                                ? Task.FromResult<
+                                    MedicalLiteratureSource?>(
+                                        literatureSource)
+                                : throw new NotSupportedException()));
 
         var result = await service.GetAsync(issueId);
 
@@ -641,6 +683,27 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         Assert.Same(
             developmentChecklist,
             resolvedRequirement.DevelopmentChecklist);
+
+        var resolvedLiterature =
+            Assert.Single(
+                resolvedRequirement.MedicalLiterature);
+
+        Assert.Same(
+            literatureAssociation,
+            resolvedLiterature.Association);
+
+        Assert.Same(
+            literatureSource,
+            resolvedLiterature.Source);
+
+        Assert.True(
+            resolvedLiterature.Source.VaAffiliated);
+
+        Assert.True(
+            resolvedLiterature.Source.VaFunded);
+
+        Assert.True(
+            resolvedLiterature.Source.PeerReviewed);
 
         Assert.Same(evidence, result.Evidence);
         Assert.Same(timeline, result.Timeline);

@@ -306,7 +306,7 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
             string.Concat(
                 Enumerable.Repeat(
                     "Documented medical evidence line. ",
-                    1_000));
+                    3_000));
 
         var result =
             await service.SummarizeAsync(
@@ -324,10 +324,11 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
 
         Assert.True(result.Success);
         Assert.True(executor.Requests.Count > 1);
+        Assert.InRange(executor.Requests.Count, 6, 12);
 
         Assert.Contains(
             executor.Requests,
-            request => request.MaximumCharacters == 3_200);
+            request => request.MaximumCharacters == 2_800);
 
         Assert.Equal(
             4_000,
@@ -347,6 +348,49 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
         Assert.DoesNotContain(
             largeEvidence,
             executor.Requests[^1].Text);
+    }
+
+
+
+    [Fact]
+    public async Task SummarizeAsync_StopsAtReviewerCallBudget()
+    {
+        var id = new ArtifactId("budgeted-reviewer-evidence");
+        var executor = new RecordingTextSummarizationExecutor
+        {
+            Output = new string('x', 2_500)
+        };
+        var service =
+            new VeteransReviewerPackageIntelligenceService(executor);
+        var context = new IntelligenceExecutionContext(
+            "reviewer-package-steward",
+            new IntelligenceCorrelationId("reviewer-call-budget-test"),
+            new ProtectionClassificationId("confidential"),
+            [id]);
+        var text = string.Concat(
+            Enumerable.Repeat(
+                "Documented medical evidence line. ",
+                150_000));
+
+        var result = await service.SummarizeAsync(
+            CreateDetails(),
+            [
+                new VeteransReviewerEvidenceSource
+                {
+                    ArtifactId = id,
+                    Classifications =
+                        [EvidenceClassifications.MedicalEvidence],
+                    Text = text
+                }
+            ],
+            context);
+
+        Assert.False(result.Success);
+        Assert.Equal(64, executor.Requests.Count);
+        Assert.Contains(
+            "maximum of 64 intelligence calls",
+            result.Message);
+        Assert.True(result.RequiresReview);
     }
 
 

@@ -11,6 +11,8 @@ A package adapter may organize evidence for a domain, but it must not replace an
 When an artifact is assigned the `UnderlyingEvidence` content role:
 
 - the preserved artifact content is the authoritative source
+- a request to print or export the original artifact must use that authoritative preserved content directly
+- a package-rendered page is a derived representation and must not be presented as the original file
 - the package must include a faithful printable representation derived from that preserved content
 - extracted text may also be included for search, accessibility, classification, intelligence, or explanation
 - extracted text does not satisfy the printable-source requirement by itself

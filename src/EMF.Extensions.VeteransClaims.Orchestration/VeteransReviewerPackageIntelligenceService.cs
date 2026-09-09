@@ -10,11 +10,12 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 public sealed class VeteransReviewerPackageIntelligenceService :
     IVeteransReviewerPackageIntelligenceService
 {
-    private const int MaximumReviewerInputCharacters = 4_000;
+    private const int MaximumReviewerInputCharacters = 15_000;
     private const int ReviewerSegmentOverlapCharacters = 200;
-    private const int MaximumSegmentSummaryCharacters = 1_200;
+    private const int MaximumSegmentSummaryCharacters = 800;
     private const int MaximumReviewerSummaryCharacters = 2_000;
     private const int ProviderResponseHeadroomCharacters = 2_000;
+    private const int MaximumReviewerCapabilityCalls = 64;
 
     private readonly TextSummarizationAgent _agent;
 
@@ -142,6 +143,9 @@ public sealed class VeteransReviewerPackageIntelligenceService :
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
+                if (allResults.Count >= MaximumReviewerCapabilityCalls)
+                    return CreateCallBudgetExceededResult(allResults);
+
                 var segmentResult =
                     await ExecuteAgentAsync(
                         BuildInput(segment),
@@ -168,6 +172,9 @@ public sealed class VeteransReviewerPackageIntelligenceService :
 
             reductionSource = BuildReductionSource(summaries);
         }
+
+        if (allResults.Count >= MaximumReviewerCapabilityCalls)
+            return CreateCallBudgetExceededResult(allResults);
 
         var finalResult =
             await ExecuteAgentAsync(
@@ -211,6 +218,41 @@ public sealed class VeteransReviewerPackageIntelligenceService :
                 allResults.Any(x => x.RequiresReview)
         };
     }
+
+    private static IntelligenceAgentResult<string>
+        CreateCallBudgetExceededResult(
+            IReadOnlyList<IntelligenceAgentResult<string>> results)
+    {
+        if (results.Count == 0)
+            throw new InvalidOperationException(
+                "Reviewer capability call budget was exhausted before " +
+                "any intelligence result was produced.");
+
+        var last = results[^1];
+
+        return new IntelligenceAgentResult<string>
+        {
+            Success = false,
+            Message =
+                $"Reviewer package summarization exceeded the maximum of " +
+                $"{MaximumReviewerCapabilityCalls} intelligence calls.",
+            Output = string.Empty,
+            AgentId = last.AgentId,
+            CorrelationId = last.CorrelationId,
+            StartedUtc = results[0].StartedUtc,
+            CompletedUtc = DateTimeOffset.UtcNow,
+            CapabilityExecutions =
+                results.SelectMany(x => x.CapabilityExecutions).ToArray(),
+            SourceArtifactIds = last.SourceArtifactIds,
+            Warnings =
+                results.SelectMany(x => x.Warnings)
+                    .Append("Reviewer intelligence call budget was exhausted.")
+                    .Distinct()
+                    .ToArray(),
+            RequiresReview = true
+        };
+    }
+
 
     private static IntelligenceAgentResult<string>
         BoundResult(

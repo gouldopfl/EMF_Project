@@ -7,6 +7,7 @@ using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
 using EMF.Integrity;
 using EMF.Extensions.VeteransClaims.Orchestration;
+using EMF.Extensions.VeteransClaims.Persistence.Sqlite;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
 using EMF.Extensions.VeteransClaims.Services;
 using EMF.Orchestration.Services;
@@ -33,6 +34,28 @@ public static class VeteransConsoleCommand
 
         contentStoreFactory ??=
             ArtifactContentStoreFactory.Create;
+
+        if (args.Length == 3 &&
+            args[0] == "schema" &&
+            args[1] == "migrate")
+        {
+            var path = Path.GetFullPath(args[2]);
+
+            if (!File.Exists(path))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {path}");
+                return 2;
+            }
+
+            await new VeteransClaimsSqliteSchema(path)
+                .InitializeAsync();
+
+            global::System.Console.WriteLine(
+                "Veterans Claims schema migration complete.");
+
+            return 0;
+        }
 
         if (args.Length == 4 &&
             args[0] == "adjudication" &&
@@ -212,6 +235,28 @@ public static class VeteransConsoleCommand
             return await RunChecklistAsync(
                 checklistDatabasePath,
                 new ClaimIssueId(args[3]));
+        }
+
+        if (args.Length == 6 &&
+            args[0] == "evidence" &&
+            args[1] == "classify")
+        {
+            var classifyDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(classifyDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {classifyDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunClassifyAsync(
+                classifyDatabasePath,
+                new ClaimIssueId(args[3]),
+                new ArtifactId(args[4]),
+                args[5]);
         }
 
         if (args.Length == 4 &&
@@ -995,7 +1040,8 @@ public static class VeteransConsoleCommand
             requirementEvidence,
             evidence,
             timeline,
-            new SqliteMedicalOpinionRepository(databasePath));
+            new SqliteMedicalOpinionRepository(databasePath),
+            new SqliteMedicalLiteratureRepository(databasePath));
     }
 
     private static ClaimIssueAdjudicationAssessmentService
@@ -2102,6 +2148,67 @@ public static class VeteransConsoleCommand
     }
 
 
+    private static async Task<int> RunClassifyAsync(
+        string databasePath,
+        ClaimIssueId claimIssueId,
+        ArtifactId artifactId,
+        string classification)
+    {
+        var claimIssue =
+            await new SqliteClaimIssueRepository(databasePath)
+                .GetClaimIssueAsync(claimIssueId);
+
+        if (claimIssue is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Claim issue not found: {claimIssueId.Value}");
+
+            return 1;
+        }
+
+        var evidenceRepository =
+            new SqliteEvidenceRepository(databasePath);
+
+        await evidenceRepository.InitializeAsync();
+
+        var artifact =
+            await evidenceRepository.GetArtifactAsync(artifactId);
+
+        if (artifact is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Artifact not found: {artifactId.Value}");
+
+            return 1;
+        }
+
+        var classifications =
+            new SqliteEvidenceClassificationRepository(databasePath);
+
+        var service =
+            new EvidenceClassificationService(
+                classifications,
+                new GuidIdGenerator());
+
+        var result =
+            await service.ClassifyAsync(
+                artifactId,
+                classification,
+                claimIssueId);
+
+        global::System.Console.WriteLine(
+            $"Classification ID : {result.Id.Value}");
+        global::System.Console.WriteLine(
+            $"Artifact ID       : {result.ArtifactId.Value}");
+        global::System.Console.WriteLine(
+            $"Claim Issue       : {result.ClaimIssueId?.Value ?? "<none>"}");
+        global::System.Console.WriteLine(
+            $"Classification    : {result.Classification}");
+
+        return 0;
+    }
+
+
     private static async Task<int> RunPrepareAsync(
         string databasePath,
         ClaimIssueId claimIssueId,
@@ -2239,6 +2346,10 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence reviewer " +
             "<database-path> <claim-issue-id> <output.docx>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence classify " +
+            "<database-path> <claim-issue-id> <artifact-id> <classification>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence package " +

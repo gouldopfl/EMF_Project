@@ -32,6 +32,11 @@ form in which it was supplied.
 EMF shall preserve the original artifact content as the authoritative source
 representation.
 
+When the original artifact is printed, exported, or otherwise supplied as the
+original source, EMF shall use the authoritative preserved artifact content
+directly. A rendered package representation shall not be substituted for the
+original artifact.
+
 When a source artifact is included as underlying evidence in a package, EMF
 shall also provide a faithful printable representation derived from the
 preserved source artifact.

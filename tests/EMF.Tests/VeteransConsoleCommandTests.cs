@@ -3080,4 +3080,154 @@ public sealed class VeteransConsoleCommandTests
         return path;
     }
 
+
+    [Fact]
+    public async Task EvidenceClassify_PersistsClassification()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-classify-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-classify-1")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-classify-1"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-classify-1"),
+                ClaimId = claim.Id,
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var artifactId =
+                new ArtifactId("artifact-classify-1");
+
+            var evidence =
+                new SqliteEvidenceRepository(databasePath);
+
+            await evidence.InitializeAsync();
+
+            await evidence.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = artifactId,
+                    Name = "Nexus Opinion",
+                    ArtifactType = "file",
+                    Metadata =
+                        new Dictionary<string, object>()
+                });
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "classify",
+                        databasePath,
+                        issue.Id.Value,
+                        artifactId.Value,
+                        EvidenceClassifications.MedicalOpinion
+                    ]);
+
+            Assert.Equal(0, exitCode);
+
+            var stored =
+                await new SqliteEvidenceClassificationRepository(
+                        databasePath)
+                    .GetEvidenceClassificationsAsync(issue.Id);
+
+            var classification = Assert.Single(stored);
+
+            Assert.Equal(artifactId, classification.ArtifactId);
+            Assert.Equal(issue.Id, classification.ClaimIssueId);
+            Assert.Equal(
+                EvidenceClassifications.MedicalOpinion,
+                classification.Classification);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task EvidenceClassify_RejectsMissingClaimIssue()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-classify-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var artifactId =
+                new ArtifactId("artifact-classify-missing-issue");
+
+            var evidence =
+                new SqliteEvidenceRepository(databasePath);
+
+            await evidence.InitializeAsync();
+
+            await evidence.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = artifactId,
+                    Name = "Unassociated Evidence",
+                    ArtifactType = "file",
+                    Metadata =
+                        new Dictionary<string, object>()
+                });
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "classify",
+                        databasePath,
+                        "issue-does-not-exist",
+                        artifactId.Value,
+                        EvidenceClassifications.MedicalEvidence
+                    ]);
+
+            Assert.Equal(1, exitCode);
+
+            var stored =
+                await new SqliteEvidenceClassificationRepository(
+                        databasePath)
+                    .GetEvidenceClassificationsAsync(artifactId);
+
+            Assert.Empty(stored);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
 }

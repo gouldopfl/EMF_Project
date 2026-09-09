@@ -1885,6 +1885,50 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_MedicalOpinionArtifacts (
                     ArtifactId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                67,
+                "AddMedicalLiteratureSources",
+                """
+                CREATE TABLE VeteransClaims_MedicalLiteratureSources (
+                    Id TEXT PRIMARY KEY,
+                    Title TEXT NOT NULL,
+                    Authors TEXT NOT NULL,
+                    Publication TEXT NOT NULL,
+                    PublicationYear INTEGER NULL,
+                    VaAffiliated INTEGER NOT NULL,
+                    VaFunded INTEGER NOT NULL,
+                    PeerReviewed INTEGER NOT NULL,
+                    FundingSource TEXT NULL,
+                    ResearchOrganization TEXT NULL,
+                    Doi TEXT NULL,
+                    Pmid TEXT NULL,
+                    SourceUri TEXT NULL,
+                    SourceHash TEXT NULL,
+                    RetrievedUtc TEXT NULL
+                );
+
+                CREATE TABLE VeteransClaims_RequirementMedicalLiterature (
+                    RequirementId TEXT NOT NULL,
+                    MedicalLiteratureSourceId TEXT NOT NULL,
+                    GuidanceRole TEXT NOT NULL,
+                    Description TEXT NOT NULL,
+                    PRIMARY KEY (
+                        RequirementId,
+                        MedicalLiteratureSourceId,
+                        GuidanceRole
+                    ),
+                    FOREIGN KEY (RequirementId)
+                        REFERENCES VeteransClaims_Requirements (Id),
+                    FOREIGN KEY (MedicalLiteratureSourceId)
+                        REFERENCES VeteransClaims_MedicalLiteratureSources (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_RequirementMedicalLiterature_Source
+                ON VeteransClaims_RequirementMedicalLiterature (
+                    MedicalLiteratureSourceId
+                );
                 """)
         };
 }

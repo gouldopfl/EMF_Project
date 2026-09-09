@@ -11,6 +11,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
     private readonly IConditionRepository _conditions;
     private readonly IServiceConnectionRepository _serviceConnections;
     private readonly IMedicalOpinionRepository? _medicalOpinions;
+    private readonly IMedicalLiteratureRepository? _medicalLiterature;
     private readonly IServiceHistoryRepository _serviceHistory;
     private readonly IRegulatoryRepository _regulatory;
     private readonly IRequirementEvidenceService _requirementEvidence;
@@ -26,7 +27,8 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         IRequirementEvidenceService requirementEvidence,
         IClaimIssueEvidenceDetailsService evidence,
         IClaimIssueAdjudicationTimelineService timeline,
-        IMedicalOpinionRepository? medicalOpinions = null)
+        IMedicalOpinionRepository? medicalOpinions = null,
+        IMedicalLiteratureRepository? medicalLiterature = null)
     {
         ArgumentNullException.ThrowIfNull(issues);
         ArgumentNullException.ThrowIfNull(conditions);
@@ -46,6 +48,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
         _evidence = evidence;
         _timeline = timeline;
         _medicalOpinions = medicalOpinions;
+        _medicalLiterature = medicalLiterature;
     }
 
     public async Task<ClaimIssueAdjudicationDetails?>
@@ -461,6 +464,44 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                             requirement.Id,
                             cancellationToken);
 
+                var literatureDetails =
+                    new List<RequirementMedicalLiteratureDetails>();
+
+                if (_medicalLiterature is not null)
+                {
+                    var literature =
+                        await _medicalLiterature
+                            .GetRequirementMedicalLiteratureAsync(
+                                requirement.Id,
+                                cancellationToken);
+
+                    foreach (var association in literature)
+                    {
+                        if (association.RequirementId != requirement.Id)
+                            throw new InvalidOperationException(
+                                "Medical literature requirement mismatch.");
+
+                        var source =
+                            await _medicalLiterature
+                                .GetMedicalLiteratureSourceAsync(
+                                    association.MedicalLiteratureSourceId,
+                                    cancellationToken)
+                            ?? throw new InvalidOperationException(
+                                "Medical literature source could not be read.");
+
+                        if (source.Id != association.MedicalLiteratureSourceId)
+                            throw new InvalidOperationException(
+                                "Medical literature source identity mismatch.");
+
+                        literatureDetails.Add(
+                            new RequirementMedicalLiteratureDetails
+                            {
+                                Association = association,
+                                Source = source
+                            });
+                    }
+                }
+
                 requirements.Add(
                     new ServiceConnectionBasisRequirementDetails
                     {
@@ -468,7 +509,8 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                         Requirement = requirement,
                         RegulatoryProvision = provision,
                         Responsiveness = responsiveness,
-                        DevelopmentChecklist = developmentChecklist
+                        DevelopmentChecklist = developmentChecklist,
+                        MedicalLiterature = literatureDetails
                     });
             }
         }

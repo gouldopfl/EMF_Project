@@ -16,4 +16,7 @@ public sealed class ServiceConnectionBasisRequirementDetails
 
     public required EvidenceDevelopmentChecklist
         DevelopmentChecklist { get; init; }
+
+    public IReadOnlyList<RequirementMedicalLiteratureDetails>
+        MedicalLiterature { get; init; } = [];
 }
