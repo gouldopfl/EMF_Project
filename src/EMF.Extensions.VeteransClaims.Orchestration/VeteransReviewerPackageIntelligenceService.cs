@@ -106,6 +106,58 @@ public sealed class VeteransReviewerPackageIntelligenceService :
             cancellationToken);
     }
 
+    public Task<IntelligenceAgentResult<string>>
+        SummarizeAsync(
+            ClaimIssueAdjudicationDetails details,
+            IReadOnlyList<VeteransReviewerEvidenceSource> evidenceSources,
+            IReadOnlyList<VeteransReviewerEvidenceDevelopmentDetails>
+                developmentDetails,
+            IntelligenceExecutionContext context,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        ArgumentNullException.ThrowIfNull(evidenceSources);
+        ArgumentNullException.ThrowIfNull(developmentDetails);
+        ArgumentNullException.ThrowIfNull(context);
+
+        var evidenceArtifactIds =
+            evidenceSources.Select(x => x.ArtifactId).ToArray();
+
+        if (evidenceArtifactIds.Length !=
+            evidenceArtifactIds.Distinct().Count())
+        {
+            throw new InvalidOperationException(
+                "Reviewer evidence contains duplicate artifact IDs.");
+        }
+
+        if (!context.InputArtifactIds
+            .ToHashSet()
+            .SetEquals(evidenceArtifactIds))
+        {
+            throw new InvalidOperationException(
+                "Reviewer evidence does not match input artifact lineage.");
+        }
+
+        var source =
+            VeteransReviewerPackageSourceFormatter.Format(
+                details,
+                evidenceSources,
+                developmentDetails);
+
+        var agentContext =
+            new IntelligenceExecutionContext(
+                context.SubjectId,
+                context.CorrelationId,
+                context.ProtectionClassificationId,
+                context.InputArtifactIds,
+                _agent.Id);
+
+        return SummarizeSourceAsync(
+            source,
+            agentContext,
+            cancellationToken);
+    }
+
     private async Task<IntelligenceAgentResult<string>>
         SummarizeSourceAsync(
             string source,

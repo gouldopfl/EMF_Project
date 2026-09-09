@@ -976,6 +976,18 @@ public static class VeteransConsoleCommand
                 });
         }
 
+        var developmentRepository =
+            new SqliteEvidenceDevelopmentPlanRepository(
+                databasePath);
+
+        await developmentRepository.InitializeAsync();
+
+        var developmentDetails =
+            await new VeteransReviewerEvidenceDevelopmentDetailsService(
+                    developmentRepository,
+                    new SqliteEvidenceGapRepository(databasePath))
+                .GetAsync(claimIssueId);
+
         var runtime =
             await runtimeFactory();
 
@@ -988,6 +1000,7 @@ public static class VeteransConsoleCommand
             await intelligence.SummarizeAsync(
                 details,
                 evidenceSources,
+                developmentDetails,
                 new IntelligenceExecutionContext(
                     runtime.SubjectId,
                     new IntelligenceCorrelationId(

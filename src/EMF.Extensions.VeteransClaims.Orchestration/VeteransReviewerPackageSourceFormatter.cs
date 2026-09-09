@@ -8,7 +8,9 @@ internal static class VeteransReviewerPackageSourceFormatter
     public static string Format(
         ClaimIssueAdjudicationDetails details,
         IReadOnlyList<VeteransReviewerEvidenceSource>?
-            evidenceSources = null)
+            evidenceSources = null,
+        IReadOnlyList<VeteransReviewerEvidenceDevelopmentDetails>?
+            developmentDetails = null)
     {
         ArgumentNullException.ThrowIfNull(details);
 
@@ -298,6 +300,37 @@ internal static class VeteransReviewerPackageSourceFormatter
             builder.AppendLine(
                 $"  - {plan.Id.Value}: " +
                 $"{SingleLine(plan.Description)}");
+        }
+
+        if (developmentDetails is not null &&
+            developmentDetails.Count > 0)
+        {
+            builder.AppendLine();
+            builder.AppendLine("Evidence Development Recognition:");
+
+            foreach (var development in developmentDetails)
+            {
+                builder.AppendLine(
+                    $"- Gap {development.Gap.Id.Value}; " +
+                    $"Requirement {development.Gap.RequirementId.Value}");
+
+                foreach (var match in development.Result.RecognitionMatches)
+                {
+                    builder.AppendLine(
+                        $"  - {SingleLine(match.Term)} / " +
+                        $"{SingleLine(match.RecognitionRole)}; " +
+                        $"Authority: {SingleLine(match.AuthoritySource)}");
+
+                    foreach (var artifact in
+                        development.Result.RecognitionMatchArtifacts
+                            .Where(x => x.RecognitionTermId == match.TermId))
+                    {
+                        builder.AppendLine(
+                            $"    - Artifact {artifact.ArtifactId.Value}: " +
+                            $"{SingleLine(artifact.Role)}");
+                    }
+                }
+            }
         }
 
         if (evidenceSources is not null)

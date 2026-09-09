@@ -18,4 +18,13 @@ public interface IVeteransReviewerPackageIntelligenceService
             IReadOnlyList<VeteransReviewerEvidenceSource> evidenceSources,
             IntelligenceExecutionContext context,
             CancellationToken cancellationToken = default);
+
+    Task<IntelligenceAgentResult<string>>
+        SummarizeAsync(
+            ClaimIssueAdjudicationDetails details,
+            IReadOnlyList<VeteransReviewerEvidenceSource> evidenceSources,
+            IReadOnlyList<VeteransReviewerEvidenceDevelopmentDetails>
+                developmentDetails,
+            IntelligenceExecutionContext context,
+            CancellationToken cancellationToken = default);
 }

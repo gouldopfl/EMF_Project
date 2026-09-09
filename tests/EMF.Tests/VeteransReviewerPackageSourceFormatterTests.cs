@@ -1138,4 +1138,70 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
     }
 
 
+
+    [Fact]
+    public void Format_IncludesPersistedEvidenceRecognition()
+    {
+        var issue = new ClaimIssue
+        {
+            Id = new ClaimIssueId("issue-recognition-1"),
+            ClaimId = new ClaimId("claim-recognition-1"),
+            ClaimIssueType = "ServiceConnection"
+        };
+
+        var gapId = new EvidenceGapId("gap-recognition-1");
+        var requirementId = new RequirementId("req-recognition-1");
+
+        var text =
+            VeteransReviewerPackageSourceFormatter.Format(
+                CreateDetails(issue, []),
+                developmentDetails:
+                [
+                    new VeteransReviewerEvidenceDevelopmentDetails
+                    {
+                        Gap = new EvidenceGap
+                        {
+                            Id = gapId,
+                            ClaimIssueId = issue.Id,
+                            RequirementId = requirementId,
+                            Description = "Missing nexus evidence"
+                        },
+                        Result = new EvidenceDevelopmentResult
+                        {
+                            EvidenceGapId = gapId,
+                            RequirementId = requirementId,
+                            EvidenceGuidance = [],
+                            RecognitionMatches =
+                            [
+                                new EvidenceRecognitionMatch
+                                {
+                                    TermId = new EvidenceRecognitionTermId("term-1"),
+                                    Term = "sleep apnea",
+                                    RecognitionRole = "Diagnosis",
+                                    AuthoritySource = "VA"
+                                }
+                            ],
+                            RecognitionMatchArtifacts =
+                            [
+                                new EvidenceRecognitionMatchArtifact
+                                {
+                                    RecognitionTermId =
+                                        new EvidenceRecognitionTermId("term-1"),
+                                    ArtifactId =
+                                        new EMF.Core.Models.Identities.ArtifactId(
+                                            "artifact-1"),
+                                    Role = "SupportingEvidence"
+                                }
+                            ]
+                        }
+                    }
+                ]);
+
+        Assert.Contains("Evidence Development Recognition:", text);
+        Assert.Contains("Gap gap-recognition-1; Requirement req-recognition-1", text);
+        Assert.Contains("sleep apnea / Diagnosis; Authority: VA", text);
+        Assert.Contains("Artifact artifact-1: SupportingEvidence", text);
+    }
+
+
 }
