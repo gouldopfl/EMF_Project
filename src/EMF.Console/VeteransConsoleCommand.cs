@@ -4,6 +4,7 @@ using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Conditions;
 using EMF.Extensions.VeteransClaims.Models.Service;
+using EMF.Extensions.VeteransClaims.Regulatory;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
@@ -187,6 +188,37 @@ public static class VeteransConsoleCommand
                 new ServiceConnectionBasisId(args[4]),
                 new MedicalConditionId(args[5]),
                 args[6],
+                global::System.Console.Out);
+        }
+
+        if (args.Length == 14 &&
+            args[0] == "regulatory" &&
+            args[1] == "requirement")
+        {
+            var regulatoryDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(regulatoryDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {regulatoryDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunAddRegulatoryRequirementAsync(
+                regulatoryDatabasePath,
+                new ServiceConnectionBasisId(args[3]),
+                new RegulatoryAuthorityId(args[4]),
+                args[5],
+                args[6],
+                new RegulatoryProvisionId(args[7]),
+                args[8],
+                args[9],
+                args[10],
+                args[11],
+                new RequirementId(args[12]),
+                args[13],
                 global::System.Console.Out);
         }
 
@@ -1465,6 +1497,156 @@ public static class VeteransConsoleCommand
 
 
     internal static async Task<int>
+        RunAddRegulatoryRequirementAsync(
+            string databasePath,
+            ServiceConnectionBasisId basisId,
+            RegulatoryAuthorityId authorityId,
+            string authorityCitation,
+            string authorityTitle,
+            RegulatoryProvisionId provisionId,
+            string provisionCitation,
+            string version,
+            string sourceUri,
+            string sourceHash,
+            RequirementId requirementId,
+            string description,
+            TextWriter output)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(authorityCitation);
+        ArgumentException.ThrowIfNullOrWhiteSpace(authorityTitle);
+        ArgumentException.ThrowIfNullOrWhiteSpace(provisionCitation);
+        ArgumentException.ThrowIfNullOrWhiteSpace(version);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceHash);
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+        ArgumentNullException.ThrowIfNull(output);
+
+        var connections =
+            new SqliteServiceConnectionRepository(databasePath);
+
+        var basis =
+            await connections.GetServiceConnectionBasisAsync(basisId);
+
+        if (basis is null)
+        {
+            output.WriteLine(
+                $"Service connection basis not found: {basisId.Value}");
+            return 1;
+        }
+
+        var regulatory =
+            new SqliteRegulatoryRepository(databasePath);
+
+        var authority =
+            await regulatory.GetRegulatoryAuthorityAsync(authorityId);
+
+        var provision =
+            await regulatory.GetRegulatoryProvisionAsync(provisionId);
+
+        var requirement =
+            await regulatory.GetRequirementAsync(requirementId);
+
+        if (authority is not null &&
+            (authority.AuthorityType != "Regulation" ||
+             authority.Citation != authorityCitation ||
+             authority.Title != authorityTitle))
+        {
+            output.WriteLine(
+                "Regulatory authority ID already exists with different metadata.");
+            return 1;
+        }
+
+        if (provision is not null &&
+            (provision.RegulatoryAuthorityId.Value != authorityId.Value ||
+             provision.ProvisionType !=
+                 RegulatoryProvisionTypes.Requirement ||
+             provision.Citation != provisionCitation ||
+             provision.Version != version ||
+             provision.SourceUri != sourceUri ||
+             provision.SourceHash != sourceHash))
+        {
+            output.WriteLine(
+                "Regulatory provision ID already exists with different metadata.");
+            return 1;
+        }
+
+        if (requirement is not null &&
+            (requirement.RegulatoryProvisionId.Value != provisionId.Value ||
+             requirement.Description != description))
+        {
+            output.WriteLine(
+                "Requirement ID already exists with different metadata.");
+            return 1;
+        }
+
+        if (authority is null)
+        {
+            await regulatory.AddRegulatoryAuthorityAsync(
+                new RegulatoryAuthority
+                {
+                    Id = authorityId,
+                    AuthorityType = "Regulation",
+                    Citation = authorityCitation,
+                    Title = authorityTitle
+                });
+        }
+
+        if (provision is null)
+        {
+            await regulatory.AddRegulatoryProvisionAsync(
+                new RegulatoryProvision
+                {
+                    Id = provisionId,
+                    RegulatoryAuthorityId = authorityId,
+                    ProvisionType =
+                        RegulatoryProvisionTypes.Requirement,
+                    Citation = provisionCitation,
+                    Version = version,
+                    SourceUri = sourceUri,
+                    SourceHash = sourceHash,
+                    RetrievedUtc = DateTimeOffset.UtcNow
+                });
+        }
+
+        if (requirement is null)
+        {
+            await regulatory.AddRequirementAsync(
+                new Requirement
+                {
+                    Id = requirementId,
+                    RegulatoryProvisionId = provisionId,
+                    Description = description
+                });
+        }
+
+        var requirementIds =
+            await connections.GetRequirementIdsAsync(basisId);
+
+        if (!requirementIds.Any(
+                x => x.Value == requirementId.Value))
+        {
+            await connections.AddBasisRequirementAsync(
+                new ServiceConnectionBasisRequirement
+                {
+                    ServiceConnectionBasisId = basisId,
+                    RequirementId = requirementId
+                });
+        }
+
+        output.WriteLine(
+            $"Regulatory Provision : {provisionCitation}");
+        output.WriteLine(
+            $"Requirement          : {requirementId.Value}");
+        output.WriteLine(
+            $"Basis                : {basisId.Value}");
+        output.WriteLine(
+            "Status               : Associated");
+
+        return 0;
+    }
+
+    internal static async Task<int>
         RunAddServiceConnectedConditionAsync(
             string databasePath,
             VeteranId veteranId,
@@ -2468,6 +2650,13 @@ public static class VeteransConsoleCommand
             "Usage: emf veterans condition service-connected " +
             "<database-path> <veteran-id> <basis-id> " +
             "<medical-condition-id> <condition-name>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans regulatory requirement " +
+            "<database-path> <basis-id> <authority-id> " +
+            "<authority-citation> <authority-title> <provision-id> " +
+            "<provision-citation> <version> <source-uri> <source-hash> " +
+            "<requirement-id> <description>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence develop " +

@@ -3383,6 +3383,239 @@ public sealed class VeteransConsoleCommandTests
         }
     }
 
+    [Fact]
+    public async Task RegulatoryRequirement_AddsIdempotently()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-regulatory-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var seeded =
+                await SeedServiceConnectedBasisAsync(
+                    databasePath,
+                    "regulatory-add");
+
+            var authorityId =
+                new RegulatoryAuthorityId(
+                    "authority-38-cfr");
+            var provisionId =
+                new RegulatoryProvisionId(
+                    "provision-3.310-a");
+            var requirementId =
+                new RequirementId(
+                    "requirement-3.310-a");
+
+            const string authorityCitation = "38 CFR";
+            const string authorityTitle =
+                "Pensions, Bonuses, and Veterans Relief";
+            const string provisionCitation =
+                "38 CFR 3.310(a)";
+            const string version = "2026-09-09";
+            const string sourceUri =
+                "https://www.ecfr.gov/current/title-38/chapter-I/part-3/subpart-A/section-3.310";
+            const string sourceHash = "sha256:test-3.310-a";
+            const string description =
+                "Disability proximately due to or the result of a service-connected disease or injury.";
+
+            using var firstOutput = new StringWriter();
+
+            var firstExitCode =
+                await VeteransConsoleCommand
+                    .RunAddRegulatoryRequirementAsync(
+                        databasePath,
+                        seeded.Basis.Id,
+                        authorityId,
+                        authorityCitation,
+                        authorityTitle,
+                        provisionId,
+                        provisionCitation,
+                        version,
+                        sourceUri,
+                        sourceHash,
+                        requirementId,
+                        description,
+                        firstOutput);
+
+            using var secondOutput = new StringWriter();
+
+            var secondExitCode =
+                await VeteransConsoleCommand
+                    .RunAddRegulatoryRequirementAsync(
+                        databasePath,
+                        seeded.Basis.Id,
+                        authorityId,
+                        authorityCitation,
+                        authorityTitle,
+                        provisionId,
+                        provisionCitation,
+                        version,
+                        sourceUri,
+                        sourceHash,
+                        requirementId,
+                        description,
+                        secondOutput);
+
+            Assert.Equal(0, firstExitCode);
+            Assert.Equal(0, secondExitCode);
+
+            var regulatory =
+                new SqliteRegulatoryRepository(databasePath);
+
+            var authority =
+                await regulatory.GetRegulatoryAuthorityAsync(
+                    authorityId);
+            var provision =
+                await regulatory.GetRegulatoryProvisionAsync(
+                    provisionId);
+            var requirement =
+                await regulatory.GetRequirementAsync(
+                    requirementId);
+
+            Assert.NotNull(authority);
+            Assert.NotNull(provision);
+            Assert.NotNull(requirement);
+            Assert.Equal(
+                provisionId,
+                requirement!.RegulatoryProvisionId);
+            Assert.Equal(
+                description,
+                requirement.Description);
+
+            var requirementIds =
+                await new SqliteServiceConnectionRepository(
+                        databasePath)
+                    .GetRequirementIdsAsync(
+                        seeded.Basis.Id);
+
+            Assert.Equal(
+                requirementId,
+                Assert.Single(requirementIds));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task RegulatoryRequirement_RejectsConflictBeforeWriting()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-regulatory-conflict-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var seeded =
+                await SeedServiceConnectedBasisAsync(
+                    databasePath,
+                    "regulatory-conflict");
+
+            var regulatory =
+                new SqliteRegulatoryRepository(databasePath);
+
+            var existingAuthority =
+                new RegulatoryAuthority
+                {
+                    Id =
+                        new RegulatoryAuthorityId(
+                            "authority-existing"),
+                    AuthorityType = "Regulation",
+                    Citation = "38 CFR",
+                    Title =
+                        "Pensions, Bonuses, and Veterans Relief"
+                };
+
+            await regulatory.AddRegulatoryAuthorityAsync(
+                existingAuthority);
+
+            var existingProvision =
+                new RegulatoryProvision
+                {
+                    Id =
+                        new RegulatoryProvisionId(
+                            "provision-existing"),
+                    RegulatoryAuthorityId =
+                        existingAuthority.Id,
+                    ProvisionType =
+                        RegulatoryProvisionTypes.Requirement,
+                    Citation = "38 CFR Existing"
+                };
+
+            await regulatory.AddRegulatoryProvisionAsync(
+                existingProvision);
+
+            var requirementId =
+                new RequirementId(
+                    "requirement-conflict");
+
+            await regulatory.AddRequirementAsync(
+                new Requirement
+                {
+                    Id = requirementId,
+                    RegulatoryProvisionId =
+                        existingProvision.Id,
+                    Description =
+                        "Existing requirement"
+                });
+
+            var proposedAuthorityId =
+                new RegulatoryAuthorityId(
+                    "authority-proposed");
+            var proposedProvisionId =
+                new RegulatoryProvisionId(
+                    "provision-proposed");
+
+            using var output = new StringWriter();
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunAddRegulatoryRequirementAsync(
+                        databasePath,
+                        seeded.Basis.Id,
+                        proposedAuthorityId,
+                        "38 CFR",
+                        "Pensions, Bonuses, and Veterans Relief",
+                        proposedProvisionId,
+                        "38 CFR 3.310(b)",
+                        "2026-09-09",
+                        "https://www.ecfr.gov/current/title-38/chapter-I/part-3/subpart-A/section-3.310",
+                        "sha256:test-3.310-b",
+                        requirementId,
+                        "Aggravation requirement",
+                        output);
+
+            Assert.Equal(1, exitCode);
+            Assert.Contains(
+                "Requirement ID already exists with different metadata.",
+                output.ToString());
+
+            Assert.Null(
+                await regulatory.GetRegulatoryAuthorityAsync(
+                    proposedAuthorityId));
+            Assert.Null(
+                await regulatory.GetRegulatoryProvisionAsync(
+                    proposedProvisionId));
+
+            var requirementIds =
+                await new SqliteServiceConnectionRepository(
+                        databasePath)
+                    .GetRequirementIdsAsync(
+                        seeded.Basis.Id);
+
+            Assert.Empty(requirementIds);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
     private static async Task<(
         Veteran Veteran,
         ServiceConnectionBasis Basis)>
