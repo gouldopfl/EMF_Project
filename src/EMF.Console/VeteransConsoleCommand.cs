@@ -2,6 +2,8 @@ using EMF.Common;
 using EMF.Core.Contracts.Storage;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
+using EMF.Extensions.VeteransClaims.Models.Conditions;
+using EMF.Extensions.VeteransClaims.Models.Service;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
@@ -161,6 +163,30 @@ public static class VeteransConsoleCommand
                 new ArtifactId(args[3]),
                 runtimeFactory,
                 ArtifactContentStoreFactory.Create(),
+                global::System.Console.Out);
+        }
+
+        if (args.Length == 7 &&
+            args[0] == "condition" &&
+            args[1] == "service-connected")
+        {
+            var conditionDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(conditionDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {conditionDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunAddServiceConnectedConditionAsync(
+                conditionDatabasePath,
+                new VeteranId(args[3]),
+                new ServiceConnectionBasisId(args[4]),
+                new MedicalConditionId(args[5]),
+                args[6],
                 global::System.Console.Out);
         }
 
@@ -1438,6 +1464,118 @@ public static class VeteransConsoleCommand
     }
 
 
+    internal static async Task<int>
+        RunAddServiceConnectedConditionAsync(
+            string databasePath,
+            VeteranId veteranId,
+            ServiceConnectionBasisId basisId,
+            MedicalConditionId medicalConditionId,
+            string conditionName,
+            TextWriter output)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(conditionName);
+        ArgumentNullException.ThrowIfNull(output);
+
+        var connections =
+            new SqliteServiceConnectionRepository(databasePath);
+
+        var basis =
+            await connections.GetServiceConnectionBasisAsync(basisId);
+
+        if (basis is null)
+        {
+            output.WriteLine($"Service connection basis not found: {basisId.Value}");
+            return 1;
+        }
+
+        var issue =
+            await new SqliteClaimIssueRepository(databasePath)
+                .GetClaimIssueAsync(basis.ClaimIssueId);
+
+        var claim =
+            issue is null
+                ? null
+                : await new SqliteClaimRepository(databasePath)
+                    .GetClaimAsync(issue.ClaimId);
+
+        if (claim is null ||
+            claim.VeteranId.Value != veteranId.Value)
+        {
+            output.WriteLine(
+                "Service connection basis does not belong to the veteran.");
+            return 1;
+        }
+
+        var conditions =
+            new SqliteConditionRepository(databasePath);
+
+        var existingCondition =
+            await conditions.GetMedicalConditionAsync(
+                medicalConditionId);
+
+        if (existingCondition is null)
+        {
+            await conditions.AddMedicalConditionAsync(
+                new MedicalCondition
+                {
+                    Id = medicalConditionId,
+                    Name = conditionName
+                });
+        }
+        else if (!string.Equals(
+                     existingCondition.Name,
+                     conditionName,
+                     StringComparison.Ordinal))
+        {
+            output.WriteLine(
+                "Medical condition ID already exists with a different name.");
+            return 1;
+        }
+
+        var veteranConditionIds =
+            await conditions.GetMedicalConditionIdsAsync(
+                veteranId);
+
+        if (!veteranConditionIds.Any(
+                x => x.Value == medicalConditionId.Value))
+        {
+            await conditions.AddVeteranMedicalConditionAsync(
+                new VeteranMedicalCondition
+                {
+                    VeteranId = veteranId,
+                    MedicalConditionId = medicalConditionId
+                });
+        }
+
+        var basisConditionIds =
+            await connections.GetServiceConnectedConditionIdsAsync(
+                basisId);
+
+        if (!basisConditionIds.Any(
+                x => x.Value == medicalConditionId.Value))
+        {
+            await connections.AddBasisServiceConnectedConditionAsync(
+                new ServiceConnectionBasisServiceConnectedCondition
+                {
+                    ServiceConnectionBasisId = basisId,
+                    ServiceConnectedConditionId = medicalConditionId
+                });
+        }
+
+        output.WriteLine(
+            $"Medical Condition : {medicalConditionId.Value}");
+        output.WriteLine(
+            $"Veteran           : {veteranId.Value}");
+        output.WriteLine(
+            $"Basis             : {basisId.Value}");
+        output.WriteLine(
+            $"Status            : Service connected");
+
+        return 0;
+    }
+
+
     internal static async Task<int> RunDecisionReviewAsync(
         string databasePath,
         ClaimIssueId claimIssueId,
@@ -2327,7 +2465,12 @@ public static class VeteransConsoleCommand
     private static void ShowUsage()
     {
         global::System.Console.WriteLine(
-            "Usage: emf veterans evidence develop " +
+            "Usage: emf veterans condition service-connected " +
+            "<database-path> <veteran-id> <basis-id> " +
+            "<medical-condition-id> <condition-name>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence develop " +
             "[--summarize [--promote]] " +
             "<database-path> <plan-id> <evidence-gap-id>");
 

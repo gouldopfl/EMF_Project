@@ -3230,4 +3230,232 @@ public sealed class VeteransConsoleCommandTests
     }
 
 
+    [Fact]
+    public async Task ServiceConnectedCondition_AddsIdempotently()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-service-condition-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var seeded =
+                await SeedServiceConnectedBasisAsync(
+                    databasePath,
+                    "condition-add");
+
+            var conditionId =
+                new MedicalConditionId(
+                    "medical-condition-cad");
+
+            using var firstOutput = new StringWriter();
+
+            var firstExitCode =
+                await VeteransConsoleCommand
+                    .RunAddServiceConnectedConditionAsync(
+                        databasePath,
+                        seeded.Veteran.Id,
+                        seeded.Basis.Id,
+                        conditionId,
+                        "Coronary artery disease",
+                        firstOutput);
+
+            using var secondOutput = new StringWriter();
+
+            var secondExitCode =
+                await VeteransConsoleCommand
+                    .RunAddServiceConnectedConditionAsync(
+                        databasePath,
+                        seeded.Veteran.Id,
+                        seeded.Basis.Id,
+                        conditionId,
+                        "Coronary artery disease",
+                        secondOutput);
+
+            Assert.Equal(0, firstExitCode);
+            Assert.Equal(0, secondExitCode);
+
+            var conditions =
+                new SqliteConditionRepository(databasePath);
+
+            var condition =
+                await conditions.GetMedicalConditionAsync(
+                    conditionId);
+
+            Assert.NotNull(condition);
+            Assert.Equal(
+                "Coronary artery disease",
+                condition.Name);
+
+            var veteranConditionIds =
+                await conditions.GetMedicalConditionIdsAsync(
+                    seeded.Veteran.Id);
+
+            Assert.Equal(
+                conditionId,
+                Assert.Single(veteranConditionIds));
+
+            var basisConditionIds =
+                await new SqliteServiceConnectionRepository(
+                        databasePath)
+                    .GetServiceConnectedConditionIdsAsync(
+                        seeded.Basis.Id);
+
+            Assert.Equal(
+                conditionId,
+                Assert.Single(basisConditionIds));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task ServiceConnectedCondition_RejectsWrongVeteranBeforeWriting()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-service-condition-wrong-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var seeded =
+                await SeedServiceConnectedBasisAsync(
+                    databasePath,
+                    "condition-wrong");
+
+            var wrongVeteran =
+                new Veteran
+                {
+                    Id =
+                        new VeteranId(
+                            "veteran-condition-wrong-other")
+                };
+
+            await new SqliteVeteranRepository(
+                    databasePath)
+                .AddVeteranAsync(wrongVeteran);
+
+            var conditionId =
+                new MedicalConditionId(
+                    "medical-condition-wrong");
+
+            using var output = new StringWriter();
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunAddServiceConnectedConditionAsync(
+                        databasePath,
+                        wrongVeteran.Id,
+                        seeded.Basis.Id,
+                        conditionId,
+                        "Coronary artery disease",
+                        output);
+
+            Assert.Equal(1, exitCode);
+            Assert.Contains(
+                "does not belong to the veteran",
+                output.ToString());
+
+            var conditions =
+                new SqliteConditionRepository(databasePath);
+
+            Assert.Null(
+                await conditions.GetMedicalConditionAsync(
+                    conditionId));
+
+            Assert.Empty(
+                await conditions.GetMedicalConditionIdsAsync(
+                    wrongVeteran.Id));
+
+            Assert.Empty(
+                await new SqliteServiceConnectionRepository(
+                        databasePath)
+                    .GetServiceConnectedConditionIdsAsync(
+                        seeded.Basis.Id));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    private static async Task<(
+        Veteran Veteran,
+        ServiceConnectionBasis Basis)>
+        SeedServiceConnectedBasisAsync(
+            string databasePath,
+            string suffix)
+    {
+        await new VeteransClaimsSqliteSchema(databasePath)
+            .InitializeAsync();
+
+        var veteran =
+            new Veteran
+            {
+                Id = new VeteranId($"veteran-{suffix}")
+            };
+
+        await new SqliteVeteranRepository(databasePath)
+            .AddVeteranAsync(veteran);
+
+        var claim =
+            new Claim
+            {
+                Id = new ClaimId($"claim-{suffix}"),
+                VeteranId = veteran.Id
+            };
+
+        await new SqliteClaimRepository(databasePath)
+            .AddClaimAsync(claim);
+
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId($"issue-{suffix}"),
+                ClaimId = claim.Id,
+                ClaimIssueType =
+                    ClaimIssueTypes.ServiceConnection
+            };
+
+        await new SqliteClaimIssueRepository(databasePath)
+            .AddClaimIssueAsync(issue);
+
+        var connections =
+            new SqliteServiceConnectionRepository(
+                databasePath);
+
+        var theory =
+            new ServiceConnectionTheory
+            {
+                Id =
+                    new ServiceConnectionTheoryId(
+                        $"theory-{suffix}"),
+                ClaimIssueId = issue.Id,
+                TheoryType =
+                    ServiceConnectionTheoryTypes.Secondary
+            };
+
+        await connections
+            .AddServiceConnectionTheoryAsync(theory);
+
+        var basis =
+            new ServiceConnectionBasis
+            {
+                Id =
+                    new ServiceConnectionBasisId(
+                        $"basis-{suffix}"),
+                ClaimIssueId = issue.Id,
+                ServiceConnectionTheoryId = theory.Id
+            };
+
+        await connections
+            .AddServiceConnectionBasisAsync(basis);
+
+        return (veteran, basis);
+    }
+
 }
