@@ -172,6 +172,135 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
+    public async Task EvidenceClinicalNote_DerivesRequestedPdfPageRange()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-clinical-note-{Guid.NewGuid():N}.db");
+
+        var contentPath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-clinical-note-content-{Guid.NewGuid():N}");
+
+        var sourcePath =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.pdf");
+
+        try
+        {
+            var contentStore =
+                new EMF.Persistence.Storage
+                    .FileSystemArtifactContentStore(contentPath);
+
+            using var ingestOutput = new StringWriter();
+
+            var ingestExitCode =
+                await VeteransConsoleCommand
+                    .RunEvidenceIngestAsync(
+                        databasePath,
+                        sourcePath,
+                        contentStore,
+                        ingestOutput);
+
+            Assert.Equal(0, ingestExitCode);
+
+            var renderedIngest = ingestOutput.ToString();
+            var prefix = "Artifact ID : ";
+            var prefixIndex =
+                renderedIngest.IndexOf(
+                    prefix,
+                    StringComparison.Ordinal);
+
+            Assert.True(prefixIndex >= 0);
+
+            var idStart = prefixIndex + prefix.Length;
+            var idEnd =
+                renderedIngest.IndexOf(
+                    Environment.NewLine,
+                    idStart,
+                    StringComparison.Ordinal);
+
+            if (idEnd < 0)
+                idEnd = renderedIngest.Length;
+
+            var parentArtifactId =
+                new ArtifactId(
+                    renderedIngest[idStart..idEnd].Trim());
+
+            using var output = new StringWriter();
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunEvidenceClinicalNoteAsync(
+                        databasePath,
+                        parentArtifactId,
+                        2,
+                        2,
+                        new DateOnly(2026, 9, 9),
+                        "Second Page Clinical Note",
+                        contentStore,
+                        output);
+
+            var rendered = output.ToString();
+
+            Assert.Equal(0, exitCode);
+            Assert.Contains("Artifact ID :", rendered);
+            Assert.Contains(
+                $"Parent ID   : {parentArtifactId.Value}",
+                rendered);
+            Assert.Contains("Source Pages: 2-2", rendered);
+            Assert.Contains("Note Date   : 2026-09-09", rendered);
+            Assert.Contains(
+                "Note Title  : Second Page Clinical Note",
+                rendered);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+
+            if (Directory.Exists(contentPath))
+                Directory.Delete(contentPath, true);
+        }
+    }
+
+    [Fact]
+    public async Task EvidenceClinicalNote_RequiresContentStore()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-clinical-note-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            using var output = new StringWriter();
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunEvidenceClinicalNoteAsync(
+                        databasePath,
+                        new ArtifactId("parent-001"),
+                        1,
+                        1,
+                        new DateOnly(2026, 9, 9),
+                        "Clinical Note",
+                        null,
+                        output);
+
+            Assert.Equal(2, exitCode);
+            Assert.False(File.Exists(databasePath));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task EvidenceDevelop_RequiresArguments()
     {
         var exitCode =

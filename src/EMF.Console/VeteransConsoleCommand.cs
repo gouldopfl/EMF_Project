@@ -255,6 +255,52 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 8 &&
+            args[0] == "evidence" &&
+            args[1] == "clinical-note")
+        {
+            var clinicalNoteDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(clinicalNoteDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: " +
+                    $"{clinicalNoteDatabasePath}");
+                return 2;
+            }
+
+            if (!int.TryParse(args[4], out var startPage) ||
+                !int.TryParse(args[5], out var endPage) ||
+                startPage <= 0 ||
+                endPage < startPage)
+            {
+                global::System.Console.Error.WriteLine(
+                    "Clinical note page range is invalid.");
+                return 2;
+            }
+
+            if (!DateOnly.TryParseExact(
+                    args[6],
+                    "yyyy-MM-dd",
+                    out var noteDate))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Clinical note date must use yyyy-MM-dd.");
+                return 2;
+            }
+
+            return await RunEvidenceClinicalNoteAsync(
+                clinicalNoteDatabasePath,
+                new ArtifactId(args[3]),
+                startPage,
+                endPage,
+                noteDate,
+                args[7],
+                contentStoreFactory(),
+                global::System.Console.Out);
+        }
+
         if (args.Length == 4 &&
             args[0] == "evidence" &&
             args[1] == "claim")
@@ -1440,6 +1486,113 @@ public static class VeteransConsoleCommand
         }
     }
 
+    internal static async Task<int> RunEvidenceClinicalNoteAsync(
+        string databasePath,
+        ArtifactId parentArtifactId,
+        int startPage,
+        int endPage,
+        DateOnly noteDate,
+        string noteTitle,
+        IArtifactContentStore? contentStore,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (contentStore is null)
+        {
+            global::System.Console.Error.WriteLine(
+                "Artifact content store is not configured.");
+            return 2;
+        }
+
+        if (string.IsNullOrWhiteSpace(noteTitle))
+        {
+            global::System.Console.Error.WriteLine(
+                "Clinical note title must not be empty.");
+            return 2;
+        }
+
+        var repository =
+            new SqliteEvidenceRepository(databasePath);
+
+        await repository.InitializeAsync();
+
+        try
+        {
+#pragma warning disable CA1416
+            var extractor =
+                new PdfArtifactTextExtractionProvider(
+                    contentStore,
+                    new PdfToImagePageRenderer(),
+                    new PaddleImageOcrService());
+#pragma warning restore CA1416
+
+            var text =
+                await extractor.ExtractPageRangeTextAsync(
+                    parentArtifactId,
+                    startPage,
+                    endPage);
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Clinical note page range contains no extractable text.");
+                return 1;
+            }
+
+            var bytes =
+                global::System.Text.Encoding.UTF8.GetBytes(text);
+
+            try
+            {
+                var service =
+                    new VeteransClinicalNoteDerivationService(
+                        repository,
+                        contentStore,
+                        new Sha256ContentFingerprintService(),
+                        new GuidArtifactIdGenerator(),
+                        new ArtifactFactory());
+
+                var result =
+                    await service.DeriveAsync(
+                        parentArtifactId,
+                        $"clinical-note-{noteDate:yyyy-MM-dd}-" +
+                            $"{startPage}-{endPage}.txt",
+                        startPage,
+                        endPage,
+                        noteDate,
+                        noteTitle,
+                        bytes);
+
+                await output.WriteLineAsync(
+                    $"Artifact ID : {result.Artifact.Id.Value}");
+                await output.WriteLineAsync(
+                    $"Parent ID   : {parentArtifactId.Value}");
+                await output.WriteLineAsync(
+                    $"Source Pages: {startPage}-{endPage}");
+                await output.WriteLineAsync(
+                    $"Note Date   : {noteDate:yyyy-MM-dd}");
+                await output.WriteLineAsync(
+                    $"Note Title  : {noteTitle}");
+
+                return 0;
+            }
+            finally
+            {
+                global::System.Security.Cryptography
+                    .CryptographicOperations.ZeroMemory(bytes);
+            }
+        }
+        catch (Exception ex)
+            when (ex is not OperationCanceledException)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Clinical note derivation failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+
     private static async Task<int> RunClaimEvidenceAsync(
         string databasePath,
         ClaimId claimId)
@@ -2264,7 +2417,8 @@ public static class VeteransConsoleCommand
     internal static async Task<int> RunEvidencePackageAsync(
         string databasePath,
         EvidencePackageId evidencePackageId,
-        TextWriter output)
+        TextWriter output,
+        Func<IArtifactContentStore?>? contentStoreFactory = null)
     {
         ArgumentNullException.ThrowIfNull(output);
 
@@ -2283,8 +2437,11 @@ public static class VeteransConsoleCommand
             new SqliteEvidenceClassificationRepository(
                 databasePath);
 
+        contentStoreFactory ??=
+            ArtifactContentStoreFactory.Create;
+
         var contentStore =
-            ArtifactContentStoreFactory.Create();
+            contentStoreFactory();
 
         var service =
             contentStore is null
@@ -2329,7 +2486,8 @@ public static class VeteransConsoleCommand
         string databasePath,
         EvidencePackageId evidencePackageId,
         string outputPath,
-        IArtifactContentStore? suppliedContentStore = null)
+        IArtifactContentStore? suppliedContentStore = null,
+        Func<IArtifactContentStore?>? contentStoreFactory = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
@@ -2371,9 +2529,12 @@ public static class VeteransConsoleCommand
             new SqliteEvidenceClassificationRepository(
                 fullDatabasePath);
 
+        contentStoreFactory ??=
+            ArtifactContentStoreFactory.Create;
+
         var contentStore =
             suppliedContentStore ??
-            ArtifactContentStoreFactory.Create();
+            contentStoreFactory();
 
         var service =
             contentStore is null

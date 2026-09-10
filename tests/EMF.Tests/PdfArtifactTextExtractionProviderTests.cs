@@ -295,6 +295,116 @@ public sealed class PdfArtifactTextExtractionProviderTests
         Assert.Equal(expectedMessage, ex.Message);
     }
 
+    [Fact]
+    public async Task ExtractPageRangeTextAsync_ExtractsRequestedPageOnly()
+    {
+        var path =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.pdf");
+
+        var content =
+            await File.ReadAllBytesAsync(path);
+
+        var provider =
+            new PdfArtifactTextExtractionProvider(
+                new StubContentStore(content));
+
+        var text =
+            await provider.ExtractPageRangeTextAsync(
+                new ArtifactId("pdf-page-range"),
+                2,
+                2);
+
+        Assert.NotNull(text);
+        Assert.Contains(
+            "Second page contains additional evidence.",
+            text);
+
+        Assert.DoesNotContain(
+            "Veteran has chronic instability.",
+            text);
+    }
+
+    [Fact]
+    public async Task ExtractPageRangeTextAsync_ExtractsRequestedRange()
+    {
+        var path =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.pdf");
+
+        var content =
+            await File.ReadAllBytesAsync(path);
+
+        var provider =
+            new PdfArtifactTextExtractionProvider(
+                new StubContentStore(content));
+
+        var text =
+            await provider.ExtractPageRangeTextAsync(
+                new ArtifactId("pdf-page-range-all"),
+                1,
+                2);
+
+        Assert.NotNull(text);
+        Assert.Contains(
+            "Veteran has chronic instability.",
+            text);
+        Assert.Contains(
+            "Second page contains additional evidence.",
+            text);
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(-1, 1)]
+    [InlineData(2, 1)]
+    public async Task ExtractPageRangeTextAsync_RejectsInvalidRange(
+        int startPage,
+        int endPage)
+    {
+        var provider =
+            new PdfArtifactTextExtractionProvider(
+                new StubContentStore(Array.Empty<byte>()));
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => provider.ExtractPageRangeTextAsync(
+                new ArtifactId("pdf-invalid-range"),
+                startPage,
+                endPage));
+    }
+
+    [Fact]
+    public async Task ExtractPageRangeTextAsync_RejectsRangeBeyondDocument()
+    {
+        var path =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "TestData",
+                "evidence-sample.pdf");
+
+        var content =
+            await File.ReadAllBytesAsync(path);
+
+        var provider =
+            new PdfArtifactTextExtractionProvider(
+                new StubContentStore(content));
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => provider.ExtractPageRangeTextAsync(
+                    new ArtifactId("pdf-range-beyond-document"),
+                    2,
+                    3));
+
+        Assert.Equal(
+            "PDF page range exceeds the available page count.",
+            ex.Message);
+    }
+
     private static byte[] CreateTextlessPdf(
         int pageCount = 1)
     {

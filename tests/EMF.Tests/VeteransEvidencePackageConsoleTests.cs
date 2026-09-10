@@ -199,7 +199,8 @@ public sealed partial class VeteransEvidencePackageConsoleTests
                     .RunEvidencePackageAsync(
                         databasePath,
                         packageId,
-                        output);
+                        output,
+                        () => null);
 
             Assert.Equal(0, exitCode);
 
@@ -249,7 +250,8 @@ public sealed partial class VeteransEvidencePackageConsoleTests
                     .RunEvidencePackageAsync(
                         databasePath,
                         new EvidencePackageId("missing-package"),
-                        output);
+                        output,
+                        () => null);
 
             Assert.Equal(1, exitCode);
             Assert.Equal(string.Empty, output.ToString());
@@ -283,7 +285,8 @@ public sealed partial class VeteransEvidencePackageConsoleTests
                     .RunEvidencePackageDocxAsync(
                         databasePath,
                         packageId,
-                        outputPath);
+                        outputPath,
+                        contentStoreFactory: () => null);
 
             Assert.Equal(2, exitCode);
             Assert.False(File.Exists(outputPath));
@@ -402,7 +405,8 @@ public sealed partial class VeteransEvidencePackageConsoleTests
                     .RunEvidencePackageDocxAsync(
                         databasePath,
                         packageId,
-                        outputPath);
+                        outputPath,
+                        contentStoreFactory: () => null);
 
             Assert.Equal(2, exitCode);
             Assert.False(File.Exists(outputPath));

@@ -84,9 +84,40 @@ public sealed class PdfArtifactTextExtractionProvider :
             "application/pdf",
             StringComparison.OrdinalIgnoreCase);
 
-    public async Task<string?> ExtractTextAsync(
+    public Task<string?> ExtractTextAsync(
         ArtifactId artifactId,
+        CancellationToken cancellationToken = default) =>
+        ExtractTextCoreAsync(
+            artifactId,
+            null,
+            null,
+            cancellationToken);
+
+    public Task<string?> ExtractPageRangeTextAsync(
+        ArtifactId artifactId,
+        int startPage,
+        int endPage,
         CancellationToken cancellationToken = default)
+    {
+        if (startPage <= 0 || endPage < startPage)
+            throw new ArgumentOutOfRangeException(nameof(startPage));
+
+        if ((long)endPage - startPage + 1 > _maxPageCount)
+            throw new InvalidDataException(
+                "PDF page range exceeds the maximum allowed page count.");
+
+        return ExtractTextCoreAsync(
+            artifactId,
+            startPage,
+            endPage,
+            cancellationToken);
+    }
+
+    private async Task<string?> ExtractTextCoreAsync(
+        ArtifactId artifactId,
+        int? startPage,
+        int? endPage,
+        CancellationToken cancellationToken)
     {
         var content =
             await _contentStore.ReadAsync(
@@ -99,10 +130,8 @@ public sealed class PdfArtifactTextExtractionProvider :
         cancellationToken.ThrowIfCancellationRequested();
 
         if (content.LongLength > _maxInputBytes)
-        {
             throw new InvalidDataException(
                 "PDF input exceeds the maximum allowed size.");
-        }
 
         using var document =
             PdfDocument.Open(content);
@@ -110,16 +139,32 @@ public sealed class PdfArtifactTextExtractionProvider :
         var builder = new StringBuilder();
         var pageIndex = 0;
         var ocrPageCount = 0;
+        var selectedPageCount = 0;
 
         foreach (var page in document.GetPages())
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             if (pageIndex >= _maxPageCount)
-            {
                 throw new InvalidDataException(
                     "PDF exceeds the maximum allowed page count.");
+
+            var pageNumber = pageIndex + 1;
+
+            if (startPage.HasValue &&
+                pageNumber < startPage.Value)
+            {
+                pageIndex++;
+                continue;
             }
+
+            if (endPage.HasValue &&
+                pageNumber > endPage.Value)
+            {
+                break;
+            }
+
+            selectedPageCount++;
 
             var text =
                 ContentOrderTextExtractor.GetText(page);
@@ -131,10 +176,8 @@ public sealed class PdfArtifactTextExtractionProvider :
                 ocrPageCount++;
 
                 if (ocrPageCount > _maxOcrPageCount)
-                {
                     throw new InvalidDataException(
                         "PDF exceeds the maximum allowed OCR page count.");
-                }
 
                 var image =
                     await _pageImageRenderer.RenderPageAsync(
@@ -145,10 +188,8 @@ public sealed class PdfArtifactTextExtractionProvider :
                 ArgumentNullException.ThrowIfNull(image);
 
                 if (image.LongLength > _maxRenderedPageBytes)
-                {
                     throw new InvalidDataException(
                         "PDF rendered page exceeds the maximum allowed image size.");
-                }
 
                 text =
                     await _ocrService.RecognizeTextAsync(
@@ -157,23 +198,26 @@ public sealed class PdfArtifactTextExtractionProvider :
             }
 
             if (text?.Length > _maxPageTextChars)
-            {
                 throw new InvalidDataException(
                     "PDF page text exceeds the maximum allowed size.");
-            }
 
             if (!string.IsNullOrEmpty(text))
-            {
-                AppendPageText(
-                    builder,
-                    text);
-            }
+                AppendPageText(builder, text);
 
             pageIndex++;
         }
 
+        if (startPage.HasValue &&
+            selectedPageCount !=
+                endPage!.Value - startPage.Value + 1)
+        {
+            throw new InvalidDataException(
+                "PDF page range exceeds the available page count.");
+        }
+
         return builder.ToString();
     }
+
     private void AppendPageText(
         StringBuilder builder,
         string text)
