@@ -18,7 +18,7 @@ using EMF.Security.Models.Identities;
 
 namespace EMF.Tests;
 
-public sealed class VeteransConsoleCommandTests
+public sealed partial class VeteransConsoleCommandTests
 {
     [Fact]
     public async Task EvidenceIngest_PersistsEvidence()
@@ -4243,4 +4243,182 @@ public sealed class VeteransConsoleCommandTests
         return (veteran, basis);
     }
 
+}
+
+public sealed partial class VeteransConsoleCommandTests
+{
+    [Fact]
+    public async Task EvidenceReviewer_IncludesRequirementLiteratureInAppendixE()
+    {
+        var databasePath = Path.GetTempFileName();
+        var outputPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.docx");
+        var contentPath = Path.Combine(Path.GetTempPath(), $"emf-reviewer-literature-{Guid.NewGuid():N}");
+        var previous = Environment.GetEnvironmentVariable("EMF_REVIEWED_BY");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("EMF_REVIEWED_BY", "console-reviewer");
+
+            await new VeteransClaimsSqliteSchema(databasePath).InitializeAsync();
+
+            var veteran = new Veteran { Id = new VeteranId("veteran-reviewer-literature") };
+            await new SqliteVeteranRepository(databasePath).AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-reviewer-literature"),
+                VeteranId = veteran.Id
+            };
+            await new SqliteClaimRepository(databasePath).AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-reviewer-literature"),
+                ClaimId = claim.Id,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+            await new SqliteClaimIssueRepository(databasePath).AddClaimIssueAsync(issue);
+
+            var connections = new SqliteServiceConnectionRepository(databasePath);
+            var theory = new ServiceConnectionTheory
+            {
+                Id = new ServiceConnectionTheoryId("theory-reviewer-literature"),
+                ClaimIssueId = issue.Id,
+                TheoryType = ServiceConnectionTheoryTypes.Secondary
+            };
+            await connections.AddServiceConnectionTheoryAsync(theory);
+
+            var basis = new ServiceConnectionBasis
+            {
+                Id = new ServiceConnectionBasisId("basis-reviewer-literature"),
+                ClaimIssueId = issue.Id,
+                ServiceConnectionTheoryId = theory.Id
+            };
+            await connections.AddServiceConnectionBasisAsync(basis);
+
+            var regulatory = new SqliteRegulatoryRepository(databasePath);
+            await regulatory.InitializeAsync();
+
+            var authority = new RegulatoryAuthority
+            {
+                Id = new RegulatoryAuthorityId("authority-reviewer-literature"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Veterans Affairs"
+            };
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+
+            var provision = new RegulatoryProvision
+            {
+                Id = new RegulatoryProvisionId("provision-reviewer-literature"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Requirement,
+                Citation = "38 CFR 3.310"
+            };
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+
+            var requirement = new Requirement
+            {
+                Id = new RequirementId("requirement-reviewer-literature"),
+                RegulatoryProvisionId = provision.Id,
+                Description = "Medical literature requirement."
+            };
+            await regulatory.AddRequirementAsync(requirement);
+            await connections.AddBasisRequirementAsync(
+                new ServiceConnectionBasisRequirement
+                {
+                    ServiceConnectionBasisId = basis.Id,
+                    RequirementId = requirement.Id
+                });
+
+            var artifactId = new ArtifactId("artifact-reviewer-literature");
+            var evidence = new SqliteEvidenceRepository(databasePath);
+            await evidence.InitializeAsync();
+            await evidence.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = artifactId,
+                    Name = "published-study.txt",
+                    ArtifactType = "text-summary",
+                    Metadata = new Dictionary<string, object>
+                    {
+                        ["summary"] = "Published medical literature source text.",
+                        [ArtifactMetadataKeys.FileExtension] = ".txt"
+                    }
+                });
+
+            var literature = new SqliteMedicalLiteratureRepository(databasePath);
+            await literature.InitializeAsync();
+            var sourceId = new MedicalLiteratureSourceId("study-reviewer-literature");
+            await literature.AddMedicalLiteratureSourceAsync(
+                new MedicalLiteratureSource
+                {
+                    Id = sourceId,
+                    Title = "Published Study",
+                    Authors = "Test Authors",
+                    Publication = "Test Journal",
+                    PublicationYear = 2026,
+                    PeerReviewed = true
+                });
+            await literature.AddRequirementMedicalLiteratureAsync(
+                new RequirementMedicalLiterature
+                {
+                    RequirementId = requirement.Id,
+                    MedicalLiteratureSourceId = sourceId,
+                    GuidanceRole = EvidenceGuidanceRoles.SupportsRequirement,
+                    Description = "Supports the requirement."
+                });
+            await literature.AddMedicalLiteratureSourceArtifactAsync(
+                new MedicalLiteratureSourceArtifact
+                {
+                    MedicalLiteratureSourceId = sourceId,
+                    ArtifactId = artifactId
+                });
+
+            var contentStore = new EMF.Persistence.Storage.FileSystemArtifactContentStore(contentPath);
+            await contentStore.WriteAsync(
+                artifactId,
+                System.Text.Encoding.UTF8.GetBytes("Published medical literature source text."));
+
+            var exitCode = await VeteransConsoleCommand.RunAsync(
+                ["evidence", "reviewer", databasePath, issue.Id.Value, outputPath],
+                () => Task.FromResult(
+                    new TextSummarizationConsoleRuntime
+                    {
+                        TextSummarizationCapabilityExecutor = new FakeSummarizationExecutor(),
+                        TextStructuredExtractionCapabilityExecutor = new FakeStructuredExtractionExecutor(),
+                        SubjectId = "console-test",
+                        ClassificationId = new ProtectionClassificationId("confidential"),
+                        AuditDatabasePath = "test-audit.db"
+                    }),
+                () => contentStore);
+
+            Assert.Equal(0, exitCode);
+            Assert.True(File.Exists(outputPath));
+
+            var packageRepository = new SqliteEvidencePackageRepository(databasePath);
+            var package = Assert.Single(await packageRepository.GetEvidencePackagesAsync(issue.Id));
+            var packageArtifacts = await packageRepository.GetEvidencePackageArtifactsAsync(package.Id);
+
+            Assert.Contains(
+                packageArtifacts,
+                x => x.ArtifactId == artifactId &&
+                     x.ContentRole == EvidencePackageContentRoles.UnderlyingEvidence);
+
+            using var document =
+                DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(outputPath, false);
+            var text = document.MainDocumentPart!.Document!.InnerText;
+
+            Assert.Contains("Appendix E — Medical / Scientific Literature", text);
+            Assert.Contains("Published medical literature source text.", text);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("EMF_REVIEWED_BY", previous);
+            File.Delete(databasePath);
+            File.Delete(outputPath);
+            if (Directory.Exists(contentPath))
+                Directory.Delete(contentPath, true);
+        }
+    }
 }
