@@ -9,4 +9,11 @@ public interface IRegulatoryEvidenceGuidanceService
         GetEvidenceGuidanceAsync(
             RegulatoryProvisionId provisionId,
             CancellationToken cancellationToken = default);
+
+    Task<EvidenceRequirementGuidance> AddEvidenceGuidanceAsync(
+        RequirementId requirementId,
+        string evidenceClassification,
+        string guidanceRole,
+        string description,
+        CancellationToken cancellationToken = default);
 }

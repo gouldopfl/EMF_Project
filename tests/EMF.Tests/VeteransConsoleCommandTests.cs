@@ -3360,6 +3360,206 @@ public sealed class VeteransConsoleCommandTests
 
 
     [Fact]
+    public async Task EvidenceGuidance_AddsIdempotently()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-guidance-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var regulatory =
+                new SqliteRegulatoryRepository(databasePath);
+
+            var authority =
+                new RegulatoryAuthority
+                {
+                    Id =
+                        new RegulatoryAuthorityId(
+                            "authority-guidance-1"),
+                    AuthorityType = "Regulation",
+                    Citation = "38 CFR",
+                    Title = "Veterans Affairs"
+                };
+
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+
+            var provision =
+                new RegulatoryProvision
+                {
+                    Id =
+                        new RegulatoryProvisionId(
+                            "provision-guidance-1"),
+                    RegulatoryAuthorityId = authority.Id,
+                    ProvisionType = "Section",
+                    Citation = "38 C.F.R. § 3.310"
+                };
+
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+
+            var requirement =
+                new Requirement
+                {
+                    Id =
+                        new RequirementId(
+                            "requirement-guidance-1"),
+                    RegulatoryProvisionId = provision.Id,
+                    Description = "Secondary nexus requirement."
+                };
+
+            await regulatory.AddRequirementAsync(requirement);
+
+            string[] args =
+            [
+                "evidence",
+                "guidance",
+                databasePath,
+                requirement.Id.Value,
+                EvidenceClassifications.MedicalOpinion,
+                EvidenceGuidanceRoles.SupportsRequirement,
+                "A medical opinion may help support the requirement."
+            ];
+
+            Assert.Equal(
+                0,
+                await VeteransConsoleCommand.RunAsync(args));
+
+            Assert.Equal(
+                0,
+                await VeteransConsoleCommand.RunAsync(args));
+
+            var stored =
+                await new SqliteEvidenceRequirementGuidanceRepository(
+                        databasePath)
+                    .GetEvidenceRequirementGuidanceAsync(
+                        requirement.Id);
+
+            var guidance = Assert.Single(stored);
+
+            Assert.Equal(
+                EvidenceClassifications.MedicalOpinion,
+                guidance.EvidenceClassification);
+            Assert.Equal(
+                EvidenceGuidanceRoles.SupportsRequirement,
+                guidance.GuidanceRole);
+            Assert.Equal(
+                "A medical opinion may help support the requirement.",
+                guidance.Description);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
+    [Fact]
+    public async Task EvidenceGuidance_RejectsMissingRequirement()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-guidance-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "guidance",
+                        databasePath,
+                        "requirement-does-not-exist",
+                        EvidenceClassifications.MedicalOpinion,
+                        EvidenceGuidanceRoles.SupportsRequirement,
+                        "Supporting medical opinion."
+                    ]);
+
+            Assert.Equal(1, exitCode);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
+    [Fact]
+    public async Task EvidenceGuidance_RejectsInvalidClassification()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-guidance-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "guidance",
+                        databasePath,
+                        "requirement-any",
+                        "NotAClassification",
+                        EvidenceGuidanceRoles.SupportsRequirement,
+                        "Supporting evidence."
+                    ]);
+
+            Assert.Equal(1, exitCode);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
+    [Fact]
+    public async Task EvidenceGuidance_RejectsInvalidRole()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-guidance-{Guid.NewGuid():N}.db");
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var exitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "guidance",
+                        databasePath,
+                        "requirement-any",
+                        EvidenceClassifications.MedicalOpinion,
+                        "NotARole",
+                        "Supporting evidence."
+                    ]);
+
+            Assert.Equal(1, exitCode);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+
+    [Fact]
     public async Task ServiceConnectedCondition_AddsIdempotently()
     {
         var databasePath =

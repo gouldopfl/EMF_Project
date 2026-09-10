@@ -341,6 +341,29 @@ public static class VeteransConsoleCommand
                 new ClaimIssueId(args[3]));
         }
 
+        if (args.Length == 7 &&
+            args[0] == "evidence" &&
+            args[1] == "guidance")
+        {
+            var guidanceDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(guidanceDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {guidanceDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunGuidanceAsync(
+                guidanceDatabasePath,
+                new RequirementId(args[3]),
+                args[4],
+                args[5],
+                args[6]);
+        }
+
         if (args.Length == 6 &&
             args[0] == "evidence" &&
             args[1] == "classify")
@@ -2703,6 +2726,60 @@ public static class VeteransConsoleCommand
     }
 
 
+    private static async Task<int> RunGuidanceAsync(
+        string databasePath,
+        RequirementId requirementId,
+        string evidenceClassification,
+        string guidanceRole,
+        string description)
+    {
+        var guidance =
+            new SqliteEvidenceRequirementGuidanceRepository(
+                databasePath);
+
+        await guidance.InitializeAsync();
+
+        var service =
+            new RegulatoryEvidenceGuidanceService(
+                new SqliteRegulatoryRepository(databasePath),
+                guidance,
+                new GuidIdGenerator());
+
+        try
+        {
+            var result =
+                await service.AddEvidenceGuidanceAsync(
+                    requirementId,
+                    evidenceClassification,
+                    guidanceRole,
+                    description);
+
+            global::System.Console.WriteLine(
+                $"Guidance ID     : {result.Id.Value}");
+            global::System.Console.WriteLine(
+                $"Requirement     : {result.RequirementId.Value}");
+            global::System.Console.WriteLine(
+                $"Classification  : {result.EvidenceClassification}");
+            global::System.Console.WriteLine(
+                $"Guidance Role   : {result.GuidanceRole}");
+            global::System.Console.WriteLine(
+                $"Description     : {result.Description}");
+
+            return 0;
+        }
+        catch (ArgumentException ex)
+        {
+            global::System.Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+        catch (InvalidOperationException ex)
+        {
+            global::System.Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+    }
+
+
     private static async Task<int> RunPrepareAsync(
         string databasePath,
         ClaimIssueId claimIssueId,
@@ -2856,6 +2933,11 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence classify " +
             "<database-path> <claim-issue-id> <artifact-id> <classification>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence guidance " +
+            "<database-path> <requirement-id> <classification> " +
+            "<role> <description>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence package " +

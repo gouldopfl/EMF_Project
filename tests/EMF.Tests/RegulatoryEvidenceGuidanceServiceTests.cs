@@ -1,3 +1,4 @@
+using EMF.Common;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -215,6 +216,132 @@ public sealed class RegulatoryEvidenceGuidanceServiceTests
     }
 
 
+    [Fact]
+    public async Task AddEvidenceGuidanceAsync_AddsValidGuidance()
+    {
+        var requirement = new Requirement
+        {
+            Id = new RequirementId("requirement-add"),
+            RegulatoryProvisionId =
+                new RegulatoryProvisionId("provision-add"),
+            Description = "Required element."
+        };
+
+        var guidance = new RecordingGuidanceRepository();
+        var service = new RegulatoryEvidenceGuidanceService(
+            new StubRegulatoryRepository(requirement),
+            guidance,
+            new StubIdGenerator("guidance-add"));
+
+        var result = await service.AddEvidenceGuidanceAsync(
+            requirement.Id,
+            EvidenceClassifications.MedicalOpinion,
+            EvidenceGuidanceRoles.SupportsRequirement,
+            "Obtain a medical opinion.");
+
+        Assert.Equal("guidance-add", result.Id.Value);
+        Assert.Equal(requirement.Id, result.RequirementId);
+        Assert.Equal(
+            EvidenceClassifications.MedicalOpinion,
+            result.EvidenceClassification);
+        Assert.Equal(
+            EvidenceGuidanceRoles.SupportsRequirement,
+            result.GuidanceRole);
+        Assert.Equal(
+            "Obtain a medical opinion.",
+            result.Description);
+        Assert.Single(guidance.Items);
+    }
+
+    [Fact]
+    public async Task AddEvidenceGuidanceAsync_ReturnsExistingMatchingGuidance()
+    {
+        var requirement = new Requirement
+        {
+            Id = new RequirementId("requirement-existing"),
+            RegulatoryProvisionId =
+                new RegulatoryProvisionId("provision-existing"),
+            Description = "Required element."
+        };
+
+        var existing = new EvidenceRequirementGuidance
+        {
+            Id = new EvidenceRequirementGuidanceId("guidance-existing"),
+            RequirementId = requirement.Id,
+            EvidenceClassification =
+                EvidenceClassifications.MedicalOpinion,
+            GuidanceRole =
+                EvidenceGuidanceRoles.SupportsRequirement,
+            Description = "Obtain a medical opinion."
+        };
+
+        var guidance =
+            new RecordingGuidanceRepository(existing);
+
+        var service = new RegulatoryEvidenceGuidanceService(
+            new StubRegulatoryRepository(requirement),
+            guidance,
+            new StubIdGenerator("guidance-unused"));
+
+        var result = await service.AddEvidenceGuidanceAsync(
+            requirement.Id,
+            EvidenceClassifications.MedicalOpinion,
+            EvidenceGuidanceRoles.SupportsRequirement,
+            "Obtain a medical opinion.");
+
+        Assert.Equal(existing.Id, result.Id);
+        Assert.Single(guidance.Items);
+    }
+
+    [Fact]
+    public async Task AddEvidenceGuidanceAsync_RejectsMissingRequirement()
+    {
+        var service = new RegulatoryEvidenceGuidanceService(
+            new EmptyRegulatoryRepository(),
+            new RecordingGuidanceRepository(),
+            new StubIdGenerator("guidance-unused"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.AddEvidenceGuidanceAsync(
+                new RequirementId("requirement-missing"),
+                EvidenceClassifications.MedicalOpinion,
+                EvidenceGuidanceRoles.SupportsRequirement,
+                "Obtain a medical opinion."));
+    }
+
+    [Fact]
+    public async Task AddEvidenceGuidanceAsync_RejectsUnsupportedClassification()
+    {
+        var service = new RegulatoryEvidenceGuidanceService(
+            new EmptyRegulatoryRepository(),
+            new RecordingGuidanceRepository(),
+            new StubIdGenerator("guidance-unused"));
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => service.AddEvidenceGuidanceAsync(
+                new RequirementId("requirement-1"),
+                "NotAClassification",
+                EvidenceGuidanceRoles.SupportsRequirement,
+                "Obtain evidence."));
+    }
+
+    [Fact]
+    public async Task AddEvidenceGuidanceAsync_RejectsUnsupportedRole()
+    {
+        var service = new RegulatoryEvidenceGuidanceService(
+            new EmptyRegulatoryRepository(),
+            new RecordingGuidanceRepository(),
+            new StubIdGenerator("guidance-unused"));
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => service.AddEvidenceGuidanceAsync(
+                new RequirementId("requirement-1"),
+                EvidenceClassifications.MedicalOpinion,
+                "NotAGuidanceRole",
+                "Obtain evidence."));
+    }
+
+
     private sealed class EmptyRegulatoryRepository :
         IRegulatoryRepository
     {
@@ -231,7 +358,10 @@ public sealed class RegulatoryEvidenceGuidanceServiceTests
         public Task<RegulatoryProvision?> GetRegulatoryProvisionAsync(RegulatoryProvisionId id, CancellationToken c = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<RegulatoryProvision>> GetRegulatoryProvisionsAsync(RegulatoryAuthorityId id, CancellationToken c = default) => throw new NotSupportedException();
         public Task AddRequirementAsync(Requirement r, CancellationToken c = default) => throw new NotSupportedException();
-        public Task<Requirement?> GetRequirementAsync(RequirementId id, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<Requirement?> GetRequirementAsync(
+            RequirementId id,
+            CancellationToken c = default) =>
+            Task.FromResult<Requirement?>(null);
     }
 
 
@@ -256,7 +386,60 @@ public sealed class RegulatoryEvidenceGuidanceServiceTests
         public Task<RegulatoryProvision?> GetRegulatoryProvisionAsync(RegulatoryProvisionId id, CancellationToken c = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<RegulatoryProvision>> GetRegulatoryProvisionsAsync(RegulatoryAuthorityId id, CancellationToken c = default) => throw new NotSupportedException();
         public Task AddRequirementAsync(Requirement r, CancellationToken c = default) => throw new NotSupportedException();
-        public Task<Requirement?> GetRequirementAsync(RequirementId id, CancellationToken c = default) => throw new NotSupportedException();
+        public Task<Requirement?> GetRequirementAsync(
+            RequirementId id,
+            CancellationToken c = default) =>
+            Task.FromResult(
+                _requirements.FirstOrDefault(x => x.Id == id));
+    }
+
+
+    private sealed class RecordingGuidanceRepository :
+        IEvidenceRequirementGuidanceRepository
+    {
+        public RecordingGuidanceRepository(
+            params EvidenceRequirementGuidance[] guidance)
+        {
+            Items = guidance.ToList();
+        }
+
+        public List<EvidenceRequirementGuidance> Items { get; }
+
+        public Task AddEvidenceRequirementGuidanceAsync(
+            EvidenceRequirementGuidance guidance,
+            CancellationToken cancellationToken = default)
+        {
+            Items.Add(guidance);
+            return Task.CompletedTask;
+        }
+
+        public Task<EvidenceRequirementGuidance?>
+            GetEvidenceRequirementGuidanceAsync(
+                EvidenceRequirementGuidanceId guidanceId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult(
+                Items.FirstOrDefault(x => x.Id == guidanceId));
+
+        public Task<IReadOnlyList<EvidenceRequirementGuidance>>
+            GetEvidenceRequirementGuidanceAsync(
+                RequirementId requirementId,
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<EvidenceRequirementGuidance>>(
+                Items
+                    .Where(x => x.RequirementId == requirementId)
+                    .ToArray());
+    }
+
+    private sealed class StubIdGenerator : IIdGenerator
+    {
+        private readonly string _id;
+
+        public StubIdGenerator(string id)
+        {
+            _id = id;
+        }
+
+        public string Generate() => _id;
     }
 
 

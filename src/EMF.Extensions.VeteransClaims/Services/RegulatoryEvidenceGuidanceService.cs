@@ -1,3 +1,4 @@
+using EMF.Common;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -9,16 +10,75 @@ public sealed class RegulatoryEvidenceGuidanceService :
 {
     private readonly IRegulatoryRepository _regulatory;
     private readonly IEvidenceRequirementGuidanceRepository _guidance;
+    private readonly IIdGenerator _idGenerator;
 
     public RegulatoryEvidenceGuidanceService(
         IRegulatoryRepository regulatory,
-        IEvidenceRequirementGuidanceRepository guidance)
+        IEvidenceRequirementGuidanceRepository guidance,
+        IIdGenerator? idGenerator = null)
     {
         ArgumentNullException.ThrowIfNull(regulatory);
         ArgumentNullException.ThrowIfNull(guidance);
 
         _regulatory = regulatory;
         _guidance = guidance;
+        _idGenerator = idGenerator ?? new GuidIdGenerator();
+    }
+
+    public async Task<EvidenceRequirementGuidance> AddEvidenceGuidanceAsync(
+        RequirementId requirementId, string evidenceClassification,
+        string guidanceRole, string description,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(evidenceClassification);
+        ArgumentException.ThrowIfNullOrWhiteSpace(guidanceRole);
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+
+        if (evidenceClassification is not (
+            EvidenceClassifications.MedicalEvidence or
+            EvidenceClassifications.ServiceTreatmentRecord or
+            EvidenceClassifications.ServiceRecord or
+            EvidenceClassifications.LayEvidence or
+            EvidenceClassifications.Examination or
+            EvidenceClassifications.MedicalOpinion or
+            EvidenceClassifications.AdjudicativeRecord))
+            throw new ArgumentException(
+                $"Unsupported evidence classification '{evidenceClassification}'.",
+                nameof(evidenceClassification));
+
+        if (guidanceRole is not (
+            EvidenceGuidanceRoles.SupportsRequirement or
+            EvidenceGuidanceRoles.EstablishesElement or
+            EvidenceGuidanceRoles.Corroborates or
+            EvidenceGuidanceRoles.Clarifies))
+            throw new ArgumentException(
+                $"Unsupported evidence guidance role '{guidanceRole}'.",
+                nameof(guidanceRole));
+
+        var requirement=await _regulatory.GetRequirementAsync(requirementId,cancellationToken);
+        if (requirement is null)
+            throw new InvalidOperationException($"Requirement not found: {requirementId.Value}");
+
+        var existing=await _guidance.GetEvidenceRequirementGuidanceAsync(requirementId,cancellationToken);
+        if (existing.Any(x=>x.RequirementId!=requirementId))
+            throw new InvalidOperationException(
+                $"Requirement '{requirementId.Value}' guidance lookup returned guidance for a different requirement.");
+
+        var match=existing.FirstOrDefault(x=>
+            x.EvidenceClassification==evidenceClassification &&
+            x.GuidanceRole==guidanceRole &&
+            x.Description==description);
+        if (match is not null) return match;
+
+        var result=new EvidenceRequirementGuidance {
+            Id=new EvidenceRequirementGuidanceId(_idGenerator.Generate()),
+            RequirementId=requirementId,
+            EvidenceClassification=evidenceClassification,
+            GuidanceRole=guidanceRole,
+            Description=description
+        };
+        await _guidance.AddEvidenceRequirementGuidanceAsync(result,cancellationToken);
+        return result;
     }
 
     public async Task<IReadOnlyList<RequirementEvidenceGuidance>>
