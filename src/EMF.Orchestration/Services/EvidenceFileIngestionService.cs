@@ -99,6 +99,33 @@ public sealed class EvidenceFileIngestionService :
 
         if (existing is not null)
         {
+            var existingContent =
+                await _contentStore.ReadAsync(
+                    existing.Id,
+                    cancellationToken);
+
+            if (existingContent is null)
+            {
+                await _contentStore.WriteAsync(
+                    existing.Id,
+                    content,
+                    cancellationToken);
+            }
+            else
+            {
+                var existingFingerprint =
+                    await _fingerprintService.ComputeAsync(
+                        existingContent,
+                        cancellationToken);
+
+                if (existing.Fingerprint is null ||
+                    existingFingerprint != existing.Fingerprint)
+                {
+                    throw new InvalidOperationException(
+                        "Existing artifact content failed fingerprint validation.");
+                }
+            }
+
             var provenance =
                 await _repository.GetProvenanceAsync(
                     existing.Id,

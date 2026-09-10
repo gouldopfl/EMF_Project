@@ -333,7 +333,7 @@ public sealed class EvidenceFileIngestionServiceTests
     }
 
     [Fact]
-    public async Task IngestAsync_ReusesExistingFile()
+    public async Task IngestAsync_RepairsMissingContentForExistingFile()
     {
         var path = Path.GetTempFileName();
 
@@ -390,8 +390,119 @@ public sealed class EvidenceFileIngestionServiceTests
                 result.Artifact.Id);
 
             Assert.True(result.AlreadyExisted);
+            Assert.Single(store.Written);
+            Assert.Equal(existing.Id, store.Written[0]);
+            Assert.Empty(repository.Persisted);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task IngestAsync_ReusesExistingContentWhenFingerprintMatches()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            await File.WriteAllTextAsync(path, "evidence content");
+            var fullPath = Path.GetFullPath(path);
+
+            var existing = new Artifact
+            {
+                Id = new ArtifactId("existing-evidence"),
+                Name = Path.GetFileName(path),
+                ArtifactType = "file",
+                Fingerprint = new ContentFingerprint
+                {
+                    Algorithm = "SHA256",
+                    Value = "test-fingerprint"
+                }
+            };
+
+            var repository = new RecordingRepository
+            {
+                ExistingArtifact = existing,
+                ExistingProvenance = new Provenance
+                {
+                    ArtifactId = existing.Id,
+                    Source = fullPath,
+                    RecordedBy = "EMF.Discovery"
+                }
+            };
+
+            var store = new RecordingContentStore
+            {
+                ExistingContent = await File.ReadAllBytesAsync(path)
+            };
+
+            var service = new EvidenceFileIngestionService(
+                repository,
+                store,
+                new StubFingerprintService(),
+                new StubIdGenerator(),
+                new ArtifactFactory());
+
+            var result = await service.IngestAsync(path);
+
+            Assert.True(result.AlreadyExisted);
             Assert.Empty(store.Written);
             Assert.Empty(repository.Persisted);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task IngestAsync_RejectsExistingContentFingerprintMismatch()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            await File.WriteAllTextAsync(path, "evidence content");
+            var fullPath = Path.GetFullPath(path);
+
+            var existing = new Artifact
+            {
+                Id = new ArtifactId("existing-evidence"),
+                Name = Path.GetFileName(path),
+                ArtifactType = "file",
+                Fingerprint = new ContentFingerprint
+                {
+                    Algorithm = "SHA256",
+                    Value = "wrong-fingerprint"
+                }
+            };
+
+            var repository = new RecordingRepository
+            {
+                ExistingArtifact = existing,
+                ExistingProvenance = new Provenance
+                {
+                    ArtifactId = existing.Id,
+                    Source = fullPath,
+                    RecordedBy = "EMF.Discovery"
+                }
+            };
+
+            var store = new RecordingContentStore
+            {
+                ExistingContent = await File.ReadAllBytesAsync(path)
+            };
+
+            var service = new EvidenceFileIngestionService(
+                repository, store,
+                new StubFingerprintService(),
+                new StubIdGenerator(),
+                new ArtifactFactory());
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.IngestAsync(path));
         }
         finally
         {
@@ -498,6 +609,8 @@ public sealed class EvidenceFileIngestionServiceTests
 
         public bool FailDelete { get; init; }
 
+        public byte[]? ExistingContent { get; init; }
+
         public Task WriteAsync(
             ArtifactId artifactId,
             ReadOnlyMemory<byte> content,
@@ -510,7 +623,7 @@ public sealed class EvidenceFileIngestionServiceTests
         public Task<byte[]?> ReadAsync(
             ArtifactId artifactId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<byte[]?>(null);
+            Task.FromResult(ExistingContent);
 
         public Task DeleteAsync(
             ArtifactId artifactId,

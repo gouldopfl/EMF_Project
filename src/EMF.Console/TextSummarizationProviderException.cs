@@ -6,10 +6,13 @@ internal sealed class
 {
     public TextSummarizationProviderException(
         string failureKind,
+        int? statusCode,
         Exception innerException)
         : base(
-            $"Text summarization provider failed: " +
-            $"{failureKind}.",
+            statusCode is null
+                ? $"Text summarization provider failed: {failureKind}."
+                : $"Text summarization provider failed: {failureKind} " +
+                  $"(HTTP {statusCode}).",
             innerException)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(
@@ -18,7 +21,10 @@ internal sealed class
             innerException);
 
         FailureKind = failureKind;
+        StatusCode = statusCode;
     }
 
     public string FailureKind { get; }
+
+    public int? StatusCode { get; }
 }

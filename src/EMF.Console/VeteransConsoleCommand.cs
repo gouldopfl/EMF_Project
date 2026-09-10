@@ -1050,6 +1050,26 @@ public static class VeteransConsoleCommand
         string? outputPath,
         string? basisId = null)
     {
+        static void OperatorStatus(
+            string area,
+            string message)
+        {
+            global::System.Console.WriteLine(
+                $"{DateTimeOffset.UtcNow:HH:mm:ss} UTC  " +
+                $"{area,-8}  " +
+                ConsoleTextSanitizer.Sanitize(message));
+
+            global::System.Console.Out.Flush();
+        }
+
+        OperatorStatus(
+            "REVIEWER",
+            $"Starting reviewer package for {claimIssueId.Value}");
+
+        OperatorStatus(
+            "EVIDENCE",
+            "Loading claim issue details");
+
         var details =
             await CreateAdjudicationDetailsService(databasePath)
                 .GetAsync(claimIssueId);
@@ -1143,6 +1163,10 @@ public static class VeteransConsoleCommand
 
         await medicalLiteratureRepository.InitializeAsync();
 
+        OperatorStatus(
+            "EXTRACT",
+            "Extracting reviewer evidence sources");
+
         var evidenceSources =
             await new VeteransReviewerEvidenceSourceService(
                     evidenceRepository,
@@ -1151,6 +1175,10 @@ public static class VeteransConsoleCommand
                 .GetAsync(
                     details,
                     classifications);
+
+        OperatorStatus(
+            "EVIDENCE",
+            $"{evidenceSources.Count} source artifact(s) ready");
 
         var sourceArtifactIds =
             evidenceSources
@@ -1165,6 +1193,10 @@ public static class VeteransConsoleCommand
             return 1;
         }
 
+        OperatorStatus(
+            "AI",
+            "Initializing Azure OpenAI runtime");
+
         var runtime =
             await runtimeFactory();
 
@@ -1172,6 +1204,10 @@ public static class VeteransConsoleCommand
             VeteransEvidenceOrchestrationFactory
                 .CreateReviewerPackageIntelligenceService(
                     runtime.TextSummarizationCapabilityExecutor);
+
+        OperatorStatus(
+            "AI",
+            "Starting reviewer summarization");
 
         var result =
             await intelligence.SummarizeAsync(
@@ -1185,6 +1221,10 @@ public static class VeteransConsoleCommand
                     runtime.ClassificationId,
                     sourceArtifactIds));
 
+        OperatorStatus(
+            "AI",
+            "Reviewer summarization complete");
+
         if (!result.Success)
         {
             global::System.Console.Error.WriteLine(
@@ -1194,6 +1234,10 @@ public static class VeteransConsoleCommand
 
             return 1;
         }
+
+        OperatorStatus(
+            "PACKAGE",
+            "Publishing reviewer package");
 
         var prepared =
             await VeteransReviewerPackagePublisher.PublishAsync(
@@ -1218,8 +1262,22 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             $"Package ID          : {prepared.Package.Id.Value}");
 
+        OperatorStatus(
+            "PACKAGE",
+            "Reviewer package persisted");
+
         if (outputPath is null)
+        {
+            OperatorStatus(
+                "COMPLETE",
+                "Reviewer package complete");
+
             return 0;
+        }
+
+        OperatorStatus(
+            "DOCX",
+            "Creating reviewer document");
 
         var exportExitCode =
             await RunEvidencePackageDocxAsync(
@@ -1233,6 +1291,10 @@ public static class VeteransConsoleCommand
 
         global::System.Console.WriteLine(
             $"Package DOCX        : {outputPath}");
+
+        OperatorStatus(
+            "COMPLETE",
+            $"Reviewer document created: {outputPath}");
 
         return 0;
     }
