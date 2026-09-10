@@ -91,7 +91,8 @@ internal sealed class AzureOpenAITextClient :
             throw CreateFailure(
                 AzureOpenAIFailureClassifier.Classify(
                     exception.Status),
-                exception.Status);
+                exception.Status,
+                exception);
         }
         catch (HttpRequestException)
         {
@@ -131,11 +132,13 @@ internal sealed class AzureOpenAITextClient :
     private static AzureOpenAIProviderException
         CreateFailure(
             AzureOpenAIFailureKind failureKind,
-            int? statusCode = null)
+            int? statusCode = null,
+            Exception? innerException = null)
     {
         return new AzureOpenAIProviderException(
             failureKind,
             $"Azure OpenAI {failureKind.ToString().ToLowerInvariant()} failure.",
-            statusCode);
+            statusCode,
+            innerException);
     }
 }
