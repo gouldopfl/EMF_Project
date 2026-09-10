@@ -426,7 +426,7 @@ public static class VeteransReviewerPackageDocxRenderer
         return new Paragraph(
             properties,
             new Run(
-                new Text(text)
+                new Text(SanitizeXmlText(text))
                 {
                     Space = SpaceProcessingModeValues.Preserve
                 }));
@@ -485,7 +485,7 @@ public static class VeteransReviewerPackageDocxRenderer
 
             paragraph.Append(
                 new Run(
-                    new Text(lines[index])
+                    new Text(SanitizeXmlText(lines[index]))
                     {
                         Space =
                             SpaceProcessingModeValues.Preserve
@@ -696,11 +696,35 @@ public static class VeteransReviewerPackageDocxRenderer
                                     "drawingml/2006/picture"
                             })))));
 
+    private static string SanitizeXmlText(string text)
+    {
+        var sanitized = new StringBuilder(text.Length);
+
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var value = rune.Value;
+
+            if (value is 0x9 or 0xA or 0xD ||
+                value is >= 0x20 and <= 0xD7FF ||
+                value is >= 0xE000 and <= 0xFFFD ||
+                value is >= 0x10000 and <= 0x10FFFF)
+            {
+                sanitized.Append(rune.ToString());
+            }
+            else
+            {
+                sanitized.Append('\uFFFD');
+            }
+        }
+
+        return sanitized.ToString();
+    }
+
     private static Paragraph Paragraph(
         string text) =>
         new(
             new Run(
-                new Text(text)
+                new Text(SanitizeXmlText(text))
                 {
                     Space = SpaceProcessingModeValues.Preserve
                 }));

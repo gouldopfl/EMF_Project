@@ -1937,6 +1937,31 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
 public sealed partial class VeteransReviewerPackageDocxRendererTests
 {
+    [Fact]
+    public void Render_ReplacesInvalidXmlControlCharacters()
+    {
+        var details =
+            CreatePrintableDetails(
+                [],
+                "Before\fAfter");
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var text =
+            document.MainDocumentPart!.Document!.InnerText;
+
+        Assert.Contains("Before\uFFFDAfter", text);
+        Assert.DoesNotContain("\f", text);
+    }
+}
+
+public sealed partial class VeteransReviewerPackageDocxRendererTests
+{
     private static VeteransReviewerPackageDetails CreatePrintableDetails(
         IReadOnlyList<PrintableArtifactPage> pages,
         string text)
