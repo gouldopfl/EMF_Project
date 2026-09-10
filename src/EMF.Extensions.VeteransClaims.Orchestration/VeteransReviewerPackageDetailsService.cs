@@ -11,6 +11,7 @@ public sealed class VeteransReviewerPackageDetailsService
     private readonly IEvidencePackageService _packages;
     private readonly IEvidenceRepository _evidence;
     private readonly IEvidenceClassificationRepository? _classifications;
+    private readonly IMedicalLiteratureRepository? _medicalLiterature;
     private readonly IArtifactTextExtractor? _textExtractor;
     private readonly IArtifactPrintRenderer? _printRenderer;
 
@@ -28,11 +29,13 @@ public sealed class VeteransReviewerPackageDetailsService
     public VeteransReviewerPackageDetailsService(
         IEvidencePackageService packages,
         IEvidenceRepository evidence,
-        IEvidenceClassificationRepository classifications)
+        IEvidenceClassificationRepository classifications,
+        IMedicalLiteratureRepository? medicalLiterature = null)
         : this(packages, evidence)
     {
         ArgumentNullException.ThrowIfNull(classifications);
         _classifications = classifications;
+        _medicalLiterature = medicalLiterature;
     }
 
     public VeteransReviewerPackageDetailsService(
@@ -53,11 +56,13 @@ public sealed class VeteransReviewerPackageDetailsService
         IEvidencePackageService packages,
         IEvidenceRepository evidence,
         IEvidenceClassificationRepository classifications,
-        IArtifactTextExtractor textExtractor)
+        IArtifactTextExtractor textExtractor,
+        IMedicalLiteratureRepository? medicalLiterature = null)
         : this(packages, evidence, textExtractor)
     {
         ArgumentNullException.ThrowIfNull(classifications);
         _classifications = classifications;
+        _medicalLiterature = medicalLiterature;
     }
 
     public VeteransReviewerPackageDetailsService(
@@ -65,7 +70,8 @@ public sealed class VeteransReviewerPackageDetailsService
         IEvidenceRepository evidence,
         IEvidenceClassificationRepository classifications,
         IArtifactTextExtractor textExtractor,
-        IArtifactPrintRenderer printRenderer)
+        IArtifactPrintRenderer printRenderer,
+        IMedicalLiteratureRepository? medicalLiterature = null)
         : this(
             packages,
             evidence,
@@ -74,6 +80,7 @@ public sealed class VeteransReviewerPackageDetailsService
     {
         ArgumentNullException.ThrowIfNull(printRenderer);
         _printRenderer = printRenderer;
+        _medicalLiterature = medicalLiterature;
     }
 
     public async Task<VeteransReviewerPackageDetails?> GetAsync(
@@ -201,6 +208,18 @@ public sealed class VeteransReviewerPackageDetailsService
         EMF.Core.Models.Identities.ArtifactId artifactId,
         CancellationToken cancellationToken)
     {
+        if (_medicalLiterature is not null)
+        {
+            var literatureSourceIds =
+                await _medicalLiterature
+                    .GetMedicalLiteratureSourceIdsAsync(
+                        artifactId,
+                        cancellationToken);
+
+            if (literatureSourceIds.Count > 0)
+                return VeteransReviewerPackageAppendix.MedicalLiterature;
+        }
+
         if (_classifications is null)
             return null;
 

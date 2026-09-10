@@ -388,6 +388,28 @@ public static class VeteransConsoleCommand
                 args[7]);
         }
 
+
+        if (args.Length == 6 &&
+            args[0] == "evidence" &&
+            args[1] == "literature" &&
+            args[2] == "artifact")
+        {
+            var literatureArtifactDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(literatureArtifactDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {literatureArtifactDatabasePath}");
+                return 2;
+            }
+
+            return await MedicalLiteratureConsoleCommand.RunArtifactAsync(
+                literatureArtifactDatabasePath,
+                new MedicalLiteratureSourceId(args[4]),
+                new ArtifactId(args[5]));
+        }
+
         if (args.Length == 5 &&
             args[0] == "evidence" &&
             args[1] == "literature" &&
@@ -2556,6 +2578,11 @@ public static class VeteransConsoleCommand
             new SqliteEvidenceClassificationRepository(
                 databasePath);
 
+        var medicalLiterature =
+            new SqliteMedicalLiteratureRepository(databasePath);
+
+        await medicalLiterature.InitializeAsync();
+
         contentStoreFactory ??=
             ArtifactContentStoreFactory.Create;
 
@@ -2567,7 +2594,8 @@ public static class VeteransConsoleCommand
                 ? new VeteransReviewerPackageDetailsService(
                     packageService,
                     evidenceRepository,
-                    classifications)
+                    classifications,
+                    medicalLiterature)
                 : new VeteransReviewerPackageDetailsService(
                     packageService,
                     evidenceRepository,
@@ -2577,7 +2605,8 @@ public static class VeteransConsoleCommand
                         contentStore),
                     ArtifactPrintRenderingFactory.Create(
                         evidenceRepository,
-                        contentStore));
+                        contentStore),
+                    medicalLiterature);
 
         var details =
             await service.GetAsync(
@@ -2648,6 +2677,11 @@ public static class VeteransConsoleCommand
             new SqliteEvidenceClassificationRepository(
                 fullDatabasePath);
 
+        var medicalLiterature =
+            new SqliteMedicalLiteratureRepository(fullDatabasePath);
+
+        await medicalLiterature.InitializeAsync();
+
         contentStoreFactory ??=
             ArtifactContentStoreFactory.Create;
 
@@ -2660,7 +2694,8 @@ public static class VeteransConsoleCommand
                 ? new VeteransReviewerPackageDetailsService(
                     packageService,
                     evidenceRepository,
-                    classifications)
+                    classifications,
+                    medicalLiterature)
                 : new VeteransReviewerPackageDetailsService(
                     packageService,
                     evidenceRepository,
@@ -2670,7 +2705,8 @@ public static class VeteransConsoleCommand
                         contentStore),
                     ArtifactPrintRenderingFactory.Create(
                         evidenceRepository,
-                        contentStore));
+                        contentStore),
+                    medicalLiterature);
 
         var details =
             await service.GetAsync(evidencePackageId);
@@ -3037,6 +3073,10 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence classify " +
             "<database-path> <claim-issue-id> <artifact-id> <classification>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence literature artifact " +
+            "<database-path> <literature-id> <artifact-id>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence guidance " +

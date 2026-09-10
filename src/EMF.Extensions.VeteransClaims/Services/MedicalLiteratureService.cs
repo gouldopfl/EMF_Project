@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -50,6 +51,46 @@ public sealed class MedicalLiteratureService :
             cancellationToken);
 
         return source;
+    }
+
+
+    public async Task<MedicalLiteratureSourceArtifact> AddSourceArtifactAsync(
+        MedicalLiteratureSourceId sourceId,
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default)
+    {
+        var source =
+            await _literature.GetMedicalLiteratureSourceAsync(
+                sourceId,
+                cancellationToken);
+
+        if (source is null)
+            throw new InvalidOperationException(
+                $"Medical literature source not found: {sourceId.Value}");
+
+        var artifactIds =
+            await _literature.GetArtifactIdsAsync(
+                sourceId,
+                cancellationToken);
+
+        if (artifactIds.Contains(artifactId))
+            return new MedicalLiteratureSourceArtifact
+            {
+                MedicalLiteratureSourceId = sourceId,
+                ArtifactId = artifactId
+            };
+
+        var association = new MedicalLiteratureSourceArtifact
+        {
+            MedicalLiteratureSourceId = sourceId,
+            ArtifactId = artifactId
+        };
+
+        await _literature.AddMedicalLiteratureSourceArtifactAsync(
+            association,
+            cancellationToken);
+
+        return association;
     }
 
     public async Task<RequirementMedicalLiteratureDetails>

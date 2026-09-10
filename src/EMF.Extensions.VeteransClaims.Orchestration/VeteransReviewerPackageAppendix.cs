@@ -8,6 +8,7 @@ public static class VeteransReviewerPackageAppendix
     public const string ServiceRecords = "ServiceRecords";
     public const string LayEvidence = "LayEvidence";
     public const string AdjudicativeRecords = "AdjudicativeRecords";
+    public const string MedicalLiterature = "MedicalLiterature";
 
     public static string GetAppendix(
         string classification) =>

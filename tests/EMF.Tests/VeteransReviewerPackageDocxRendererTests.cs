@@ -2021,3 +2021,63 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC" +
             "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
 }
+
+public sealed partial class VeteransReviewerPackageDocxRendererTests
+{
+    [Fact]
+    public void Render_LabelsMedicalLiteratureAppendix()
+    {
+        var packageId = new EvidencePackageId("package-literature");
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId("artifact-literature"),
+            Name = "study.pdf",
+            ArtifactType = "pdf"
+        };
+
+        var details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = new EvidencePackageDetails
+            {
+                Package = new EvidencePackage
+                {
+                    Id = packageId,
+                    ClaimIssueId = new ClaimIssueId("issue-1"),
+                    Purpose = "Medical review",
+                    ReviewerRole = "MedicalProfessional"
+                },
+                Artifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = artifact.Id,
+                        ContentRole =
+                            EvidencePackageContentRoles.UnderlyingEvidence
+                    }
+                ]
+            },
+            Artifacts = [artifact],
+            ArtifactContents =
+            [
+                new VeteransReviewerArtifactContent
+                {
+                    Artifact = artifact,
+                    Text = "Published study.",
+                    Appendix =
+                        VeteransReviewerPackageAppendix.MedicalLiterature
+                }
+            ]
+        };
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        Assert.Contains(
+            "Appendix E — Medical / Scientific Literature",
+            document.MainDocumentPart!.Document!.InnerText);
+    }
+}

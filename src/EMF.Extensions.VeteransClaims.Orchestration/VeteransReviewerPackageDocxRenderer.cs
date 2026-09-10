@@ -342,6 +342,7 @@ public static class VeteransReviewerPackageDocxRenderer
             VeteransReviewerPackageAppendix.ServiceRecords => 1,
             VeteransReviewerPackageAppendix.LayEvidence => 2,
             VeteransReviewerPackageAppendix.AdjudicativeRecords => 3,
+            VeteransReviewerPackageAppendix.MedicalLiterature => 4,
             _ => int.MaxValue
         };
 
@@ -356,6 +357,8 @@ public static class VeteransReviewerPackageDocxRenderer
                 "Appendix C — Lay Evidence",
             VeteransReviewerPackageAppendix.AdjudicativeRecords =>
                 "Appendix D — Adjudicative Records",
+            VeteransReviewerPackageAppendix.MedicalLiterature =>
+                "Appendix E — Medical / Scientific Literature",
             _ => appendix
         };
 

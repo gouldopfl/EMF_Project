@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 
@@ -22,4 +23,21 @@ public interface IMedicalLiteratureRepository
         GetRequirementMedicalLiteratureAsync(
             RequirementId requirementId,
             CancellationToken cancellationToken = default);
+
+    Task AddMedicalLiteratureSourceArtifactAsync(
+        MedicalLiteratureSourceArtifact association,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<ArtifactId>> GetArtifactIdsAsync(
+        MedicalLiteratureSourceId sourceId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<MedicalLiteratureSourceId>>
+        GetMedicalLiteratureSourceIdsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
 }

@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -193,6 +194,100 @@ public sealed class SqliteMedicalLiteratureRepository :
                     Description = reader.GetString(3)
                 });
         }
+
+        return results;
+    }
+
+
+    public async Task AddMedicalLiteratureSourceArtifactAsync(
+        MedicalLiteratureSourceArtifact association,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(association);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            INSERT INTO VeteransClaims_MedicalLiteratureSourceArtifacts
+                (MedicalLiteratureSourceId, ArtifactId)
+            SELECT source.Id, artifact.Id
+            FROM VeteransClaims_MedicalLiteratureSources AS source
+            INNER JOIN Artifacts AS artifact
+                ON artifact.Id = $artifactId
+            WHERE source.Id = $sourceId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$sourceId",
+            association.MedicalLiteratureSourceId.Value);
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            association.ArtifactId.Value);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            throw new InvalidOperationException(
+                "The medical literature source and artifact must exist.");
+    }
+
+    public async Task<IReadOnlyList<ArtifactId>> GetArtifactIdsAsync(
+        MedicalLiteratureSourceId sourceId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT ArtifactId
+            FROM VeteransClaims_MedicalLiteratureSourceArtifacts
+            WHERE MedicalLiteratureSourceId = $sourceId
+            ORDER BY ArtifactId;
+            """;
+
+        command.Parameters.AddWithValue("$sourceId", sourceId.Value);
+
+        var results = new List<ArtifactId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            results.Add(new ArtifactId(reader.GetString(0)));
+
+        return results;
+    }
+
+
+    public async Task<IReadOnlyList<MedicalLiteratureSourceId>>
+        GetMedicalLiteratureSourceIdsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT MedicalLiteratureSourceId
+            FROM VeteransClaims_MedicalLiteratureSourceArtifacts
+            WHERE ArtifactId = $artifactId
+            ORDER BY MedicalLiteratureSourceId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            artifactId.Value);
+
+        var results = new List<MedicalLiteratureSourceId>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            results.Add(
+                new MedicalLiteratureSourceId(reader.GetString(0)));
 
         return results;
     }

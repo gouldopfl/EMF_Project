@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using System.Text.Json;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -135,5 +136,48 @@ internal static class MedicalLiteratureConsoleCommand
             return 1;
         }
     }
+
+
+    public static async Task<int> RunArtifactAsync(
+        string databasePath,
+        MedicalLiteratureSourceId sourceId,
+        ArtifactId artifactId)
+    {
+        try
+        {
+            var repository =
+                new SqliteMedicalLiteratureRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var service =
+                new MedicalLiteratureService(
+                    new SqliteRegulatoryRepository(databasePath),
+                    repository);
+
+            var result =
+                await service.AddSourceArtifactAsync(
+                    sourceId,
+                    artifactId);
+
+            global::System.Console.WriteLine(
+                $"Literature ID : {result.MedicalLiteratureSourceId.Value}");
+            global::System.Console.WriteLine(
+                $"Artifact ID   : {result.ArtifactId.Value}");
+
+            return 0;
+        }
+        catch (ArgumentException ex)
+        {
+            global::System.Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+        catch (InvalidOperationException ex)
+        {
+            global::System.Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+    }
+
 
 }

@@ -823,3 +823,88 @@ file sealed class RecordingPrintRenderer(
         return Task.FromResult(pages);
     }
 }
+
+public sealed partial class VeteransReviewerPackageDetailsServiceTests
+{
+    [Fact]
+    public async Task GetAsync_AssignsMedicalLiteratureAppendix()
+    {
+        var packageId = new EvidencePackageId("package-literature");
+        var artifact = CreateArtifact("artifact-literature");
+
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var classifications = new RecordingClassificationRepository
+        {
+            ExistingClassifications =
+            [
+                new EvidenceClassification
+                {
+                    Id = new EvidenceClassificationId("classification-lit"),
+                    ArtifactId = artifact.Id,
+                    ClaimIssueId = new ClaimIssueId("issue-1"),
+                    Classification = EvidenceClassifications.MedicalEvidence
+                }
+            ]
+        };
+
+        var literature = new RecordingMedicalLiteratureRepository
+        {
+            ArtifactId = artifact.Id,
+            SourceId = new MedicalLiteratureSourceId("study-1")
+        };
+
+        var service = new VeteransReviewerPackageDetailsService(
+            new RecordingPackageService
+            {
+                Details = CreateDetails(packageId, artifact.Id)
+            },
+            evidence,
+            classifications,
+            new RecordingTextExtractor("literature text"),
+            literature);
+
+        var result = await service.GetAsync(packageId);
+
+        Assert.NotNull(result);
+        Assert.Equal(
+            VeteransReviewerPackageAppendix.MedicalLiterature,
+            Assert.Single(result.ArtifactContents).Appendix);
+    }
+}
+
+file sealed class RecordingMedicalLiteratureRepository :
+    IMedicalLiteratureRepository
+{
+    public required ArtifactId ArtifactId { get; init; }
+    public required MedicalLiteratureSourceId SourceId { get; init; }
+
+    public Task AddMedicalLiteratureSourceAsync(
+        MedicalLiteratureSource source,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<MedicalLiteratureSource?> GetMedicalLiteratureSourceAsync(
+        MedicalLiteratureSourceId sourceId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task AddRequirementMedicalLiteratureAsync(
+        RequirementMedicalLiterature literature,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<IReadOnlyList<RequirementMedicalLiterature>>
+        GetRequirementMedicalLiteratureAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<IReadOnlyList<MedicalLiteratureSourceId>>
+        GetMedicalLiteratureSourceIdsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<MedicalLiteratureSourceId>>(
+            artifactId == ArtifactId ? [SourceId] : []);
+}

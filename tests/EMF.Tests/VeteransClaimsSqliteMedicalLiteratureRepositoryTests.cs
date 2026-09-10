@@ -1,3 +1,6 @@
+using EMF.Persistence.Repositories;
+using EMF.Core.Models.Identities;
+using EMF.Core.Models;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
@@ -106,6 +109,65 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
             Assert.Equal(
                 EvidenceGuidanceRoles.SupportsRequirement,
                 link.GuidanceRole);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ArtifactAssociation_RoundTripsInBothDirections()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var literature = new SqliteMedicalLiteratureRepository(path);
+            await literature.InitializeAsync();
+
+            var evidence = new SqliteEvidenceRepository(path);
+            await evidence.InitializeAsync();
+
+            var source = new MedicalLiteratureSource
+            {
+                Id = new MedicalLiteratureSourceId("study-artifact"),
+                Title = "Example study",
+                Authors = "Example Authors",
+                Publication = "Example Journal",
+                VaAffiliated = false,
+                VaFunded = false,
+                PeerReviewed = true
+            };
+
+            await literature.AddMedicalLiteratureSourceAsync(source);
+
+            var artifact = new Artifact
+            {
+                Id = new ArtifactId("artifact-literature"),
+                Name = "Example study.pdf",
+                ArtifactType = "pdf"
+            };
+
+            await evidence.AddArtifactAsync(artifact);
+
+            await literature.AddMedicalLiteratureSourceArtifactAsync(
+                new MedicalLiteratureSourceArtifact
+                {
+                    MedicalLiteratureSourceId = source.Id,
+                    ArtifactId = artifact.Id
+                });
+
+            Assert.Equal(
+                artifact.Id,
+                Assert.Single(
+                    await literature.GetArtifactIdsAsync(source.Id)));
+
+            Assert.Equal(
+                source.Id,
+                Assert.Single(
+                    await literature.GetMedicalLiteratureSourceIdsAsync(
+                        artifact.Id)));
         }
         finally
         {

@@ -1,3 +1,6 @@
+using EMF.Persistence.Repositories;
+using EMF.Core.Models.Identities;
+using EMF.Core.Models;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
@@ -244,6 +247,92 @@ public sealed class MedicalLiteratureServiceTests
 
             Assert.Contains(
                 "Requirement not found",
+                exception.Message);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+
+    [Fact]
+    public async Task AddSourceArtifactAsync_AddsAssociationAndIsIdempotent()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var literature = new SqliteMedicalLiteratureRepository(path);
+            await literature.InitializeAsync();
+
+            var evidence = new SqliteEvidenceRepository(path);
+            await evidence.InitializeAsync();
+
+            var service = new MedicalLiteratureService(
+                new SqliteRegulatoryRepository(path),
+                literature);
+
+            var source = CreateSource("study-artifact");
+            await service.AddSourceAsync(source);
+
+            var artifact = new Artifact
+            {
+                Id = new ArtifactId("artifact-study"),
+                Name = "study.pdf",
+                ArtifactType = "pdf"
+            };
+
+            await evidence.AddArtifactAsync(artifact);
+
+            var first =
+                await service.AddSourceArtifactAsync(
+                    source.Id,
+                    artifact.Id);
+
+            var second =
+                await service.AddSourceArtifactAsync(
+                    source.Id,
+                    artifact.Id);
+
+            Assert.Equal(source.Id, first.MedicalLiteratureSourceId);
+            Assert.Equal(artifact.Id, first.ArtifactId);
+            Assert.Equal(first.MedicalLiteratureSourceId,
+                second.MedicalLiteratureSourceId);
+            Assert.Equal(first.ArtifactId, second.ArtifactId);
+
+            Assert.Single(
+                await literature.GetArtifactIdsAsync(source.Id));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+
+    [Fact]
+    public async Task AddSourceArtifactAsync_RejectsMissingSource()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var literature = new SqliteMedicalLiteratureRepository(path);
+            await literature.InitializeAsync();
+
+            var service = new MedicalLiteratureService(
+                new SqliteRegulatoryRepository(path),
+                literature);
+
+            var exception =
+                await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => service.AddSourceArtifactAsync(
+                        new MedicalLiteratureSourceId("missing"),
+                        new ArtifactId("artifact-missing")));
+
+            Assert.Contains(
+                "Medical literature source not found",
                 exception.Message);
         }
         finally

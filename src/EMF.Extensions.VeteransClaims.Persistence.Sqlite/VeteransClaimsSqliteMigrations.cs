@@ -1929,6 +1929,25 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_RequirementMedicalLiterature (
                     MedicalLiteratureSourceId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                68,
+                "AddMedicalLiteratureSourceArtifacts",
+                """
+                CREATE TABLE VeteransClaims_MedicalLiteratureSourceArtifacts (
+                    MedicalLiteratureSourceId TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    PRIMARY KEY (
+                        MedicalLiteratureSourceId,
+                        ArtifactId
+                    ),
+                    FOREIGN KEY (MedicalLiteratureSourceId)
+                        REFERENCES VeteransClaims_MedicalLiteratureSources (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicalLiteratureSourceArtifacts_Artifact
+                ON VeteransClaims_MedicalLiteratureSourceArtifacts (ArtifactId);
                 """)
         };
 }

@@ -3587,6 +3587,62 @@ public sealed class VeteransConsoleCommandTests
         }
     }
 
+
+    [Fact]
+    public async Task EvidenceLiteratureArtifact_AddsIdempotently()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var literature = new SqliteMedicalLiteratureRepository(path);
+            await literature.InitializeAsync();
+
+            var source = new MedicalLiteratureSource
+            {
+                Id = new MedicalLiteratureSourceId("study-artifact-console"),
+                Title = "Example study",
+                Authors = "Example Authors",
+                Publication = "Example Journal",
+                VaAffiliated = false,
+                VaFunded = false,
+                PeerReviewed = true
+            };
+
+            await literature.AddMedicalLiteratureSourceAsync(source);
+
+            var evidence = new SqliteEvidenceRepository(path);
+            await evidence.InitializeAsync();
+
+            var artifact = new Artifact
+            {
+                Id = new ArtifactId("artifact-lit-console"),
+                Name = "study.pdf",
+                ArtifactType = "pdf"
+            };
+
+            await evidence.AddArtifactAsync(artifact);
+
+            string[] args =
+            [
+                "evidence", "literature", "artifact",
+                path, source.Id.Value, artifact.Id.Value
+            ];
+
+            Assert.Equal(0, await VeteransConsoleCommand.RunAsync(args));
+            Assert.Equal(0, await VeteransConsoleCommand.RunAsync(args));
+
+            Assert.Equal(
+                artifact.Id,
+                Assert.Single(
+                    await literature.GetArtifactIdsAsync(source.Id)));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task EvidenceLiteratureLink_RejectsMissingDatabase()
     {
