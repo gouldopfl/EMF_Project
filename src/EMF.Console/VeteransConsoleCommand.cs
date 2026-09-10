@@ -1067,6 +1067,20 @@ public static class VeteransConsoleCommand
                     databasePath)
                 .GetEvidenceClassificationsAsync(claimIssueId);
 
+        var hasRequirementLiterature =
+            details.Requirements.Any(
+                requirement =>
+                    requirement.MedicalLiterature.Count > 0);
+
+        if (classifications.Count == 0 &&
+            !hasRequirementLiterature)
+        {
+            global::System.Console.Error.WriteLine(
+                $"No reviewer evidence found for claim issue: {claimIssueId.Value}");
+
+            return 1;
+        }
+
         var contentStore =
             contentStoreFactory();
 

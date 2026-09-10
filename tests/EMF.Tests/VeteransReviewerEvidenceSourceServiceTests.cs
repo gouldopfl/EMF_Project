@@ -215,6 +215,45 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
         Assert.Contains(artifactId.Value, ex.Message);
     }
 
+    [Fact]
+    public async Task GetAsync_RejectsClassificationClaimIssueMismatch()
+    {
+        var details = CreateDetails();
+
+        var classifications =
+            new[]
+            {
+                new EvidenceClassification
+                {
+                    Id =
+                        new EvidenceClassificationId(
+                            "classification-wrong-issue"),
+                    ArtifactId =
+                        new ArtifactId("artifact-wrong-issue"),
+                    ClaimIssueId =
+                        new ClaimIssueId("issue-other"),
+                    Classification =
+                        EvidenceClassifications.MedicalEvidence
+                }
+            };
+
+        var service =
+            CreateService(
+                CreateArtifact,
+                [],
+                id => $"text:{id.Value}");
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(
+                    details,
+                    classifications));
+
+        Assert.Contains(
+            "classification claim issue mismatch",
+            ex.Message);
+    }
+
     private static VeteransReviewerEvidenceSourceService CreateService(
         Func<ArtifactId, Artifact?> artifactLookup,
         IReadOnlyList<ArtifactId> literatureArtifactIds,

@@ -34,6 +34,15 @@ public sealed class VeteransReviewerEvidenceSourceService
         ArgumentNullException.ThrowIfNull(details);
         ArgumentNullException.ThrowIfNull(classifications);
 
+        foreach (var classification in classifications)
+        {
+            if (classification.ClaimIssueId != details.ClaimIssue.Id)
+            {
+                throw new InvalidOperationException(
+                    "Reviewer evidence classification claim issue mismatch.");
+            }
+        }
+
         var artifactIds = new List<ArtifactId>();
         var seen = new HashSet<ArtifactId>();
 
