@@ -490,7 +490,8 @@ public static class VeteransConsoleCommand
                 new EvidenceDevelopmentPlanId(args[3]));
         }
 
-        if (args.Length is 4 or 5 &&
+        if ((args.Length is 4 or 5 ||
+             (args.Length is 6 or 7 && args[4] == "--basis")) &&
             args[0] == "evidence" &&
             args[1] == "reviewer")
         {
@@ -516,14 +517,25 @@ public static class VeteransConsoleCommand
                 return 1;
             }
 
+            var reviewerBasisId =
+                args.Length is 6 or 7
+                    ? args[5]
+                    : null;
+
+            var reviewerOutputPath =
+                args.Length == 5
+                    ? Path.GetFullPath(args[4])
+                    : args.Length == 7
+                        ? Path.GetFullPath(args[6])
+                        : null;
+
             return await RunReviewerPackageAsync(
                 reviewerDatabasePath,
                 new ClaimIssueId(args[3]),
                 runtimeFactory,
                 contentStoreFactory,
-                args.Length == 5
-                    ? Path.GetFullPath(args[4])
-                    : null);
+                reviewerOutputPath,
+                reviewerBasisId);
         }
 
         var summarize =
@@ -957,7 +969,8 @@ public static class VeteransConsoleCommand
         ClaimIssueId claimIssueId,
         Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory,
         Func<IArtifactContentStore?> contentStoreFactory,
-        string? outputPath)
+        string? outputPath,
+        string? basisId = null)
     {
         var details =
             await CreateAdjudicationDetailsService(databasePath)
@@ -1051,11 +1064,38 @@ public static class VeteransConsoleCommand
 
         await developmentRepository.InitializeAsync();
 
+        var gapRepository =
+            new SqliteEvidenceGapRepository(databasePath);
+
         var developmentDetails =
             await new VeteransReviewerEvidenceDevelopmentDetailsService(
                     developmentRepository,
-                    new SqliteEvidenceGapRepository(databasePath))
+                    gapRepository)
                 .GetAsync(claimIssueId);
+
+        if (!string.IsNullOrWhiteSpace(basisId))
+        {
+            try
+            {
+                var scope =
+                    await new VeteransReviewerPackageBasisScopeService(
+                            developmentRepository,
+                            gapRepository)
+                        .ScopeAsync(
+                            details,
+                            developmentDetails,
+                            new ServiceConnectionBasisId(basisId));
+
+                details = scope.Details;
+                developmentDetails = scope.DevelopmentDetails;
+            }
+            catch (InvalidOperationException ex)
+            {
+                global::System.Console.Error.WriteLine(
+                    ConsoleTextSanitizer.Sanitize(ex.Message));
+                return 1;
+            }
+        }
 
         var runtime =
             await runtimeFactory();
@@ -2929,6 +2969,14 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence reviewer " +
             "<database-path> <claim-issue-id> <output.docx>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence reviewer " +
+            "<database-path> <claim-issue-id> --basis <basis-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence reviewer " +
+            "<database-path> <claim-issue-id> --basis <basis-id> <output.docx>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence classify " +

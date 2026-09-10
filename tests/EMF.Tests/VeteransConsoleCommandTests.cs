@@ -1327,6 +1327,23 @@ public sealed class VeteransConsoleCommandTests
     }
 
     [Fact]
+    public async Task EvidenceReviewer_BasisRejectsMissingDatabase()
+    {
+        var exitCode =
+            await VeteransConsoleCommand.RunAsync(
+                [
+                    "evidence",
+                    "reviewer",
+                    "/tmp/emf-missing-veterans-reviewer-basis.db",
+                    "issue-1",
+                    "--basis",
+                    "basis-1"
+                ]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
     public async Task EvidenceReviewer_MissingClaimIssueSkipsRuntime()
     {
         var previous =
