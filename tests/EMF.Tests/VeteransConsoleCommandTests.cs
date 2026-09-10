@@ -3475,6 +3475,156 @@ public sealed class VeteransConsoleCommandTests
 
 
     [Fact]
+    public async Task EvidenceLiterature_RoundTripsSourceAndLinkIdempotently()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-literature-{Guid.NewGuid():N}.db");
+
+        var sourcePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-literature-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            var regulatory = new SqliteRegulatoryRepository(databasePath);
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var authority = new RegulatoryAuthority
+            {
+                Id = new RegulatoryAuthorityId("authority-lit-console"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Veterans Affairs"
+            };
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+
+            var provision = new RegulatoryProvision
+            {
+                Id = new RegulatoryProvisionId("provision-lit-console"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = "Section",
+                Citation = "38 C.F.R. § 3.310"
+            };
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+
+            var requirement = new Requirement
+            {
+                Id = new RequirementId("requirement-lit-console"),
+                RegulatoryProvisionId = provision.Id,
+                Description = "Secondary nexus requirement."
+            };
+            await regulatory.AddRequirementAsync(requirement);
+
+            await File.WriteAllTextAsync(
+                sourcePath,
+                """
+                {
+                  "id": "study-console-1",
+                  "title": "Example study",
+                  "authors": "Example Authors",
+                  "publication": "Example Journal",
+                  "publicationYear": 2025,
+                  "vaAffiliated": false,
+                  "vaFunded": false,
+                  "peerReviewed": true,
+                  "doi": "10.1000/example-console"
+                }
+                """);
+
+            string[] sourceArgs =
+            [
+                "evidence", "literature", "source",
+                databasePath, sourcePath
+            ];
+
+            Assert.Equal(0, await VeteransConsoleCommand.RunAsync(sourceArgs));
+            Assert.Equal(0, await VeteransConsoleCommand.RunAsync(sourceArgs));
+
+            string[] linkArgs =
+            [
+                "evidence", "literature", "link",
+                databasePath,
+                requirement.Id.Value,
+                "study-console-1",
+                EvidenceGuidanceRoles.SupportsRequirement,
+                "Supports the medical mechanism."
+            ];
+
+            Assert.Equal(0, await VeteransConsoleCommand.RunAsync(linkArgs));
+            Assert.Equal(0, await VeteransConsoleCommand.RunAsync(linkArgs));
+
+            var repository =
+                new SqliteMedicalLiteratureRepository(databasePath);
+
+            var stored =
+                await repository.GetMedicalLiteratureSourceAsync(
+                    new MedicalLiteratureSourceId("study-console-1"));
+
+            Assert.NotNull(stored);
+            Assert.Equal("Example study", stored!.Title);
+            Assert.True(stored.PeerReviewed);
+
+            var links =
+                await repository.GetRequirementMedicalLiteratureAsync(
+                    requirement.Id);
+
+            var link = Assert.Single(links);
+            Assert.Equal(
+                EvidenceGuidanceRoles.SupportsRequirement,
+                link.GuidanceRole);
+            Assert.Equal(
+                "Supports the medical mechanism.",
+                link.Description);
+        }
+        finally
+        {
+            File.Delete(sourcePath);
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task EvidenceLiteratureLink_RejectsMissingDatabase()
+    {
+        var exitCode =
+            await VeteransConsoleCommand.RunAsync(
+                [
+                    "evidence",
+                    "literature",
+                    "link",
+                    "/tmp/emf-missing-literature-link.db",
+                    "requirement-1",
+                    "source-1",
+                    EvidenceGuidanceRoles.SupportsRequirement,
+                    "Supports the requirement."
+                ]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+
+    [Fact]
+    public async Task EvidenceLiteratureSource_RejectsMissingDatabase()
+    {
+        var exitCode =
+            await VeteransConsoleCommand.RunAsync(
+                [
+                    "evidence",
+                    "literature",
+                    "source",
+                    "/tmp/emf-missing-literature.db",
+                    "/tmp/emf-missing-literature.json"
+                ]);
+
+        Assert.Equal(2, exitCode);
+    }
+
+
+    [Fact]
     public async Task EvidenceGuidance_RejectsMissingRequirement()
     {
         var databasePath =

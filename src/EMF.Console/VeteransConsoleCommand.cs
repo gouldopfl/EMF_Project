@@ -364,6 +364,62 @@ public static class VeteransConsoleCommand
                 args[6]);
         }
 
+        if (args.Length == 8 &&
+            args[0] == "evidence" &&
+            args[1] == "literature" &&
+            args[2] == "link")
+        {
+            var literatureLinkDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(literatureLinkDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {literatureLinkDatabasePath}");
+
+                return 2;
+            }
+
+            return await MedicalLiteratureConsoleCommand.RunLinkAsync(
+                literatureLinkDatabasePath,
+                new RequirementId(args[4]),
+                new MedicalLiteratureSourceId(args[5]),
+                args[6],
+                args[7]);
+        }
+
+        if (args.Length == 5 &&
+            args[0] == "evidence" &&
+            args[1] == "literature" &&
+            args[2] == "source")
+        {
+            var literatureDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(literatureDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {literatureDatabasePath}");
+
+                return 2;
+            }
+
+            var sourcePath =
+                Path.GetFullPath(args[4]);
+
+            if (!File.Exists(sourcePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Medical literature source file not found: {sourcePath}");
+
+                return 2;
+            }
+
+            return await MedicalLiteratureConsoleCommand.RunSourceAsync(
+                literatureDatabasePath,
+                sourcePath);
+        }
+
         if (args.Length == 6 &&
             args[0] == "evidence" &&
             args[1] == "classify")
@@ -2985,6 +3041,15 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence guidance " +
             "<database-path> <requirement-id> <classification> " +
+            "<role> <description>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence literature source " +
+            "<database-path> <source-json-path>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence literature link " +
+            "<database-path> <requirement-id> <source-id> " +
             "<role> <description>");
 
         global::System.Console.WriteLine(
