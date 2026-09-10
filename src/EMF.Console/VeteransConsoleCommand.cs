@@ -1067,20 +1067,6 @@ public static class VeteransConsoleCommand
                     databasePath)
                 .GetEvidenceClassificationsAsync(claimIssueId);
 
-        var sourceArtifactIds =
-            classifications
-                .Select(x => x.ArtifactId)
-                .Distinct()
-                .ToArray();
-
-        if (sourceArtifactIds.Length == 0)
-        {
-            global::System.Console.Error.WriteLine(
-                $"No classified evidence found for claim issue: {claimIssueId.Value}");
-
-            return 1;
-        }
-
         var contentStore =
             contentStoreFactory();
 
@@ -1097,44 +1083,6 @@ public static class VeteransConsoleCommand
             ArtifactTextExtractionFactory.Create(
                 evidenceRepository,
                 contentStore);
-
-        var evidenceSources =
-            new List<VeteransReviewerEvidenceSource>();
-
-        foreach (var group in
-                 classifications.GroupBy(x => x.ArtifactId))
-        {
-            var artifact =
-                await evidenceRepository.GetArtifactAsync(group.Key)
-                ?? throw new InvalidOperationException(
-                    $"Reviewer evidence artifact not found: {group.Key.Value}");
-
-            if (artifact.Id != group.Key)
-                throw new InvalidOperationException(
-                    "Reviewer evidence artifact identity mismatch.");
-
-            var text =
-                await textExtractor.ExtractTextAsync(group.Key);
-
-            if (string.IsNullOrWhiteSpace(text))
-                throw new InvalidOperationException(
-                    $"Unable to extract reviewer evidence: {group.Key.Value}");
-
-            evidenceSources.Add(
-                new VeteransReviewerEvidenceSource
-                {
-                    ArtifactId = group.Key,
-                    ArtifactName = artifact.Name,
-                    ArtifactType = artifact.ArtifactType,
-                    ContentRole =
-                        EvidencePackageContentRoles.UnderlyingEvidence,
-                    Classifications =
-                        group.Select(x => x.Classification)
-                            .Distinct(StringComparer.Ordinal)
-                            .ToArray(),
-                    Text = text
-                });
-        }
 
         var developmentRepository =
             new SqliteEvidenceDevelopmentPlanRepository(
@@ -1173,6 +1121,34 @@ public static class VeteransConsoleCommand
                     ConsoleTextSanitizer.Sanitize(ex.Message));
                 return 1;
             }
+        }
+
+        var medicalLiteratureRepository =
+            new SqliteMedicalLiteratureRepository(
+                databasePath);
+
+        await medicalLiteratureRepository.InitializeAsync();
+
+        var evidenceSources =
+            await new VeteransReviewerEvidenceSourceService(
+                    evidenceRepository,
+                    medicalLiteratureRepository,
+                    textExtractor)
+                .GetAsync(
+                    details,
+                    classifications);
+
+        var sourceArtifactIds =
+            evidenceSources
+                .Select(x => x.ArtifactId)
+                .ToArray();
+
+        if (sourceArtifactIds.Length == 0)
+        {
+            global::System.Console.Error.WriteLine(
+                $"No reviewer evidence found for claim issue: {claimIssueId.Value}");
+
+            return 1;
         }
 
         var runtime =
