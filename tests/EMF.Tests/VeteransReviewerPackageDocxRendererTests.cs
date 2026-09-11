@@ -543,10 +543,10 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 .InnerText;
 
         const string generatedHeading =
-            "Generated Organizational Material";
+            "Executive Evidence Summary";
 
         const string evidenceHeading =
-            "Underlying Evidence";
+            "Evidence Index";
 
         Assert.Contains(
             generatedHeading,
@@ -650,13 +650,144 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             paragraphs,
             paragraph =>
                 paragraph.InnerText ==
-                    "Veterans Evidence Reviewer Package");
+                    "Veterans Evidence Reviewer Report");
 
         Assert.Contains(
             paragraphs,
             paragraph =>
                 paragraph.InnerText ==
-                    "Generated Organizational Material");
+                    "Executive Evidence Summary");
+
+        Assert.Contains(
+            paragraphs,
+            paragraph =>
+                paragraph.InnerText ==
+                    "Issues Presented for Medical Review");
+
+        Assert.Contains(
+            paragraphs,
+            paragraph =>
+                paragraph.InnerText ==
+                    "Questions for the Reviewing Physician");
+    }
+
+
+    [Fact]
+    public void Render_IncludesChronologyAndMedicalLiteratureSections()
+    {
+        var packageId =
+            new EvidencePackageId("package-1");
+
+        var medical =
+            new Artifact
+            {
+                Id = new ArtifactId("medical-1"),
+                Name = "clinical-note.txt",
+                ArtifactType = "medical-record",
+                Metadata =
+                    new Dictionary<string, object>
+                    {
+                        [VeteransArtifactMetadataKeys.NoteDate] = "2021-05-18",
+                        [VeteransArtifactMetadataKeys.NoteTitle] =
+                            "SLEEP MED PAP SET-UP CONSULT RESULT",
+                        [VeteransArtifactMetadataKeys.SourceStartPage] = "3265",
+                        [VeteransArtifactMetadataKeys.SourceEndPage] = "3267"
+                    }
+            };
+
+        var literature =
+            new Artifact
+            {
+                Id = new ArtifactId("literature-1"),
+                Name = "study.html",
+                ArtifactType = "file"
+            };
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId =
+                                    new ClaimIssueId("issue-1"),
+                                Purpose =
+                                    "Physician reviewer package",
+                                ReviewerRole =
+                                    "MedicalProfessional"
+                            },
+                        Artifacts =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = packageId,
+                                ArtifactId = medical.Id,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence
+                            },
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = packageId,
+                                ArtifactId = literature.Id,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence
+                            }
+                        ]
+                    },
+                Artifacts = [medical, literature],
+                ArtifactContents =
+                [
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = medical,
+                        Text = "Clinical evidence.",
+                        Appendix =
+                            VeteransReviewerPackageAppendix
+                                .MedicalEvidence
+                    },
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = literature,
+                        Text =
+                            "Published OSA Study\nAbstract text.",
+                        Appendix =
+                            VeteransReviewerPackageAppendix
+                                .MedicalLiterature
+                    }
+                ]
+            };
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var text =
+            document.MainDocumentPart!.Document!.InnerText;
+
+        Assert.Contains(
+            "Key Evidence and Chronology",
+            text);
+
+        Assert.Contains(
+            "2021-05-18 — SLEEP MED PAP SET-UP CONSULT RESULT",
+            text);
+
+        Assert.Contains(
+            "Medical / Scientific Literature Considered",
+            text);
+
+        Assert.Contains(
+            "Published OSA Study",
+            text);
     }
 
 
@@ -745,14 +876,14 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 paragraphs.Where(
                     paragraph =>
                         paragraph.InnerText ==
-                            "Veterans Evidence Reviewer Package"));
+                            "Veterans Evidence Reviewer Report"));
 
         var sectionHeading =
             Assert.Single(
                 paragraphs.Where(
                     paragraph =>
                         paragraph.InnerText ==
-                            "Generated Organizational Material"));
+                            "Executive Evidence Summary"));
 
         Assert.Equal(
             "Title",
@@ -939,24 +1070,24 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 paragraphs.Where(
                     paragraph =>
                         paragraph.InnerText ==
-                            "Veterans Evidence Reviewer Package"));
+                            "Veterans Evidence Reviewer Report"));
 
         var sectionHeading =
             Assert.Single(
                 paragraphs.Where(
                     paragraph =>
                         paragraph.InnerText ==
-                            "Generated Organizational Material"));
+                            "Executive Evidence Summary"));
 
         Assert.Equal(
-            "240",
+            "360",
             title.ParagraphProperties?
                 .SpacingBetweenLines?
                 .After?
                 .Value);
 
         Assert.Equal(
-            "120",
+            "180",
             sectionHeading.ParagraphProperties?
                 .SpacingBetweenLines?
                 .Before?
@@ -1230,7 +1361,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 .Where(
                     paragraph =>
                         paragraph.InnerText.StartsWith(
-                            "Package:",
+                            "Package Reference:",
                             StringComparison.Ordinal) ||
                         paragraph.InnerText.StartsWith(
                             "Claim Issue:",
@@ -1329,7 +1460,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             metadata,
             paragraph =>
                 Assert.Equal(
-                    "40",
+                    "60",
                     paragraph.ParagraphProperties?
                         .SpacingBetweenLines?
                         .After?
@@ -1481,11 +1612,18 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     "fit him with the dw nasal mask. he states the f30i leaks too much " +
                     "around the nose. he also has a beard.");
 
+        var evidenceParagraph =
+            Assert.Single(
+                paragraphs.Where(
+                    paragraph =>
+                        paragraph.InnerText ==
+                            "compliance is good. mask leak is high possibly elevating ahi. " +
+                            "fit him with the dw nasal mask. he states the f30i leaks too much " +
+                            "around the nose. he also has a beard."));
+
         Assert.Empty(
-            paragraphs.SelectMany(
-                paragraph =>
-                    paragraph.Descendants<
-                        DocumentFormat.OpenXml.Wordprocessing.Break>()));
+            evidenceParagraph.Descendants<
+                DocumentFormat.OpenXml.Wordprocessing.Break>());
     }
 
 
@@ -1636,9 +1774,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     })
                 .ToArray();
 
-        Assert.Equal(
-            2,
-            headings.Length);
+        Assert.NotEmpty(headings);
 
         Assert.All(
             headings,
@@ -1710,7 +1846,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         var heading = document.MainDocumentPart!.Document!.Body!
             .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
-            .Single(x => x.InnerText == "Underlying Evidence");
+            .Single(x => x.InnerText == "Evidence Index");
 
         Assert.NotNull(
             heading.ParagraphProperties?.PageBreakBefore);
@@ -1814,6 +1950,119 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 public sealed partial class VeteransReviewerPackageDocxRendererTests
 {
     [Fact]
+    public void Render_StartsEachArtifactAfterTheFirstOnANewPage()
+    {
+        var packageId = new EvidencePackageId("package-artifacts");
+        var first = new Artifact
+        {
+            Id = new ArtifactId("artifact-1"),
+            Name = "First Evidence",
+            ArtifactType = "medical-record"
+        };
+        var second = new Artifact
+        {
+            Id = new ArtifactId("artifact-2"),
+            Name = "Second Evidence",
+            ArtifactType = "medical-record"
+        };
+
+        var details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = new EvidencePackageDetails
+            {
+                Package = new EvidencePackage
+                {
+                    Id = packageId,
+                    ClaimIssueId = new ClaimIssueId("issue-1"),
+                    Purpose = "Medical review",
+                    ReviewerRole = "MedicalProfessional"
+                },
+                Artifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = first.Id,
+                        ContentRole = EvidencePackageContentRoles.UnderlyingEvidence
+                    },
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = second.Id,
+                        ContentRole = EvidencePackageContentRoles.UnderlyingEvidence
+                    }
+                ]
+            },
+            Artifacts = [first, second],
+            ArtifactContents =
+            [
+                new VeteransReviewerArtifactContent
+                {
+                    Artifact = first,
+                    Text = "First evidence paragraph.",
+                    Appendix = VeteransReviewerPackageAppendix.MedicalEvidence
+                },
+                new VeteransReviewerArtifactContent
+                {
+                    Artifact = second,
+                    Text = "Second evidence paragraph.",
+                    Appendix = VeteransReviewerPackageAppendix.MedicalEvidence
+                }
+            ]
+        };
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document = WordprocessingDocument.Open(stream, false);
+
+        var secondHeading =
+            Assert.Single(
+                document.MainDocumentPart!
+                    .Document!
+                    .Body!
+                    .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                    .Where(paragraph =>
+                        paragraph.InnerText == "Second Evidence" &&
+                        paragraph.ParagraphProperties?
+                            .ParagraphStyleId?
+                            .Val?
+                            .Value == "Heading2"));
+
+        Assert.NotNull(
+            secondHeading.ParagraphProperties?.PageBreakBefore);
+    }
+
+    [Fact]
+    public void Render_KeepsReviewerParagraphLinesTogether()
+    {
+        var details =
+            CreatePrintableDetails(
+                [],
+                "This is a reviewer paragraph that should stay together.");
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document = WordprocessingDocument.Open(stream, false);
+
+        var paragraph =
+            Assert.Single(
+                document.MainDocumentPart!
+                    .Document!
+                    .Body!
+                    .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                    .Where(item =>
+                        item.InnerText ==
+                            "This is a reviewer paragraph that should stay together."));
+
+        Assert.NotNull(paragraph.ParagraphProperties?.KeepLines);
+    }
+}
+
+public sealed partial class VeteransReviewerPackageDocxRendererTests
+{
+    [Fact]
     public void Render_EmbedsPrintableSourcePageAsImagePart()
     {
         var details =
@@ -1844,8 +2093,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         var text = mainPart.Document!.InnerText;
 
         Assert.Contains("Source Page 1", text);
-        Assert.Contains("Extracted Text (Derived):", text);
-        Assert.Contains("Derived evidence text.", text);
+        Assert.DoesNotContain("Extracted Text (Derived):", text);
+        Assert.DoesNotContain("Derived evidence text.", text);
 
         var sourcePage =
             Assert.Single(
@@ -1900,6 +2149,24 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.True(
             text.IndexOf("Source Page 1", StringComparison.Ordinal) <
             text.IndexOf("Source Page 2", StringComparison.Ordinal));
+
+        var paragraphs =
+            mainPart.Document!
+                .Body!
+                .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .ToArray();
+
+        var secondPageIndex =
+            Array.FindIndex(
+                paragraphs,
+                paragraph =>
+                    paragraph.InnerText == "Source Page 2");
+
+        Assert.True(secondPageIndex > 0);
+
+        Assert.Contains(
+            paragraphs[secondPageIndex - 1].Descendants<DocumentFormat.OpenXml.Wordprocessing.Break>(),
+            lineBreak => lineBreak.Type?.Value == DocumentFormat.OpenXml.Wordprocessing.BreakValues.Page);
     }
 }
 

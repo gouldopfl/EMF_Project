@@ -50,11 +50,8 @@ public static class VeteransReviewerPackageDocxRenderer
             var body =
                 new Body(
                     StyledParagraph(
-                        "Veterans Evidence Reviewer Package",
+                        "Veterans Evidence Reviewer Report",
                         "Title"),
-                    StyledParagraph(
-                        $"Package: {package.Id.Value}",
-                        "Subtitle"),
                     StyledParagraph(
                         $"Claim Issue: {package.ClaimIssueId.Value}",
                         "Subtitle"),
@@ -63,23 +60,44 @@ public static class VeteransReviewerPackageDocxRenderer
                         "Subtitle"),
                     StyledParagraph(
                         $"Reviewer Role: {package.ReviewerRole}",
-                        "Subtitle"));
+                        "Subtitle"),
+                    StyledParagraph(
+                        $"Package Reference: {package.Id.Value}",
+                        "Subtitle"),
+                    PageBreakParagraph());
 
-            AppendRoleSection(
-                mainPart,
+            AppendExecutiveSummary(
+                body,
+                details);
+
+            AppendReviewScope(
+                body,
+                details);
+
+            AppendKeyEvidenceAndChronology(
+                body,
+                details);
+
+            AppendMedicalLiteratureConsidered(
+                body,
+                details);
+
+            AppendReviewerQuestions(
+                body);
+
+            AppendEvidenceIndex(
                 body,
                 details,
-                EvidencePackageContentRoles
-                    .GeneratedOrganizationalMaterial,
-                "Generated Organizational Material");
+                pageBreakBefore: true);
 
-            AppendRoleSection(
+            AppendEvidenceAppendices(
                 mainPart,
                 body,
-                details,
-                EvidencePackageContentRoles
-                    .UnderlyingEvidence,
-                "Underlying Evidence");
+                details);
+
+            AppendTraceabilityAppendix(
+                body,
+                details);
 
             body.Append(
                 new SectionProperties(
@@ -98,40 +116,11 @@ public static class VeteransReviewerPackageDocxRenderer
         return stream.ToArray();
     }
 
-    private static void AppendRoleSection(
-        MainDocumentPart mainPart,
-        Body body,
+    private static IReadOnlyList<VeteransReviewerArtifactContent> GetRoleContents(
         VeteransReviewerPackageDetails details,
-        string contentRole,
-        string heading)
-    {
-        var contents =
-            details.ArtifactContents
-                .Where(
-                    content =>
-                        details.PackageDetails.Artifacts.Any(
-                            packageArtifact =>
-                                packageArtifact.ArtifactId ==
-                                    content.Artifact.Id &&
-                                string.Equals(
-                                    packageArtifact.ContentRole,
-                                    contentRole,
-                                    StringComparison.Ordinal)))
-                .ToArray();
-
-        if (contents.Length == 0)
-            return;
-
-        var sectionHeading =
-            StyledParagraph(
-                heading,
-                "Heading1");
-
-        if (string.Equals(
-                contentRole,
-                EvidencePackageContentRoles.UnderlyingEvidence,
-                StringComparison.Ordinal) &&
-            details.ArtifactContents.Any(
+        string contentRole) =>
+        details.ArtifactContents
+            .Where(
                 content =>
                     details.PackageDetails.Artifacts.Any(
                         packageArtifact =>
@@ -139,64 +128,456 @@ public static class VeteransReviewerPackageDocxRenderer
                                 content.Artifact.Id &&
                             string.Equals(
                                 packageArtifact.ContentRole,
-                                EvidencePackageContentRoles
-                                    .GeneratedOrganizationalMaterial,
-                                StringComparison.Ordinal))))
+                                contentRole,
+                                StringComparison.Ordinal)))
+            .ToArray();
+
+    private static void AppendExecutiveSummary(
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        var contents =
+            GetRoleContents(
+                details,
+                EvidencePackageContentRoles.GeneratedOrganizationalMaterial);
+
+        if (contents.Count == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                "Executive Evidence Summary",
+                "Heading1"));
+
+        foreach (var content in contents)
         {
-            sectionHeading.ParagraphProperties!.Append(
-                new PageBreakBefore());
+            if (!string.IsNullOrWhiteSpace(content.Text))
+            {
+                AppendReviewerText(
+                    body,
+                    content.Text);
+            }
         }
+    }
 
-        body.Append(sectionHeading);
+    private static void AppendReviewScope(
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        var package =
+            details.PackageDetails.Package;
 
-        if (string.Equals(
-                contentRole,
-                EvidencePackageContentRoles.UnderlyingEvidence,
-                StringComparison.Ordinal) &&
-            contents.Any(content => content.Appendix is not null))
+        var sourceCount =
+            GetRoleContents(
+                details,
+                EvidencePackageContentRoles.UnderlyingEvidence).Count;
+
+        body.Append(
+            StyledParagraph(
+                "Issues Presented for Medical Review",
+                "Heading1"));
+
+        body.Append(
+            ContentParagraph(
+                $"Claim issue under review: {package.ClaimIssueId.Value}"));
+
+        body.Append(
+            ContentParagraph(
+                $"Review purpose: {package.Purpose}"));
+
+        body.Append(
+            ContentParagraph(
+                $"Reviewer role: {package.ReviewerRole}"));
+
+        body.Append(
+            ContentParagraph(
+                $"Evidence sources supplied for review: {sourceCount}."));
+
+        body.Append(
+            ContentParagraph(
+                "This report organizes evidence for independent medical review. " +
+                "It does not make a medical, legal, or adjudicative conclusion."));
+    }
+
+    private static void AppendKeyEvidenceAndChronology(
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        var contents =
+            GetRoleContents(
+                    details,
+                    EvidencePackageContentRoles.UnderlyingEvidence)
+                .Where(
+                    content =>
+                        string.Equals(
+                            content.Appendix,
+                            VeteransReviewerPackageAppendix.MedicalEvidence,
+                            StringComparison.Ordinal))
+                .ToArray();
+
+        if (contents.Length == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                "Key Evidence and Chronology",
+                "Heading1"));
+
+        body.Append(
+            ContentParagraph(
+                "The chronology below uses evidence dates explicitly preserved " +
+                "in artifact metadata. Medical sources without an indexed evidence " +
+                "date remain listed after the dated entries and in the Evidence Index."));
+
+        foreach (var content in
+            contents
+                .Where(
+                    content =>
+                        !string.IsNullOrWhiteSpace(
+                            GetEvidenceDate(content)))
+                .OrderBy(
+                    content =>
+                        GetEvidenceDate(content),
+                    StringComparer.Ordinal)
+                .ThenBy(
+                    content =>
+                        GetDisplayName(content),
+                    StringComparer.OrdinalIgnoreCase))
         {
-            foreach (var group in
-                contents
-                    .Where(content => content.Appendix is not null)
-                    .GroupBy(content => content.Appendix!)
-                    .OrderBy(group => AppendixOrder(group.Key)))
+            body.Append(
+                StyledParagraph(
+                    $"{GetEvidenceDate(content)} — {GetDisplayName(content)}",
+                    "Heading2"));
+
+            var pages =
+                GetSourcePageReference(content);
+
+            if (!string.IsNullOrWhiteSpace(pages))
             {
                 body.Append(
-                    StyledParagraph(
-                        AppendixHeading(group.Key),
-                        "Heading2"));
+                    ContentParagraph(
+                        $"{AppendixHeading(content.Appendix!)} | {pages}"));
+            }
+        }
 
-                AppendContents(
+        var undated =
+            contents
+                .Where(
+                    content =>
+                        string.IsNullOrWhiteSpace(
+                            GetEvidenceDate(content)))
+                .OrderBy(
+                    content =>
+                        GetDisplayName(content),
+                    StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        if (undated.Length == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                "Additional Medical Evidence",
+                "Heading2"));
+
+        foreach (var content in undated)
+        {
+            var reference =
+                GetSourcePageReference(content);
+
+            body.Append(
+                ContentParagraph(
+                    string.IsNullOrWhiteSpace(reference)
+                        ? GetDisplayName(content)
+                        : $"{GetDisplayName(content)} | {reference}"));
+        }
+    }
+
+    private static void AppendMedicalLiteratureConsidered(
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        var contents =
+            GetRoleContents(
+                    details,
+                    EvidencePackageContentRoles.UnderlyingEvidence)
+                .Where(
+                    content =>
+                        string.Equals(
+                            content.Appendix,
+                            VeteransReviewerPackageAppendix.MedicalLiterature,
+                            StringComparison.Ordinal))
+                .OrderBy(
+                    content =>
+                        GetDisplayName(content),
+                    StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        if (contents.Length == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                "Medical / Scientific Literature Considered",
+                "Heading1"));
+
+        body.Append(
+            ContentParagraph(
+                "The following literature is included for the reviewing physician. " +
+                "Complete source material is preserved in Appendix E."));
+
+        foreach (var content in contents)
+        {
+            var displayName =
+                GetDisplayName(content);
+
+            body.Append(
+                StyledParagraph(
+                    displayName,
+                    "Heading2"));
+
+            if (!string.Equals(
+                    displayName,
+                    content.Artifact.Name,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                body.Append(
+                    ContentParagraph(
+                        $"Source: {content.Artifact.Name}"));
+            }
+        }
+    }
+
+    private static void AppendReviewerQuestions(
+        Body body)
+    {
+        body.Append(
+            StyledParagraph(
+                "Questions for the Reviewing Physician",
+                "Heading1"));
+
+        body.Append(
+            ContentParagraph(
+                "Please address the questions that are medically applicable to " +
+                "the requested review and explain the rationale for each opinion."));
+
+        body.Append(
+            ContentParagraph(
+                "1. What current diagnosis or diagnoses and clinically significant " +
+                "findings are supported by the supplied evidence?"));
+
+        body.Append(
+            ContentParagraph(
+                "2. What medical relationship, if any, is supported or not supported " +
+                "by the evidence for the claim issue under review?"));
+
+        body.Append(
+            ContentParagraph(
+                "3. If causation and aggravation are medically applicable to the " +
+                "requested review, address each separately."));
+
+        body.Append(
+            ContentParagraph(
+                "4. Identify the specific records and medical or scientific literature " +
+                "relied upon, explain the medical rationale, and discuss material " +
+                "evidence that weighs against the opinion."));
+    }
+
+    private static void AppendEvidenceIndex(
+        Body body,
+        VeteransReviewerPackageDetails details,
+        bool pageBreakBefore)
+    {
+        var contents =
+            GetRoleContents(
+                details,
+                EvidencePackageContentRoles.UnderlyingEvidence);
+
+        if (contents.Count == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                "Evidence Index",
+                "Heading1",
+                pageBreakBefore));
+
+        body.Append(
+            ContentParagraph(
+                "The source evidence reviewed for this report is listed below. " +
+                "Complete source material follows in the appendices."));
+
+        var index = 1;
+
+        foreach (var content in
+            contents
+                .OrderBy(content => AppendixOrder(content.Appendix ?? string.Empty))
+                .ThenBy(content => GetEvidenceDate(content), StringComparer.Ordinal)
+                .ThenBy(content => GetDisplayName(content), StringComparer.OrdinalIgnoreCase))
+        {
+            body.Append(
+                StyledParagraph(
+                    $"{index}. {GetDisplayName(content)}",
+                    "Heading2"));
+
+            body.Append(
+                ContentParagraph(
+                    BuildEvidenceIndexReference(content)));
+
+            index++;
+        }
+    }
+
+    private static void AppendEvidenceAppendices(
+        MainDocumentPart mainPart,
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        var contents =
+            GetRoleContents(
+                details,
+                EvidencePackageContentRoles.UnderlyingEvidence);
+
+        if (contents.Count == 0)
+            return;
+
+        foreach (var group in
+            contents
+                .Where(content => content.Appendix is not null)
+                .GroupBy(content => content.Appendix!)
+                .OrderBy(group => AppendixOrder(group.Key)))
+        {
+            body.Append(
+                StyledParagraph(
+                    AppendixHeading(group.Key),
+                    "Heading1",
+                    pageBreakBefore: true));
+
+            var firstArtifact = true;
+
+            foreach (var content in group)
+            {
+                AppendSourceContent(
                     mainPart,
                     body,
-                    group,
-                    contentRole);
-            }
+                    content,
+                    pageBreakBefore: !firstArtifact);
 
-            AppendContents(
+                firstArtifact = false;
+            }
+        }
+
+        var additionalEvidence =
+            contents
+                .Where(content => content.Appendix is null)
+                .ToArray();
+
+        if (additionalEvidence.Length == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                "Additional Evidence",
+                "Heading1",
+                pageBreakBefore: true));
+
+        var firstAdditionalArtifact = true;
+
+        foreach (var content in additionalEvidence)
+        {
+            AppendSourceContent(
                 mainPart,
                 body,
-                contents.Where(content => content.Appendix is null),
-                contentRole);
+                content,
+                pageBreakBefore: !firstAdditionalArtifact);
 
+            firstAdditionalArtifact = false;
+        }
+    }
+
+    private static void AppendSourceContent(
+        MainDocumentPart mainPart,
+        Body body,
+        VeteransReviewerArtifactContent content,
+        bool pageBreakBefore = false)
+    {
+        var displayName =
+            GetDisplayName(content);
+
+        body.Append(
+            StyledParagraph(
+                displayName,
+                "Heading2",
+                pageBreakBefore: pageBreakBefore));
+
+        var sourceReference =
+            BuildSourceReference(content);
+
+        if (!string.IsNullOrWhiteSpace(sourceReference))
+        {
+            body.Append(
+                ContentParagraph(
+                    sourceReference,
+                    keepWithNext: true));
+        }
+
+        if (!string.Equals(
+                displayName,
+                content.Artifact.Name,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            body.Append(
+                ContentParagraph(
+                    $"Source: {content.Artifact.Name}",
+                    keepWithNext: true));
+        }
+
+        if (content.PrintablePages.Count > 0)
+        {
+            AppendPrintablePages(
+                mainPart,
+                body,
+                content.PrintablePages);
             return;
         }
 
-        AppendContents(
-            mainPart,
-            body,
-            contents,
-            contentRole);
+        if (!string.IsNullOrWhiteSpace(content.Text))
+        {
+            AppendReviewerText(
+                body,
+                content.Text);
+        }
     }
 
-    private static void AppendContents(
-        MainDocumentPart mainPart,
+    private static void AppendTraceabilityAppendix(
         Body body,
-        IEnumerable<VeteransReviewerArtifactContent> contents,
-        string contentRole)
+        VeteransReviewerPackageDetails details)
     {
-        foreach (var content in contents)
+        if (details.ArtifactContents.Count == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                "Appendix F — Evidence Traceability",
+                "Heading1",
+                pageBreakBefore: true));
+
+        body.Append(
+            ContentParagraph(
+                "This appendix preserves EMF artifact identity, integrity, " +
+                "provenance, and relationship information separately from " +
+                "the reviewer-facing source evidence."));
+
+        foreach (var content in details.ArtifactContents)
         {
+            var contentRole =
+                details.PackageDetails.Artifacts
+                    .First(
+                        packageArtifact =>
+                            packageArtifact.ArtifactId ==
+                                content.Artifact.Id)
+                    .ContentRole;
+
             body.Append(
                 StyledParagraph(
                     $"Artifact Content: {content.Artifact.Name} " +
@@ -309,33 +690,127 @@ public static class VeteransReviewerPackageDocxRenderer
                         $"{relationship.RelationshipType} | " +
                         $"{relationship.CreatedUtc:O}"));
             }
+        }
+    }
 
-            if (content.PrintablePages.Count > 0)
+    private static string GetDisplayName(
+        VeteransReviewerArtifactContent content)
+    {
+        var noteTitle =
+            GetMetadataText(
+                content.Artifact.Metadata,
+                EMF.Extensions.VeteransClaims.Models
+                    .VeteransArtifactMetadataKeys.NoteTitle);
+
+        if (!string.IsNullOrWhiteSpace(noteTitle))
+            return noteTitle;
+
+        if (string.Equals(
+                content.Appendix,
+                VeteransReviewerPackageAppendix.MedicalLiterature,
+                StringComparison.Ordinal) &&
+            !string.IsNullOrWhiteSpace(content.Text))
+        {
+            var firstLine =
+                NormalizeReviewerText(content.Text)
+                    .FirstOrDefault(line => line.Length > 0);
+
+            if (!string.IsNullOrWhiteSpace(firstLine) &&
+                firstLine.Length <= 180)
             {
-                AppendPrintablePages(
-                    mainPart,
-                    body,
-                    content.PrintablePages);
-
-                if (!string.IsNullOrWhiteSpace(content.Text))
-                {
-                    body.Append(
-                        ContentParagraph(
-                            "Extracted Text (Derived):",
-                            keepWithNext: true));
-
-                    AppendReviewerText(
-                        body,
-                        content.Text);
-                }
-            }
-            else if (!string.IsNullOrWhiteSpace(content.Text))
-            {
-                AppendReviewerText(
-                    body,
-                    content.Text);
+                return firstLine;
             }
         }
+
+        return content.Artifact.Name;
+    }
+
+    private static string BuildEvidenceIndexReference(
+        VeteransReviewerArtifactContent content)
+    {
+        var parts = new List<string>();
+
+        if (content.Appendix is not null)
+            parts.Add(AppendixHeading(content.Appendix));
+        else
+            parts.Add("Additional Evidence");
+
+        var date = GetEvidenceDate(content);
+
+        if (!string.IsNullOrWhiteSpace(date))
+            parts.Add($"Date: {date}");
+
+        var pages = GetSourcePageReference(content);
+
+        if (!string.IsNullOrWhiteSpace(pages))
+            parts.Add(pages);
+
+        return string.Join(" | ", parts);
+    }
+
+    private static string BuildSourceReference(
+        VeteransReviewerArtifactContent content)
+    {
+        var parts = new List<string>();
+        var date = GetEvidenceDate(content);
+
+        if (!string.IsNullOrWhiteSpace(date))
+            parts.Add($"Date: {date}");
+
+        var pages = GetSourcePageReference(content);
+
+        if (!string.IsNullOrWhiteSpace(pages))
+            parts.Add(pages);
+
+        return string.Join(" | ", parts);
+    }
+
+    private static string GetEvidenceDate(
+        VeteransReviewerArtifactContent content) =>
+        GetMetadataText(
+            content.Artifact.Metadata,
+            EMF.Extensions.VeteransClaims.Models
+                .VeteransArtifactMetadataKeys.NoteDate) ?? string.Empty;
+
+    private static string GetSourcePageReference(
+        VeteransReviewerArtifactContent content)
+    {
+        var start =
+            GetMetadataText(
+                content.Artifact.Metadata,
+                EMF.Extensions.VeteransClaims.Models
+                    .VeteransArtifactMetadataKeys.SourceStartPage);
+
+        var end =
+            GetMetadataText(
+                content.Artifact.Metadata,
+                EMF.Extensions.VeteransClaims.Models
+                    .VeteransArtifactMetadataKeys.SourceEndPage);
+
+        if (string.IsNullOrWhiteSpace(start))
+            return string.Empty;
+
+        if (string.IsNullOrWhiteSpace(end) ||
+            string.Equals(start, end, StringComparison.Ordinal))
+        {
+            return $"Source page: {start}";
+        }
+
+        return $"Source pages: {start}-{end}";
+    }
+
+    private static string? GetMetadataText(
+        IReadOnlyDictionary<string, object> metadata,
+        string key)
+    {
+        if (!metadata.TryGetValue(key, out var value))
+            return null;
+
+        var text = value?.ToString();
+
+        return string.IsNullOrWhiteSpace(text)
+            ? null
+            : text;
     }
 
     private static int AppendixOrder(string appendix) =>
@@ -367,7 +842,8 @@ public static class VeteransReviewerPackageDocxRenderer
 
     private static Paragraph StyledParagraph(
         string text,
-        string styleId)
+        string styleId,
+        bool pageBreakBefore = false)
     {
         var properties =
             new ParagraphProperties(
@@ -376,15 +852,25 @@ public static class VeteransReviewerPackageDocxRenderer
                     Val = styleId
                 });
 
+        if (pageBreakBefore)
+            properties.Append(new PageBreakBefore());
+
         if (string.Equals(
                 styleId,
                 "Title",
                 StringComparison.Ordinal))
         {
             properties.Append(
+                new Justification
+                {
+                    Val = JustificationValues.Center
+                });
+
+            properties.Append(
                 new SpacingBetweenLines
                 {
-                    After = "240"
+                    Before = "720",
+                    After = "360"
                 });
         }
         else if (string.Equals(
@@ -398,7 +884,7 @@ public static class VeteransReviewerPackageDocxRenderer
             properties.Append(
                 new SpacingBetweenLines
                 {
-                    Before = "120",
+                    Before = "180",
                     After = "120"
                 });
         }
@@ -423,20 +909,85 @@ public static class VeteransReviewerPackageDocxRenderer
                      StringComparison.Ordinal))
         {
             properties.Append(
+                new Justification
+                {
+                    Val = JustificationValues.Center
+                });
+
+            properties.Append(
                 new SpacingBetweenLines
                 {
-                    After = "40"
+                    After = "60"
                 });
         }
 
         return new Paragraph(
             properties,
             new Run(
+                ReviewerRunProperties(styleId),
                 new Text(SanitizeXmlText(text))
                 {
                     Space = SpaceProcessingModeValues.Preserve
                 }));
     }
+
+    private static RunProperties ReviewerRunProperties(
+        string styleId)
+    {
+        var properties =
+            new RunProperties(
+                new RunFonts
+                {
+                    Ascii = "Arial",
+                    HighAnsi = "Arial"
+                });
+
+        if (string.Equals(
+                styleId,
+                "Title",
+                StringComparison.Ordinal))
+        {
+            properties.Append(new Bold());
+            properties.Append(new Color { Val = "1F4E79" });
+            properties.Append(new FontSize { Val = "36" });
+        }
+        else if (string.Equals(
+                     styleId,
+                     "Heading1",
+                     StringComparison.Ordinal))
+        {
+            properties.Append(new Bold());
+            properties.Append(new Color { Val = "1F4E79" });
+            properties.Append(new FontSize { Val = "28" });
+        }
+        else if (string.Equals(
+                     styleId,
+                     "Heading2",
+                     StringComparison.Ordinal))
+        {
+            properties.Append(new Bold());
+            properties.Append(new Color { Val = "365F91" });
+            properties.Append(new FontSize { Val = "22" });
+        }
+        else if (string.Equals(
+                     styleId,
+                     "Subtitle",
+                     StringComparison.Ordinal))
+        {
+            properties.Append(new Color { Val = "666666" });
+            properties.Append(new FontSize { Val = "22" });
+        }
+
+        return properties;
+    }
+
+    private static Paragraph PageBreakParagraph() =>
+        new(
+            new Run(
+                new Break
+                {
+                    Type = BreakValues.Page
+                }));
 
     private static void AppendMetadata(
         Body body,
@@ -468,12 +1019,24 @@ public static class VeteransReviewerPackageDocxRenderer
                     After = "60"
                 });
 
+        properties.Append(new KeepLines());
+
         if (keepWithNext)
             properties.Append(new KeepNext());
 
         return new Paragraph(
             properties,
             new Run(
+                new RunProperties(
+                    new RunFonts
+                    {
+                        Ascii = "Arial",
+                        HighAnsi = "Arial"
+                    },
+                    new FontSize
+                    {
+                        Val = "20"
+                    }),
                 new Text(SanitizeXmlText(text))
                 {
                     Space = SpaceProcessingModeValues.Preserve
@@ -502,8 +1065,7 @@ public static class VeteransReviewerPackageDocxRenderer
                                 : "60"
                     });
 
-            if (IsReviewerStructuralLine(line))
-                properties.Append(new KeepLines());
+            properties.Append(new KeepLines());
 
             if (IsReviewerHeadingLine(line))
                 properties.Append(new KeepNext());
@@ -512,6 +1074,16 @@ public static class VeteransReviewerPackageDocxRenderer
                 new Paragraph(
                     properties,
                     new Run(
+                        new RunProperties(
+                            new RunFonts
+                            {
+                                Ascii = "Arial",
+                                HighAnsi = "Arial"
+                            },
+                            new FontSize
+                            {
+                                Val = "20"
+                            }),
                         new Text(SanitizeXmlText(line))
                         {
                             Space =
@@ -670,6 +1242,9 @@ public static class VeteransReviewerPackageDocxRenderer
             if (page.PageNumber != expectedPageNumber)
                 throw new InvalidOperationException(
                     "Printable artifact pages are not in sequential order.");
+
+            if (expectedPageNumber > 1)
+                body.Append(PageBreakParagraph());
 
             if (string.Equals(
                     page.ContentType,
