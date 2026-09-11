@@ -4,6 +4,7 @@ using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
+using EMF.Extensions.VeteransClaims.Models;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Orchestration;
 using EMF.Tests.TestInfrastructure;
@@ -852,7 +853,15 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         var literature = new RecordingMedicalLiteratureRepository
         {
             ArtifactId = artifact.Id,
-            SourceId = new MedicalLiteratureSourceId("study-1")
+            SourceId = new MedicalLiteratureSourceId("study-1"),
+            Source = new MedicalLiteratureSource
+            {
+                Id = new MedicalLiteratureSourceId("study-1"),
+                Title = "PTSD and Obstructive Sleep Apnea",
+                Authors = "Chinoy et al.",
+                Publication = "Sleep Medicine",
+                PublicationYear = 2022
+            }
         };
 
         var service = new VeteransReviewerPackageDetailsService(
@@ -868,9 +877,22 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         var result = await service.GetAsync(packageId);
 
         Assert.NotNull(result);
+        var content =
+            Assert.Single(result.ArtifactContents);
+
         Assert.Equal(
             VeteransReviewerPackageAppendix.MedicalLiterature,
-            Assert.Single(result.ArtifactContents).Appendix);
+            content.Appendix);
+
+        Assert.Equal(
+            "PTSD and Obstructive Sleep Apnea",
+            content.Artifact.Metadata[
+                VeteransArtifactMetadataKeys.EvidenceTitle]);
+
+        Assert.Equal(
+            "2022",
+            content.Artifact.Metadata[
+                VeteransArtifactMetadataKeys.EvidenceDate]);
     }
 }
 
@@ -879,6 +901,7 @@ file sealed class RecordingMedicalLiteratureRepository :
 {
     public required ArtifactId ArtifactId { get; init; }
     public required MedicalLiteratureSourceId SourceId { get; init; }
+    public required MedicalLiteratureSource Source { get; init; }
 
     public Task AddMedicalLiteratureSourceAsync(
         MedicalLiteratureSource source,
@@ -888,7 +911,8 @@ file sealed class RecordingMedicalLiteratureRepository :
     public Task<MedicalLiteratureSource?> GetMedicalLiteratureSourceAsync(
         MedicalLiteratureSourceId sourceId,
         CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException();
+        Task.FromResult<MedicalLiteratureSource?>(
+            sourceId == SourceId ? Source : null);
 
     public Task AddRequirementMedicalLiteratureAsync(
         RequirementMedicalLiterature literature,

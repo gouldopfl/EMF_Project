@@ -181,18 +181,26 @@ public sealed class VeteransReviewerPackageDetailsService
                     "returned an unrelated artifact relationship.");
             }
 
+            var appendix =
+                await GetAppendixAsync(
+                    artifact.Id,
+                    cancellationToken);
+
+            var reviewerArtifact =
+                await GetReviewerArtifactAsync(
+                    artifact,
+                    appendix,
+                    cancellationToken);
+
             artifactContents.Add(
                 new VeteransReviewerArtifactContent
                 {
-                    Artifact = artifact,
+                    Artifact = reviewerArtifact,
                     Text = text ?? string.Empty,
                     PrintablePages = printablePages,
                     Provenance = provenance,
                     Relationships = relationships,
-                    Appendix =
-                        await GetAppendixAsync(
-                            artifact.Id,
-                            cancellationToken)
+                    Appendix = appendix
                 });
         }
 
@@ -201,6 +209,62 @@ public sealed class VeteransReviewerPackageDetailsService
             PackageDetails = details,
             Artifacts = artifacts,
             ArtifactContents = artifactContents
+        };
+    }
+
+    private async Task<Artifact> GetReviewerArtifactAsync(
+        Artifact artifact,
+        string? appendix,
+        CancellationToken cancellationToken)
+    {
+        if (_medicalLiterature is null ||
+            appendix != VeteransReviewerPackageAppendix.MedicalLiterature)
+            return artifact;
+
+        var sourceIds =
+            await _medicalLiterature.GetMedicalLiteratureSourceIdsAsync(
+                artifact.Id,
+                cancellationToken);
+
+        if (sourceIds.Count != 1)
+            throw new InvalidOperationException(
+                $"Medical literature artifact '{artifact.Id.Value}' " +
+                "must map to exactly one literature source.");
+
+        var source =
+            await _medicalLiterature.GetMedicalLiteratureSourceAsync(
+                sourceIds[0],
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"Medical literature source '{sourceIds[0].Value}' " +
+                "could not be read.");
+
+        if (source.Id != sourceIds[0])
+            throw new InvalidOperationException(
+                "Medical literature source identity mismatch.");
+
+        var metadata =
+            new Dictionary<string, object>(artifact.Metadata)
+            {
+                [EMF.Extensions.VeteransClaims.Models.VeteransArtifactMetadataKeys.EvidenceTitle] =
+                    source.Title
+            };
+
+        if (source.PublicationYear is not null)
+        {
+            metadata[
+                EMF.Extensions.VeteransClaims.Models.VeteransArtifactMetadataKeys.EvidenceDate] =
+                    source.PublicationYear.Value.ToString();
+        }
+
+        return new Artifact
+        {
+            Id = artifact.Id,
+            Name = artifact.Name,
+            ArtifactType = artifact.ArtifactType,
+            Fingerprint = artifact.Fingerprint,
+            CreatedUtc = artifact.CreatedUtc,
+            Metadata = metadata
         };
     }
 
