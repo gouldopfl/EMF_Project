@@ -129,6 +129,9 @@ public sealed class VeteransClinicalNoteDerivationService
             [VeteransArtifactMetadataKeys.NoteDate] =
                 noteDate.ToString("yyyy-MM-dd"),
             [VeteransArtifactMetadataKeys.NoteTitle] = noteTitle,
+            [VeteransArtifactMetadataKeys.EvidenceDate] =
+                noteDate.ToString("yyyy-MM-dd"),
+            [VeteransArtifactMetadataKeys.EvidenceTitle] = noteTitle,
             [ArtifactMetadataKeys.ContentType] = "text/plain"
         };
 

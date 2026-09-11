@@ -6,4 +6,6 @@ public static class VeteransArtifactMetadataKeys
     public const string SourceEndPage = "sourceEndPage";
     public const string NoteDate = "noteDate";
     public const string NoteTitle = "noteTitle";
+    public const string EvidenceDate = "evidenceDate";
+    public const string EvidenceTitle = "evidenceTitle";
 }

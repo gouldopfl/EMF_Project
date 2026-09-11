@@ -412,6 +412,11 @@ public static class VeteransReviewerPackageDocxRenderer
         foreach (var content in
             contents
                 .OrderBy(content => AppendixOrder(content.Appendix ?? string.Empty))
+                .ThenBy(
+                    content =>
+                        string.IsNullOrWhiteSpace(GetEvidenceDate(content))
+                            ? 1
+                            : 0)
                 .ThenBy(content => GetEvidenceDate(content), StringComparer.Ordinal)
                 .ThenBy(content => GetDisplayName(content), StringComparer.OrdinalIgnoreCase))
         {
@@ -455,7 +460,17 @@ public static class VeteransReviewerPackageDocxRenderer
 
             var firstArtifact = true;
 
-            foreach (var content in group)
+            foreach (var content in
+                group
+                    .OrderBy(
+                        content =>
+                            string.IsNullOrWhiteSpace(GetEvidenceDate(content))
+                                ? 1
+                                : 0)
+                    .ThenBy(content => GetEvidenceDate(content), StringComparer.Ordinal)
+                    .ThenBy(
+                        content => GetDisplayName(content),
+                        StringComparer.OrdinalIgnoreCase))
             {
                 AppendSourceContent(
                     mainPart,
@@ -470,6 +485,15 @@ public static class VeteransReviewerPackageDocxRenderer
         var additionalEvidence =
             contents
                 .Where(content => content.Appendix is null)
+                .OrderBy(
+                    content =>
+                        string.IsNullOrWhiteSpace(GetEvidenceDate(content))
+                            ? 1
+                            : 0)
+                .ThenBy(content => GetEvidenceDate(content), StringComparer.Ordinal)
+                .ThenBy(
+                    content => GetDisplayName(content),
+                    StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
         if (additionalEvidence.Length == 0)
@@ -696,6 +720,15 @@ public static class VeteransReviewerPackageDocxRenderer
     private static string GetDisplayName(
         VeteransReviewerArtifactContent content)
     {
+        var evidenceTitle =
+            GetMetadataText(
+                content.Artifact.Metadata,
+                EMF.Extensions.VeteransClaims.Models
+                    .VeteransArtifactMetadataKeys.EvidenceTitle);
+
+        if (!string.IsNullOrWhiteSpace(evidenceTitle))
+            return evidenceTitle;
+
         var noteTitle =
             GetMetadataText(
                 content.Artifact.Metadata,
@@ -766,11 +799,22 @@ public static class VeteransReviewerPackageDocxRenderer
     }
 
     private static string GetEvidenceDate(
-        VeteransReviewerArtifactContent content) =>
-        GetMetadataText(
+        VeteransReviewerArtifactContent content)
+    {
+        var evidenceDate =
+            GetMetadataText(
+                content.Artifact.Metadata,
+                EMF.Extensions.VeteransClaims.Models
+                    .VeteransArtifactMetadataKeys.EvidenceDate);
+
+        if (!string.IsNullOrWhiteSpace(evidenceDate))
+            return evidenceDate;
+
+        return GetMetadataText(
             content.Artifact.Metadata,
             EMF.Extensions.VeteransClaims.Models
                 .VeteransArtifactMetadataKeys.NoteDate) ?? string.Empty;
+    }
 
     private static string GetSourcePageReference(
         VeteransReviewerArtifactContent content)

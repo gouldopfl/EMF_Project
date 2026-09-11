@@ -690,8 +690,26 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                         [VeteransArtifactMetadataKeys.NoteDate] = "2021-05-18",
                         [VeteransArtifactMetadataKeys.NoteTitle] =
                             "SLEEP MED PAP SET-UP CONSULT RESULT",
+                        [VeteransArtifactMetadataKeys.EvidenceDate] =
+                            "2020-04-03",
+                        [VeteransArtifactMetadataKeys.EvidenceTitle] =
+                            "Generic Evidence Title",
                         [VeteransArtifactMetadataKeys.SourceStartPage] = "3265",
                         [VeteransArtifactMetadataKeys.SourceEndPage] = "3267"
+                    }
+            };
+
+        var undatedMedical =
+            new Artifact
+            {
+                Id = new ArtifactId("medical-undated"),
+                Name = "undated.pdf",
+                ArtifactType = "medical-record",
+                Metadata =
+                    new Dictionary<string, object>
+                    {
+                        [VeteransArtifactMetadataKeys.EvidenceTitle] =
+                            "Undated Medical Evidence"
                     }
             };
 
@@ -733,6 +751,14 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                             new EvidencePackageArtifact
                             {
                                 EvidencePackageId = packageId,
+                                ArtifactId = undatedMedical.Id,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence
+                            },
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = packageId,
                                 ArtifactId = literature.Id,
                                 ContentRole =
                                     EvidencePackageContentRoles
@@ -740,13 +766,21 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                             }
                         ]
                     },
-                Artifacts = [medical, literature],
+                Artifacts = [medical, undatedMedical, literature],
                 ArtifactContents =
                 [
                     new VeteransReviewerArtifactContent
                     {
                         Artifact = medical,
                         Text = "Clinical evidence.",
+                        Appendix =
+                            VeteransReviewerPackageAppendix
+                                .MedicalEvidence
+                    },
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = undatedMedical,
+                        Text = "Undated medical evidence.",
                         Appendix =
                             VeteransReviewerPackageAppendix
                                 .MedicalEvidence
@@ -778,7 +812,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             text);
 
         Assert.Contains(
-            "2021-05-18 — SLEEP MED PAP SET-UP CONSULT RESULT",
+            "2020-04-03 — Generic Evidence Title",
             text);
 
         Assert.Contains(
@@ -788,6 +822,10 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.Contains(
             "Published OSA Study",
             text);
+
+        Assert.True(
+            text.IndexOf("1. Generic Evidence Title", StringComparison.Ordinal) <
+            text.IndexOf("2. Undated Medical Evidence", StringComparison.Ordinal));
     }
 
 

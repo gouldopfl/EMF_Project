@@ -76,6 +76,14 @@ public sealed class VeteransClinicalNoteDerivationServiceTests
             "PAP SET-UP CONSULT",
             result.Artifact.Metadata[
                 VeteransArtifactMetadataKeys.NoteTitle]);
+        Assert.Equal(
+            "2025-07-30",
+            result.Artifact.Metadata[
+                VeteransArtifactMetadataKeys.EvidenceDate]);
+        Assert.Equal(
+            "PAP SET-UP CONSULT",
+            result.Artifact.Metadata[
+                VeteransArtifactMetadataKeys.EvidenceTitle]);
 
         Assert.Equal(2, result.Relationships.Count);
 
