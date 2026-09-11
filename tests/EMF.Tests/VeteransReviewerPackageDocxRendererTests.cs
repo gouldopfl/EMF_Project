@@ -1432,60 +1432,24 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
 
     [Fact]
-    public void Render_PreservesArtifactContentLineBreaks()
+    public void Render_ReflowsWrappedArtifactContent()
     {
-        var packageId =
-            new EvidencePackageId("package-1");
-
-        var artifact =
-            new Artifact
-            {
-                Id = new ArtifactId("source-1"),
-                Name = "Sleep Study",
-                ArtifactType = "medical-record"
-            };
-
         var details =
-            new VeteransReviewerPackageDetails
-            {
-                PackageDetails =
-                    new EvidencePackageDetails
-                    {
-                        Package =
-                            new EvidencePackage
-                            {
-                                Id = packageId,
-                                ClaimIssueId =
-                                    new ClaimIssueId("issue-1"),
-                                Purpose =
-                                    "Physician reviewer package",
-                                ReviewerRole =
-                                    "MedicalProfessional"
-                            },
-                        Artifacts =
-                        [
-                            new EvidencePackageArtifact
-                            {
-                                EvidencePackageId = packageId,
-                                ArtifactId = artifact.Id,
-                                ContentRole =
-                                    EvidencePackageContentRoles
-                                        .UnderlyingEvidence
-                            }
-                        ]
-                    },
-                Artifacts = [artifact],
-                ArtifactContents =
-                [
-                    new VeteransReviewerArtifactContent
-                    {
-                        Artifact = artifact,
-                        Text =
-                            "Diagnosis: Severe OSA\n" +
-                            "Treatment: ASV"
-                    }
-                ]
-            };
+            CreatePrintableDetails(
+                [],
+                """
+                SLEEP STAFF COMMENTS:
+                compliance is good. mask leak is high possibly elevating ahi. fit him
+                with
+                the dw nasal mask. he states the f30i leaks too much around the nose.
+                he
+                also has a beard.
+
+                FOLLOW UP:
+                Patient to return to PAP clinic for follow-up in
+                1
+                month.
+                """);
 
         var content =
             VeteransReviewerPackageDocxRenderer.Render(
@@ -1499,32 +1463,83 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 stream,
                 false);
 
-        Assert.NotNull(
-            document.MainDocumentPart);
+        var body =
+            document.MainDocumentPart!
+                .Document!
+                .Body!;
 
-        Assert.NotNull(
-            document.MainDocumentPart!.Document);
-
-        var contentParagraph =
-            Assert.Single(
-                document.MainDocumentPart
-                    .Document!
-                    .Body!
-                    .Elements<
-                        DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
-                    .Where(
-                        paragraph =>
-                            paragraph.InnerText.Contains(
-                                "Diagnosis: Severe OSA",
-                                StringComparison.Ordinal)));
-
-        Assert.Single(
-            contentParagraph.Descendants<
-                DocumentFormat.OpenXml.Wordprocessing.Break>());
+        var paragraphs =
+            body.Elements<
+                    DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .ToArray();
 
         Assert.Contains(
-            "Treatment: ASV",
-            contentParagraph.InnerText);
+            paragraphs,
+            paragraph =>
+                paragraph.InnerText ==
+                    "compliance is good. mask leak is high possibly elevating ahi. " +
+                    "fit him with the dw nasal mask. he states the f30i leaks too much " +
+                    "around the nose. he also has a beard.");
+
+        Assert.Empty(
+            paragraphs.SelectMany(
+                paragraph =>
+                    paragraph.Descendants<
+                        DocumentFormat.OpenXml.Wordprocessing.Break>()));
+    }
+
+
+    [Fact]
+    public void Render_KeepsClinicalHeadingsWithFollowingContent()
+    {
+        var details =
+            CreatePrintableDetails(
+                [],
+                """
+                SLEEP MED PAP CLINIC NOTE
+                Details
+                Date entered: November 15, 2021
+                Location: RICHARD L. ROUDEBUSH VAMC
+                """);
+
+        var content =
+            VeteransReviewerPackageDocxRenderer.Render(
+                details);
+
+        using var stream =
+            new MemoryStream(content);
+
+        using var document =
+            WordprocessingDocument.Open(
+                stream,
+                false);
+
+        var paragraphs =
+            document.MainDocumentPart!
+                .Document!
+                .Body!
+                .Elements<
+                    DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .ToArray();
+
+        var heading =
+            Assert.Single(
+                paragraphs.Where(
+                    paragraph =>
+                        paragraph.InnerText ==
+                            "SLEEP MED PAP CLINIC NOTE"));
+
+        var detailsParagraph =
+            Assert.Single(
+                paragraphs.Where(
+                    paragraph =>
+                        paragraph.InnerText == "Details"));
+
+        Assert.NotNull(
+            heading.ParagraphProperties?.KeepNext);
+
+        Assert.NotNull(
+            detailsParagraph.ParagraphProperties?.KeepNext);
     }
 
 
@@ -1831,6 +1846,19 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.Contains("Source Page 1", text);
         Assert.Contains("Extracted Text (Derived):", text);
         Assert.Contains("Derived evidence text.", text);
+
+        var sourcePage =
+            Assert.Single(
+                mainPart.Document!
+                    .Body!
+                    .Elements<
+                        DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                    .Where(
+                        paragraph =>
+                            paragraph.InnerText == "Source Page 1"));
+
+        Assert.NotNull(
+            sourcePage.ParagraphProperties?.KeepNext);
     }
 
     [Fact]
@@ -1938,12 +1966,12 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 public sealed partial class VeteransReviewerPackageDocxRendererTests
 {
     [Fact]
-    public void Render_ReplacesInvalidXmlControlCharacters()
+    public void Render_RemovesInvalidXmlControlCharacters()
     {
         var details =
             CreatePrintableDetails(
                 [],
-                "Before\fAfter");
+                "Before\fAfter\uFFFDBeyond");
 
         var bytes =
             VeteransReviewerPackageDocxRenderer.Render(details);
@@ -1955,7 +1983,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         var text =
             document.MainDocumentPart!.Document!.InnerText;
 
-        Assert.Contains("Before\uFFFDAfter", text);
+        Assert.Contains("Before After Beyond", text);
+        Assert.DoesNotContain("\uFFFD", text);
         Assert.DoesNotContain("\f", text);
     }
 }

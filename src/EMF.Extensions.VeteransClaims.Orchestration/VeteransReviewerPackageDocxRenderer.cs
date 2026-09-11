@@ -321,16 +321,19 @@ public static class VeteransReviewerPackageDocxRenderer
                 {
                     body.Append(
                         ContentParagraph(
-                            "Extracted Text (Derived):"));
+                            "Extracted Text (Derived):",
+                            keepWithNext: true));
 
-                    body.Append(
-                        ContentParagraph(content.Text));
+                    AppendReviewerText(
+                        body,
+                        content.Text);
                 }
             }
             else if (!string.IsNullOrWhiteSpace(content.Text))
             {
-                body.Append(
-                    ContentParagraph(content.Text));
+                AppendReviewerText(
+                    body,
+                    content.Text);
             }
         }
     }
@@ -455,48 +458,205 @@ public static class VeteransReviewerPackageDocxRenderer
     }
 
     private static Paragraph ContentParagraph(
+        string text,
+        bool keepWithNext = false)
+    {
+        var properties =
+            new ParagraphProperties(
+                new SpacingBetweenLines
+                {
+                    After = "60"
+                });
+
+        if (keepWithNext)
+            properties.Append(new KeepNext());
+
+        return new Paragraph(
+            properties,
+            new Run(
+                new Text(SanitizeXmlText(text))
+                {
+                    Space = SpaceProcessingModeValues.Preserve
+                }));
+    }
+
+    private static void AppendReviewerText(
+        Body body,
         string text)
     {
-        var paragraph =
-            new Paragraph(
+        foreach (var line in NormalizeReviewerText(text))
+        {
+            if (line.Length == 0)
+            {
+                body.Append(ContentParagraph(string.Empty));
+                continue;
+            }
+
+            var properties =
                 new ParagraphProperties(
                     new SpacingBetweenLines
                     {
-                        After = "60"
-                    }));
+                        After =
+                            IsReviewerStructuralLine(line)
+                                ? "40"
+                                : "60"
+                    });
 
-        var lines =
+            if (IsReviewerStructuralLine(line))
+                properties.Append(new KeepLines());
+
+            if (IsReviewerHeadingLine(line))
+                properties.Append(new KeepNext());
+
+            body.Append(
+                new Paragraph(
+                    properties,
+                    new Run(
+                        new Text(SanitizeXmlText(line))
+                        {
+                            Space =
+                                SpaceProcessingModeValues.Preserve
+                        })));
+        }
+    }
+
+    private static IReadOnlyList<string> NormalizeReviewerText(
+        string text)
+    {
+        var normalized =
             text.Replace(
                     "\r\n",
                     "\n",
                     StringComparison.Ordinal)
-                .Replace(
-                    '\r',
-                    '\n')
-                .Split('\n');
+                .Replace('\r', '\n')
+                .Replace('\uFFFD', ' ');
 
-        for (var index = 0;
-             index < lines.Length;
-             index++)
+        var output = new List<string>();
+        var paragraph = new StringBuilder();
+
+        void FlushParagraph()
         {
-            if (index > 0)
-            {
-                paragraph.Append(
-                    new Run(
-                        new Break()));
-            }
+            if (paragraph.Length == 0)
+                return;
 
-            paragraph.Append(
-                new Run(
-                    new Text(SanitizeXmlText(lines[index]))
-                    {
-                        Space =
-                            SpaceProcessingModeValues.Preserve
-                    }));
+            output.Add(paragraph.ToString());
+            paragraph.Clear();
         }
 
-        return paragraph;
+        foreach (var rawLine in normalized.Split('\n'))
+        {
+            var line = rawLine.Trim();
+
+            if (line.Length == 0)
+            {
+                FlushParagraph();
+
+                if (output.Count > 0 &&
+                    output[^1].Length != 0)
+                {
+                    output.Add(string.Empty);
+                }
+
+                continue;
+            }
+
+            if (IsReviewerStructuralLine(line))
+            {
+                FlushParagraph();
+                output.Add(line);
+                continue;
+            }
+
+            if (paragraph.Length > 0)
+                paragraph.Append(' ');
+
+            paragraph.Append(line);
+        }
+
+        FlushParagraph();
+
+        while (output.Count > 0 &&
+               output[^1].Length == 0)
+        {
+            output.RemoveAt(output.Count - 1);
+        }
+
+        return output;
     }
+
+    private static bool IsReviewerStructuralLine(
+        string line) =>
+        IsReviewerHeadingLine(line) ||
+        IsReviewerFieldLine(line) ||
+        line.StartsWith("•", StringComparison.Ordinal) ||
+        line.StartsWith("- ", StringComparison.Ordinal) ||
+        line.StartsWith("* ", StringComparison.Ordinal) ||
+        line.StartsWith("/es/", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsReviewerHeadingLine(
+        string line)
+    {
+        if (line.EndsWith(':') ||
+            string.Equals(
+                line,
+                "Details",
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                line,
+                "Note",
+                StringComparison.OrdinalIgnoreCase) ||
+            line.StartsWith("***", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var letterCount = 0;
+
+        foreach (var character in line)
+        {
+            if (!char.IsLetter(character))
+                continue;
+
+            letterCount++;
+
+            if (!char.IsUpper(character))
+                return false;
+        }
+
+        return letterCount >= 3 &&
+               line.Length <= 100;
+    }
+
+    private static bool IsReviewerFieldLine(
+        string line)
+    {
+        var colon = line.IndexOf(':');
+
+        if (colon <= 0 ||
+            colon > 60)
+        {
+            return false;
+        }
+
+        for (var index = 0;
+             index < colon;
+             index++)
+        {
+            var character = line[index];
+
+            if (char.IsLetterOrDigit(character) ||
+                char.IsWhiteSpace(character) ||
+                character is '(' or ')' or '/' or '-' or '&' or '.' or '%')
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
 
     private static void AppendPrintablePages(
         MainDocumentPart mainPart,
@@ -516,8 +676,14 @@ public static class VeteransReviewerPackageDocxRenderer
                     "text/plain",
                     StringComparison.OrdinalIgnoreCase))
             {
-                body.Append(ContentParagraph($"Source Page {page.PageNumber}"));
-                body.Append(ContentParagraph(DecodePrintableText(page.Content)));
+                body.Append(
+                    ContentParagraph(
+                        $"Source Page {page.PageNumber}",
+                        keepWithNext: true));
+
+                AppendReviewerText(
+                    body,
+                    DecodePrintableText(page.Content));
                 expectedPageNumber++;
                 continue;
             }
@@ -555,7 +721,8 @@ public static class VeteransReviewerPackageDocxRenderer
 
             body.Append(
                 ContentParagraph(
-                    $"Source Page {page.PageNumber}"));
+                    $"Source Page {page.PageNumber}",
+                    keepWithNext: true));
 
             body.Append(
                 ImageParagraph(
@@ -707,16 +874,20 @@ public static class VeteransReviewerPackageDocxRenderer
         {
             var value = rune.Value;
 
-            if (value is 0x9 or 0xA or 0xD ||
-                value is >= 0x20 and <= 0xD7FF ||
-                value is >= 0xE000 and <= 0xFFFD ||
-                value is >= 0x10000 and <= 0x10FFFF)
+            if (value == 0xFFFD)
+            {
+                sanitized.Append(' ');
+            }
+            else if (value is 0x9 or 0xA or 0xD ||
+                     value is >= 0x20 and <= 0xD7FF ||
+                     value is >= 0xE000 and <= 0xFFFD ||
+                     value is >= 0x10000 and <= 0x10FFFF)
             {
                 sanitized.Append(rune.ToString());
             }
             else
             {
-                sanitized.Append('\uFFFD');
+                sanitized.Append(' ');
             }
         }
 
