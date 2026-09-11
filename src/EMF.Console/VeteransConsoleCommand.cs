@@ -568,6 +568,22 @@ public static class VeteransConsoleCommand
                 new EvidenceDevelopmentPlanId(args[3]));
         }
 
+        if (args.Length == 3 &&
+            args[0] == "pap" &&
+            args[1] == "analyze")
+        {
+            var papSourcePath = Path.GetFullPath(args[2]);
+
+            if (!File.Exists(papSourcePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"PAP source not found: {papSourcePath}");
+                return 2;
+            }
+
+            return RunPapAnalysis(papSourcePath);
+        }
+
         if ((args.Length is 4 or 5 ||
              (args.Length is 6 or 7 && args[4] == "--basis")) &&
             args[0] == "evidence" &&
@@ -3079,6 +3095,55 @@ public static class VeteransConsoleCommand
         return 0;
     }
 
+    private static int RunPapAnalysis(string sourcePath)
+    {
+        var content = File.ReadAllBytes(sourcePath);
+
+        var sessions =
+            Path.GetExtension(sourcePath).ToLowerInvariant() switch
+            {
+                ".json" =>
+                    new SnorePapTherapyJsonParser().Parse(content),
+                ".csv" =>
+                    new OscarPapTherapyCsvParser().Parse(content),
+                _ => throw new InvalidDataException(
+                    "PAP source must be SNORE JSON or OSCAR CSV.")
+            };
+
+        var analysis =
+            new PapTherapyAnalysisService().Analyze(sessions);
+
+        global::System.Console.WriteLine("PAP Therapy Analysis");
+        global::System.Console.WriteLine(
+            $"Coverage       : {analysis.StartDate} through {analysis.EndDate}");
+        global::System.Console.WriteLine(
+            $"Calendar days  : {analysis.CalendarDayCount}");
+        global::System.Console.WriteLine(
+            $"Sessions       : {analysis.SessionCount}");
+        global::System.Console.WriteLine(
+            $"Zero duration  : {analysis.ZeroDurationSessionCount}");
+        global::System.Console.WriteLine(
+            $"Treatment days : {analysis.TreatmentDayCount}");
+        global::System.Console.WriteLine(
+            $"Total hours    : {analysis.TotalHoursUsed:F2}");
+        global::System.Console.WriteLine(
+            $"Avg hours/day  : {analysis.AverageHoursPerTreatmentDay:F2}");
+        global::System.Console.WriteLine(
+            $"Days >= 4 hrs  : {analysis.DaysAtLeastFourHours}");
+        global::System.Console.WriteLine(
+            $"Days >= 6 hrs  : {analysis.DaysAtLeastSixHours}");
+        global::System.Console.WriteLine(
+            $"Weighted AHI   : {analysis.WeightedAhi:F2}");
+        global::System.Console.WriteLine(
+            $"Median AHI     : {analysis.MedianDailyAhi:F2}");
+        global::System.Console.WriteLine(
+            $"Maximum AHI    : {analysis.MaximumDailyAhi:F2}");
+        global::System.Console.WriteLine(
+            $"Machines       : {string.Join(", ", analysis.Machines)}");
+
+        return 0;
+    }
+
     private static void ShowUsage()
     {
         global::System.Console.WriteLine(
@@ -3092,6 +3157,9 @@ public static class VeteransConsoleCommand
             "<authority-citation> <authority-title> <provision-id> " +
             "<provision-citation> <version> <source-uri> <source-hash> " +
             "<requirement-id> <description>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans pap analyze <source-path>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence develop " +
