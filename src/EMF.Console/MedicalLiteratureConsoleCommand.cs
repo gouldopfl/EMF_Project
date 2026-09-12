@@ -287,9 +287,13 @@ internal static class MedicalLiteratureConsoleCommand
                 var intelligence = result.IntelligenceResult;
                 var metadata = intelligence.Metadata;
 
+                var reviewedClassifications =
+                    new List<ReviewedMedicalLiteratureClassification>(
+                        result.Proposal.Classifications.Count);
+
                 foreach (var classification in result.Proposal.Classifications)
                 {
-                    await literature.AddReviewedClassificationAsync(
+                    reviewedClassifications.Add(
                         new ReviewedMedicalLiteratureClassification
                         {
                             Association = new RequirementMedicalLiterature
@@ -318,6 +322,9 @@ internal static class MedicalLiteratureConsoleCommand
                             SourceExcerpts = classification.SourceExcerpts
                         });
                 }
+
+                await literature.AddReviewedClassificationsAsync(
+                    reviewedClassifications);
 
                 output.WriteLine();
                 output.WriteLine(

@@ -293,17 +293,50 @@ public sealed class SqliteMedicalLiteratureRepository :
         return results;
     }
 
-    public async Task AddReviewedClassificationAsync(
+    public Task AddReviewedClassificationAsync(
         ReviewedMedicalLiteratureClassification classification,
+        CancellationToken cancellationToken = default) =>
+        AddReviewedClassificationsAsync(
+            [classification],
+            cancellationToken);
+
+    public async Task AddReviewedClassificationsAsync(
+        IReadOnlyList<ReviewedMedicalLiteratureClassification>
+            classifications,
         CancellationToken cancellationToken = default)
     {
-        ValidateReviewedClassification(classification);
+        ArgumentNullException.ThrowIfNull(classifications);
+
+        if (classifications.Count == 0)
+            throw new InvalidOperationException(
+                "At least one reviewed medical literature classification is required.");
+
+        foreach (var classification in classifications)
+            ValidateReviewedClassification(classification);
 
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
         await using var transaction = (SqliteTransaction)
             await connection.BeginTransactionAsync(cancellationToken);
 
+        foreach (var classification in classifications)
+        {
+            await AddReviewedClassificationAsync(
+                connection,
+                transaction,
+                classification,
+                cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task AddReviewedClassificationAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        ReviewedMedicalLiteratureClassification classification,
+        CancellationToken cancellationToken)
+    {
         var association = classification.Association;
 
         await using (var lookup = connection.CreateCommand())
@@ -563,8 +596,6 @@ public sealed class SqliteMedicalLiteratureRepository :
 
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
-
-        await transaction.CommitAsync(cancellationToken);
     }
 
     private static void ValidateReviewedClassification(

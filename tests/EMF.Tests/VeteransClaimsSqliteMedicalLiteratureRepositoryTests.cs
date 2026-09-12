@@ -496,6 +496,156 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
     }
 
     [Fact]
+    public async Task ReviewedClassifications_BatchRollsBackWhenLaterItemFails()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var regulatory = new SqliteRegulatoryRepository(path);
+            var literature = new SqliteMedicalLiteratureRepository(path);
+            var evidence = new SqliteEvidenceRepository(path);
+
+            await literature.InitializeAsync();
+            await evidence.InitializeAsync();
+
+            var authority = new RegulatoryAuthority
+            {
+                Id = new RegulatoryAuthorityId("authority-batch-lit"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Veterans Affairs"
+            };
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+
+            var provision = new RegulatoryProvision
+            {
+                Id = new RegulatoryProvisionId("provision-batch-lit"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Requirement,
+                Citation = "38 CFR 3.310"
+            };
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+
+            var requirement = new Requirement
+            {
+                Id = new RequirementId("requirement-batch-lit"),
+                RegulatoryProvisionId = provision.Id,
+                Description = "Secondary service connection requirement."
+            };
+            await regulatory.AddRequirementAsync(requirement);
+
+            var source = new MedicalLiteratureSource
+            {
+                Id = new MedicalLiteratureSourceId("study-batch-lit"),
+                Title = "Batch study",
+                Authors = "Example Authors",
+                Publication = "Example Journal",
+                VaAffiliated = false,
+                VaFunded = false,
+                PeerReviewed = true
+            };
+            await literature.AddMedicalLiteratureSourceAsync(source);
+
+            var linkedArtifact = new Artifact
+            {
+                Id = new ArtifactId("artifact-batch-linked"),
+                Name = "linked-study.pdf",
+                ArtifactType = "pdf"
+            };
+            var unlinkedArtifact = new Artifact
+            {
+                Id = new ArtifactId("artifact-batch-unlinked"),
+                Name = "unlinked-study.pdf",
+                ArtifactType = "pdf"
+            };
+
+            await evidence.AddArtifactAsync(linkedArtifact);
+            await evidence.AddArtifactAsync(unlinkedArtifact);
+            await literature.AddMedicalLiteratureSourceArtifactAsync(
+                new MedicalLiteratureSourceArtifact
+                {
+                    MedicalLiteratureSourceId = source.Id,
+                    ArtifactId = linkedArtifact.Id
+                });
+
+            var reviewedUtc =
+                new DateTimeOffset(
+                    2026, 9, 12, 15, 0, 0, TimeSpan.Zero);
+
+            ReviewedMedicalLiteratureClassification Create(
+                ArtifactId artifactId,
+                string role,
+                string correlationId,
+                string excerptText) =>
+                new()
+                {
+                    Association = new RequirementMedicalLiterature
+                    {
+                        RequirementId = requirement.Id,
+                        MedicalLiteratureSourceId = source.Id,
+                        GuidanceRole = role,
+                        Description = $"Accepted {role}."
+                    },
+                    ArtifactId = artifactId,
+                    PromotedBy = "batch-promotion-test",
+                    PromotedUtc = reviewedUtc.AddMinutes(1),
+                    ReviewedBy = "reviewer@example.test",
+                    ReviewedUtc = reviewedUtc,
+                    IntelligenceOutput = "{}",
+                    CapabilityId = "TextStructuredExtraction",
+                    ProviderId = "test-provider",
+                    CorrelationId = correlationId,
+                    EngineName = "test-engine",
+                    StartedUtc = reviewedUtc.AddMinutes(-2),
+                    CompletedUtc = reviewedUtc.AddMinutes(-1),
+                    RequiresReview = true,
+                    Warnings = [],
+                    SourceExcerpts =
+                    [
+                        new MedicalLiteratureSourceExcerpt
+                        {
+                            ArtifactId = artifactId,
+                            Text = excerptText,
+                            StartOffset = 0,
+                            Length = excerptText.Length
+                        }
+                    ]
+                };
+
+            var classifications =
+                new[]
+                {
+                    Create(
+                        linkedArtifact.Id,
+                        EvidenceGuidanceRoles.SupportsRequirement,
+                        "batch-correlation-linked",
+                        "Linked accepted excerpt."),
+                    Create(
+                        unlinkedArtifact.Id,
+                        EvidenceGuidanceRoles.Corroborates,
+                        "batch-correlation-unlinked",
+                        "Unlinked accepted excerpt.")
+                };
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => literature.AddReviewedClassificationsAsync(
+                    classifications));
+
+            Assert.Empty(
+                await literature.GetRequirementMedicalLiteratureAsync(
+                    requirement.Id));
+            Assert.Empty(
+                await literature.GetReviewedClassificationsAsync(
+                    requirement.Id));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task ReviewedClassification_RejectsInvalidPromotionTimestamps()
     {
         var path = Path.GetTempFileName();
