@@ -75,6 +75,93 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_PrefersReviewedLiteratureArtifact()
+    {
+        var reviewedArtifactId =
+            new ArtifactId("literature-reviewed");
+        var otherArtifactId =
+            new ArtifactId("literature-other");
+        var requirement =
+            CreateLiterature("requirement-1", "study-1");
+        var details = CreateDetails(requirement);
+
+        var service =
+            CreateService(
+                CreateArtifact,
+                [otherArtifactId, reviewedArtifactId],
+                id => $"text:{id.Value}",
+                [CreateReviewedClassification(
+                    requirement,
+                    reviewedArtifactId)]);
+
+        var result =
+            await service.GetAsync(details, []);
+
+        var source = Assert.Single(result);
+        Assert.Equal(reviewedArtifactId, source.ArtifactId);
+        Assert.Equal(
+            "text:literature-reviewed",
+            source.Text);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsReviewedArtifactOutsideSource()
+    {
+        var reviewedArtifactId =
+            new ArtifactId("literature-reviewed");
+        var requirement =
+            CreateLiterature("requirement-1", "study-1");
+        var details = CreateDetails(requirement);
+
+        var service =
+            CreateService(
+                CreateArtifact,
+                [new ArtifactId("literature-other")],
+                id => $"text:{id.Value}",
+                [CreateReviewedClassification(
+                    requirement,
+                    reviewedArtifactId)]);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(details, []));
+
+        Assert.Contains(
+            "reviewed artifact is not associated",
+            ex.Message);
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsReviewedExcerptArtifactMismatch()
+    {
+        var reviewedArtifactId =
+            new ArtifactId("literature-reviewed");
+        var requirement =
+            CreateLiterature("requirement-1", "study-1");
+        var details = CreateDetails(requirement);
+        var reviewed =
+            CreateReviewedClassification(
+                requirement,
+                reviewedArtifactId,
+                new ArtifactId("excerpt-other"));
+
+        var service =
+            CreateService(
+                CreateArtifact,
+                [reviewedArtifactId],
+                id => $"text:{id.Value}",
+                [reviewed]);
+
+        var ex =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.GetAsync(details, []));
+
+        Assert.Contains(
+            "reviewed excerpt artifact identity mismatch",
+            ex.Message);
+    }
+
+    [Fact]
     public async Task GetAsync_RejectsRequirementMismatch()
     {
         var details =
@@ -257,7 +344,9 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
     private static VeteransReviewerEvidenceSourceService CreateService(
         Func<ArtifactId, Artifact?> artifactLookup,
         IReadOnlyList<ArtifactId> literatureArtifactIds,
-        Func<ArtifactId, string?> textLookup) =>
+        Func<ArtifactId, string?> textLookup,
+        IReadOnlyList<ReviewedMedicalLiteratureClassification>?
+            reviewedClassifications = null) =>
         new(
             Proxy<IEvidenceRepository>(
                 (method, args) =>
@@ -267,15 +356,63 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
                         : throw new NotSupportedException(method.Name)),
             Proxy<IMedicalLiteratureRepository>(
                 (method, _) =>
-                    method.Name == "GetArtifactIdsAsync"
-                        ? Task.FromResult(literatureArtifactIds)
-                        : throw new NotSupportedException(method.Name)),
+                    method.Name switch
+                    {
+                        "GetArtifactIdsAsync" =>
+                            Task.FromResult(literatureArtifactIds),
+                        "GetReviewedClassificationsAsync" =>
+                            Task.FromResult<IReadOnlyList<
+                                ReviewedMedicalLiteratureClassification>>(
+                                    reviewedClassifications ?? []),
+                        _ =>
+                            throw new NotSupportedException(method.Name)
+                    }),
             Proxy<IArtifactTextExtractor>(
                 (method, args) =>
                     method.Name == "ExtractTextAsync"
                         ? Task.FromResult<string?>(
                             textLookup((ArtifactId)args[0]!))
                         : throw new NotSupportedException(method.Name)));
+
+    private static ReviewedMedicalLiteratureClassification
+        CreateReviewedClassification(
+            ServiceConnectionBasisRequirementDetails requirement,
+            ArtifactId artifactId,
+            ArtifactId? excerptArtifactId = null)
+    {
+        var association =
+            Assert.Single(requirement.MedicalLiterature).Association;
+        var timestamp =
+            new DateTimeOffset(
+                2026, 9, 12, 10, 0, 0, TimeSpan.Zero);
+
+        return new ReviewedMedicalLiteratureClassification
+        {
+            Association = association,
+            ArtifactId = artifactId,
+            PromotedBy = "reviewer",
+            PromotedUtc = timestamp,
+            ReviewedBy = "reviewer",
+            ReviewedUtc = timestamp,
+            IntelligenceOutput = "{}",
+            CapabilityId = "literature-classification",
+            ProviderId = "provider",
+            CorrelationId = "correlation-1",
+            EngineName = "engine",
+            StartedUtc = timestamp,
+            CompletedUtc = timestamp,
+            RequiresReview = false,
+            Warnings = [],
+            SourceExcerpts =
+            [
+                new MedicalLiteratureSourceExcerpt
+                {
+                    ArtifactId = excerptArtifactId ?? artifactId,
+                    Text = "Reviewed excerpt"
+                }
+            ]
+        };
+    }
 
     private static Artifact CreateArtifact(ArtifactId id) =>
         new()
