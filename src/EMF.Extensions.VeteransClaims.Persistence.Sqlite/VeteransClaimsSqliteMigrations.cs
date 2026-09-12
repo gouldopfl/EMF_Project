@@ -2049,6 +2049,19 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_ReviewedMedicalLiteratureClassifications (
                     CorrelationId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                70,
+                "EnforceReviewedMedicalLiteratureLogicalUniqueness",
+                """
+                CREATE UNIQUE INDEX
+                    UX_VeteransClaims_ReviewedMedicalLiterature_LogicalDecision
+                ON VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    RequirementId,
+                    MedicalLiteratureSourceId,
+                    GuidanceRole,
+                    ArtifactId
+                );
                 """)
         };
 }
