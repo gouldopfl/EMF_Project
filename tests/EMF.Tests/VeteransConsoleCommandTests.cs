@@ -4417,7 +4417,7 @@ public sealed partial class VeteransConsoleCommandTests
                                 "Accepted source excerpt for the medical " +
                                 "mechanism.",
                             StartOffset = 0,
-                            Length = 49
+                            Length = 50
                         }
                     ]
                 });

@@ -476,4 +476,161 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
         }
     }
 
+    [Fact]
+    public async Task ReviewedClassification_RejectsInvalidPromotionTimestamps()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteMedicalLiteratureRepository(path);
+
+            var completedUtc =
+                new DateTimeOffset(
+                    2026, 9, 12, 14, 0, 0, TimeSpan.Zero);
+
+            var classification =
+                CreateReviewedClassificationForValidation(
+                    completedUtc: completedUtc,
+                    reviewedUtc: completedUtc.AddSeconds(-1));
+
+            var exception =
+                await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => repository.AddReviewedClassificationAsync(
+                        classification));
+
+            Assert.Contains(
+                "timestamps are invalid",
+                exception.Message,
+                StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ReviewedClassification_RejectsIncompleteExcerptProvenance()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteMedicalLiteratureRepository(path);
+
+            var classification =
+                CreateReviewedClassificationForValidation(
+                    startOffset: null,
+                    length: null);
+
+            var exception =
+                await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => repository.AddReviewedClassificationAsync(
+                        classification));
+
+            Assert.Contains(
+                "excerpt provenance is invalid",
+                exception.Message,
+                StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ReviewedClassification_RejectsMissingReviewIdentity()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository =
+                new SqliteMedicalLiteratureRepository(path);
+
+            var classification =
+                CreateReviewedClassificationForValidation(
+                    reviewedBy: " ");
+
+            var exception =
+                await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => repository.AddReviewedClassificationAsync(
+                        classification));
+
+            Assert.Contains(
+                "promotion provenance is incomplete",
+                exception.Message,
+                StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private static ReviewedMedicalLiteratureClassification
+        CreateReviewedClassificationForValidation(
+            DateTimeOffset? completedUtc = null,
+            DateTimeOffset? reviewedUtc = null,
+            string reviewedBy = "reviewer@example.test",
+            int? startOffset = 0,
+            int? length = 17)
+    {
+        const string excerptText = "Accepted excerpt.";
+
+        var started =
+            new DateTimeOffset(
+                2026, 9, 12, 13, 58, 0, TimeSpan.Zero);
+        var completed =
+            completedUtc ?? started.AddMinutes(1);
+        var reviewed =
+            reviewedUtc ?? completed.AddMinutes(1);
+
+        return new ReviewedMedicalLiteratureClassification
+        {
+            Association =
+                new RequirementMedicalLiterature
+                {
+                    RequirementId =
+                        new RequirementId("validation-requirement"),
+                    MedicalLiteratureSourceId =
+                        new MedicalLiteratureSourceId("validation-source"),
+                    GuidanceRole =
+                        EvidenceGuidanceRoles.SupportsRequirement,
+                    Description = "Accepted relevance."
+                },
+            ArtifactId = new ArtifactId("validation-artifact"),
+            PromotedBy = "validation-promoter",
+            PromotedUtc = reviewed.AddMinutes(1),
+            ReviewedBy = reviewedBy,
+            ReviewedUtc = reviewed,
+            IntelligenceOutput = """{"classification":"accepted"}""",
+            CapabilityId = "TextStructuredExtraction",
+            ProviderId = "validation-provider",
+            CorrelationId = "validation-correlation",
+            EngineName = "validation-engine",
+            EngineVersion = "1",
+            ProviderOperationId = "validation-operation",
+            StartedUtc = started,
+            CompletedUtc = completed,
+            RequiresReview = true,
+            Warnings = [],
+            SourceExcerpts =
+            [
+                new MedicalLiteratureSourceExcerpt
+                {
+                    ArtifactId =
+                        new ArtifactId("validation-artifact"),
+                    Text = excerptText,
+                    StartOffset = startOffset,
+                    Length = length
+                }
+            ]
+        };
+    }
+
 }

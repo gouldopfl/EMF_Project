@@ -297,18 +297,7 @@ public sealed class SqliteMedicalLiteratureRepository :
         ReviewedMedicalLiteratureClassification classification,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(classification);
-        ArgumentNullException.ThrowIfNull(classification.Association);
-        ArgumentNullException.ThrowIfNull(classification.SourceExcerpts);
-
-        if (classification.SourceExcerpts.Any(
-                excerpt =>
-                    !excerpt.ArtifactId.Equals(
-                        classification.ArtifactId)))
-        {
-            throw new InvalidOperationException(
-                "Every reviewed excerpt must reference the classified artifact.");
-        }
+        ValidateReviewedClassification(classification);
 
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
@@ -538,6 +527,78 @@ public sealed class SqliteMedicalLiteratureRepository :
         }
 
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static void ValidateReviewedClassification(
+        ReviewedMedicalLiteratureClassification classification)
+    {
+        ArgumentNullException.ThrowIfNull(classification);
+        ArgumentNullException.ThrowIfNull(classification.Association);
+        ArgumentNullException.ThrowIfNull(classification.Warnings);
+        ArgumentNullException.ThrowIfNull(classification.SourceExcerpts);
+
+        var association = classification.Association;
+
+        if (association.GuidanceRole is not (
+            EvidenceGuidanceRoles.SupportsRequirement or
+            EvidenceGuidanceRoles.EstablishesElement or
+            EvidenceGuidanceRoles.Corroborates or
+            EvidenceGuidanceRoles.Clarifies))
+        {
+            throw new InvalidOperationException(
+                "The reviewed medical literature guidance role is unsupported.");
+        }
+
+        if (string.IsNullOrWhiteSpace(association.Description))
+            throw new InvalidOperationException(
+                "The reviewed medical literature description is required.");
+
+        if (string.IsNullOrWhiteSpace(classification.PromotedBy) ||
+            string.IsNullOrWhiteSpace(classification.ReviewedBy) ||
+            string.IsNullOrWhiteSpace(classification.IntelligenceOutput) ||
+            string.IsNullOrWhiteSpace(classification.CapabilityId) ||
+            string.IsNullOrWhiteSpace(classification.ProviderId) ||
+            string.IsNullOrWhiteSpace(classification.CorrelationId) ||
+            string.IsNullOrWhiteSpace(classification.EngineName))
+        {
+            throw new InvalidOperationException(
+                "Reviewed medical literature promotion provenance is incomplete.");
+        }
+
+        if (classification.StartedUtc == default ||
+            classification.CompletedUtc == default ||
+            classification.ReviewedUtc == default ||
+            classification.PromotedUtc == default ||
+            classification.CompletedUtc < classification.StartedUtc ||
+            classification.ReviewedUtc < classification.CompletedUtc ||
+            classification.PromotedUtc < classification.ReviewedUtc)
+        {
+            throw new InvalidOperationException(
+                "Reviewed medical literature promotion timestamps are invalid.");
+        }
+
+        if (classification.SourceExcerpts.Count == 0)
+            throw new InvalidOperationException(
+                "Reviewed medical literature requires at least one accepted excerpt.");
+
+        foreach (var excerpt in classification.SourceExcerpts)
+        {
+            ArgumentNullException.ThrowIfNull(excerpt);
+
+            if (excerpt.ArtifactId != classification.ArtifactId)
+                throw new InvalidOperationException(
+                    "Every reviewed excerpt must reference the classified artifact.");
+
+            if (string.IsNullOrWhiteSpace(excerpt.Text) ||
+                excerpt.StartOffset is null ||
+                excerpt.Length is null ||
+                excerpt.StartOffset.Value < 0 ||
+                excerpt.Length.Value != excerpt.Text.Length)
+            {
+                throw new InvalidOperationException(
+                    "Reviewed medical literature excerpt provenance is invalid.");
+            }
+        }
     }
 
     public Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
