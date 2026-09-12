@@ -1520,7 +1520,10 @@ public static class VeteransReviewerPackageDocxRenderer
                 mainPart.GetIdOfPart(imagePart);
 
             var (cx, cy) =
-                FitPageToDocument(width, height);
+                FitPageToDocument(
+                    width,
+                    height,
+                    reserveSourceHeadingSpace: expectedPageNumber == 1);
 
             var drawingId =
                 checked((uint)mainPart.ImageParts.Count());
@@ -1586,10 +1589,17 @@ public static class VeteransReviewerPackageDocxRenderer
 
     private static (long Cx, long Cy) FitPageToDocument(
         uint width,
-        uint height)
+        uint height,
+        bool reserveSourceHeadingSpace)
     {
         const long maxWidth = 5_943_600;
-        const long maxHeight = 7_772_400;
+        const long standardMaxHeight = 7_772_400;
+        const long firstSourcePageMaxHeight = 6_400_800;
+
+        var maxHeight =
+            reserveSourceHeadingSpace
+                ? firstSourcePageMaxHeight
+                : standardMaxHeight;
 
         var scale =
             Math.Min(

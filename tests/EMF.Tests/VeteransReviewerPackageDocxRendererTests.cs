@@ -2333,6 +2333,46 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
     }
 
     [Fact]
+    public void Render_ReservesHeadingSpaceOnFirstPrintableImagePage()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 1,
+                    ContentType = "image/png",
+                    Content = TallPng()
+                },
+                new PrintableArtifactPage
+                {
+                    PageNumber = 2,
+                    ContentType = "image/png",
+                    Content = TallPng()
+                }
+            ],
+            "");
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var extents =
+            document.MainDocumentPart!
+                .Document!
+                .Descendants<
+                    DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent>()
+                .ToArray();
+
+        Assert.Equal(2, extents.Length);
+        Assert.Equal(6_400_800L, extents[0].Cy?.Value);
+        Assert.Equal(7_772_400L, extents[1].Cy?.Value);
+    }
+
+    [Fact]
     public void Render_PreservesPrintableSourcePageOrder()
     {
         var details =
@@ -2538,6 +2578,12 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Convert.FromBase64String(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC" +
             "AAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+
+    private static byte[] TallPng() =>
+        Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAoAAABkCAAAAACap/5L" +
+            "AAAAGElEQVR4nGP8zwADTAyjzFHmKHOUSSYTAPj8AceRbvek" +
+            "AAAAAElFTkSuQmCC");
 }
 
 public sealed partial class VeteransReviewerPackageDocxRendererTests
