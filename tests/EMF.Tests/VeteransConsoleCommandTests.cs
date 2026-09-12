@@ -4375,6 +4375,53 @@ public sealed partial class VeteransConsoleCommandTests
                     ArtifactId = artifactId
                 });
 
+            var reviewedUtc =
+                new DateTimeOffset(
+                    2026, 9, 12, 14, 30, 0, TimeSpan.Zero);
+
+            await literature.AddReviewedClassificationAsync(
+                new ReviewedMedicalLiteratureClassification
+                {
+                    Association =
+                        new RequirementMedicalLiterature
+                        {
+                            RequirementId = requirement.Id,
+                            MedicalLiteratureSourceId = sourceId,
+                            GuidanceRole =
+                                EvidenceGuidanceRoles.SupportsRequirement,
+                            Description = "Supports the requirement."
+                        },
+                    ArtifactId = artifactId,
+                    PromotedBy = "console-reviewer",
+                    PromotedUtc = reviewedUtc.AddMinutes(1),
+                    ReviewedBy = "console-reviewer",
+                    ReviewedUtc = reviewedUtc,
+                    IntelligenceOutput =
+                        "RAW_AI_OUTPUT_MUST_NOT_APPEAR_IN_REVIEWER_DOCX",
+                    CapabilityId = "TextStructuredExtraction",
+                    ProviderId = "console-test-provider",
+                    CorrelationId = "console-reviewed-literature",
+                    EngineName = "console-test-engine",
+                    EngineVersion = "1",
+                    ProviderOperationId = "console-operation",
+                    StartedUtc = reviewedUtc.AddMinutes(-2),
+                    CompletedUtc = reviewedUtc.AddMinutes(-1),
+                    RequiresReview = true,
+                    Warnings = ["reviewed before promotion"],
+                    SourceExcerpts =
+                    [
+                        new MedicalLiteratureSourceExcerpt
+                        {
+                            ArtifactId = artifactId,
+                            Text =
+                                "Accepted source excerpt for the medical " +
+                                "mechanism.",
+                            StartOffset = 0,
+                            Length = 49
+                        }
+                    ]
+                });
+
             var contentStore = new EMF.Persistence.Storage.FileSystemArtifactContentStore(contentPath);
             await contentStore.WriteAsync(
                 artifactId,
@@ -4411,6 +4458,23 @@ public sealed partial class VeteransConsoleCommandTests
 
             Assert.Contains("Appendix E — Medical / Scientific Literature", text);
             Assert.Contains("Published medical literature source text.", text);
+            Assert.Contains(
+                $"Requirement: {requirement.Id.Value}",
+                text);
+            Assert.Contains(
+                $"Role: {EvidenceGuidanceRoles.SupportsRequirement}",
+                text);
+            Assert.Contains("Relevance: Supports the requirement.", text);
+            Assert.Contains("Reviewed By: console-reviewer", text);
+            Assert.Contains(
+                $"Reviewed UTC: {reviewedUtc:O}",
+                text);
+            Assert.Contains(
+                "Accepted source excerpt for the medical mechanism.",
+                text);
+            Assert.DoesNotContain(
+                "RAW_AI_OUTPUT_MUST_NOT_APPEAR_IN_REVIEWER_DOCX",
+                text);
         }
         finally
         {
