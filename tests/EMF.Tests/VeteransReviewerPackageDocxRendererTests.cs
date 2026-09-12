@@ -2756,3 +2756,364 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             document.MainDocumentPart!.Document!.InnerText);
     }
 }
+
+public sealed partial class VeteransReviewerPackageDocxRendererTests
+{
+    [Fact]
+    public void Render_RejectsArtifactAssociatedWithAnotherPackage()
+    {
+        var artifact = IntegrityArtifact();
+        var details =
+            CreateIntegrityDetails(
+            [
+                new EvidencePackageArtifact
+                {
+                    EvidencePackageId =
+                        new EvidencePackageId("package-other"),
+                    ArtifactId = artifact.Id,
+                    ContentRole =
+                        EvidencePackageContentRoles.UnderlyingEvidence
+                }
+            ],
+            []);
+
+        var exception =
+            Assert.Throws<InvalidOperationException>(
+                () => VeteransReviewerPackageDocxRenderer.Render(details));
+
+        Assert.Contains("associated with package 'package-other'", exception.Message);
+    }
+
+    [Fact]
+    public void Render_RejectsUnsupportedPackageContentRole()
+    {
+        var artifact = IntegrityArtifact();
+        var packageId = new EvidencePackageId("package-integrity");
+        var details =
+            CreateIntegrityDetails(
+            [
+                new EvidencePackageArtifact
+                {
+                    EvidencePackageId = packageId,
+                    ArtifactId = artifact.Id,
+                    ContentRole = "UnexpectedRole"
+                }
+            ],
+            []);
+
+        var exception =
+            Assert.Throws<InvalidOperationException>(
+                () => VeteransReviewerPackageDocxRenderer.Render(details));
+
+        Assert.Contains("unsupported content role 'UnexpectedRole'", exception.Message);
+    }
+
+    [Fact]
+    public void Render_RejectsConflictingPackageContentRoles()
+    {
+        var artifact = IntegrityArtifact();
+        var packageId = new EvidencePackageId("package-integrity");
+        var details =
+            CreateIntegrityDetails(
+            [
+                new EvidencePackageArtifact
+                {
+                    EvidencePackageId = packageId,
+                    ArtifactId = artifact.Id,
+                    ContentRole =
+                        EvidencePackageContentRoles.UnderlyingEvidence
+                },
+                new EvidencePackageArtifact
+                {
+                    EvidencePackageId = packageId,
+                    ArtifactId = artifact.Id,
+                    ContentRole =
+                        EvidencePackageContentRoles
+                            .GeneratedOrganizationalMaterial
+                }
+            ],
+            []);
+
+        var exception =
+            Assert.Throws<InvalidOperationException>(
+                () => VeteransReviewerPackageDocxRenderer.Render(details));
+
+        Assert.Contains("conflicting content roles", exception.Message);
+        Assert.Contains(artifact.Id.Value, exception.Message);
+    }
+
+    [Fact]
+    public void Render_RejectsDuplicateReviewerArtifactContent()
+    {
+        var artifact = IntegrityArtifact();
+        var packageId = new EvidencePackageId("package-integrity");
+        var content = IntegrityContent(artifact);
+        var details =
+            CreateIntegrityDetails(
+            [
+                new EvidencePackageArtifact
+                {
+                    EvidencePackageId = packageId,
+                    ArtifactId = artifact.Id,
+                    ContentRole =
+                        EvidencePackageContentRoles.UnderlyingEvidence
+                }
+            ],
+            [content, content]);
+
+        var exception =
+            Assert.Throws<InvalidOperationException>(
+                () => VeteransReviewerPackageDocxRenderer.Render(details));
+
+        Assert.Contains("multiple reviewable content entries", exception.Message);
+        Assert.Contains(artifact.Id.Value, exception.Message);
+    }
+
+    [Fact]
+    public void Render_RejectsReviewerContentOutsidePackage()
+    {
+        var artifact = IntegrityArtifact();
+        var details =
+            CreateIntegrityDetails(
+                [],
+                [IntegrityContent(artifact)]);
+
+        var exception =
+            Assert.Throws<InvalidOperationException>(
+                () => VeteransReviewerPackageDocxRenderer.Render(details));
+
+        Assert.Contains("not part of the package", exception.Message);
+        Assert.Contains(artifact.Id.Value, exception.Message);
+    }
+
+    [Fact]
+    public void Render_RejectsMismatchedReviewerProvenanceArtifact()
+    {
+        var artifact = IntegrityArtifact();
+        var packageId = new EvidencePackageId("package-integrity");
+        var foreignArtifactId = new ArtifactId("source-other");
+        var content =
+            new VeteransReviewerArtifactContent
+            {
+                Artifact = artifact,
+                Text = "Integrity test content.",
+                Provenance =
+                [
+                    new Provenance
+                    {
+                        ArtifactId = foreignArtifactId,
+                        Source = "test",
+                        RecordedBy = "tester"
+                    }
+                ]
+            };
+        var details =
+            CreateIntegrityDetails(
+            [
+                IntegrityPackageArtifact(packageId, artifact)
+            ],
+            [content]);
+
+        var exception =
+            Assert.Throws<InvalidOperationException>(
+                () => VeteransReviewerPackageDocxRenderer.Render(details));
+
+        Assert.Contains("provenance for artifact 'source-other'", exception.Message);
+    }
+
+    [Fact]
+    public void Render_RejectsUnrelatedReviewerRelationship()
+    {
+        var artifact = IntegrityArtifact();
+        var packageId = new EvidencePackageId("package-integrity");
+        var content =
+            new VeteransReviewerArtifactContent
+            {
+                Artifact = artifact,
+                Text = "Integrity test content.",
+                Relationships =
+                [
+                    new Relationship
+                    {
+                        SourceArtifactId = new ArtifactId("source-other"),
+                        TargetArtifactId = new ArtifactId("target-other"),
+                        RelationshipType = "DerivedFrom"
+                    }
+                ]
+            };
+        var details =
+            CreateIntegrityDetails(
+            [
+                IntegrityPackageArtifact(packageId, artifact)
+            ],
+            [content]);
+
+        var exception =
+            Assert.Throws<InvalidOperationException>(
+                () => VeteransReviewerPackageDocxRenderer.Render(details));
+
+        Assert.Contains("unrelated artifact relationship", exception.Message);
+    }
+
+    [Fact]
+    public void Render_RejectsMismatchedReviewedLiteratureArtifact()
+    {
+        var artifact = IntegrityArtifact();
+        var packageId = new EvidencePackageId("package-integrity");
+        var foreignArtifactId = new ArtifactId("source-other");
+        var content =
+            new VeteransReviewerArtifactContent
+            {
+                Artifact = artifact,
+                Text = "Integrity test content.",
+                ReviewedMedicalLiteratureClassifications =
+                [
+                    IntegrityReviewedLiterature(
+                        foreignArtifactId,
+                        foreignArtifactId)
+                ]
+            };
+        var details =
+            CreateIntegrityDetails(
+            [
+                IntegrityPackageArtifact(packageId, artifact)
+            ],
+            [content]);
+
+        var exception =
+            Assert.Throws<InvalidOperationException>(
+                () => VeteransReviewerPackageDocxRenderer.Render(details));
+
+        Assert.Contains("reviewed literature for artifact 'source-other'", exception.Message);
+    }
+
+    [Fact]
+    public void Render_RejectsMismatchedReviewedLiteratureExcerptArtifact()
+    {
+        var artifact = IntegrityArtifact();
+        var packageId = new EvidencePackageId("package-integrity");
+        var content =
+            new VeteransReviewerArtifactContent
+            {
+                Artifact = artifact,
+                Text = "Integrity test content.",
+                ReviewedMedicalLiteratureClassifications =
+                [
+                    IntegrityReviewedLiterature(
+                        artifact.Id,
+                        new ArtifactId("source-other"))
+                ]
+            };
+        var details =
+            CreateIntegrityDetails(
+            [
+                IntegrityPackageArtifact(packageId, artifact)
+            ],
+            [content]);
+
+        var exception =
+            Assert.Throws<InvalidOperationException>(
+                () => VeteransReviewerPackageDocxRenderer.Render(details));
+
+        Assert.Contains(
+            "reviewed literature excerpt for artifact 'source-other'",
+            exception.Message);
+    }
+
+    private static VeteransReviewerPackageDetails CreateIntegrityDetails(
+        IReadOnlyList<EvidencePackageArtifact> packageArtifacts,
+        IReadOnlyList<VeteransReviewerArtifactContent> artifactContents) =>
+        new()
+        {
+            PackageDetails =
+                new EvidencePackageDetails
+                {
+                    Package =
+                        new EvidencePackage
+                        {
+                            Id = new EvidencePackageId("package-integrity"),
+                            ClaimIssueId =
+                                new ClaimIssueId("issue-integrity"),
+                            Purpose = "Reviewer package",
+                            ReviewerRole = "MedicalProfessional"
+                        },
+                    Artifacts = packageArtifacts
+                },
+            Artifacts =
+                artifactContents
+                    .Select(content => content.Artifact)
+                    .ToArray(),
+            ArtifactContents = artifactContents
+        };
+
+    private static EvidencePackageArtifact IntegrityPackageArtifact(
+        EvidencePackageId packageId,
+        Artifact artifact) =>
+        new()
+        {
+            EvidencePackageId = packageId,
+            ArtifactId = artifact.Id,
+            ContentRole = EvidencePackageContentRoles.UnderlyingEvidence
+        };
+
+    private static ReviewedMedicalLiteratureClassification
+        IntegrityReviewedLiterature(
+            ArtifactId artifactId,
+            ArtifactId excerptArtifactId)
+    {
+        var timestamp =
+            new DateTimeOffset(
+                2026, 9, 12, 12, 0, 0, TimeSpan.Zero);
+
+        return new ReviewedMedicalLiteratureClassification
+        {
+            Association =
+                new RequirementMedicalLiterature
+                {
+                    RequirementId = new RequirementId("requirement-integrity"),
+                    MedicalLiteratureSourceId =
+                        new MedicalLiteratureSourceId("study-integrity"),
+                    GuidanceRole = EvidenceGuidanceRoles.SupportsRequirement,
+                    Description = "Integrity test literature."
+                },
+            ArtifactId = artifactId,
+            PromotedBy = "tester",
+            PromotedUtc = timestamp,
+            ReviewedBy = "tester",
+            ReviewedUtc = timestamp,
+            IntelligenceOutput = "{}",
+            CapabilityId = "integrity",
+            ProviderId = "test",
+            CorrelationId = "integrity",
+            EngineName = "test",
+            StartedUtc = timestamp,
+            CompletedUtc = timestamp,
+            RequiresReview = false,
+            Warnings = [],
+            SourceExcerpts =
+            [
+                new MedicalLiteratureSourceExcerpt
+                {
+                    ArtifactId = excerptArtifactId,
+                    Text = "Integrity excerpt."
+                }
+            ]
+        };
+    }
+
+    private static Artifact IntegrityArtifact() =>
+        new()
+        {
+            Id = new ArtifactId("source-integrity"),
+            Name = "Integrity Source",
+            ArtifactType = "medical-record"
+        };
+
+    private static VeteransReviewerArtifactContent IntegrityContent(
+        Artifact artifact) =>
+        new()
+        {
+            Artifact = artifact,
+            Text = "Integrity test content."
+        };
+}

@@ -20,21 +20,9 @@ public static class VeteransReviewerPackageDocxRenderer
         var package =
             details.PackageDetails.Package;
 
-        foreach (var packageArtifact in
-            details.PackageDetails.Artifacts)
-        {
-            if (details.ArtifactContents.Any(
-                content =>
-                    content.Artifact.Id ==
-                        packageArtifact.ArtifactId))
-            {
-                continue;
-            }
-
-            throw new InvalidOperationException(
-                $"Evidence package '{package.Id.Value}' has no reviewable " +
-                $"content for artifact '{packageArtifact.ArtifactId.Value}'.");
-        }
+        ValidatePackageContents(
+            details,
+            package);
 
         using var stream =
             new MemoryStream();
@@ -134,6 +122,155 @@ public static class VeteransReviewerPackageDocxRenderer
         }
 
         return stream.ToArray();
+    }
+
+    private static void ValidatePackageContents(
+        VeteransReviewerPackageDetails details,
+        EvidencePackage package)
+    {
+        var packageArtifacts =
+            details.PackageDetails.Artifacts;
+
+        foreach (var packageArtifact in packageArtifacts)
+        {
+            if (packageArtifact.EvidencePackageId != package.Id)
+            {
+                throw new InvalidOperationException(
+                    $"Evidence package '{package.Id.Value}' contains artifact " +
+                    $"'{packageArtifact.ArtifactId.Value}' associated with " +
+                    $"package '{packageArtifact.EvidencePackageId.Value}'.");
+            }
+
+            if (packageArtifact.ContentRole is not (
+                EvidencePackageContentRoles.UnderlyingEvidence or
+                EvidencePackageContentRoles.GeneratedOrganizationalMaterial))
+            {
+                throw new InvalidOperationException(
+                    $"Evidence package '{package.Id.Value}' contains unsupported " +
+                    $"content role '{packageArtifact.ContentRole}'.");
+            }
+        }
+
+        var duplicatePackageArtifact =
+            packageArtifacts
+                .GroupBy(artifact => artifact.ArtifactId)
+                .FirstOrDefault(group => group.Count() > 1);
+
+        if (duplicatePackageArtifact is not null)
+        {
+            var roles =
+                duplicatePackageArtifact
+                    .Select(artifact => artifact.ContentRole)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+
+            var description =
+                roles.Length > 1
+                    ? "conflicting content roles"
+                    : "duplicate package entries";
+
+            throw new InvalidOperationException(
+                $"Evidence package '{package.Id.Value}' contains {description} " +
+                $"for artifact '{duplicatePackageArtifact.Key.Value}'.");
+        }
+
+        var duplicateContent =
+            details.ArtifactContents
+                .GroupBy(content => content.Artifact.Id)
+                .FirstOrDefault(group => group.Count() > 1);
+
+        if (duplicateContent is not null)
+        {
+            throw new InvalidOperationException(
+                $"Evidence package '{package.Id.Value}' has multiple reviewable " +
+                $"content entries for artifact '{duplicateContent.Key.Value}'.");
+        }
+
+        foreach (var content in details.ArtifactContents)
+        {
+            if (!packageArtifacts.Any(
+                    packageArtifact =>
+                        packageArtifact.ArtifactId ==
+                            content.Artifact.Id))
+            {
+                throw new InvalidOperationException(
+                    $"Evidence package '{package.Id.Value}' received reviewable " +
+                    $"content for artifact '{content.Artifact.Id.Value}' that is " +
+                    "not part of the package.");
+            }
+
+            var mismatchedProvenance =
+                content.Provenance
+                    .FirstOrDefault(
+                        provenance =>
+                            provenance.ArtifactId != content.Artifact.Id);
+
+            if (mismatchedProvenance is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Reviewer artifact '{content.Artifact.Id.Value}' contains " +
+                    $"provenance for artifact " +
+                    $"'{mismatchedProvenance.ArtifactId.Value}'.");
+            }
+
+            var unrelatedRelationship =
+                content.Relationships
+                    .FirstOrDefault(
+                        relationship =>
+                            relationship.SourceArtifactId != content.Artifact.Id &&
+                            relationship.TargetArtifactId != content.Artifact.Id);
+
+            if (unrelatedRelationship is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Reviewer artifact '{content.Artifact.Id.Value}' contains " +
+                    "an unrelated artifact relationship.");
+            }
+
+            var mismatchedReviewedLiterature =
+                content.ReviewedMedicalLiteratureClassifications
+                    .FirstOrDefault(
+                        reviewed =>
+                            reviewed.ArtifactId != content.Artifact.Id);
+
+            if (mismatchedReviewedLiterature is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Reviewer artifact '{content.Artifact.Id.Value}' contains " +
+                    $"reviewed literature for artifact " +
+                    $"'{mismatchedReviewedLiterature.ArtifactId.Value}'.");
+            }
+
+            var mismatchedExcerpt =
+                content.ReviewedMedicalLiteratureClassifications
+                    .SelectMany(reviewed => reviewed.SourceExcerpts)
+                    .FirstOrDefault(
+                        excerpt =>
+                            excerpt.ArtifactId != content.Artifact.Id);
+
+            if (mismatchedExcerpt is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Reviewer artifact '{content.Artifact.Id.Value}' contains " +
+                    $"a reviewed literature excerpt for artifact " +
+                    $"'{mismatchedExcerpt.ArtifactId.Value}'.");
+            }
+        }
+
+        foreach (var packageArtifact in packageArtifacts)
+        {
+            if (details.ArtifactContents.Any(
+                    content =>
+                        content.Artifact.Id ==
+                            packageArtifact.ArtifactId))
+            {
+                continue;
+            }
+
+            throw new InvalidOperationException(
+                $"Evidence package '{package.Id.Value}' has no reviewable " +
+                $"content for artifact '{packageArtifact.ArtifactId.Value}'.");
+        }
     }
 
     private static IReadOnlyList<VeteransReviewerArtifactContent> GetRoleContents(
