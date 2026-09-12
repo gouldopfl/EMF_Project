@@ -396,6 +396,44 @@ public sealed class SqliteMedicalLiteratureRepository :
             }
         }
 
+        await using (var existingReview = connection.CreateCommand())
+        {
+            existingReview.Transaction = transaction;
+            existingReview.CommandText = """
+                SELECT CorrelationId
+                FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
+                WHERE RequirementId = $requirement
+                  AND MedicalLiteratureSourceId = $source
+                  AND GuidanceRole = $role
+                  AND ArtifactId = $artifact
+                LIMIT 1;
+                """;
+            existingReview.Parameters.AddWithValue(
+                "$requirement",
+                association.RequirementId.Value);
+            existingReview.Parameters.AddWithValue(
+                "$source",
+                association.MedicalLiteratureSourceId.Value);
+            existingReview.Parameters.AddWithValue(
+                "$role",
+                association.GuidanceRole);
+            existingReview.Parameters.AddWithValue(
+                "$artifact",
+                classification.ArtifactId.Value);
+
+            var existingCorrelation =
+                await existingReview.ExecuteScalarAsync(cancellationToken);
+
+            if (existingCorrelation is string)
+            {
+                throw new InvalidOperationException(
+                    "A reviewed medical literature classification already " +
+                    "exists for this requirement, source, role, and artifact. " +
+                    "Explicit supersession is required before another reviewed " +
+                    "classification can be promoted.");
+            }
+        }
+
         await using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;

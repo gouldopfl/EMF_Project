@@ -357,6 +357,25 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
                 excerpt.Text);
             Assert.Equal(12, excerpt.StartOffset);
             Assert.Equal(32, excerpt.Length);
+
+            var secondReview =
+                CopyReviewedClassification(
+                    classification,
+                    "reviewed-lit-correlation-second");
+
+            var duplicateException =
+                await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => literature.AddReviewedClassificationAsync(
+                        secondReview));
+
+            Assert.Contains(
+                "Explicit supersession is required",
+                duplicateException.Message,
+                StringComparison.Ordinal);
+
+            Assert.Single(
+                await literature.GetReviewedClassificationsAsync(
+                    requirement.Id));
         }
         finally
         {
@@ -571,6 +590,32 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
             File.Delete(path);
         }
     }
+
+    private static ReviewedMedicalLiteratureClassification
+        CopyReviewedClassification(
+            ReviewedMedicalLiteratureClassification source,
+            string correlationId) =>
+        new()
+        {
+            Association = source.Association,
+            ArtifactId = source.ArtifactId,
+            PromotedBy = source.PromotedBy,
+            PromotedUtc = source.PromotedUtc,
+            ReviewedBy = source.ReviewedBy,
+            ReviewedUtc = source.ReviewedUtc,
+            IntelligenceOutput = source.IntelligenceOutput,
+            CapabilityId = source.CapabilityId,
+            ProviderId = source.ProviderId,
+            CorrelationId = correlationId,
+            EngineName = source.EngineName,
+            EngineVersion = source.EngineVersion,
+            ProviderOperationId = source.ProviderOperationId,
+            StartedUtc = source.StartedUtc,
+            CompletedUtc = source.CompletedUtc,
+            RequiresReview = source.RequiresReview,
+            Warnings = source.Warnings,
+            SourceExcerpts = source.SourceExcerpts
+        };
 
     private static ReviewedMedicalLiteratureClassification
         CreateReviewedClassificationForValidation(
