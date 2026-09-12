@@ -1114,6 +1114,100 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
 
     [Fact]
+    public void Render_AddsConfidentialPageNumberFooter()
+    {
+        var packageId =
+            new EvidencePackageId("package-1");
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId =
+                                    new ClaimIssueId("issue-1"),
+                                Purpose =
+                                    "Physician reviewer package",
+                                ReviewerRole =
+                                    "MedicalProfessional"
+                            },
+                        Artifacts = []
+                    },
+                Artifacts = [],
+                ArtifactContents = []
+            };
+
+        var content =
+            VeteransReviewerPackageDocxRenderer.Render(
+                details);
+
+        using var stream =
+            new MemoryStream(content);
+
+        using var document =
+            WordprocessingDocument.Open(
+                stream,
+                false);
+
+        var mainPart =
+            Assert.IsType<MainDocumentPart>(
+                document.MainDocumentPart);
+
+        var footerPart =
+            Assert.Single(mainPart.FooterParts);
+
+        var footer =
+            Assert.IsType<
+                DocumentFormat.OpenXml.Wordprocessing.Footer>(
+                    footerPart.Footer);
+
+        Assert.Contains(
+            "CONFIDENTIAL — VETERAN MEDICAL INFORMATION",
+            footer.InnerText);
+
+        Assert.Contains(
+            "Veterans Evidence Reviewer Report",
+            footer.InnerText);
+
+        var fieldInstructions =
+            footer
+                .Descendants<
+                    DocumentFormat.OpenXml.Wordprocessing.SimpleField>()
+                .Select(field => field.Instruction?.Value?.Trim())
+                .ToArray();
+
+        Assert.Contains("PAGE", fieldInstructions);
+        Assert.Contains("NUMPAGES", fieldInstructions);
+
+        var mainDocument =
+            Assert.IsType<
+                DocumentFormat.OpenXml.Wordprocessing.Document>(
+                    mainPart.Document);
+
+        var sectionProperties =
+            Assert.Single(
+                mainDocument
+                    .Body!
+                    .Elements<
+                        DocumentFormat.OpenXml.Wordprocessing.SectionProperties>());
+
+        var footerReference =
+            Assert.Single(
+                sectionProperties.Elements<
+                    DocumentFormat.OpenXml.Wordprocessing.FooterReference>());
+
+        Assert.Equal(
+            mainPart.GetIdOfPart(footerPart),
+            footerReference.Id?.Value);
+    }
+
+
+    [Fact]
     public void Render_SpacesDocumentAndSectionHeadings()
     {
         var packageId =

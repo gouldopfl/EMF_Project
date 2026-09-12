@@ -47,6 +47,15 @@ public static class VeteransReviewerPackageDocxRenderer
             var mainPart =
                 document.AddMainDocumentPart();
 
+            var footerPart =
+                mainPart.AddNewPart<FooterPart>();
+
+            footerPart.Footer =
+                ReviewerFooter();
+
+            var footerRelationshipId =
+                mainPart.GetIdOfPart(footerPart);
+
             var body =
                 new Body(
                     ConfidentialParagraph(),
@@ -102,12 +111,18 @@ public static class VeteransReviewerPackageDocxRenderer
 
             body.Append(
                 new SectionProperties(
+                    new FooterReference
+                    {
+                        Type = HeaderFooterValues.Default,
+                        Id = footerRelationshipId
+                    },
                     new PageMargin
                     {
                         Top = 1440,
                         Right = 1440U,
                         Bottom = 1440,
-                        Left = 1440U
+                        Left = 1440U,
+                        Footer = 720U
                     }));
 
             mainPart.Document =
@@ -936,6 +951,93 @@ public static class VeteransReviewerPackageDocxRenderer
                 "Appendix E — Medical / Scientific Literature",
             _ => appendix
         };
+
+    private static Footer ReviewerFooter()
+    {
+        var properties =
+            new ParagraphProperties(
+                new Justification
+                {
+                    Val = JustificationValues.Center
+                },
+                new SpacingBetweenLines
+                {
+                    Before = "120"
+                });
+
+        var paragraph =
+            new Paragraph(properties);
+
+        paragraph.Append(
+            FooterRun(
+                "CONFIDENTIAL — VETERAN MEDICAL INFORMATION",
+                bold: true),
+            FooterRun(
+                "  |  Veterans Evidence Reviewer Report  |  Page "),
+            FooterField("PAGE"),
+            FooterRun(" of "),
+            FooterField("NUMPAGES"));
+
+        return new Footer(paragraph);
+    }
+
+    private static Run FooterRun(
+        string text,
+        bool bold = false)
+    {
+        var properties =
+            FooterRunProperties(bold);
+
+        return new Run(
+            properties,
+            new Text(SanitizeXmlText(text))
+            {
+                Space = SpaceProcessingModeValues.Preserve
+            });
+    }
+
+    private static SimpleField FooterField(string instruction)
+    {
+        var field =
+            new SimpleField
+            {
+                Instruction = instruction
+            };
+
+        field.Append(
+            new Run(
+                FooterRunProperties(),
+                new Text("1")));
+
+        return field;
+    }
+
+    private static RunProperties FooterRunProperties(
+        bool bold = false)
+    {
+        var properties =
+            new RunProperties(
+                new RunFonts
+                {
+                    Ascii = "Aptos",
+                    HighAnsi = "Aptos"
+                });
+
+        if (bold)
+            properties.Append(new Bold());
+
+        properties.Append(
+            new Color
+            {
+                Val = "666666"
+            },
+            new FontSize
+            {
+                Val = "18"
+            });
+
+        return properties;
+    }
 
     private static Paragraph ConfidentialParagraph()
     {
