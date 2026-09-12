@@ -40,4 +40,15 @@ public interface IMedicalLiteratureRepository
             CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
+    Task AddReviewedClassificationAsync(
+        ReviewedMedicalLiteratureClassification classification,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+        GetReviewedClassificationsAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
 }

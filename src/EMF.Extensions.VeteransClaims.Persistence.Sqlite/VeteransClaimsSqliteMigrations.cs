@@ -1948,6 +1948,107 @@ internal static class VeteransClaimsSqliteMigrations
                 CREATE INDEX
                     IX_VeteransClaims_MedicalLiteratureSourceArtifacts_Artifact
                 ON VeteransClaims_MedicalLiteratureSourceArtifacts (ArtifactId);
+                """),
+            new VeteransClaimsSqliteMigration(
+                69,
+                "AddReviewedMedicalLiteratureClassifications",
+                """
+                CREATE TABLE
+                    VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    RequirementId TEXT NOT NULL,
+                    MedicalLiteratureSourceId TEXT NOT NULL,
+                    GuidanceRole TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    Description TEXT NOT NULL,
+                    PromotedBy TEXT NOT NULL,
+                    PromotedUtc TEXT NOT NULL,
+                    ReviewedBy TEXT NOT NULL,
+                    ReviewedUtc TEXT NOT NULL,
+                    IntelligenceOutput TEXT NOT NULL,
+                    CapabilityId TEXT NOT NULL,
+                    ProviderId TEXT NOT NULL,
+                    CorrelationId TEXT NOT NULL,
+                    EngineName TEXT NOT NULL,
+                    EngineVersion TEXT NULL,
+                    ProviderOperationId TEXT NULL,
+                    StartedUtc TEXT NOT NULL,
+                    CompletedUtc TEXT NOT NULL,
+                    RequiresReview INTEGER NOT NULL,
+                    WarningsJson TEXT NOT NULL,
+                    PRIMARY KEY (
+                        RequirementId,
+                        MedicalLiteratureSourceId,
+                        GuidanceRole,
+                        ArtifactId,
+                        CorrelationId
+                    ),
+                    FOREIGN KEY (
+                        RequirementId,
+                        MedicalLiteratureSourceId,
+                        GuidanceRole
+                    )
+                        REFERENCES VeteransClaims_RequirementMedicalLiterature (
+                            RequirementId,
+                            MedicalLiteratureSourceId,
+                            GuidanceRole
+                        ),
+                    FOREIGN KEY (
+                        MedicalLiteratureSourceId,
+                        ArtifactId
+                    )
+                        REFERENCES VeteransClaims_MedicalLiteratureSourceArtifacts (
+                            MedicalLiteratureSourceId,
+                            ArtifactId
+                        )
+                );
+
+                CREATE TABLE
+                    VeteransClaims_ReviewedMedicalLiteratureExcerpts (
+                    RequirementId TEXT NOT NULL,
+                    MedicalLiteratureSourceId TEXT NOT NULL,
+                    GuidanceRole TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    CorrelationId TEXT NOT NULL,
+                    ExcerptOrdinal INTEGER NOT NULL,
+                    Text TEXT NOT NULL,
+                    StartOffset INTEGER NULL,
+                    Length INTEGER NULL,
+                    PRIMARY KEY (
+                        RequirementId,
+                        MedicalLiteratureSourceId,
+                        GuidanceRole,
+                        ArtifactId,
+                        CorrelationId,
+                        ExcerptOrdinal
+                    ),
+                    FOREIGN KEY (
+                        RequirementId,
+                        MedicalLiteratureSourceId,
+                        GuidanceRole,
+                        ArtifactId,
+                        CorrelationId
+                    )
+                        REFERENCES
+                            VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                            RequirementId,
+                            MedicalLiteratureSourceId,
+                            GuidanceRole,
+                            ArtifactId,
+                            CorrelationId
+                        )
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ReviewedMedicalLiterature_Artifact
+                ON VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    ArtifactId
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ReviewedMedicalLiterature_Correlation
+                ON VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    CorrelationId
+                );
                 """)
         };
 }

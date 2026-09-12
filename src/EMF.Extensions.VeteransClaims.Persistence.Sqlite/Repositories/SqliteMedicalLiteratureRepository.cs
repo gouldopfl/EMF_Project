@@ -1,3 +1,4 @@
+using System.Text.Json;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
@@ -290,6 +291,458 @@ public sealed class SqliteMedicalLiteratureRepository :
                 new MedicalLiteratureSourceId(reader.GetString(0)));
 
         return results;
+    }
+
+    public async Task AddReviewedClassificationAsync(
+        ReviewedMedicalLiteratureClassification classification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(classification);
+        ArgumentNullException.ThrowIfNull(classification.Association);
+        ArgumentNullException.ThrowIfNull(classification.SourceExcerpts);
+
+        if (classification.SourceExcerpts.Any(
+                excerpt =>
+                    !excerpt.ArtifactId.Equals(
+                        classification.ArtifactId)))
+        {
+            throw new InvalidOperationException(
+                "Every reviewed excerpt must reference the classified artifact.");
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqliteTransaction)
+            await connection.BeginTransactionAsync(cancellationToken);
+
+        var association = classification.Association;
+
+        await using (var lookup = connection.CreateCommand())
+        {
+            lookup.Transaction = transaction;
+            lookup.CommandText = """
+                SELECT Description
+                FROM VeteransClaims_RequirementMedicalLiterature
+                WHERE RequirementId = $requirement
+                  AND MedicalLiteratureSourceId = $source
+                  AND GuidanceRole = $role;
+                """;
+            lookup.Parameters.AddWithValue(
+                "$requirement",
+                association.RequirementId.Value);
+            lookup.Parameters.AddWithValue(
+                "$source",
+                association.MedicalLiteratureSourceId.Value);
+            lookup.Parameters.AddWithValue(
+                "$role",
+                association.GuidanceRole);
+
+            var existing =
+                await lookup.ExecuteScalarAsync(cancellationToken);
+
+            if (existing is string existingDescription)
+            {
+                if (!string.Equals(
+                        existingDescription,
+                        association.Description,
+                        StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        "The accepted medical literature association has a conflicting description.");
+                }
+            }
+            else
+            {
+                await using var insertAssociation =
+                    connection.CreateCommand();
+                insertAssociation.Transaction = transaction;
+                insertAssociation.CommandText = """
+                    INSERT INTO VeteransClaims_RequirementMedicalLiterature
+                    (RequirementId, MedicalLiteratureSourceId,
+                     GuidanceRole, Description)
+                    VALUES ($requirement, $source, $role, $description);
+                    """;
+                insertAssociation.Parameters.AddWithValue(
+                    "$requirement",
+                    association.RequirementId.Value);
+                insertAssociation.Parameters.AddWithValue(
+                    "$source",
+                    association.MedicalLiteratureSourceId.Value);
+                insertAssociation.Parameters.AddWithValue(
+                    "$role",
+                    association.GuidanceRole);
+                insertAssociation.Parameters.AddWithValue(
+                    "$description",
+                    association.Description);
+
+                await insertAssociation.ExecuteNonQueryAsync(
+                    cancellationToken);
+            }
+        }
+
+        await using (var sourceArtifact = connection.CreateCommand())
+        {
+            sourceArtifact.Transaction = transaction;
+            sourceArtifact.CommandText = """
+                SELECT COUNT(*)
+                FROM VeteransClaims_MedicalLiteratureSourceArtifacts
+                WHERE MedicalLiteratureSourceId = $source
+                  AND ArtifactId = $artifact;
+                """;
+            sourceArtifact.Parameters.AddWithValue(
+                "$source",
+                association.MedicalLiteratureSourceId.Value);
+            sourceArtifact.Parameters.AddWithValue(
+                "$artifact",
+                classification.ArtifactId.Value);
+
+            var count = Convert.ToInt32(
+                await sourceArtifact.ExecuteScalarAsync(
+                    cancellationToken));
+
+            if (count != 1)
+            {
+                throw new InvalidOperationException(
+                    "The classified artifact must be associated with the medical literature source.");
+            }
+        }
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = """
+                INSERT INTO
+                    VeteransClaims_ReviewedMedicalLiteratureClassifications
+                (RequirementId, MedicalLiteratureSourceId, GuidanceRole,
+                 ArtifactId, Description, PromotedBy, PromotedUtc,
+                 ReviewedBy, ReviewedUtc, IntelligenceOutput,
+                 CapabilityId, ProviderId, CorrelationId, EngineName,
+                 EngineVersion, ProviderOperationId, StartedUtc,
+                 CompletedUtc, RequiresReview, WarningsJson)
+                VALUES
+                ($requirement, $source, $role, $artifact, $description,
+                 $promotedBy, $promotedUtc, $reviewedBy, $reviewedUtc,
+                 $output, $capability, $provider, $correlation, $engine,
+                 $engineVersion, $operation, $started, $completed,
+                 $requiresReview, $warnings);
+                """;
+
+            command.Parameters.AddWithValue(
+                "$requirement",
+                association.RequirementId.Value);
+            command.Parameters.AddWithValue(
+                "$source",
+                association.MedicalLiteratureSourceId.Value);
+            command.Parameters.AddWithValue(
+                "$role",
+                association.GuidanceRole);
+            command.Parameters.AddWithValue(
+                "$artifact",
+                classification.ArtifactId.Value);
+            command.Parameters.AddWithValue(
+                "$description",
+                association.Description);
+            command.Parameters.AddWithValue(
+                "$promotedBy",
+                classification.PromotedBy);
+            command.Parameters.AddWithValue(
+                "$promotedUtc",
+                classification.PromotedUtc.ToString("O"));
+            command.Parameters.AddWithValue(
+                "$reviewedBy",
+                classification.ReviewedBy);
+            command.Parameters.AddWithValue(
+                "$reviewedUtc",
+                classification.ReviewedUtc.ToString("O"));
+            command.Parameters.AddWithValue(
+                "$output",
+                classification.IntelligenceOutput);
+            command.Parameters.AddWithValue(
+                "$capability",
+                classification.CapabilityId);
+            command.Parameters.AddWithValue(
+                "$provider",
+                classification.ProviderId);
+            command.Parameters.AddWithValue(
+                "$correlation",
+                classification.CorrelationId);
+            command.Parameters.AddWithValue(
+                "$engine",
+                classification.EngineName);
+            command.Parameters.AddWithValue(
+                "$engineVersion",
+                (object?)classification.EngineVersion ?? DBNull.Value);
+            command.Parameters.AddWithValue(
+                "$operation",
+                (object?)classification.ProviderOperationId
+                    ?? DBNull.Value);
+            command.Parameters.AddWithValue(
+                "$started",
+                classification.StartedUtc.ToString("O"));
+            command.Parameters.AddWithValue(
+                "$completed",
+                classification.CompletedUtc.ToString("O"));
+            command.Parameters.AddWithValue(
+                "$requiresReview",
+                classification.RequiresReview ? 1 : 0);
+            command.Parameters.AddWithValue(
+                "$warnings",
+                JsonSerializer.Serialize(classification.Warnings));
+
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        for (var index = 0;
+             index < classification.SourceExcerpts.Count;
+             index++)
+        {
+            var excerpt = classification.SourceExcerpts[index];
+
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = """
+                INSERT INTO
+                    VeteransClaims_ReviewedMedicalLiteratureExcerpts
+                (RequirementId, MedicalLiteratureSourceId, GuidanceRole,
+                 ArtifactId, CorrelationId, ExcerptOrdinal, Text,
+                 StartOffset, Length)
+                VALUES
+                ($requirement, $source, $role, $artifact, $correlation,
+                 $ordinal, $text, $startOffset, $length);
+                """;
+            command.Parameters.AddWithValue(
+                "$requirement",
+                association.RequirementId.Value);
+            command.Parameters.AddWithValue(
+                "$source",
+                association.MedicalLiteratureSourceId.Value);
+            command.Parameters.AddWithValue(
+                "$role",
+                association.GuidanceRole);
+            command.Parameters.AddWithValue(
+                "$artifact",
+                classification.ArtifactId.Value);
+            command.Parameters.AddWithValue(
+                "$correlation",
+                classification.CorrelationId);
+            command.Parameters.AddWithValue("$ordinal", index);
+            command.Parameters.AddWithValue("$text", excerpt.Text);
+            command.Parameters.AddWithValue(
+                "$startOffset",
+                (object?)excerpt.StartOffset ?? DBNull.Value);
+            command.Parameters.AddWithValue(
+                "$length",
+                (object?)excerpt.Length ?? DBNull.Value);
+
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+        GetReviewedClassificationsAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var rows = new List<ReviewedClassificationRow>();
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                SELECT RequirementId, MedicalLiteratureSourceId,
+                       GuidanceRole, ArtifactId, Description,
+                       PromotedBy, PromotedUtc, ReviewedBy, ReviewedUtc,
+                       IntelligenceOutput, CapabilityId, ProviderId,
+                       CorrelationId, EngineName, EngineVersion,
+                       ProviderOperationId, StartedUtc, CompletedUtc,
+                       RequiresReview, WarningsJson
+                FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
+                WHERE RequirementId = $requirement
+                ORDER BY MedicalLiteratureSourceId, GuidanceRole,
+                         ArtifactId, CorrelationId;
+                """;
+            command.Parameters.AddWithValue(
+                "$requirement",
+                requirementId.Value);
+
+            await using var reader =
+                await command.ExecuteReaderAsync(cancellationToken);
+
+            while (await reader.ReadAsync(cancellationToken))
+                rows.Add(ReadReviewedClassificationRow(reader));
+        }
+
+        var results =
+            new List<ReviewedMedicalLiteratureClassification>(
+                rows.Count);
+
+        foreach (var row in rows)
+        {
+            var excerpts =
+                new List<MedicalLiteratureSourceExcerpt>();
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT ArtifactId, Text, StartOffset, Length
+                FROM VeteransClaims_ReviewedMedicalLiteratureExcerpts
+                WHERE RequirementId = $requirement
+                  AND MedicalLiteratureSourceId = $source
+                  AND GuidanceRole = $role
+                  AND ArtifactId = $artifact
+                  AND CorrelationId = $correlation
+                ORDER BY ExcerptOrdinal;
+                """;
+            command.Parameters.AddWithValue(
+                "$requirement",
+                row.RequirementId.Value);
+            command.Parameters.AddWithValue(
+                "$source",
+                row.MedicalLiteratureSourceId.Value);
+            command.Parameters.AddWithValue(
+                "$role",
+                row.GuidanceRole);
+            command.Parameters.AddWithValue(
+                "$artifact",
+                row.ArtifactId.Value);
+            command.Parameters.AddWithValue(
+                "$correlation",
+                row.CorrelationId);
+
+            await using var reader =
+                await command.ExecuteReaderAsync(cancellationToken);
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                excerpts.Add(
+                    new MedicalLiteratureSourceExcerpt
+                    {
+                        ArtifactId =
+                            new ArtifactId(reader.GetString(0)),
+                        Text = reader.GetString(1),
+                        StartOffset =
+                            reader.IsDBNull(2)
+                                ? null
+                                : reader.GetInt32(2),
+                        Length =
+                            reader.IsDBNull(3)
+                                ? null
+                                : reader.GetInt32(3)
+                    });
+            }
+
+            results.Add(
+                new ReviewedMedicalLiteratureClassification
+                {
+                    Association =
+                        new RequirementMedicalLiterature
+                        {
+                            RequirementId = row.RequirementId,
+                            MedicalLiteratureSourceId =
+                                row.MedicalLiteratureSourceId,
+                            GuidanceRole = row.GuidanceRole,
+                            Description = row.Description
+                        },
+                    ArtifactId = row.ArtifactId,
+                    PromotedBy = row.PromotedBy,
+                    PromotedUtc = row.PromotedUtc,
+                    ReviewedBy = row.ReviewedBy,
+                    ReviewedUtc = row.ReviewedUtc,
+                    IntelligenceOutput = row.IntelligenceOutput,
+                    CapabilityId = row.CapabilityId,
+                    ProviderId = row.ProviderId,
+                    CorrelationId = row.CorrelationId,
+                    EngineName = row.EngineName,
+                    EngineVersion = row.EngineVersion,
+                    ProviderOperationId = row.ProviderOperationId,
+                    StartedUtc = row.StartedUtc,
+                    CompletedUtc = row.CompletedUtc,
+                    RequiresReview = row.RequiresReview,
+                    Warnings = row.Warnings,
+                    SourceExcerpts = excerpts
+                });
+        }
+
+        return results;
+    }
+
+    private static ReviewedClassificationRow
+        ReadReviewedClassificationRow(SqliteDataReader reader) =>
+        new()
+        {
+            RequirementId = new RequirementId(reader.GetString(0)),
+            MedicalLiteratureSourceId =
+                new MedicalLiteratureSourceId(reader.GetString(1)),
+            GuidanceRole = reader.GetString(2),
+            ArtifactId = new ArtifactId(reader.GetString(3)),
+            Description = reader.GetString(4),
+            PromotedBy = reader.GetString(5),
+            PromotedUtc = DateTimeOffset.Parse(reader.GetString(6)),
+            ReviewedBy = reader.GetString(7),
+            ReviewedUtc = DateTimeOffset.Parse(reader.GetString(8)),
+            IntelligenceOutput = reader.GetString(9),
+            CapabilityId = reader.GetString(10),
+            ProviderId = reader.GetString(11),
+            CorrelationId = reader.GetString(12),
+            EngineName = reader.GetString(13),
+            EngineVersion =
+                reader.IsDBNull(14) ? null : reader.GetString(14),
+            ProviderOperationId =
+                reader.IsDBNull(15) ? null : reader.GetString(15),
+            StartedUtc = DateTimeOffset.Parse(reader.GetString(16)),
+            CompletedUtc = DateTimeOffset.Parse(reader.GetString(17)),
+            RequiresReview = reader.GetInt32(18) != 0,
+            Warnings =
+                JsonSerializer.Deserialize<string[]>(
+                    reader.GetString(19))
+                ?? Array.Empty<string>()
+        };
+
+    private sealed class ReviewedClassificationRow
+    {
+        public required RequirementId RequirementId { get; init; }
+
+        public required MedicalLiteratureSourceId
+            MedicalLiteratureSourceId { get; init; }
+
+        public required string GuidanceRole { get; init; }
+
+        public required ArtifactId ArtifactId { get; init; }
+
+        public required string Description { get; init; }
+
+        public required string PromotedBy { get; init; }
+
+        public required DateTimeOffset PromotedUtc { get; init; }
+
+        public required string ReviewedBy { get; init; }
+
+        public required DateTimeOffset ReviewedUtc { get; init; }
+
+        public required string IntelligenceOutput { get; init; }
+
+        public required string CapabilityId { get; init; }
+
+        public required string ProviderId { get; init; }
+
+        public required string CorrelationId { get; init; }
+
+        public required string EngineName { get; init; }
+
+        public string? EngineVersion { get; init; }
+
+        public string? ProviderOperationId { get; init; }
+
+        public required DateTimeOffset StartedUtc { get; init; }
+
+        public required DateTimeOffset CompletedUtc { get; init; }
+
+        public required bool RequiresReview { get; init; }
+
+        public required IReadOnlyList<string> Warnings { get; init; }
     }
 
     private static MedicalLiteratureSource ReadSource(
