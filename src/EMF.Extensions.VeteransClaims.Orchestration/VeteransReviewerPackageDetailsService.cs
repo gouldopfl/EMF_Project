@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using EMF.Core.Contracts;
 using EMF.Core.Models;
@@ -120,16 +121,30 @@ public sealed class VeteransReviewerPackageDetailsService
 
             artifacts.Add(artifact);
 
+            var isOscar =
+                artifact.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) &&
+                artifact.Name.Contains("OSCAR", StringComparison.OrdinalIgnoreCase);
+
             var text =
                 GetTextSummary(artifact);
 
-            if (string.IsNullOrWhiteSpace(text) &&
+            if ((isOscar || string.IsNullOrWhiteSpace(text)) &&
                 _textExtractor is not null)
             {
                 text =
                     await _textExtractor.ExtractTextAsync(
                         artifact.Id,
                         cancellationToken);
+            }
+
+            if (isOscar)
+            {
+                if (string.IsNullOrWhiteSpace(text))
+                    throw new InvalidOperationException(
+                        "OSCAR evidence has no extractable session data.");
+
+                text = PapTherapyReviewerFormatter.Format(
+                    Encoding.UTF8.GetBytes(text));
             }
 
             IReadOnlyList<PrintableArtifactPage> printablePages = [];
@@ -142,9 +157,16 @@ public sealed class VeteransReviewerPackageDetailsService
                 _printRenderer is not null)
             {
                 printablePages =
-                    await _printRenderer.RenderAsync(
-                        artifact.Id,
-                        cancellationToken);
+                    isOscar
+                        ? [new PrintableArtifactPage
+                        {
+                            PageNumber = 1,
+                            ContentType = "text/plain",
+                            Content = Encoding.UTF8.GetBytes(text!)
+                        }]
+                        : await _printRenderer.RenderAsync(
+                            artifact.Id,
+                            cancellationToken);
 
                 if (printablePages.Count == 0)
                 {

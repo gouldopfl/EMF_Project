@@ -689,6 +689,67 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_ReplacesOscarCsvWithPapAnalysis()
+    {
+        var packageId = new EvidencePackageId("package-oscar");
+
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId("artifact-oscar"),
+            Name = "OSCAR_Mike_Gould_by_Session_full.csv",
+            ArtifactType = "test"
+        };
+
+        const string csv =
+            "Date,Start,AHI,RDI,OA,UA,H,CA,RERA," +
+            "Pressure_Avg,Pressure_Min,Pressure_Max,Pressure_95th," +
+            "Leak_Avg,Leak_Max,Leak_95th,SpO2_Avg,SpO2_Min," +
+            "Pulse_Avg,Hours,Hours_Used,Machine\n" +
+            "2025-07-30,22:02:12,0.31,0,0,0,1,0,0," +
+            "8.89,6,15.84,13.18,0,0,0,,,," +
+            "0.7,0.7,AirCurve11ASV\n";
+
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var printRenderer = new RecordingPrintRenderer([]);
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService
+                {
+                    Details = CreateDetails(packageId, artifact.Id)
+                },
+                evidence,
+                new RecordingClassificationRepository(),
+                new RecordingTextExtractor(csv),
+                printRenderer);
+
+        var result = await service.GetAsync(packageId);
+
+        Assert.NotNull(result);
+
+        var content = Assert.Single(result.ArtifactContents);
+        var page = Assert.Single(content.PrintablePages);
+
+        Assert.Contains("PAP Therapy Analysis", content.Text);
+        Assert.Contains("Sessions: 1", content.Text);
+        Assert.DoesNotContain("Pressure_Avg", content.Text);
+        Assert.DoesNotContain("Hours_Used", content.Text);
+
+        var printable =
+            global::System.Text.Encoding.UTF8.GetString(
+                page.Content.Span);
+
+        Assert.Contains("PAP Therapy Analysis", printable);
+        Assert.Contains("Sessions: 1", printable);
+        Assert.DoesNotContain("Pressure_Avg", printable);
+        Assert.DoesNotContain("Hours_Used", printable);
+
+        Assert.Equal(0, printRenderer.CallCount);
+    }
+
+    [Fact]
     public async Task GetAsync_RejectsUnderlyingEvidenceWithoutPrintablePages()
     {
         var packageId = new EvidencePackageId("package-print-2");
