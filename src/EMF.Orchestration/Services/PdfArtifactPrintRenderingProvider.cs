@@ -94,7 +94,7 @@ public sealed class PdfArtifactPrintRenderingProvider :
 
         var pageIndex = 0;
 
-        foreach (var _ in document.GetPages())
+        foreach (var page in document.GetPages())
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -102,6 +102,14 @@ public sealed class PdfArtifactPrintRenderingProvider :
             {
                 throw new InvalidDataException(
                     "PDF exceeds the maximum printable page count.");
+            }
+
+            if (page.Letters.Count == 0 &&
+                page.NumberOfImages == 0 &&
+                page.Paths.Count == 0)
+            {
+                pageIndex++;
+                continue;
             }
 
             var image =

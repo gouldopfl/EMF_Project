@@ -553,7 +553,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 .InnerText;
 
         const string generatedHeading =
-            "Executive Evidence Summary";
+            "Executive Summary";
 
         const string evidenceHeading =
             "Evidence Index";
@@ -672,7 +672,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             paragraphs,
             paragraph =>
                 paragraph.InnerText ==
-                    "Executive Evidence Summary");
+                    "Executive Summary");
 
         Assert.Contains(
             paragraphs,
@@ -1070,7 +1070,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 paragraphs.Where(
                     paragraph =>
                         paragraph.InnerText ==
-                            "Executive Evidence Summary"));
+                            "Executive Summary"));
 
         Assert.Equal(
             "Title",
@@ -1370,7 +1370,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 paragraphs.Where(
                     paragraph =>
                         paragraph.InnerText ==
-                            "Executive Evidence Summary"));
+                            "Executive Summary"));
 
         Assert.Equal(
             "360",
@@ -1477,12 +1477,25 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                         DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                     .TakeWhile(
                         paragraph =>
-                            paragraph.InnerText !=
-                            "Appendix F — Evidence Traceability")
+                            !(paragraph.InnerText ==
+                                  "Appendix F — Evidence Traceability" &&
+                              string.Equals(
+                                  paragraph.ParagraphProperties?
+                                      .ParagraphStyleId?
+                                      .Val?
+                                      .Value,
+                                  "Heading1",
+                                  StringComparison.Ordinal)))
                     .Where(
                         paragraph =>
-                            paragraph.InnerText ==
-                            "Sleep Study"));
+                            paragraph.InnerText == "Sleep Study" &&
+                            string.Equals(
+                                paragraph.ParagraphProperties?
+                                    .ParagraphStyleId?
+                                    .Val?
+                                    .Value,
+                                "Heading2",
+                                StringComparison.Ordinal)));
 
         Assert.Equal(
             "Heading2",
@@ -1575,12 +1588,25 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                         DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                     .TakeWhile(
                         paragraph =>
-                            paragraph.InnerText !=
-                            "Appendix F — Evidence Traceability")
+                            !(paragraph.InnerText ==
+                                  "Appendix F — Evidence Traceability" &&
+                              string.Equals(
+                                  paragraph.ParagraphProperties?
+                                      .ParagraphStyleId?
+                                      .Val?
+                                      .Value,
+                                  "Heading1",
+                                  StringComparison.Ordinal)))
                     .Where(
                         paragraph =>
-                            paragraph.InnerText ==
-                            "Sleep Study"));
+                            paragraph.InnerText == "Sleep Study" &&
+                            string.Equals(
+                                paragraph.ParagraphProperties?
+                                    .ParagraphStyleId?
+                                    .Val?
+                                    .Value,
+                                "Heading2",
+                                StringComparison.Ordinal)));
 
         Assert.Equal(
             "120",
@@ -1653,11 +1679,18 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                 .Where(
                     paragraph =>
-                        paragraph.InnerText.StartsWith(
-                            "Purpose:",
-                            StringComparison.Ordinal) ||
-                        paragraph.InnerText.StartsWith(
-                            "Reviewer Role:",
+                        (paragraph.InnerText.StartsWith(
+                             "Purpose:",
+                             StringComparison.Ordinal) ||
+                         paragraph.InnerText.StartsWith(
+                             "Reviewer Role:",
+                             StringComparison.Ordinal)) &&
+                        string.Equals(
+                            paragraph.ParagraphProperties?
+                                .ParagraphStyleId?
+                                .Val?
+                                .Value,
+                            "Subtitle",
                             StringComparison.Ordinal))
                 .ToArray();
 
@@ -2133,7 +2166,10 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         var heading = document.MainDocumentPart!.Document!.Body!
             .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
-            .Single(x => x.InnerText == "Evidence Index");
+            .Single(
+                x =>
+                    x.InnerText == "Evidence Index" &&
+                    x.ParagraphProperties?.PageBreakBefore is not null);
 
         Assert.NotNull(
             heading.ParagraphProperties?.PageBreakBefore);
@@ -2540,11 +2576,105 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
     }
 
     [Fact]
-    public void Render_RejectsNonSequentialPrintablePages()
+    public void Render_ExplainsOmittedBlankPrintablePages()
     {
         var details =
             CreatePrintableDetails(
             [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 1,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                },
+                new PrintableArtifactPage
+                {
+                    PageNumber = 3,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                }
+            ],
+            "");
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var text = document.MainDocumentPart!.Document!.InnerText;
+
+        Assert.Contains(
+            "Source Page 2 was blank in the original document and is intentionally omitted from this reviewer copy.",
+            text);
+        Assert.Contains("Source Page 3", text);
+    }
+
+    [Fact]
+    public void Render_ExplainsLeadingOmittedBlankPrintablePage()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 2,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                }
+            ],
+            "");
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        Assert.Contains(
+            "Source Page 1 was blank in the original document and is intentionally omitted from this reviewer copy.",
+            document.MainDocumentPart!.Document!.InnerText);
+    }
+
+    [Fact]
+    public void Render_RejectsDuplicatePrintablePageNumbers()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 2,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                },
+                new PrintableArtifactPage
+                {
+                    PageNumber = 2,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                }
+            ],
+            "");
+
+        Assert.Throws<InvalidOperationException>(
+            () => VeteransReviewerPackageDocxRenderer.Render(details));
+    }
+
+    [Fact]
+    public void Render_RejectsDescendingPrintablePageNumbers()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 3,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                },
                 new PrintableArtifactPage
                 {
                     PageNumber = 2,

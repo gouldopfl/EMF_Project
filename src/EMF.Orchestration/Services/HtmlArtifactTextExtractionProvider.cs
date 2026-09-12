@@ -118,7 +118,7 @@ public sealed class HtmlArtifactTextExtractionProvider :
                 AppendBounded(builder, WebUtility.HtmlDecode(data.Data));
         }
 
-        return NormalizeText(builder.ToString());
+        return CleanExtractedText(builder.ToString());
     }
 
     private string? FindPreferredContainer(
@@ -176,6 +176,50 @@ public sealed class HtmlArtifactTextExtractionProvider :
         name.Equals("h4", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("h5", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("h6", StringComparison.OrdinalIgnoreCase);
+
+    private static string CleanExtractedText(string value)
+    {
+        var cleaned = NormalizeText(value);
+
+        var abstractIndex =
+            cleaned.IndexOf(
+                "Abstract",
+                StringComparison.OrdinalIgnoreCase);
+
+        if (abstractIndex > 0 && abstractIndex <= 4096)
+        {
+            var prefix = cleaned[..abstractIndex];
+
+            if (prefix.Contains(
+                    "Download PDF",
+                    StringComparison.OrdinalIgnoreCase) ||
+                prefix.Contains(
+                    "Outline",
+                    StringComparison.OrdinalIgnoreCase) ||
+                prefix.Contains(
+                    "Get Rights",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                cleaned = cleaned[abstractIndex..];
+            }
+        }
+
+        cleaned =
+            cleaned.Replace(
+                "Open table in a new tab",
+                string.Empty,
+                StringComparison.OrdinalIgnoreCase);
+
+        var metricsIndex =
+            cleaned.IndexOf(
+                "Article metrics",
+                StringComparison.OrdinalIgnoreCase);
+
+        if (metricsIndex >= 0)
+            cleaned = cleaned[..metricsIndex];
+
+        return NormalizeText(cleaned);
+    }
 
     private static string NormalizeText(string value) =>
         string.Join(

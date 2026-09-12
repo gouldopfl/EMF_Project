@@ -64,6 +64,36 @@ public sealed class HtmlArtifactTextExtractionProviderTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_RemovesArticleWebsiteChrome()
+    {
+        const string html =
+            "<html><body><article>" +
+            "<div>Download PDFDownload PDF Outline Share " +
+            "Get Rights Reprints Previous articleNext article</div>" +
+            "<p>Abstract Objectives Clinically relevant evidence.</p>" +
+            "<p>Open table in a new tab</p>" +
+            "<p>References Medical reference content.</p>" +
+            "<p>Article metrics Related Articles author search tools</p>" +
+            "</article></body></html>";
+
+        var provider =
+            new HtmlArtifactTextExtractionProvider(
+                new StubContentStore(
+                    Encoding.UTF8.GetBytes(html)));
+
+        var text =
+            await provider.ExtractTextAsync(
+                new ArtifactId("article-chrome"));
+
+        Assert.StartsWith("Abstract", text);
+        Assert.Contains("Clinically relevant evidence.", text);
+        Assert.Contains("Medical reference content.", text);
+        Assert.DoesNotContain("Download PDF", text);
+        Assert.DoesNotContain("Open table in a new tab", text);
+        Assert.DoesNotContain("Article metrics", text);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_RejectsOversizedInput()
     {
         var provider =

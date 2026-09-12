@@ -204,6 +204,12 @@ public sealed class VeteransReviewerPackageDetailsService
                     "returned an unrelated artifact relationship.");
             }
 
+            var sourceName =
+                await GetReviewerSourceNameAsync(
+                    artifact.Id,
+                    relationships,
+                    cancellationToken);
+
             var appendix =
                 await GetAppendixAsync(
                     artifact.Id,
@@ -230,6 +236,7 @@ public sealed class VeteransReviewerPackageDetailsService
                     Provenance = provenance,
                     Relationships = relationships,
                     Appendix = appendix,
+                    SourceName = sourceName,
                     ReviewedMedicalLiteratureClassifications =
                         reviewedMedicalLiteratureClassifications
                 });
@@ -311,6 +318,58 @@ public sealed class VeteransReviewerPackageDetailsService
                 StringComparer.Ordinal)
             .ThenBy(item => item.ReviewedUtc)
             .ToArray();
+    }
+
+    private async Task<string?> GetReviewerSourceNameAsync(
+        EMF.Core.Models.Identities.ArtifactId artifactId,
+        IReadOnlyList<Relationship> relationships,
+        CancellationToken cancellationToken)
+    {
+        var derivedFrom =
+            relationships
+                .Where(
+                    relationship =>
+                        relationship.SourceArtifactId == artifactId &&
+                        string.Equals(
+                            relationship.RelationshipType,
+                            RelationshipTypes.DerivedFrom,
+                            StringComparison.Ordinal))
+                .ToArray();
+
+        if (derivedFrom.Length > 1)
+            throw new InvalidOperationException(
+                $"Reviewer evidence artifact '{artifactId.Value}' has " +
+                "ambiguous source provenance.");
+
+        if (derivedFrom.Length == 0)
+            return null;
+
+        var parent =
+            await _evidence.GetArtifactAsync(
+                derivedFrom[0].TargetArtifactId,
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"Reviewer evidence source artifact " +
+                $"'{derivedFrom[0].TargetArtifactId.Value}' was not found.");
+
+        return GetHumanSourceName(parent);
+    }
+
+    private static string GetHumanSourceName(Artifact artifact)
+    {
+        var name = artifact.Name;
+
+        if (name.Contains(
+                "Blue-Button",
+                StringComparison.OrdinalIgnoreCase) ||
+            name.Contains(
+                "Blue Button",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "VA Blue Button Report";
+        }
+
+        return name;
     }
 
     private async Task<Artifact> GetReviewerArtifactAsync(
@@ -406,27 +465,78 @@ public sealed class VeteransReviewerPackageDetailsService
         if (_classifications is null)
             return null;
 
-        var classifications =
-            await _classifications.GetEvidenceClassificationsAsync(
-                artifactId,
-                cancellationToken);
-
-        if (classifications.Any(x => x.ArtifactId != artifactId))
-            throw new InvalidOperationException(
-                $"Artifact '{artifactId.Value}' classification lookup returned a different artifact.");
-
+        var visited =
+            new HashSet<EMF.Core.Models.Identities.ArtifactId>();
         var appendixes =
-            classifications
-            .Select(x =>
-                VeteransReviewerPackageAppendix.GetAppendix(
-                    x.Classification))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+            new HashSet<string>(StringComparer.Ordinal);
+        var current = artifactId;
 
-        return appendixes.Length switch
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!visited.Add(current))
+                throw new InvalidOperationException(
+                    "Reviewer appendix supersession cycle detected.");
+
+            var classifications =
+                await _classifications.GetEvidenceClassificationsAsync(
+                    current,
+                    cancellationToken);
+
+            if (classifications.Any(x => x.ArtifactId != current))
+                throw new InvalidOperationException(
+                    $"Artifact '{current.Value}' classification lookup " +
+                    "returned a different artifact.");
+
+            foreach (var classification in classifications)
+            {
+                appendixes.Add(
+                    VeteransReviewerPackageAppendix.GetAppendix(
+                        classification.Classification));
+            }
+
+            var relationships =
+                await _evidence.GetRelationshipsAsync(
+                    current,
+                    cancellationToken);
+
+            if (relationships.Any(
+                    relationship =>
+                        relationship.SourceArtifactId != current &&
+                        relationship.TargetArtifactId != current))
+            {
+                throw new InvalidOperationException(
+                    $"Artifact '{current.Value}' relationship lookup " +
+                    "returned an unrelated artifact relationship.");
+            }
+
+            var predecessors =
+                relationships
+                    .Where(
+                        relationship =>
+                            relationship.SourceArtifactId == current &&
+                            string.Equals(
+                                relationship.RelationshipType,
+                                RelationshipTypes.Supersedes,
+                                StringComparison.Ordinal))
+                    .ToArray();
+
+            if (predecessors.Length == 0)
+                break;
+
+            if (predecessors.Length > 1)
+                throw new InvalidOperationException(
+                    $"Artifact '{current.Value}' has invalid multiple " +
+                    "supersession predecessors.");
+
+            current = predecessors[0].TargetArtifactId;
+        }
+
+        return appendixes.Count switch
         {
             0 => null,
-            1 => appendixes[0],
+            1 => appendixes.Single(),
             _ => throw new InvalidOperationException(
                 $"Artifact '{artifactId.Value}' maps to multiple reviewer appendixes.")
         };

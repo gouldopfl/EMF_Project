@@ -72,6 +72,14 @@ public static class VeteransReviewerPackageDocxRenderer
                 body,
                 details);
 
+            body.Append(PageBreakParagraph());
+
+            AppendPackageGuide(
+                body,
+                details);
+
+            body.Append(PageBreakParagraph());
+
             AppendReviewScope(
                 body,
                 details);
@@ -293,28 +301,172 @@ public static class VeteransReviewerPackageDocxRenderer
         Body body,
         VeteransReviewerPackageDetails details)
     {
-        var contents =
+        var package =
+            details.PackageDetails.Package;
+
+        var sourceCount =
             GetRoleContents(
                 details,
-                EvidencePackageContentRoles.GeneratedOrganizationalMaterial);
-
-        if (contents.Count == 0)
-            return;
+                EvidencePackageContentRoles.UnderlyingEvidence).Count;
 
         body.Append(
             StyledParagraph(
-                "Executive Evidence Summary",
+                "Executive Summary",
                 "Heading1"));
 
-        foreach (var content in contents)
+        body.Append(
+            StyledParagraph(
+                "Purpose of This Document",
+                "Heading2"));
+
+        body.Append(
+            ContentParagraph(
+                $"Purpose: {package.Purpose}. This package organizes the evidence " +
+                "supplied for independent medical review and is intended to help the " +
+                "reviewing medical professional locate and evaluate the relevant " +
+                "medical, lay, adjudicative, treatment-device, and medical/scientific " +
+                "evidence efficiently. It does not make a medical, legal, or " +
+                "adjudicative conclusion."));
+
+        body.Append(
+            StyledParagraph(
+                "How to Use This Package",
+                "Heading2"));
+
+        body.Append(
+            ContentParagraph(
+                "Review the Issues Presented for Medical Review and Questions for the " +
+                "Reviewing Physician first. Use the Key Evidence and Chronology for " +
+                "orientation to the principal medical evidence, then use the Evidence " +
+                "Index and appendices to review the underlying source material. " +
+                "Medical/scientific literature is reproduced in Appendix E, and " +
+                "Appendix F provides reviewer-facing source traceability."));
+
+        body.Append(
+            StyledParagraph(
+                "Reviewer Guidance",
+                "Heading2"));
+
+        body.Append(
+            ContentParagraph(
+                "Base any opinion on the evidence supplied, identify the specific " +
+                "records and medical/scientific literature relied upon, address " +
+                "medically applicable causation and aggravation questions separately, " +
+                "and explain the medical rationale for each opinion."));
+
+        body.Append(
+            ContentParagraph(
+                $"Evidence sources supplied for review: {sourceCount}."));
+    }
+
+    private static void AppendPackageGuide(
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        body.Append(
+            StyledParagraph(
+                "Package Guide",
+                "Heading1"));
+
+        AppendPackageGuideEntry(
+            body,
+            "Issues Presented for Medical Review",
+            "Defines the review purpose, reviewer role, evidence scope, and limitations.");
+
+        AppendPackageGuideEntry(
+            body,
+            "Key Evidence and Chronology",
+            "Provides chronological orientation to the principal medical evidence.");
+
+        AppendPackageGuideEntry(
+            body,
+            "Medical / Scientific Literature Considered",
+            "Identifies literature supplied for consideration during the medical review.");
+
+        AppendPackageGuideEntry(
+            body,
+            "Questions for the Reviewing Physician",
+            "Lists the medical questions the reviewing physician is asked to address.");
+
+        AppendPackageGuideEntry(
+            body,
+            "Evidence Index",
+            "Provides a human-readable listing of the evidence sources in the package.");
+
+        var appendices =
+            GetRoleContents(
+                    details,
+                    EvidencePackageContentRoles.UnderlyingEvidence)
+                .Where(content => content.Appendix is not null)
+                .Select(content => content.Appendix!)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(AppendixOrder)
+                .ToArray();
+
+        foreach (var appendix in appendices)
         {
-            if (!string.IsNullOrWhiteSpace(content.Text))
-            {
-                AppendReviewerText(
-                    body,
-                    content.Text);
-            }
+            var description =
+                appendix switch
+                {
+                    VeteransReviewerPackageAppendix.MedicalEvidence =>
+                        "Contains clinical notes, diagnostic reports, treatment records, and related medical evidence.",
+                    VeteransReviewerPackageAppendix.ServiceRecords =>
+                        "Contains relevant military service and service-treatment evidence.",
+                    VeteransReviewerPackageAppendix.LayEvidence =>
+                        "Contains statements and observations from the veteran and other lay witnesses.",
+                    VeteransReviewerPackageAppendix.AdjudicativeRecords =>
+                        "Contains relevant VA decisions and adjudicative records.",
+                    VeteransReviewerPackageAppendix.MedicalLiterature =>
+                        "Contains the medical/scientific literature supplied for review.",
+                    _ =>
+                        "Contains supporting evidence supplied for review."
+                };
+
+            AppendPackageGuideEntry(
+                body,
+                AppendixHeading(appendix),
+                description);
         }
+
+        AppendPackageGuideEntry(
+            body,
+            "Appendix F — Evidence Traceability",
+            "Provides human-readable reviewer-facing source traceability while internal technical provenance remains within EMF.");
+    }
+
+    private static void AppendPackageGuideEntry(
+        Body body,
+        string title,
+        string description)
+    {
+        body.Append(
+            StyledParagraph(
+                title,
+                "Heading2"));
+
+        body.Append(
+            new Paragraph(
+                new ParagraphProperties(
+                    new SpacingBetweenLines
+                    {
+                        After = "240"
+                    },
+                    new KeepLines()),
+                new Run(
+                    new RunProperties(
+                        new RunFonts
+                        {
+                            Ascii = "Cambria",
+                            HighAnsi = "Cambria"
+                        },
+                        new FontSize
+                        {
+                            Val = "24"
+                        }),
+                    new Text(SanitizeXmlText(description))
+                    {
+                        Space = SpaceProcessingModeValues.Preserve
+                    })));
     }
 
     private static void AppendReviewScope(
@@ -737,14 +889,16 @@ public static class VeteransReviewerPackageDocxRenderer
                     keepWithNext: true));
         }
 
+        var sourceName = GetSourceName(content);
+
         if (!string.Equals(
                 displayName,
-                content.Artifact.Name,
+                sourceName,
                 StringComparison.OrdinalIgnoreCase))
         {
             body.Append(
                 ContentParagraph(
-                    $"Source: {content.Artifact.Name}",
+                    $"Source: {sourceName}",
                     keepWithNext: true));
         }
 
@@ -759,9 +913,21 @@ public static class VeteransReviewerPackageDocxRenderer
 
         if (!string.IsNullOrWhiteSpace(content.Text))
         {
-            AppendReviewerText(
-                body,
-                content.Text);
+            if (string.Equals(
+                    content.Appendix,
+                    VeteransReviewerPackageAppendix.MedicalLiterature,
+                    StringComparison.Ordinal))
+            {
+                AppendMedicalLiteratureText(
+                    body,
+                    content.Text);
+            }
+            else
+            {
+                AppendReviewerText(
+                    body,
+                    content.Text);
+            }
         }
     }
 
@@ -794,6 +960,16 @@ public static class VeteransReviewerPackageDocxRenderer
             body.Append(
                 ContentParagraph(
                     $"Category: {TraceabilityCategory(content)}"));
+
+            var sourceName = GetSourceName(content);
+            if (!string.Equals(
+                    GetDisplayName(content),
+                    sourceName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                body.Append(
+                    ContentParagraph($"Source: {sourceName}"));
+            }
 
             var date = GetEvidenceDate(content);
             if (!string.IsNullOrWhiteSpace(date))
@@ -925,6 +1101,12 @@ public static class VeteransReviewerPackageDocxRenderer
                 "Clarifies",
             _ => role
         };
+
+    private static string GetSourceName(
+        VeteransReviewerArtifactContent content) =>
+        !string.IsNullOrWhiteSpace(content.SourceName)
+            ? content.SourceName
+            : content.Artifact.Name;
 
     private static string GetDisplayName(
         VeteransReviewerArtifactContent content)
@@ -1160,8 +1342,8 @@ public static class VeteransReviewerPackageDocxRenderer
             new RunProperties(
                 new RunFonts
                 {
-                    Ascii = "Aptos",
-                    HighAnsi = "Aptos"
+                    Ascii = "Cambria",
+                    HighAnsi = "Cambria"
                 });
 
         if (bold)
@@ -1174,7 +1356,7 @@ public static class VeteransReviewerPackageDocxRenderer
             },
             new FontSize
             {
-                Val = "18"
+                Val = "20"
             });
 
         return properties;
@@ -1200,13 +1382,13 @@ public static class VeteransReviewerPackageDocxRenderer
                 new RunProperties(
                     new RunFonts
                     {
-                        Ascii = "Aptos",
-                        HighAnsi = "Aptos"
+                        Ascii = "Cambria",
+                        HighAnsi = "Cambria"
                     },
                     new Bold(),
                     new FontSize
                     {
-                        Val = "32"
+                        Val = "36"
                     }),
                 new Text(
                     "CONFIDENTIAL — VETERAN MEDICAL INFORMATION")));
@@ -1310,8 +1492,8 @@ public static class VeteransReviewerPackageDocxRenderer
             new RunProperties(
                 new RunFonts
                 {
-                    Ascii = "Aptos",
-                    HighAnsi = "Aptos"
+                    Ascii = "Cambria",
+                    HighAnsi = "Cambria"
                 });
 
         if (string.Equals(
@@ -1321,7 +1503,7 @@ public static class VeteransReviewerPackageDocxRenderer
         {
             properties.Append(new Bold());
             properties.Append(new Color { Val = "1F4E79" });
-            properties.Append(new FontSize { Val = "36" });
+            properties.Append(new FontSize { Val = "40" });
         }
         else if (string.Equals(
                      styleId,
@@ -1330,7 +1512,7 @@ public static class VeteransReviewerPackageDocxRenderer
         {
             properties.Append(new Bold());
             properties.Append(new Color { Val = "1F4E79" });
-            properties.Append(new FontSize { Val = "28" });
+            properties.Append(new FontSize { Val = "32" });
         }
         else if (string.Equals(
                      styleId,
@@ -1339,7 +1521,7 @@ public static class VeteransReviewerPackageDocxRenderer
         {
             properties.Append(new Bold());
             properties.Append(new Color { Val = "365F91" });
-            properties.Append(new FontSize { Val = "22" });
+            properties.Append(new FontSize { Val = "26" });
         }
         else if (string.Equals(
                      styleId,
@@ -1347,7 +1529,7 @@ public static class VeteransReviewerPackageDocxRenderer
                      StringComparison.Ordinal))
         {
             properties.Append(new Color { Val = "666666" });
-            properties.Append(new FontSize { Val = "22" });
+            properties.Append(new FontSize { Val = "24" });
         }
 
         return properties;
@@ -1402,12 +1584,12 @@ public static class VeteransReviewerPackageDocxRenderer
                 new RunProperties(
                     new RunFonts
                     {
-                        Ascii = "Aptos",
-                        HighAnsi = "Aptos"
+                        Ascii = "Cambria",
+                        HighAnsi = "Cambria"
                     },
                     new FontSize
                     {
-                        Val = "20"
+                        Val = "24"
                     }),
                 new Text(SanitizeXmlText(text))
                 {
@@ -1449,12 +1631,12 @@ public static class VeteransReviewerPackageDocxRenderer
                         new RunProperties(
                             new RunFonts
                             {
-                                Ascii = "Aptos",
-                                HighAnsi = "Aptos"
+                                Ascii = "Cambria",
+                                HighAnsi = "Cambria"
                             },
                             new FontSize
                             {
-                                Val = "20"
+                                Val = "24"
                             }),
                         new Text(SanitizeXmlText(line))
                         {
@@ -1462,6 +1644,111 @@ public static class VeteransReviewerPackageDocxRenderer
                                 SpaceProcessingModeValues.Preserve
                         })));
         }
+    }
+
+    private static void AppendMedicalLiteratureText(
+        Body body,
+        string text)
+    {
+        foreach (var line in NormalizeReviewerText(text))
+        {
+            if (line.Length == 0)
+                continue;
+
+            var heading =
+                IsMedicalLiteratureHeadingLine(line);
+
+            var properties =
+                new ParagraphProperties(
+                    new SpacingBetweenLines
+                    {
+                        Before = heading ? "160" : "0",
+                        After = heading ? "80" : "120",
+                        Line = heading ? "240" : "276",
+                        LineRule = LineSpacingRuleValues.Auto
+                    });
+
+            properties.Append(new KeepLines());
+
+            if (heading)
+                properties.Append(new KeepNext());
+
+            var runProperties =
+                new RunProperties(
+                    new RunFonts
+                    {
+                        Ascii = "Cambria",
+                        HighAnsi = "Cambria"
+                    },
+                    new FontSize
+                    {
+                        Val = "24"
+                    });
+
+            if (heading)
+                runProperties.Append(new Bold());
+
+            body.Append(
+                new Paragraph(
+                    properties,
+                    new Run(
+                        runProperties,
+                        new Text(SanitizeXmlText(line))
+                        {
+                            Space =
+                                SpaceProcessingModeValues.Preserve
+                        })));
+        }
+    }
+
+    private static bool IsMedicalLiteratureHeadingLine(
+        string line)
+    {
+        var heading =
+            line.Trim().TrimEnd(':');
+
+        return heading.Equals(
+                   "Abstract",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "Introduction",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "Background",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "Methods",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "Materials and Methods",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "Results",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "Discussion",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "Conclusion",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "Conclusions",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "References",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "Acknowledgments",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "Funding",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "Disclosures",
+                   StringComparison.OrdinalIgnoreCase) ||
+               heading.Equals(
+                   "Keywords",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     private static IReadOnlyList<string> NormalizeReviewerText(
@@ -1607,16 +1894,36 @@ public static class VeteransReviewerPackageDocxRenderer
         Body body,
         IReadOnlyList<EMF.Core.Models.PrintableArtifactPage> pages)
     {
-        var expectedPageNumber = 1;
+        var previousPageNumber = 0;
+        var renderedPageCount = 0;
 
         foreach (var page in pages)
         {
-            if (page.PageNumber != expectedPageNumber)
+            if (page.PageNumber <= 0 ||
+                page.PageNumber <= previousPageNumber)
+            {
                 throw new InvalidOperationException(
-                    "Printable artifact pages are not in sequential order.");
+                    "Printable artifact pages must be in strictly increasing order.");
+            }
 
-            if (expectedPageNumber > 1)
+            if (renderedPageCount > 0)
                 body.Append(PageBreakParagraph());
+
+            if (page.PageNumber > previousPageNumber + 1)
+            {
+                var firstBlankPage = previousPageNumber + 1;
+                var lastBlankPage = page.PageNumber - 1;
+
+                var blankPageNotice =
+                    firstBlankPage == lastBlankPage
+                        ? $"Source Page {firstBlankPage} was blank in the original document and is intentionally omitted from this reviewer copy."
+                        : $"Source Pages {firstBlankPage}-{lastBlankPage} were blank in the original document and are intentionally omitted from this reviewer copy.";
+
+                body.Append(
+                    ContentParagraph(
+                        blankPageNotice,
+                        keepWithNext: true));
+            }
 
             if (string.Equals(
                     page.ContentType,
@@ -1631,7 +1938,8 @@ public static class VeteransReviewerPackageDocxRenderer
                 AppendReviewerText(
                     body,
                     DecodePrintableText(page.Content));
-                expectedPageNumber++;
+                previousPageNumber = page.PageNumber;
+            renderedPageCount++;
                 continue;
             }
 
@@ -1682,7 +1990,8 @@ public static class VeteransReviewerPackageDocxRenderer
                     cx,
                     cy));
 
-            expectedPageNumber++;
+            previousPageNumber = page.PageNumber;
+            renderedPageCount++;
         }
     }
 
@@ -1825,6 +2134,9 @@ public static class VeteransReviewerPackageDocxRenderer
 
     private static string SanitizeXmlText(string text)
     {
+        text =
+            VeteransReviewerPackagePrivacySanitizer.Redact(text);
+
         var sanitized = new StringBuilder(text.Length);
 
         foreach (var rune in text.EnumerateRunes())

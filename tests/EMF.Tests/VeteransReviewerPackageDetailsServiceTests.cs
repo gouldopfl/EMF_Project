@@ -63,6 +63,9 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         var evidence = new InMemoryEvidenceRepository();
         await evidence.AddArtifactAsync(artifact);
 
+        var sourceArtifact = CreateArtifact("derived-1");
+        await evidence.AddArtifactAsync(sourceArtifact);
+
         await evidence.AddRelationshipAsync(
             new Relationship
             {

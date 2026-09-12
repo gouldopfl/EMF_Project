@@ -134,7 +134,50 @@ public sealed class PdfArtifactPrintRenderingProviderTests
                 cancellation.Token));
     }
 
+    [Fact]
+    public async Task RenderAsync_OmitsTrulyBlankPages()
+    {
+        var provider =
+            new PdfArtifactPrintRenderingProvider(
+                new StubContentStore(CreateBlankPdf(1)),
+                new StubPageRenderer());
+
+        var pages =
+            await provider.RenderAsync(
+                new ArtifactId("artifact-blank-pdf"));
+
+        Assert.Empty(pages);
+    }
+
     private static byte[] CreatePdf(int pageCount)
+    {
+        using var output = new MemoryStream();
+
+        using (var document =
+            SkiaSharp.SKDocument.CreatePdf(output))
+        {
+            using var paint =
+                new SkiaSharp.SKPaint
+                {
+                    Color = SkiaSharp.SKColors.Black,
+                    StrokeWidth = 1,
+                    Style = SkiaSharp.SKPaintStyle.Stroke
+                };
+
+            for (var i = 0; i < pageCount; i++)
+            {
+                var canvas = document.BeginPage(72, 72);
+                canvas.DrawLine(8, 8, 64, 64, paint);
+                document.EndPage();
+            }
+
+            document.Close();
+        }
+
+        return output.ToArray();
+    }
+
+    private static byte[] CreateBlankPdf(int pageCount)
     {
         using var output = new MemoryStream();
 
