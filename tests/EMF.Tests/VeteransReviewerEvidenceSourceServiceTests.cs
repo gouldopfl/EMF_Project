@@ -183,6 +183,76 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_PreservesIndependentLayEvidenceWhenClassifiedArtifactIsSuperseded()
+    {
+        var spouseId = new ArtifactId("statement-spouse");
+        var personalV1Id = new ArtifactId("statement-personal-v1");
+        var personalV2Id = new ArtifactId("statement-personal-v2");
+        var details = CreateDetails();
+
+        var classifications =
+            new[]
+            {
+                new EvidenceClassification
+                {
+                    Id = new EvidenceClassificationId("classification-spouse"),
+                    ArtifactId = spouseId,
+                    ClaimIssueId = details.ClaimIssue.Id,
+                    Classification = EvidenceClassifications.LayEvidence
+                },
+                new EvidenceClassification
+                {
+                    Id = new EvidenceClassificationId("classification-personal"),
+                    ArtifactId = personalV1Id,
+                    ClaimIssueId = details.ClaimIssue.Id,
+                    Classification = EvidenceClassifications.LayEvidence
+                }
+            };
+
+        var supersedes =
+            new Relationship
+            {
+                SourceArtifactId = personalV2Id,
+                TargetArtifactId = personalV1Id,
+                RelationshipType = RelationshipTypes.Supersedes
+            };
+
+        var service =
+            CreateService(
+                CreateArtifact,
+                [],
+                id => $"text:{id.Value}",
+                relationshipLookup:
+                    id =>
+                        id == personalV1Id || id == personalV2Id
+                            ? [supersedes]
+                            : []);
+
+        var result =
+            await service.GetAsync(details, classifications);
+
+        Assert.Equal(2, result.Count);
+
+        Assert.Contains(
+            result,
+            source =>
+                source.ArtifactId == spouseId &&
+                source.Classifications.Contains(
+                    EvidenceClassifications.LayEvidence));
+
+        Assert.Contains(
+            result,
+            source =>
+                source.ArtifactId == personalV2Id &&
+                source.Classifications.Contains(
+                    EvidenceClassifications.LayEvidence));
+
+        Assert.DoesNotContain(
+            result,
+            source => source.ArtifactId == personalV1Id);
+    }
+
+    [Fact]
     public async Task GetAsync_PrefersReviewedLiteratureArtifact()
     {
         var reviewedArtifactId =

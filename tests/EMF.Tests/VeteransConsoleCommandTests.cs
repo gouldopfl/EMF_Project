@@ -4503,15 +4503,15 @@ public sealed partial class VeteransConsoleCommandTests
 
             Assert.Contains("Appendix E — Medical / Scientific Literature", text);
             Assert.Contains("Published medical literature source text.", text);
-            Assert.Contains(
+            Assert.DoesNotContain(
                 $"Requirement: {requirement.Id.Value}",
                 text);
             Assert.Contains(
-                $"Role: {EvidenceGuidanceRoles.SupportsRequirement}",
+                "Role: Supports Requirement",
                 text);
             Assert.Contains("Relevance: Updated accepted relevance.", text);
-            Assert.Contains("Reviewed By: replacement-reviewer", text);
-            Assert.Contains(
+            Assert.DoesNotContain("Reviewed By: replacement-reviewer", text);
+            Assert.DoesNotContain(
                 $"Reviewed UTC: {replacementReviewedUtc:O}",
                 text);
             Assert.Contains(
