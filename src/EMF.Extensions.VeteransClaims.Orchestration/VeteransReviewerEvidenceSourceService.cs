@@ -45,6 +45,10 @@ public sealed class VeteransReviewerEvidenceSourceService
 
         var artifactIds = new List<ArtifactId>();
         var seen = new HashSet<ArtifactId>();
+        var reviewedLiteratureByArtifact =
+            new Dictionary<
+                ArtifactId,
+                List<ReviewedMedicalLiteratureClassification>>();
 
         foreach (var artifactId in classifications
                      .Select(x => x.ArtifactId)
@@ -147,6 +151,21 @@ public sealed class VeteransReviewerEvidenceSourceService
                     }
                 }
 
+                foreach (var reviewed in reviewedForLiterature)
+                {
+                    if (!reviewedLiteratureByArtifact.TryGetValue(
+                            reviewed.ArtifactId,
+                            out var reviewedForArtifact))
+                    {
+                        reviewedForArtifact = [];
+                        reviewedLiteratureByArtifact.Add(
+                            reviewed.ArtifactId,
+                            reviewedForArtifact);
+                    }
+
+                    reviewedForArtifact.Add(reviewed);
+                }
+
                 var selectedArtifactIds =
                     reviewedForLiterature.Length == 0
                         ? literatureArtifactIds
@@ -207,6 +226,12 @@ public sealed class VeteransReviewerEvidenceSourceService
                             .Select(x => x.Classification)
                             .Distinct(StringComparer.Ordinal)
                             .ToArray(),
+                    ReviewedMedicalLiteratureClassifications =
+                        reviewedLiteratureByArtifact.TryGetValue(
+                            artifactId,
+                            out var reviewedLiterature)
+                            ? reviewedLiterature.ToArray()
+                            : [],
                     Text = text
                 });
         }

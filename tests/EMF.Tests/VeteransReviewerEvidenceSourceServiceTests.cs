@@ -102,6 +102,20 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
         Assert.Equal(
             "text:literature-reviewed",
             source.Text);
+
+        var reviewed =
+            Assert.Single(
+                source.ReviewedMedicalLiteratureClassifications);
+
+        Assert.Equal(
+            reviewedArtifactId,
+            reviewed.ArtifactId);
+        Assert.Equal(
+            "requirement-1",
+            reviewed.Association.RequirementId.Value);
+        Assert.Equal(
+            "Reviewed excerpt",
+            Assert.Single(reviewed.SourceExcerpts).Text);
     }
 
     [Fact]

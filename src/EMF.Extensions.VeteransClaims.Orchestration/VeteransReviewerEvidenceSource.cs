@@ -1,4 +1,5 @@
 using EMF.Core.Models.Identities;
+using EMF.Extensions.VeteransClaims.Models.Adjudication;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
@@ -13,6 +14,9 @@ public sealed class VeteransReviewerEvidenceSource
     public string? ContentRole { get; init; }
 
     public required IReadOnlyList<string> Classifications { get; init; }
+
+    public IReadOnlyList<ReviewedMedicalLiteratureClassification>
+        ReviewedMedicalLiteratureClassifications { get; init; } = [];
 
     public required string Text { get; init; }
 }

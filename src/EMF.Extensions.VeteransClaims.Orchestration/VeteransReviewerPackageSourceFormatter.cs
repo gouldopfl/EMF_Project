@@ -362,6 +362,70 @@ internal static class VeteransReviewerPackageSourceFormatter
                         ", ",
                         source.Classifications.Select(SingleLine)));
 
+                if (source.ReviewedMedicalLiteratureClassifications.Count > 0)
+                {
+                    builder.AppendLine(
+                        "  Reviewed Medical Literature:");
+
+                    foreach (var reviewed in
+                        source.ReviewedMedicalLiteratureClassifications)
+                    {
+                        if (reviewed.ArtifactId != source.ArtifactId)
+                        {
+                            throw new InvalidOperationException(
+                                "Reviewed medical literature artifact identity mismatch.");
+                        }
+
+                        if (reviewed.SourceExcerpts.Any(
+                                excerpt =>
+                                    excerpt.ArtifactId != source.ArtifactId))
+                        {
+                            throw new InvalidOperationException(
+                                "Reviewed medical literature excerpt artifact " +
+                                "identity mismatch.");
+                        }
+
+                        builder.AppendLine(
+                            $"  - Requirement: " +
+                            $"{SingleLine(reviewed.Association.RequirementId.Value)}");
+
+                        builder.AppendLine(
+                            $"    Role: " +
+                            $"{SingleLine(reviewed.Association.GuidanceRole)}");
+
+                        builder.AppendLine(
+                            $"    Relevance: " +
+                            $"{SingleLine(reviewed.Association.Description)}");
+
+                        builder.AppendLine(
+                            $"    Reviewed By: " +
+                            $"{SingleLine(reviewed.ReviewedBy)}");
+
+                        builder.AppendLine(
+                            $"    Reviewed UTC: {reviewed.ReviewedUtc:O}");
+
+                        if (reviewed.SourceExcerpts.Count > 0)
+                        {
+                            builder.AppendLine(
+                                "    Accepted Source Excerpts:");
+
+                            foreach (var excerpt in reviewed.SourceExcerpts)
+                            {
+                                var location =
+                                    excerpt.StartOffset is null &&
+                                    excerpt.Length is null
+                                        ? string.Empty
+                                        : $"offset={excerpt.StartOffset?.ToString() ?? "?"} " +
+                                          $"length={excerpt.Length?.ToString() ?? "?"}: ";
+
+                                builder.AppendLine(
+                                    $"    - {location}" +
+                                    $"{SingleLine(excerpt.Text)}");
+                            }
+                        }
+                    }
+                }
+
                 builder.AppendLine(
                     "  --- BEGIN EVIDENCE TEXT ---");
 

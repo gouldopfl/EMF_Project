@@ -1094,6 +1094,113 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
 
 
 
+
+    [Fact]
+    public void Format_IncludesReviewedMedicalLiteratureLineage()
+    {
+        var issue = new ClaimIssue
+        {
+            Id = new ClaimIssueId("issue-reviewed-literature"),
+            ClaimId = new ClaimId("claim-reviewed-literature"),
+            ClaimIssueType = "ServiceConnection"
+        };
+
+        var artifactId =
+            new ArtifactId("artifact-reviewed-literature");
+        var timestamp =
+            new DateTimeOffset(
+                2026, 9, 12, 10, 0, 0, TimeSpan.Zero);
+
+        var text =
+            VeteransReviewerPackageSourceFormatter.Format(
+                CreateDetails(issue, []),
+                [
+                    new VeteransReviewerEvidenceSource
+                    {
+                        ArtifactId = artifactId,
+                        ArtifactName = "reviewed-study.pdf",
+                        ArtifactType = "pdf",
+                        ContentRole =
+                            EvidencePackageContentRoles.UnderlyingEvidence,
+                        Classifications = [],
+                        ReviewedMedicalLiteratureClassifications =
+                        [
+                            new ReviewedMedicalLiteratureClassification
+                            {
+                                Association =
+                                    new RequirementMedicalLiterature
+                                    {
+                                        RequirementId =
+                                            new RequirementId(
+                                                "requirement-reviewed"),
+                                        MedicalLiteratureSourceId =
+                                            new MedicalLiteratureSourceId(
+                                                "study-reviewed"),
+                                        GuidanceRole =
+                                            EvidenceGuidanceRoles
+                                                .SupportsRequirement,
+                                        Description =
+                                            "Supports the reviewed mechanism."
+                                    },
+                                ArtifactId = artifactId,
+                                PromotedBy = "reviewer",
+                                PromotedUtc = timestamp,
+                                ReviewedBy = "reviewer@example",
+                                ReviewedUtc = timestamp,
+                                IntelligenceOutput = "{}",
+                                CapabilityId =
+                                    "literature-classification",
+                                ProviderId = "provider",
+                                CorrelationId = "correlation",
+                                EngineName = "engine",
+                                StartedUtc = timestamp,
+                                CompletedUtc = timestamp,
+                                RequiresReview = false,
+                                Warnings = [],
+                                SourceExcerpts =
+                                [
+                                    new MedicalLiteratureSourceExcerpt
+                                    {
+                                        ArtifactId = artifactId,
+                                        Text =
+                                            "Reviewed mechanism excerpt.",
+                                        StartOffset = 42,
+                                        Length = 27
+                                    }
+                                ]
+                            }
+                        ],
+                        Text = "Complete literature text."
+                    }
+                ]);
+
+        Assert.Contains(
+            "  Reviewed Medical Literature:",
+            text);
+        Assert.Contains(
+            "  - Requirement: requirement-reviewed",
+            text);
+        Assert.Contains(
+            "    Role: SupportsRequirement",
+            text);
+        Assert.Contains(
+            "    Relevance: Supports the reviewed mechanism.",
+            text);
+        Assert.Contains(
+            "    Reviewed By: reviewer@example",
+            text);
+        Assert.Contains(
+            "    Reviewed UTC: 2026-09-12T10:00:00.0000000+00:00",
+            text);
+        Assert.Contains(
+            "    Accepted Source Excerpts:",
+            text);
+        Assert.Contains(
+            "    - offset=42 length=27: Reviewed mechanism excerpt.",
+            text);
+    }
+
+
     [Fact]
     public void Format_IncludesPrescribedMedicationBasis()
     {
