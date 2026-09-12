@@ -4248,7 +4248,7 @@ public sealed partial class VeteransConsoleCommandTests
 public sealed partial class VeteransConsoleCommandTests
 {
     [Fact]
-    public async Task EvidenceReviewer_IncludesRequirementLiteratureInAppendixE()
+    public async Task EvidenceReviewer_UsesActiveReviewedLiteratureAfterSupersessionInAppendixE()
     {
         var databasePath = Path.GetTempFileName();
         var outputPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.docx");
@@ -4366,7 +4366,7 @@ public sealed partial class VeteransConsoleCommandTests
                     RequirementId = requirement.Id,
                     MedicalLiteratureSourceId = sourceId,
                     GuidanceRole = EvidenceGuidanceRoles.SupportsRequirement,
-                    Description = "Supports the requirement."
+                    Description = "Initial accepted relevance."
                 });
             await literature.AddMedicalLiteratureSourceArtifactAsync(
                 new MedicalLiteratureSourceArtifact
@@ -4379,7 +4379,7 @@ public sealed partial class VeteransConsoleCommandTests
                 new DateTimeOffset(
                     2026, 9, 12, 14, 30, 0, TimeSpan.Zero);
 
-            await literature.AddReviewedClassificationAsync(
+            var superseded =
                 new ReviewedMedicalLiteratureClassification
                 {
                     Association =
@@ -4389,7 +4389,7 @@ public sealed partial class VeteransConsoleCommandTests
                             MedicalLiteratureSourceId = sourceId,
                             GuidanceRole =
                                 EvidenceGuidanceRoles.SupportsRequirement,
-                            Description = "Supports the requirement."
+                            Description = "Initial accepted relevance."
                         },
                     ArtifactId = artifactId,
                     PromotedBy = "console-reviewer",
@@ -4397,13 +4397,13 @@ public sealed partial class VeteransConsoleCommandTests
                     ReviewedBy = "console-reviewer",
                     ReviewedUtc = reviewedUtc,
                     IntelligenceOutput =
-                        "RAW_AI_OUTPUT_MUST_NOT_APPEAR_IN_REVIEWER_DOCX",
+                        "SUPERSEDED_RAW_AI_OUTPUT_MUST_NOT_APPEAR",
                     CapabilityId = "TextStructuredExtraction",
                     ProviderId = "console-test-provider",
-                    CorrelationId = "console-reviewed-literature",
+                    CorrelationId = "console-reviewed-literature-original",
                     EngineName = "console-test-engine",
                     EngineVersion = "1",
-                    ProviderOperationId = "console-operation",
+                    ProviderOperationId = "console-operation-original",
                     StartedUtc = reviewedUtc.AddMinutes(-2),
                     CompletedUtc = reviewedUtc.AddMinutes(-1),
                     RequiresReview = true,
@@ -4413,14 +4413,59 @@ public sealed partial class VeteransConsoleCommandTests
                         new MedicalLiteratureSourceExcerpt
                         {
                             ArtifactId = artifactId,
-                            Text =
-                                "Accepted source excerpt for the medical " +
-                                "mechanism.",
+                            Text = "Superseded accepted excerpt.",
                             StartOffset = 0,
-                            Length = 50
+                            Length = 28
                         }
                     ]
-                });
+                };
+            await literature.AddReviewedClassificationAsync(superseded);
+
+            var replacementReviewedUtc = reviewedUtc.AddHours(1);
+            var replacement =
+                new ReviewedMedicalLiteratureClassification
+                {
+                    Association =
+                        new RequirementMedicalLiterature
+                        {
+                            RequirementId = requirement.Id,
+                            MedicalLiteratureSourceId = sourceId,
+                            GuidanceRole =
+                                EvidenceGuidanceRoles.SupportsRequirement,
+                            Description = "Updated accepted relevance."
+                        },
+                    ArtifactId = artifactId,
+                    PromotedBy = "replacement-reviewer",
+                    PromotedUtc = replacementReviewedUtc.AddMinutes(1),
+                    ReviewedBy = "replacement-reviewer",
+                    ReviewedUtc = replacementReviewedUtc,
+                    IntelligenceOutput =
+                        "REPLACEMENT_RAW_AI_OUTPUT_MUST_NOT_APPEAR",
+                    CapabilityId = "TextStructuredExtraction",
+                    ProviderId = "console-test-provider",
+                    CorrelationId = "console-reviewed-literature-replacement",
+                    EngineName = "console-test-engine",
+                    EngineVersion = "2",
+                    ProviderOperationId = "console-operation-replacement",
+                    StartedUtc = replacementReviewedUtc.AddMinutes(-2),
+                    CompletedUtc = replacementReviewedUtc.AddMinutes(-1),
+                    RequiresReview = true,
+                    Warnings = ["reviewed before replacement promotion"],
+                    SourceExcerpts =
+                    [
+                        new MedicalLiteratureSourceExcerpt
+                        {
+                            ArtifactId = artifactId,
+                            Text = "Replacement accepted excerpt.",
+                            StartOffset = 0,
+                            Length = 29
+                        }
+                    ]
+                };
+
+            await literature.SupersedeReviewedClassificationsAsync(
+                superseded.CorrelationId,
+                [replacement]);
 
             var contentStore = new EMF.Persistence.Storage.FileSystemArtifactContentStore(contentPath);
             await contentStore.WriteAsync(
@@ -4464,16 +4509,21 @@ public sealed partial class VeteransConsoleCommandTests
             Assert.Contains(
                 $"Role: {EvidenceGuidanceRoles.SupportsRequirement}",
                 text);
-            Assert.Contains("Relevance: Supports the requirement.", text);
-            Assert.Contains("Reviewed By: console-reviewer", text);
+            Assert.Contains("Relevance: Updated accepted relevance.", text);
+            Assert.Contains("Reviewed By: replacement-reviewer", text);
             Assert.Contains(
-                $"Reviewed UTC: {reviewedUtc:O}",
+                $"Reviewed UTC: {replacementReviewedUtc:O}",
                 text);
             Assert.Contains(
-                "Accepted source excerpt for the medical mechanism.",
+                "Replacement accepted excerpt.",
+                text);
+            Assert.DoesNotContain("Initial accepted relevance.", text);
+            Assert.DoesNotContain("Superseded accepted excerpt.", text);
+            Assert.DoesNotContain(
+                "SUPERSEDED_RAW_AI_OUTPUT_MUST_NOT_APPEAR",
                 text);
             Assert.DoesNotContain(
-                "RAW_AI_OUTPUT_MUST_NOT_APPEAR_IN_REVIEWER_DOCX",
+                "REPLACEMENT_RAW_AI_OUTPUT_MUST_NOT_APPEAR",
                 text);
         }
         finally
