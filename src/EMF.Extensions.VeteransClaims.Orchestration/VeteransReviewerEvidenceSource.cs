@@ -13,6 +13,16 @@ public sealed class VeteransReviewerEvidenceSource
 
     public string? ContentRole { get; init; }
 
+    public string? SourceName { get; init; }
+
+    public string? SourceStartPage { get; init; }
+
+    public string? SourceEndPage { get; init; }
+
+    public string? EvidenceTitle { get; init; }
+
+    public string? EvidenceDate { get; init; }
+
     public required IReadOnlyList<string> Classifications { get; init; }
 
     public IReadOnlyList<ReviewedMedicalLiteratureClassification>

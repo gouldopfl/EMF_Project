@@ -1,6 +1,8 @@
 using EMF.Core.Contracts;
+using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
+using EMF.Extensions.VeteransClaims.Models;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
@@ -212,6 +214,67 @@ public sealed class VeteransReviewerEvidenceSourceService
                     $"Unable to extract reviewer evidence: {artifactId.Value}");
             }
 
+            var sourceStartPage =
+                GetMetadataText(
+                    artifact.Metadata,
+                    VeteransArtifactMetadataKeys.SourceStartPage);
+            var sourceEndPage =
+                GetMetadataText(
+                    artifact.Metadata,
+                    VeteransArtifactMetadataKeys.SourceEndPage);
+            var evidenceTitle =
+                GetMetadataText(
+                    artifact.Metadata,
+                    VeteransArtifactMetadataKeys.EvidenceTitle)
+                ?? GetMetadataText(
+                    artifact.Metadata,
+                    VeteransArtifactMetadataKeys.NoteTitle);
+            var evidenceDate =
+                GetMetadataText(
+                    artifact.Metadata,
+                    VeteransArtifactMetadataKeys.EvidenceDate)
+                ?? GetMetadataText(
+                    artifact.Metadata,
+                    VeteransArtifactMetadataKeys.NoteDate);
+
+            string? sourceName = null;
+
+            var relationships =
+                await _evidence.GetRelationshipsAsync(
+                    artifactId,
+                    cancellationToken);
+
+            var derivedFrom =
+                relationships
+                    .Where(
+                        relationship =>
+                            relationship.SourceArtifactId == artifactId &&
+                            string.Equals(
+                                relationship.RelationshipType,
+                                RelationshipTypes.DerivedFrom,
+                                StringComparison.Ordinal))
+                    .ToArray();
+
+            if (derivedFrom.Length > 1)
+            {
+                throw new InvalidOperationException(
+                    $"Reviewer evidence artifact '{artifactId.Value}' has " +
+                    "ambiguous source provenance.");
+            }
+
+            if (derivedFrom.Length == 1)
+            {
+                var parent =
+                    await _evidence.GetArtifactAsync(
+                        derivedFrom[0].TargetArtifactId,
+                        cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        $"Reviewer evidence source artifact " +
+                        $"'{derivedFrom[0].TargetArtifactId.Value}' was not found.");
+
+                sourceName = GetHumanSourceName(parent);
+            }
+
             sources.Add(
                 new VeteransReviewerEvidenceSource
                 {
@@ -220,6 +283,11 @@ public sealed class VeteransReviewerEvidenceSourceService
                     ArtifactType = artifact.ArtifactType,
                     ContentRole =
                         EvidencePackageContentRoles.UnderlyingEvidence,
+                    SourceName = sourceName,
+                    SourceStartPage = sourceStartPage,
+                    SourceEndPage = sourceEndPage,
+                    EvidenceTitle = evidenceTitle,
+                    EvidenceDate = evidenceDate,
                     Classifications =
                         classifications
                             .Where(x => x.ArtifactId == artifactId)
@@ -237,5 +305,36 @@ public sealed class VeteransReviewerEvidenceSourceService
         }
 
         return sources;
+    }
+
+    private static string? GetMetadataText(
+        IReadOnlyDictionary<string, object> metadata,
+        string key)
+    {
+        if (!metadata.TryGetValue(key, out var value))
+            return null;
+
+        var text = value?.ToString();
+
+        return string.IsNullOrWhiteSpace(text)
+            ? null
+            : text;
+    }
+
+    private static string GetHumanSourceName(Artifact artifact)
+    {
+        var name = artifact.Name;
+
+        if (name.Contains(
+                "Blue-Button",
+                StringComparison.OrdinalIgnoreCase) ||
+            name.Contains(
+                "Blue Button",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "VA Blue Button Report";
+        }
+
+        return name;
     }
 }

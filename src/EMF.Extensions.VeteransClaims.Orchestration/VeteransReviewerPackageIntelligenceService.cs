@@ -438,7 +438,7 @@ public sealed class VeteransReviewerPackageIntelligenceService :
         for (var i = 0; i < summaries.Count; i++)
         {
             builder.AppendLine();
-            builder.AppendLine($"Segment Summary {i + 1}:");
+            builder.AppendLine("Intermediate evidence summary:");
             builder.AppendLine(summaries[i]);
         }
 
@@ -527,7 +527,13 @@ public sealed class VeteransReviewerPackageIntelligenceService :
             "requirements, and procedural history.");
 
         builder.AppendLine(
-            "Preserve citations and traceability identifiers when relevant.");
+            "Use human-readable source names, dates, and original source page " +
+            "references when supplied.");
+
+        builder.AppendLine(
+            "Never expose internal Artifact IDs, correlation IDs, claim-domain " +
+            "identifiers, segment numbers, or labels such as 'Segment Summary' " +
+            "or '[Seg 1]' in the reviewer-facing summary.");
 
         builder.AppendLine(
             "Do not invent evidence, diagnoses, relationships, " +

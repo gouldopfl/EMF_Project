@@ -1040,6 +1040,11 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
                         ContentRole =
                             EvidencePackageContentRoles.UnderlyingEvidence +
                             "\nInjected Role",
+                        SourceName = "VA Blue Button Report",
+                        SourceStartPage = "2930",
+                        SourceEndPage = "2931",
+                        EvidenceTitle = "Sleep Medicine Follow-Up",
+                        EvidenceDate = "2021-12-13",
                         Classifications =
                             [
                                 EvidenceClassifications.MedicalEvidence +
@@ -1056,11 +1061,23 @@ public sealed class VeteransReviewerPackageSourceFormatterTests
             text);
 
         Assert.Contains(
-            "- Artifact artifact-blue-button",
+            "- Evidence Source: Sleep Medicine Follow-Up",
             text);
 
         Assert.Contains(
-            "Name: VA Blue Button Report Injected Name",
+            "Source: VA Blue Button Report",
+            text);
+
+        Assert.Contains(
+            "Date: 2021-12-13",
+            text);
+
+        Assert.Contains(
+            "Original source pages: 2930-2931",
+            text);
+
+        Assert.DoesNotContain(
+            "- Artifact artifact-blue-button",
             text);
 
         Assert.Contains(

@@ -49,6 +49,7 @@ public static class VeteransReviewerPackageDocxRenderer
 
             var body =
                 new Body(
+                    ConfidentialParagraph(),
                     StyledParagraph(
                         "Veterans Evidence Reviewer Report",
                         "Title"),
@@ -936,6 +937,38 @@ public static class VeteransReviewerPackageDocxRenderer
             _ => appendix
         };
 
+    private static Paragraph ConfidentialParagraph()
+    {
+        var properties =
+            new ParagraphProperties(
+                new Justification
+                {
+                    Val = JustificationValues.Center
+                },
+                new SpacingBetweenLines
+                {
+                    Before = "240",
+                    After = "240"
+                });
+
+        return new Paragraph(
+            properties,
+            new Run(
+                new RunProperties(
+                    new RunFonts
+                    {
+                        Ascii = "Aptos",
+                        HighAnsi = "Aptos"
+                    },
+                    new Bold(),
+                    new FontSize
+                    {
+                        Val = "32"
+                    }),
+                new Text(
+                    "CONFIDENTIAL — VETERAN MEDICAL INFORMATION")));
+    }
+
     private static Paragraph StyledParagraph(
         string text,
         string styleId,
@@ -1034,8 +1067,8 @@ public static class VeteransReviewerPackageDocxRenderer
             new RunProperties(
                 new RunFonts
                 {
-                    Ascii = "Arial",
-                    HighAnsi = "Arial"
+                    Ascii = "Aptos",
+                    HighAnsi = "Aptos"
                 });
 
         if (string.Equals(
@@ -1126,8 +1159,8 @@ public static class VeteransReviewerPackageDocxRenderer
                 new RunProperties(
                     new RunFonts
                     {
-                        Ascii = "Arial",
-                        HighAnsi = "Arial"
+                        Ascii = "Aptos",
+                        HighAnsi = "Aptos"
                     },
                     new FontSize
                     {
@@ -1173,8 +1206,8 @@ public static class VeteransReviewerPackageDocxRenderer
                         new RunProperties(
                             new RunFonts
                             {
-                                Ascii = "Arial",
-                                HighAnsi = "Arial"
+                                Ascii = "Aptos",
+                                HighAnsi = "Aptos"
                             },
                             new FontSize
                             {

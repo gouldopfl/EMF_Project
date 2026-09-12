@@ -367,7 +367,9 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
                     method.Name == "GetArtifactAsync"
                         ? Task.FromResult<Artifact?>(
                             artifactLookup((ArtifactId)args[0]!))
-                        : throw new NotSupportedException(method.Name)),
+                        : method.Name == "GetRelationshipsAsync"
+                            ? Task.FromResult<IReadOnlyList<Relationship>>([])
+                            : throw new NotSupportedException(method.Name)),
             Proxy<IMedicalLiteratureRepository>(
                 (method, _) =>
                     method.Name switch

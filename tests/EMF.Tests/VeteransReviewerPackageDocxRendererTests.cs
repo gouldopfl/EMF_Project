@@ -650,6 +650,12 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             paragraphs,
             paragraph =>
                 paragraph.InnerText ==
+                    "CONFIDENTIAL — VETERAN MEDICAL INFORMATION");
+
+        Assert.Contains(
+            paragraphs,
+            paragraph =>
+                paragraph.InnerText ==
                     "Veterans Evidence Reviewer Report");
 
         Assert.Contains(

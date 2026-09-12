@@ -341,12 +341,47 @@ internal static class VeteransReviewerPackageSourceFormatter
 
             foreach (var source in evidenceSources)
             {
-                builder.AppendLine(
-                    $"- Artifact {SingleLine(source.ArtifactId.Value)}");
+                var displayName =
+                    !string.IsNullOrWhiteSpace(source.EvidenceTitle)
+                        ? source.EvidenceTitle
+                        : !string.IsNullOrWhiteSpace(source.SourceName)
+                            ? source.SourceName
+                            : source.ArtifactName;
 
-                if (!string.IsNullOrWhiteSpace(source.ArtifactName))
+                builder.AppendLine(
+                    $"- Evidence Source: " +
+                    $"{SingleLine(displayName ?? "Evidence of record")}");
+
+                if (!string.IsNullOrWhiteSpace(source.SourceName) &&
+                    !string.Equals(
+                        source.SourceName,
+                        displayName,
+                        StringComparison.OrdinalIgnoreCase))
+                {
                     builder.AppendLine(
-                        $"  Name: {SingleLine(source.ArtifactName)}");
+                        $"  Source: {SingleLine(source.SourceName)}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(source.EvidenceDate))
+                    builder.AppendLine(
+                        $"  Date: {SingleLine(source.EvidenceDate)}");
+
+                if (!string.IsNullOrWhiteSpace(source.SourceStartPage))
+                {
+                    var pageReference =
+                        string.IsNullOrWhiteSpace(source.SourceEndPage) ||
+                        string.Equals(
+                            source.SourceStartPage,
+                            source.SourceEndPage,
+                            StringComparison.Ordinal)
+                            ? source.SourceStartPage
+                            : $"{source.SourceStartPage}-{source.SourceEndPage}";
+
+                    builder.AppendLine(
+                        $"  Original source page" +
+                        $"{(pageReference.Contains('-', StringComparison.Ordinal) ? "s" : string.Empty)}: " +
+                        $"{SingleLine(pageReference)}");
+                }
 
                 if (!string.IsNullOrWhiteSpace(source.ArtifactType))
                     builder.AppendLine(
