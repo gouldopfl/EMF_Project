@@ -4,6 +4,7 @@ using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
+using EMF.Orchestration.Services;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
@@ -47,17 +48,39 @@ public sealed class VeteransReviewerEvidenceSourceService
 
         var artifactIds = new List<ArtifactId>();
         var seen = new HashSet<ArtifactId>();
+        var classificationsByArtifact =
+            new Dictionary<ArtifactId, HashSet<string>>();
         var reviewedLiteratureByArtifact =
             new Dictionary<
                 ArtifactId,
                 List<ReviewedMedicalLiteratureClassification>>();
+        var supersession =
+            new ArtifactSupersessionService(_evidence);
 
-        foreach (var artifactId in classifications
-                     .Select(x => x.ArtifactId)
-                     .Distinct())
+        foreach (var classificationGroup in
+                 classifications.GroupBy(x => x.ArtifactId))
         {
-            if (seen.Add(artifactId))
-                artifactIds.Add(artifactId);
+            var activeArtifactId =
+                await supersession.ResolveActiveArtifactIdAsync(
+                    classificationGroup.Key,
+                    cancellationToken);
+
+            if (seen.Add(activeArtifactId))
+                artifactIds.Add(activeArtifactId);
+
+            if (!classificationsByArtifact.TryGetValue(
+                    activeArtifactId,
+                    out var activeClassifications))
+            {
+                activeClassifications = new HashSet<string>(
+                    StringComparer.Ordinal);
+                classificationsByArtifact.Add(
+                    activeArtifactId,
+                    activeClassifications);
+            }
+
+            foreach (var classification in classificationGroup)
+                activeClassifications.Add(classification.Classification);
         }
 
         foreach (var requirement in details.Requirements)
@@ -289,11 +312,11 @@ public sealed class VeteransReviewerEvidenceSourceService
                     EvidenceTitle = evidenceTitle,
                     EvidenceDate = evidenceDate,
                     Classifications =
-                        classifications
-                            .Where(x => x.ArtifactId == artifactId)
-                            .Select(x => x.Classification)
-                            .Distinct(StringComparer.Ordinal)
-                            .ToArray(),
+                        classificationsByArtifact.TryGetValue(
+                            artifactId,
+                            out var activeClassifications)
+                            ? activeClassifications.ToArray()
+                            : [],
                     ReviewedMedicalLiteratureClassifications =
                         reviewedLiteratureByArtifact.TryGetValue(
                             artifactId,

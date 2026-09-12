@@ -255,6 +255,28 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 5 &&
+            args[0] == "evidence" &&
+            args[1] == "supersede")
+        {
+            var supersedeDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(supersedeDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {supersedeDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunEvidenceSupersedeAsync(
+                supersedeDatabasePath,
+                new ArtifactId(args[3]),
+                new ArtifactId(args[4]),
+                global::System.Console.Out);
+        }
+
         if (args.Length == 8 &&
             args[0] == "evidence" &&
             args[1] == "clinical-note")
@@ -1766,6 +1788,53 @@ public static class VeteransConsoleCommand
         }
     }
 
+    internal static async Task<int> RunEvidenceSupersedeAsync(
+        string databasePath,
+        ArtifactId replacementArtifactId,
+        ArtifactId supersededArtifactId,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        var repository =
+            new SqliteEvidenceRepository(databasePath);
+
+        await repository.InitializeAsync();
+
+        var service =
+            new ArtifactSupersessionService(repository);
+
+        try
+        {
+            var result =
+                await service.SupersedeAsync(
+                    replacementArtifactId,
+                    supersededArtifactId);
+
+            await output.WriteLineAsync(
+                $"Replacement Artifact : " +
+                $"{result.Relationship.SourceArtifactId.Value}");
+
+            await output.WriteLineAsync(
+                $"Superseded Artifact  : " +
+                $"{result.Relationship.TargetArtifactId.Value}");
+
+            await output.WriteLineAsync(
+                $"Status               : " +
+                $"{(result.AlreadyExisted ? "Existing" : "Persisted")}");
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Evidence supersession failed: {ex.Message}");
+
+            return 1;
+        }
+    }
+
+
     internal static async Task<int> RunEvidenceClinicalNoteAsync(
         string databasePath,
         ArtifactId parentArtifactId,
@@ -3240,6 +3309,11 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence ingest " +
             "<database-path> <source-path>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence supersede " +
+            "<database-path> <replacement-artifact-id> " +
+            "<superseded-artifact-id>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence checklist " +

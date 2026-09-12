@@ -75,6 +75,114 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_UsesActiveSupersedingClassifiedArtifact()
+    {
+        var unsignedId = new ArtifactId("statement-unsigned");
+        var signedId = new ArtifactId("statement-signed");
+        var details = CreateDetails();
+
+        var classifications =
+            new[]
+            {
+                new EvidenceClassification
+                {
+                    Id = new EvidenceClassificationId("classification-1"),
+                    ArtifactId = unsignedId,
+                    ClaimIssueId = details.ClaimIssue.Id,
+                    Classification = EvidenceClassifications.LayEvidence
+                }
+            };
+
+        var supersedes =
+            new Relationship
+            {
+                SourceArtifactId = signedId,
+                TargetArtifactId = unsignedId,
+                RelationshipType = RelationshipTypes.Supersedes
+            };
+
+        var service =
+            CreateService(
+                CreateArtifact,
+                [],
+                id => $"text:{id.Value}",
+                relationshipLookup:
+                    id =>
+                        id == unsignedId || id == signedId
+                            ? [supersedes]
+                            : []);
+
+        var result =
+            await service.GetAsync(details, classifications);
+
+        var source = Assert.Single(result);
+        Assert.Equal(signedId, source.ArtifactId);
+        Assert.Equal("text:statement-signed", source.Text);
+        Assert.Equal(
+            EvidenceClassifications.LayEvidence,
+            Assert.Single(source.Classifications));
+    }
+
+    [Fact]
+    public async Task GetAsync_MergesClassificationsOntoActiveSupersedingArtifact()
+    {
+        var unsignedId = new ArtifactId("statement-unsigned");
+        var signedId = new ArtifactId("statement-signed");
+        var details = CreateDetails();
+
+        var classifications =
+            new[]
+            {
+                new EvidenceClassification
+                {
+                    Id = new EvidenceClassificationId("classification-unsigned"),
+                    ArtifactId = unsignedId,
+                    ClaimIssueId = details.ClaimIssue.Id,
+                    Classification = EvidenceClassifications.LayEvidence
+                },
+                new EvidenceClassification
+                {
+                    Id = new EvidenceClassificationId("classification-signed"),
+                    ArtifactId = signedId,
+                    ClaimIssueId = details.ClaimIssue.Id,
+                    Classification = EvidenceClassifications.MedicalEvidence
+                }
+            };
+
+        var supersedes =
+            new Relationship
+            {
+                SourceArtifactId = signedId,
+                TargetArtifactId = unsignedId,
+                RelationshipType = RelationshipTypes.Supersedes
+            };
+
+        var service =
+            CreateService(
+                CreateArtifact,
+                [],
+                id => $"text:{id.Value}",
+                relationshipLookup:
+                    id =>
+                        id == unsignedId || id == signedId
+                            ? [supersedes]
+                            : []);
+
+        var result =
+            await service.GetAsync(details, classifications);
+
+        var source = Assert.Single(result);
+        Assert.Equal(signedId, source.ArtifactId);
+        Assert.Equal(2, source.Classifications.Count);
+        Assert.Contains(
+            EvidenceClassifications.LayEvidence,
+            source.Classifications);
+        Assert.Contains(
+            EvidenceClassifications.MedicalEvidence,
+            source.Classifications);
+    }
+
+    [Fact]
     public async Task GetAsync_PrefersReviewedLiteratureArtifact()
     {
         var reviewedArtifactId =
@@ -360,7 +468,9 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
         IReadOnlyList<ArtifactId> literatureArtifactIds,
         Func<ArtifactId, string?> textLookup,
         IReadOnlyList<ReviewedMedicalLiteratureClassification>?
-            reviewedClassifications = null) =>
+            reviewedClassifications = null,
+        Func<ArtifactId, IReadOnlyList<Relationship>>?
+            relationshipLookup = null) =>
         new(
             Proxy<IEvidenceRepository>(
                 (method, args) =>
@@ -368,7 +478,9 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
                         ? Task.FromResult<Artifact?>(
                             artifactLookup((ArtifactId)args[0]!))
                         : method.Name == "GetRelationshipsAsync"
-                            ? Task.FromResult<IReadOnlyList<Relationship>>([])
+                            ? Task.FromResult<IReadOnlyList<Relationship>>(
+                                relationshipLookup?.Invoke(
+                                    (ArtifactId)args[0]!) ?? [])
                             : throw new NotSupportedException(method.Name)),
             Proxy<IMedicalLiteratureRepository>(
                 (method, _) =>
