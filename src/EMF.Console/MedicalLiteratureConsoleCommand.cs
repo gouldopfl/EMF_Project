@@ -1,9 +1,14 @@
+using EMF.Core.Contracts.Storage;
 using EMF.Core.Models.Identities;
 using System.Text.Json;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
+using EMF.Extensions.VeteransClaims.Orchestration;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
 using EMF.Extensions.VeteransClaims.Services;
+using EMF.Intelligence.Models;
+using EMF.Intelligence.Models.Identities;
+using EMF.Persistence.Repositories;
 
 namespace EMF.ConsoleApplication;
 
@@ -175,6 +180,118 @@ internal static class MedicalLiteratureConsoleCommand
         catch (InvalidOperationException ex)
         {
             global::System.Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+    }
+
+
+    internal static async Task<int> RunClassifyAsync(
+        string databasePath,
+        MedicalLiteratureSourceId sourceId,
+        ArtifactId artifactId,
+        IReadOnlyList<RequirementId> candidateRequirementIds,
+        Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory,
+        IArtifactContentStore? contentStore,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(candidateRequirementIds);
+        ArgumentNullException.ThrowIfNull(runtimeFactory);
+        ArgumentNullException.ThrowIfNull(output);
+
+        try
+        {
+            if (contentStore is null)
+                throw new InvalidOperationException(
+                    "Artifact content store is not configured.");
+
+            var literature =
+                new SqliteMedicalLiteratureRepository(databasePath);
+            await literature.InitializeAsync();
+
+            var evidence = new SqliteEvidenceRepository(databasePath);
+            await evidence.InitializeAsync();
+
+            var textExtractor =
+                ArtifactTextExtractionFactory.Create(
+                    evidence,
+                    contentStore);
+
+            var runtime = await runtimeFactory();
+
+            var coordinator =
+                VeteransEvidenceOrchestrationFactory
+                    .CreateMedicalLiteratureClassificationCoordinator(
+                        literature,
+                        new SqliteRegulatoryRepository(databasePath),
+                        textExtractor,
+                        runtime.TextStructuredExtractionCapabilityExecutor);
+
+            var result = await coordinator.ClassifyAsync(
+                sourceId,
+                artifactId,
+                candidateRequirementIds,
+                new IntelligenceExecutionContext(
+                    runtime.SubjectId,
+                    new IntelligenceCorrelationId(
+                        $"veterans-literature-{Guid.NewGuid():N}"),
+                    runtime.ClassificationId,
+                    [artifactId]));
+
+            if (!result.IntelligenceResult.Success)
+            {
+                global::System.Console.Error.WriteLine(
+                    ConsoleTextSanitizer.Sanitize(
+                        result.IntelligenceResult.Message ??
+                        "Medical literature classification failed."));
+                return 1;
+            }
+
+            if (result.Proposal is null)
+                throw new InvalidOperationException(
+                    "Medical literature classification produced no proposal.");
+
+            output.WriteLine($"Literature ID : {sourceId.Value}");
+            output.WriteLine($"Artifact ID   : {artifactId.Value}");
+            output.WriteLine(
+                $"Requires Review: {result.IntelligenceResult.RequiresReview}");
+            output.WriteLine(
+                $"Classifications: {result.Proposal.Classifications.Count}");
+
+            foreach (var classification in result.Proposal.Classifications)
+            {
+                output.WriteLine();
+                output.WriteLine(
+                    $"Requirement   : {classification.RequirementId.Value}");
+                output.WriteLine(
+                    $"Guidance Role : {ConsoleTextSanitizer.Sanitize(classification.GuidanceRole)}");
+                output.WriteLine(
+                    $"Description   : {ConsoleTextSanitizer.Sanitize(classification.Description)}");
+
+                foreach (var excerpt in classification.SourceExcerpts)
+                    output.WriteLine(
+                        $"Excerpt       : offset={excerpt.StartOffset?.ToString() ?? "?"} " +
+                        $"length={excerpt.Length?.ToString() ?? "?"} | " +
+                        ConsoleTextSanitizer.Sanitize(excerpt.Text));
+            }
+
+            return 0;
+        }
+        catch (JsonException ex)
+        {
+            global::System.Console.Error.WriteLine(
+                ConsoleTextSanitizer.Sanitize(ex.Message));
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            global::System.Console.Error.WriteLine(
+                ConsoleTextSanitizer.Sanitize(ex.Message));
+            return 1;
+        }
+        catch (InvalidOperationException ex)
+        {
+            global::System.Console.Error.WriteLine(
+                ConsoleTextSanitizer.Sanitize(ex.Message));
             return 1;
         }
     }

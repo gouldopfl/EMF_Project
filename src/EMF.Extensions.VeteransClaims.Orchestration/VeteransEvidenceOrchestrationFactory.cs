@@ -143,6 +143,28 @@ public static class VeteransEvidenceOrchestrationFactory
             requirementEvidenceService);
     }
 
+    public static IMedicalLiteratureClassificationCoordinator
+        CreateMedicalLiteratureClassificationCoordinator(
+            IMedicalLiteratureRepository literatureRepository,
+            IRegulatoryRepository regulatoryRepository,
+            IArtifactTextExtractor textExtractor,
+            IIntelligenceCapabilityExecutor<
+                TextStructuredExtractionRequest,
+                string> executor)
+    {
+        ArgumentNullException.ThrowIfNull(literatureRepository);
+        ArgumentNullException.ThrowIfNull(regulatoryRepository);
+        ArgumentNullException.ThrowIfNull(textExtractor);
+        ArgumentNullException.ThrowIfNull(executor);
+
+        return new MedicalLiteratureClassificationCoordinator(
+            literatureRepository,
+            regulatoryRepository,
+            textExtractor,
+            executor);
+    }
+
+
     public static IVaDecisionDocumentInterpretationCoordinator
         CreateVaDecisionDocumentInterpretationCoordinator(
             IArtifactTextExtractor textExtractor,

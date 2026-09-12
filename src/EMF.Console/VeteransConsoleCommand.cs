@@ -389,6 +389,31 @@ public static class VeteransConsoleCommand
         }
 
 
+        if (args.Length >= 7 &&
+            args[0] == "evidence" &&
+            args[1] == "literature" &&
+            args[2] == "classify")
+        {
+            var literatureClassifyDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(literatureClassifyDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {literatureClassifyDatabasePath}");
+                return 2;
+            }
+
+            return await MedicalLiteratureConsoleCommand.RunClassifyAsync(
+                literatureClassifyDatabasePath,
+                new MedicalLiteratureSourceId(args[4]),
+                new ArtifactId(args[5]),
+                args[6..].Select(id => new RequirementId(id)).ToArray(),
+                runtimeFactory,
+                contentStoreFactory(),
+                global::System.Console.Out);
+        }
+
         if (args.Length == 6 &&
             args[0] == "evidence" &&
             args[1] == "literature" &&
@@ -3193,6 +3218,11 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence classify " +
             "<database-path> <claim-issue-id> <artifact-id> <classification>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence literature classify " +
+            "<database-path> <literature-id> <artifact-id> " +
+            "<requirement-id> [<requirement-id> ...]");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence literature artifact " +
