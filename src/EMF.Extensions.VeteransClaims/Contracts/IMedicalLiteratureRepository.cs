@@ -51,6 +51,13 @@ public interface IMedicalLiteratureRepository
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
+    Task SupersedeReviewedClassificationsAsync(
+        string supersededCorrelationId,
+        IReadOnlyList<ReviewedMedicalLiteratureClassification>
+            classifications,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
         GetReviewedClassificationsAsync(
             RequirementId requirementId,

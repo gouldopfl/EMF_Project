@@ -389,20 +389,35 @@ public static class VeteransConsoleCommand
         }
 
 
+        var supersedeLiteratureClassification =
+            args.Length >= 9 &&
+            args[0] == "evidence" &&
+            args[1] == "literature" &&
+            args[2] == "classify" &&
+            args[3] == "--supersede";
+
         var promoteLiteratureClassification =
+            !supersedeLiteratureClassification &&
             args.Length >= 8 &&
             args[0] == "evidence" &&
             args[1] == "literature" &&
             args[2] == "classify" &&
             args[3] == "--promote";
 
-        if (args.Length >= (promoteLiteratureClassification ? 8 : 7) &&
+        var persistLiteratureClassification =
+            promoteLiteratureClassification ||
+            supersedeLiteratureClassification;
+
+        var literatureArgOffset =
+            supersedeLiteratureClassification
+                ? 2
+                : promoteLiteratureClassification ? 1 : 0;
+
+        if (args.Length >= 7 + literatureArgOffset &&
             args[0] == "evidence" &&
             args[1] == "literature" &&
-            args[2] == "classify" &&
-            (args[3] != "--promote" || promoteLiteratureClassification))
+            args[2] == "classify")
         {
-            var literatureArgOffset = promoteLiteratureClassification ? 1 : 0;
             var literatureClassifyDatabasePath =
                 Path.GetFullPath(args[3 + literatureArgOffset]);
 
@@ -416,7 +431,7 @@ public static class VeteransConsoleCommand
             var reviewedBy =
                 Environment.GetEnvironmentVariable("EMF_REVIEWED_BY");
 
-            if (promoteLiteratureClassification &&
+            if (persistLiteratureClassification &&
                 string.IsNullOrWhiteSpace(reviewedBy))
             {
                 global::System.Console.Error.WriteLine(
@@ -424,6 +439,11 @@ public static class VeteransConsoleCommand
                     "Set EMF_REVIEWED_BY to the reviewer identity.");
                 return 1;
             }
+
+            var supersedesCorrelationId =
+                supersedeLiteratureClassification
+                    ? args[4]
+                    : null;
 
             return await MedicalLiteratureConsoleCommand.RunClassifyAsync(
                 literatureClassifyDatabasePath,
@@ -435,8 +455,9 @@ public static class VeteransConsoleCommand
                 runtimeFactory,
                 contentStoreFactory(),
                 global::System.Console.Out,
-                promoteLiteratureClassification,
-                reviewedBy);
+                persistLiteratureClassification,
+                reviewedBy,
+                supersedesCorrelationId);
         }
 
         if (args.Length == 6 &&

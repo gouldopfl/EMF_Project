@@ -2062,6 +2062,37 @@ internal static class VeteransClaimsSqliteMigrations
                     GuidanceRole,
                     ArtifactId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                71,
+                "AddReviewedMedicalLiteratureSupersession",
+                """
+                ALTER TABLE
+                    VeteransClaims_ReviewedMedicalLiteratureClassifications
+                ADD COLUMN SupersededByCorrelationId TEXT NULL;
+
+                ALTER TABLE
+                    VeteransClaims_ReviewedMedicalLiteratureClassifications
+                ADD COLUMN SupersededUtc TEXT NULL;
+
+                DROP INDEX
+                    UX_VeteransClaims_ReviewedMedicalLiterature_LogicalDecision;
+
+                CREATE UNIQUE INDEX
+                    UX_VeteransClaims_ReviewedMedicalLiterature_LogicalDecision
+                ON VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    RequirementId,
+                    MedicalLiteratureSourceId,
+                    GuidanceRole,
+                    ArtifactId
+                )
+                WHERE SupersededUtc IS NULL;
+
+                CREATE INDEX
+                    IX_VeteransClaims_ReviewedMedicalLiterature_SupersededBy
+                ON VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    SupersededByCorrelationId
+                );
                 """)
         };
 }

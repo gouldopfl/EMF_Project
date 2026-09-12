@@ -331,6 +331,173 @@ public sealed class SqliteMedicalLiteratureRepository :
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task SupersedeReviewedClassificationsAsync(
+        string supersededCorrelationId,
+        IReadOnlyList<ReviewedMedicalLiteratureClassification>
+            classifications,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            supersededCorrelationId);
+        ArgumentNullException.ThrowIfNull(classifications);
+
+        if (classifications.Count == 0)
+            throw new InvalidOperationException(
+                "At least one replacement reviewed medical literature classification is required.");
+
+        foreach (var classification in classifications)
+            ValidateReviewedClassification(classification);
+
+        var replacementCorrelationId =
+            classifications[0].CorrelationId;
+        var supersededUtc = classifications[0].PromotedUtc;
+
+        if (string.Equals(
+                supersededCorrelationId,
+                replacementCorrelationId,
+                StringComparison.Ordinal) ||
+            classifications.Any(
+                classification =>
+                    !string.Equals(
+                        classification.CorrelationId,
+                        replacementCorrelationId,
+                        StringComparison.Ordinal) ||
+                    classification.PromotedUtc != supersededUtc))
+        {
+            throw new InvalidOperationException(
+                "Reviewed medical literature supersession must replace one prior correlation with one coherent replacement batch.");
+        }
+
+        var replacementKeys = classifications
+            .Select(ReviewedClassificationKey)
+            .ToHashSet();
+
+        if (replacementKeys.Count != classifications.Count)
+            throw new InvalidOperationException(
+                "Replacement reviewed medical literature classifications contain duplicate logical decisions.");
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqliteTransaction)
+            await connection.BeginTransactionAsync(cancellationToken);
+
+        var supersededKeys =
+            new HashSet<(string, string, string, string)>();
+
+        await using (var lookup = connection.CreateCommand())
+        {
+            lookup.Transaction = transaction;
+            lookup.CommandText = """
+                SELECT RequirementId, MedicalLiteratureSourceId,
+                       GuidanceRole, ArtifactId
+                FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
+                WHERE CorrelationId = $correlation
+                  AND SupersededUtc IS NULL;
+                """;
+            lookup.Parameters.AddWithValue(
+                "$correlation",
+                supersededCorrelationId);
+
+            await using var reader =
+                await lookup.ExecuteReaderAsync(cancellationToken);
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                supersededKeys.Add(
+                    (reader.GetString(0), reader.GetString(1),
+                     reader.GetString(2), reader.GetString(3)));
+            }
+        }
+
+        if (supersededKeys.Count == 0)
+            throw new InvalidOperationException(
+                "The reviewed medical literature correlation to supersede is not active.");
+
+        if (!supersededKeys.SetEquals(replacementKeys))
+            throw new InvalidOperationException(
+                "Replacement reviewed medical literature classifications must exactly match the active logical decisions being superseded.");
+
+        foreach (var classification in classifications)
+        {
+            var association = classification.Association;
+            await using var updateAssociation = connection.CreateCommand();
+            updateAssociation.Transaction = transaction;
+            updateAssociation.CommandText = """
+                UPDATE VeteransClaims_RequirementMedicalLiterature
+                SET Description = $description
+                WHERE RequirementId = $requirement
+                  AND MedicalLiteratureSourceId = $source
+                  AND GuidanceRole = $role;
+                """;
+            updateAssociation.Parameters.AddWithValue(
+                "$description",
+                association.Description);
+            updateAssociation.Parameters.AddWithValue(
+                "$requirement",
+                association.RequirementId.Value);
+            updateAssociation.Parameters.AddWithValue(
+                "$source",
+                association.MedicalLiteratureSourceId.Value);
+            updateAssociation.Parameters.AddWithValue(
+                "$role",
+                association.GuidanceRole);
+
+            if (await updateAssociation.ExecuteNonQueryAsync(
+                    cancellationToken) != 1)
+            {
+                throw new InvalidOperationException(
+                    "The reviewed medical literature association to supersede is missing.");
+            }
+        }
+
+        await using (var supersede = connection.CreateCommand())
+        {
+            supersede.Transaction = transaction;
+            supersede.CommandText = """
+                UPDATE VeteransClaims_ReviewedMedicalLiteratureClassifications
+                SET SupersededByCorrelationId = $replacement,
+                    SupersededUtc = $supersededUtc
+                WHERE CorrelationId = $superseded
+                  AND SupersededUtc IS NULL;
+                """;
+            supersede.Parameters.AddWithValue(
+                "$replacement",
+                replacementCorrelationId);
+            supersede.Parameters.AddWithValue(
+                "$supersededUtc",
+                supersededUtc.ToString("O"));
+            supersede.Parameters.AddWithValue(
+                "$superseded",
+                supersededCorrelationId);
+
+            if (await supersede.ExecuteNonQueryAsync(cancellationToken) !=
+                supersededKeys.Count)
+            {
+                throw new InvalidOperationException(
+                    "The active reviewed medical literature supersession set changed unexpectedly.");
+            }
+        }
+
+        foreach (var classification in classifications)
+        {
+            await AddReviewedClassificationAsync(
+                connection,
+                transaction,
+                classification,
+                cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static (string, string, string, string)
+        ReviewedClassificationKey(
+            ReviewedMedicalLiteratureClassification classification) =>
+        (classification.Association.RequirementId.Value,
+         classification.Association.MedicalLiteratureSourceId.Value,
+         classification.Association.GuidanceRole,
+         classification.ArtifactId.Value);
+
     private static async Task AddReviewedClassificationAsync(
         SqliteConnection connection,
         SqliteTransaction transaction,
@@ -439,6 +606,7 @@ public sealed class SqliteMedicalLiteratureRepository :
                   AND MedicalLiteratureSourceId = $source
                   AND GuidanceRole = $role
                   AND ArtifactId = $artifact
+                  AND SupersededUtc IS NULL
                 LIMIT 1;
                 """;
             existingReview.Parameters.AddWithValue(
@@ -717,6 +885,7 @@ public sealed class SqliteMedicalLiteratureRepository :
                            RequiresReview, WarningsJson
                     FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
                     WHERE RequirementId = $filter
+                      AND SupersededUtc IS NULL
                     ORDER BY MedicalLiteratureSourceId, GuidanceRole,
                              ArtifactId, CorrelationId;
                     """;
@@ -736,6 +905,7 @@ public sealed class SqliteMedicalLiteratureRepository :
                            RequiresReview, WarningsJson
                     FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
                     WHERE ArtifactId = $filter
+                      AND SupersededUtc IS NULL
                     ORDER BY RequirementId, MedicalLiteratureSourceId,
                              GuidanceRole, CorrelationId;
                     """;

@@ -415,6 +415,158 @@ public sealed class MedicalLiteratureConsoleCommandTests
         }
     }
 
+
+    [Fact]
+    public async Task RunClassifyAsync_SupersedesReviewedClassification()
+    {
+        var databasePath = Path.GetTempFileName();
+        var contentPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-literature-supersede-{Guid.NewGuid():N}");
+
+        try
+        {
+            var sourceId = new MedicalLiteratureSourceId("source-supersede");
+            var artifactId = new ArtifactId("artifact-supersede");
+            var requirementId = new RequirementId("requirement-supersede");
+            var literature = new SqliteMedicalLiteratureRepository(databasePath);
+            await literature.InitializeAsync();
+            await literature.AddMedicalLiteratureSourceAsync(
+                new MedicalLiteratureSource
+                {
+                    Id = sourceId,
+                    Title = "Superseded article",
+                    Authors = "Test Author",
+                    Publication = "Test Journal",
+                    PeerReviewed = true
+                });
+
+            var evidence = new SqliteEvidenceRepository(databasePath);
+            await evidence.InitializeAsync();
+            await evidence.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = artifactId,
+                    Name = "superseded-study.txt",
+                    ArtifactType = "file",
+                    Metadata = new Dictionary<string, object>
+                    {
+                        [ArtifactMetadataKeys.FileExtension] = ".txt"
+                    }
+                });
+            await literature.AddMedicalLiteratureSourceArtifactAsync(
+                new MedicalLiteratureSourceArtifact
+                {
+                    MedicalLiteratureSourceId = sourceId,
+                    ArtifactId = artifactId
+                });
+
+            var regulatory = new SqliteRegulatoryRepository(databasePath);
+            var authority = new RegulatoryAuthority
+            {
+                Id = new("authority-supersede"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Test authority"
+            };
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+            var provision = new RegulatoryProvision
+            {
+                Id = new("provision-supersede"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Requirement,
+                Citation = "38 CFR 3.310"
+            };
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+            await regulatory.AddRequirementAsync(
+                new Requirement
+                {
+                    Id = requirementId,
+                    RegulatoryProvisionId = provision.Id,
+                    Description = "Candidate requirement."
+                });
+
+            var contentStore = new EMF.Persistence.Storage
+                .FileSystemArtifactContentStore(contentPath);
+            await contentStore.WriteAsync(
+                artifactId,
+                System.Text.Encoding.UTF8.GetBytes(
+                    "PTSD was associated with OSA."));
+
+            var reviewedUtc =
+                new DateTimeOffset(2026, 9, 12, 19, 0, 0, TimeSpan.Zero);
+            await literature.AddReviewedClassificationAsync(
+                new ReviewedMedicalLiteratureClassification
+                {
+                    Association = new RequirementMedicalLiterature
+                    {
+                        RequirementId = requirementId,
+                        MedicalLiteratureSourceId = sourceId,
+                        GuidanceRole = EvidenceGuidanceRoles.SupportsRequirement,
+                        Description = "Initial accepted relevance."
+                    },
+                    ArtifactId = artifactId,
+                    PromotedBy = "existing-promotion",
+                    PromotedUtc = reviewedUtc.AddMinutes(1),
+                    ReviewedBy = "existing-reviewer@example.test",
+                    ReviewedUtc = reviewedUtc,
+                    IntelligenceOutput = "{}",
+                    CapabilityId = "TextStructuredExtraction",
+                    ProviderId = "test",
+                    CorrelationId = "console-superseded-correlation",
+                    EngineName = "test",
+                    StartedUtc = reviewedUtc.AddMinutes(-2),
+                    CompletedUtc = reviewedUtc.AddMinutes(-1),
+                    RequiresReview = true,
+                    Warnings = [],
+                    SourceExcerpts =
+                    [
+                        new MedicalLiteratureSourceExcerpt
+                        {
+                            ArtifactId = artifactId,
+                            Text = "PTSD was associated with OSA.",
+                            StartOffset = 0,
+                            Length = 29
+                        }
+                    ]
+                });
+
+            using var output = new StringWriter();
+            var exitCode = await MedicalLiteratureConsoleCommand.RunClassifyAsync(
+                databasePath,
+                sourceId,
+                artifactId,
+                [requirementId],
+                () => Task.FromResult(Runtime(requirementId)),
+                contentStore,
+                output,
+                promote: true,
+                reviewedBy: "replacement-reviewer@example.test",
+                supersedesCorrelationId: "console-superseded-correlation");
+
+            Assert.Equal(0, exitCode);
+            Assert.Contains(
+                "Supersedes    : console-superseded-correlation",
+                output.ToString());
+
+            var active = Assert.Single(
+                await literature.GetReviewedClassificationsAsync(
+                    requirementId));
+            Assert.NotEqual(
+                "console-superseded-correlation",
+                active.CorrelationId);
+            Assert.Equal(
+                "replacement-reviewer@example.test",
+                active.ReviewedBy);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+            if (Directory.Exists(contentPath))
+                Directory.Delete(contentPath, true);
+        }
+    }
+
     [Fact]
     public async Task RunAsync_LiteratureClassifyPromoteRequiresReviewer()
     {
@@ -429,6 +581,36 @@ public sealed class MedicalLiteratureConsoleCommandTests
                 [
                     "evidence", "literature", "classify", "--promote",
                     databasePath, "source-1", "artifact-1", "requirement-1"
+                ],
+                () => Task.FromResult(
+                    Runtime(new RequirementId("requirement-1"))),
+                () => null);
+
+            Assert.Equal(1, exitCode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("EMF_REVIEWED_BY", previous);
+            File.Delete(databasePath);
+        }
+    }
+
+
+    [Fact]
+    public async Task RunAsync_LiteratureClassifySupersedeRequiresReviewer()
+    {
+        var databasePath = Path.GetTempFileName();
+        var previous = Environment.GetEnvironmentVariable("EMF_REVIEWED_BY");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("EMF_REVIEWED_BY", null);
+
+            var exitCode = await VeteransConsoleCommand.RunAsync(
+                [
+                    "evidence", "literature", "classify", "--supersede",
+                    "prior-correlation", databasePath, "source-1",
+                    "artifact-1", "requirement-1"
                 ],
                 () => Task.FromResult(
                     Runtime(new RequirementId("requirement-1"))),

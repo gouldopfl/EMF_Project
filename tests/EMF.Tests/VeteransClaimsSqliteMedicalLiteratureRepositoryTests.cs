@@ -3,6 +3,7 @@ using EMF.Core.Models.Identities;
 using EMF.Core.Models;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
+using EMF.Extensions.VeteransClaims.Persistence.Sqlite;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
 using EMF.Extensions.VeteransClaims.Regulatory;
 
@@ -826,6 +827,323 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
                 }
             ]
         };
+    }
+
+
+    [Fact]
+    public async Task ReviewedClassifications_SupersessionReplacesActiveReviewAndPreservesHistory()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var regulatory = new SqliteRegulatoryRepository(path);
+            var literature = new SqliteMedicalLiteratureRepository(path);
+            var evidence = new SqliteEvidenceRepository(path);
+
+            await literature.InitializeAsync();
+            await evidence.InitializeAsync();
+
+            var authority = new RegulatoryAuthority
+            {
+                Id = new("authority-supersede-lit"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Veterans Affairs"
+            };
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+            var provision = new RegulatoryProvision
+            {
+                Id = new("provision-supersede-lit"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Requirement,
+                Citation = "38 CFR 3.310"
+            };
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+            var requirement = new Requirement
+            {
+                Id = new("requirement-supersede-lit"),
+                RegulatoryProvisionId = provision.Id,
+                Description = "Secondary service connection requirement."
+            };
+            await regulatory.AddRequirementAsync(requirement);
+
+            var source = new MedicalLiteratureSource
+            {
+                Id = new("study-supersede-lit"),
+                Title = "Superseded study",
+                Authors = "Example Authors",
+                Publication = "Example Journal",
+                PeerReviewed = true
+            };
+            await literature.AddMedicalLiteratureSourceAsync(source);
+            var artifact = new Artifact
+            {
+                Id = new("artifact-supersede-lit"),
+                Name = "supersede-study.pdf",
+                ArtifactType = "pdf"
+            };
+            await evidence.AddArtifactAsync(artifact);
+            await literature.AddMedicalLiteratureSourceArtifactAsync(
+                new MedicalLiteratureSourceArtifact
+                {
+                    MedicalLiteratureSourceId = source.Id,
+                    ArtifactId = artifact.Id
+                });
+
+            var firstReviewedUtc =
+                new DateTimeOffset(2026, 9, 12, 17, 0, 0, TimeSpan.Zero);
+
+            ReviewedMedicalLiteratureClassification Create(
+                string correlationId,
+                string reviewer,
+                string description,
+                string excerpt,
+                DateTimeOffset reviewedUtc) =>
+                new()
+                {
+                    Association = new RequirementMedicalLiterature
+                    {
+                        RequirementId = requirement.Id,
+                        MedicalLiteratureSourceId = source.Id,
+                        GuidanceRole = EvidenceGuidanceRoles.SupportsRequirement,
+                        Description = description
+                    },
+                    ArtifactId = artifact.Id,
+                    PromotedBy = "supersession-test",
+                    PromotedUtc = reviewedUtc.AddMinutes(1),
+                    ReviewedBy = reviewer,
+                    ReviewedUtc = reviewedUtc,
+                    IntelligenceOutput = "{}",
+                    CapabilityId = "TextStructuredExtraction",
+                    ProviderId = "test-provider",
+                    CorrelationId = correlationId,
+                    EngineName = "test-engine",
+                    StartedUtc = reviewedUtc.AddMinutes(-2),
+                    CompletedUtc = reviewedUtc.AddMinutes(-1),
+                    RequiresReview = true,
+                    Warnings = [],
+                    SourceExcerpts =
+                    [
+                        new MedicalLiteratureSourceExcerpt
+                        {
+                            ArtifactId = artifact.Id,
+                            Text = excerpt,
+                            StartOffset = 0,
+                            Length = excerpt.Length
+                        }
+                    ]
+                };
+
+            var original = Create(
+                "superseded-correlation",
+                "first-reviewer@example.test",
+                "Initial accepted relevance.",
+                "Initial accepted excerpt.",
+                firstReviewedUtc);
+            await literature.AddReviewedClassificationAsync(original);
+
+            var replacement = Create(
+                "replacement-correlation",
+                "second-reviewer@example.test",
+                "Updated accepted relevance.",
+                "Updated accepted excerpt.",
+                firstReviewedUtc.AddHours(1));
+
+            await literature.SupersedeReviewedClassificationsAsync(
+                original.CorrelationId,
+                [replacement]);
+
+            var active = Assert.Single(
+                await literature.GetReviewedClassificationsAsync(
+                    requirement.Id));
+            Assert.Equal(replacement.CorrelationId, active.CorrelationId);
+            Assert.Equal(
+                replacement.Association.Description,
+                active.Association.Description);
+            Assert.Equal(
+                replacement.SourceExcerpts[0].Text,
+                Assert.Single(active.SourceExcerpts).Text);
+
+            await using var connection =
+                VeteransClaimsSqliteConnectionFactory.Create(path);
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                SELECT CorrelationId, SupersededByCorrelationId,
+                       SupersededUtc
+                FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
+                ORDER BY PromotedUtc;
+                """;
+
+            await using var reader = await command.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(original.CorrelationId, reader.GetString(0));
+            Assert.Equal(replacement.CorrelationId, reader.GetString(1));
+            Assert.True(DateTimeOffset.TryParse(reader.GetString(2), out _));
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(replacement.CorrelationId, reader.GetString(0));
+            Assert.True(reader.IsDBNull(1));
+            Assert.True(reader.IsDBNull(2));
+            Assert.False(await reader.ReadAsync());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ReviewedClassifications_SupersessionRejectsMismatchedDecisionSetWithoutChangingActiveReview()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var regulatory = new SqliteRegulatoryRepository(path);
+            var literature = new SqliteMedicalLiteratureRepository(path);
+            var evidence = new SqliteEvidenceRepository(path);
+            await literature.InitializeAsync();
+            await evidence.InitializeAsync();
+
+            var authority = new RegulatoryAuthority
+            {
+                Id = new("authority-supersede-mismatch"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Veterans Affairs"
+            };
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+            var provision = new RegulatoryProvision
+            {
+                Id = new("provision-supersede-mismatch"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Requirement,
+                Citation = "38 CFR 3.310"
+            };
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+            var requirement = new Requirement
+            {
+                Id = new("requirement-supersede-mismatch"),
+                RegulatoryProvisionId = provision.Id,
+                Description = "Secondary service connection requirement."
+            };
+            await regulatory.AddRequirementAsync(requirement);
+
+            var source = new MedicalLiteratureSource
+            {
+                Id = new("study-supersede-mismatch"),
+                Title = "Mismatch study",
+                Authors = "Example Authors",
+                Publication = "Example Journal",
+                PeerReviewed = true
+            };
+            await literature.AddMedicalLiteratureSourceAsync(source);
+            var artifact = new Artifact
+            {
+                Id = new("artifact-supersede-mismatch"),
+                Name = "mismatch-study.pdf",
+                ArtifactType = "pdf"
+            };
+            await evidence.AddArtifactAsync(artifact);
+            await literature.AddMedicalLiteratureSourceArtifactAsync(
+                new MedicalLiteratureSourceArtifact
+                {
+                    MedicalLiteratureSourceId = source.Id,
+                    ArtifactId = artifact.Id
+                });
+
+            var reviewedUtc =
+                new DateTimeOffset(2026, 9, 12, 18, 0, 0, TimeSpan.Zero);
+            var original = new ReviewedMedicalLiteratureClassification
+            {
+                Association = new RequirementMedicalLiterature
+                {
+                    RequirementId = requirement.Id,
+                    MedicalLiteratureSourceId = source.Id,
+                    GuidanceRole = EvidenceGuidanceRoles.SupportsRequirement,
+                    Description = "Initial accepted relevance."
+                },
+                ArtifactId = artifact.Id,
+                PromotedBy = "supersession-test",
+                PromotedUtc = reviewedUtc.AddMinutes(1),
+                ReviewedBy = "reviewer@example.test",
+                ReviewedUtc = reviewedUtc,
+                IntelligenceOutput = "{}",
+                CapabilityId = "TextStructuredExtraction",
+                ProviderId = "test-provider",
+                CorrelationId = "active-mismatch-correlation",
+                EngineName = "test-engine",
+                StartedUtc = reviewedUtc.AddMinutes(-2),
+                CompletedUtc = reviewedUtc.AddMinutes(-1),
+                RequiresReview = true,
+                Warnings = [],
+                SourceExcerpts =
+                [
+                    new MedicalLiteratureSourceExcerpt
+                    {
+                        ArtifactId = artifact.Id,
+                        Text = "Initial excerpt.",
+                        StartOffset = 0,
+                        Length = 16
+                    }
+                ]
+            };
+            await literature.AddReviewedClassificationAsync(original);
+
+            var replacement = new ReviewedMedicalLiteratureClassification
+            {
+                Association = new RequirementMedicalLiterature
+                {
+                    RequirementId = requirement.Id,
+                    MedicalLiteratureSourceId = source.Id,
+                    GuidanceRole = EvidenceGuidanceRoles.Corroborates,
+                    Description = "Different logical decision."
+                },
+                ArtifactId = artifact.Id,
+                PromotedBy = "supersession-test",
+                PromotedUtc = reviewedUtc.AddHours(1),
+                ReviewedBy = "replacement@example.test",
+                ReviewedUtc = reviewedUtc.AddMinutes(59),
+                IntelligenceOutput = "{}",
+                CapabilityId = "TextStructuredExtraction",
+                ProviderId = "test-provider",
+                CorrelationId = "replacement-mismatch-correlation",
+                EngineName = "test-engine",
+                StartedUtc = reviewedUtc.AddMinutes(57),
+                CompletedUtc = reviewedUtc.AddMinutes(58),
+                RequiresReview = true,
+                Warnings = [],
+                SourceExcerpts =
+                [
+                    new MedicalLiteratureSourceExcerpt
+                    {
+                        ArtifactId = artifact.Id,
+                        Text = "Replacement excerpt.",
+                        StartOffset = 0,
+                        Length = 20
+                    }
+                ]
+            };
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => literature.SupersedeReviewedClassificationsAsync(
+                    original.CorrelationId,
+                    [replacement]));
+
+            var active = Assert.Single(
+                await literature.GetReviewedClassificationsAsync(
+                    requirement.Id));
+            Assert.Equal(original.CorrelationId, active.CorrelationId);
+            Assert.Equal(
+                original.Association.Description,
+                active.Association.Description);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
 }

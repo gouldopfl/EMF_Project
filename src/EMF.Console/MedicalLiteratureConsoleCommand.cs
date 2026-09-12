@@ -194,7 +194,8 @@ internal static class MedicalLiteratureConsoleCommand
         IArtifactContentStore? contentStore,
         TextWriter output,
         bool promote = false,
-        string? reviewedBy = null)
+        string? reviewedBy = null,
+        string? supersedesCorrelationId = null)
     {
         ArgumentNullException.ThrowIfNull(candidateRequirementIds);
         ArgumentNullException.ThrowIfNull(runtimeFactory);
@@ -202,6 +203,10 @@ internal static class MedicalLiteratureConsoleCommand
 
         try
         {
+            if (supersedesCorrelationId is not null && !promote)
+                throw new InvalidOperationException(
+                    "Medical literature supersession requires promotion.");
+
             if (promote && string.IsNullOrWhiteSpace(reviewedBy))
                 throw new InvalidOperationException(
                     "Medical literature promotion requires review. " +
@@ -323,12 +328,24 @@ internal static class MedicalLiteratureConsoleCommand
                         });
                 }
 
-                await literature.AddReviewedClassificationsAsync(
-                    reviewedClassifications);
+                if (supersedesCorrelationId is null)
+                {
+                    await literature.AddReviewedClassificationsAsync(
+                        reviewedClassifications);
+                }
+                else
+                {
+                    await literature.SupersedeReviewedClassificationsAsync(
+                        supersedesCorrelationId,
+                        reviewedClassifications);
+                }
 
                 output.WriteLine();
                 output.WriteLine(
                     $"Promoted      : {result.Proposal.Classifications.Count}");
+                if (supersedesCorrelationId is not null)
+                    output.WriteLine(
+                        $"Supersedes    : {ConsoleTextSanitizer.Sanitize(supersedesCorrelationId)}");
                 output.WriteLine(
                     $"Reviewed By   : {ConsoleTextSanitizer.Sanitize(reviewedBy!)}");
             }

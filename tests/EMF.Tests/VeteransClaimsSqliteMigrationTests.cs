@@ -939,6 +939,17 @@ public sealed class VeteransClaimsSqliteMigrationTests
                     reader.GetString(2),
                     out _));
 
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(71, reader.GetInt32(0));
+            Assert.Equal(
+                "AddReviewedMedicalLiteratureSupersession",
+                reader.GetString(1));
+
+            Assert.True(
+                DateTimeOffset.TryParse(
+                    reader.GetString(2),
+                    out _));
+
             Assert.False(await reader.ReadAsync());
         }
         finally
@@ -1014,6 +1025,70 @@ public sealed class VeteransClaimsSqliteMigrationTests
                     "ArtifactId"
                 },
                 columns);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task InitializeAsync_SupportsReviewedLiteratureSupersession()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            var schema = new VeteransClaimsSqliteSchema(databasePath);
+            await schema.InitializeAsync();
+
+            var builder =
+                new SqliteConnectionStringBuilder
+                {
+                    DataSource = databasePath
+                };
+
+            await using var connection =
+                new SqliteConnection(builder.ToString());
+            await connection.OpenAsync();
+
+            await using (var columns = connection.CreateCommand())
+            {
+                columns.CommandText =
+                    """
+                    SELECT COUNT(*)
+                    FROM pragma_table_info(
+                        'VeteransClaims_ReviewedMedicalLiteratureClassifications')
+                    WHERE name IN (
+                        'SupersededByCorrelationId',
+                        'SupersededUtc');
+                    """;
+
+                Assert.Equal(
+                    2,
+                    Convert.ToInt32(
+                        await columns.ExecuteScalarAsync()));
+            }
+
+            await using var index = connection.CreateCommand();
+            index.CommandText =
+                """
+                SELECT sql
+                FROM sqlite_master
+                WHERE type = 'index'
+                  AND name =
+                      'UX_VeteransClaims_ReviewedMedicalLiterature_LogicalDecision';
+                """;
+
+            var sql = Assert.IsType<string>(
+                await index.ExecuteScalarAsync());
+            Assert.Contains(
+                "WHERE SupersededUtc IS NULL",
+                sql,
+                StringComparison.Ordinal);
         }
         finally
         {
