@@ -769,9 +769,6 @@ public static class VeteransReviewerPackageDocxRenderer
         Body body,
         VeteransReviewerPackageDetails details)
     {
-        var package =
-            details.PackageDetails.Package;
-
         body.Append(
             StyledParagraph(
                 "Appendix F — Evidence Traceability",
@@ -780,180 +777,132 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             ContentParagraph(
-                "This appendix preserves EMF package and artifact identity, " +
-                "integrity, provenance, and relationship information separately " +
-                "from the reviewer-facing source evidence."));
+                "This appendix provides reviewer-facing source traceability. " +
+                "Internal EMF identifiers, hashes, timestamps, file-system paths, " +
+                "and audit provenance remain preserved within EMF."));
 
-        body.Append(
-            ContentParagraph(
-                $"EMF Package Reference: {package.Id.Value}"));
-
-        body.Append(
-            ContentParagraph(
-                $"EMF Claim Issue Reference: {package.ClaimIssueId.Value}"));
-
-        body.Append(
-            ContentParagraph(
-                $"EMF Reviewer Role: {package.ReviewerRole}"));
-
-        foreach (var content in details.ArtifactContents)
+        foreach (var content in
+            GetRoleContents(
+                details,
+                EvidencePackageContentRoles.UnderlyingEvidence))
         {
-            var contentRole =
-                details.PackageDetails.Artifacts
-                    .First(
-                        packageArtifact =>
-                            packageArtifact.ArtifactId ==
-                                content.Artifact.Id)
-                    .ContentRole;
-
             body.Append(
                 StyledParagraph(
-                    $"Artifact Content: {content.Artifact.Name} " +
-                    $"[{content.Artifact.Id.Value}] " +
-                    $"[{contentRole}]",
+                    GetDisplayName(content),
                     "Heading2"));
 
             body.Append(
                 ContentParagraph(
-                    $"Artifact Type: {content.Artifact.ArtifactType}"));
+                    $"Category: {TraceabilityCategory(content)}"));
 
-            body.Append(
-                ContentParagraph(
-                    $"Created UTC: {content.Artifact.CreatedUtc:O}"));
+            var date = GetEvidenceDate(content);
+            if (!string.IsNullOrWhiteSpace(date))
+                body.Append(ContentParagraph($"Evidence Date: {date}"));
 
-            if (content.Artifact.Fingerprint is not null)
-            {
-                body.Append(
-                    ContentParagraph(
-                        $"Fingerprint: " +
-                        $"{content.Artifact.Fingerprint.Algorithm} " +
-                        $"{content.Artifact.Fingerprint.Value}"));
-            }
+            var pages = GetSourcePageReference(content);
+            if (!string.IsNullOrWhiteSpace(pages))
+                body.Append(ContentParagraph(pages));
 
-            AppendMetadata(
-                body,
-                content.Artifact.Metadata,
-                EMF.Extensions.VeteransClaims.Models
-                    .VeteransArtifactMetadataKeys.SourceStartPage,
-                "Source Start Page");
-
-            AppendMetadata(
-                body,
-                content.Artifact.Metadata,
-                EMF.Extensions.VeteransClaims.Models
-                    .VeteransArtifactMetadataKeys.SourceEndPage,
-                "Source End Page");
-
-            AppendMetadata(
-                body,
-                content.Artifact.Metadata,
-                EMF.Extensions.VeteransClaims.Models
-                    .VeteransArtifactMetadataKeys.NoteDate,
-                "Note Date");
-
-            AppendMetadata(
-                body,
-                content.Artifact.Metadata,
-                EMF.Extensions.VeteransClaims.Models
-                    .VeteransArtifactMetadataKeys.NoteTitle,
-                "Note Title");
-
-            foreach (var provenance in content.Provenance)
-            {
-                body.Append(
-                    ContentParagraph(
-                        $"Provenance: {provenance.Source} | " +
-                        $"{provenance.RecordedBy} | " +
-                        $"{provenance.RecordedUtc:O}"));
-            }
-
-            foreach (var provenance in content.Provenance)
-            {
-                if (!string.Equals(
-                        provenance.Source,
-                        "EMF.Intelligence",
-                        StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                body.Append(
-                    ContentParagraph(
-                        $"Promoted By: {provenance.RecordedBy}"));
-
-                body.Append(
-                    ContentParagraph(
-                        $"Promoted UTC: {provenance.RecordedUtc:O}"));
-
-                if (provenance.Properties.TryGetValue(
-                        "reviewedBy",
-                        out var reviewedBy) &&
-                    !string.IsNullOrWhiteSpace(reviewedBy?.ToString()))
-                {
-                    body.Append(
-                        ContentParagraph(
-                            $"Reviewed By: {reviewedBy}"));
-                }
-
-                if (provenance.Properties.TryGetValue(
-                        "reviewedUtc",
-                        out var reviewedUtc) &&
-                    DateTimeOffset.TryParse(
-                        reviewedUtc?.ToString(),
-                        out var reviewedAt))
-                {
-                    body.Append(
-                        ContentParagraph(
-                            $"Reviewed UTC: {reviewedAt:O}"));
-                }
-            }
+            var citation = BuildLiteratureCitation(content);
+            if (!string.IsNullOrWhiteSpace(citation))
+                body.Append(ContentParagraph($"Citation: {citation}"));
 
             foreach (var reviewed in
                 content.ReviewedMedicalLiteratureClassifications)
             {
                 body.Append(
                     ContentParagraph(
-                        $"Reviewed Literature Requirement: " +
-                        $"{reviewed.Association.RequirementId.Value}"));
+                        $"Role: {GuidanceRoleDisplayName(reviewed.Association.GuidanceRole)}"));
 
-                body.Append(
-                    ContentParagraph(
-                        $"Reviewed Literature Source: " +
-                        $"{reviewed.Association.MedicalLiteratureSourceId.Value}"));
-
-                body.Append(
-                    ContentParagraph(
-                        $"Reviewed Literature Guidance Role: " +
-                        $"{reviewed.Association.GuidanceRole}"));
-
-                body.Append(
-                    ContentParagraph(
-                        $"Reviewed Literature Promoted By: {reviewed.PromotedBy}"));
-
-                body.Append(
-                    ContentParagraph(
-                        $"Reviewed Literature Promoted UTC: {reviewed.PromotedUtc:O}"));
-
-                body.Append(
-                    ContentParagraph(
-                        $"Reviewed Literature Reviewed By: {reviewed.ReviewedBy}"));
-
-                body.Append(
-                    ContentParagraph(
-                        $"Reviewed Literature Reviewed UTC: {reviewed.ReviewedUtc:O}"));
+                if (!string.IsNullOrWhiteSpace(
+                        reviewed.Association.Description))
+                {
+                    body.Append(
+                        ContentParagraph(
+                            $"Relevance: {reviewed.Association.Description}"));
+                }
             }
 
-            foreach (var relationship in content.Relationships)
+            if (content.Relationships.Any(
+                    relationship =>
+                        relationship.SourceArtifactId == content.Artifact.Id &&
+                        string.Equals(
+                            relationship.RelationshipType,
+                            "Supersedes",
+                            StringComparison.Ordinal)))
             {
                 body.Append(
                     ContentParagraph(
-                        $"Relationship: " +
-                        $"{relationship.SourceArtifactId.Value} -> " +
-                        $"{relationship.TargetArtifactId.Value} | " +
-                        $"{relationship.RelationshipType} | " +
-                        $"{relationship.CreatedUtc:O}"));
+                        "Version Status: Current version; supersedes prior version."));
             }
         }
+    }
+
+    private static string TraceabilityCategory(
+        VeteransReviewerArtifactContent content) =>
+        content.Appendix switch
+        {
+            VeteransReviewerPackageAppendix.MedicalEvidence =>
+                "Medical Evidence",
+            VeteransReviewerPackageAppendix.ServiceRecords =>
+                "Service Records",
+            VeteransReviewerPackageAppendix.LayEvidence =>
+                "Lay Evidence",
+            VeteransReviewerPackageAppendix.AdjudicativeRecords =>
+                "Adjudicative Records",
+            VeteransReviewerPackageAppendix.MedicalLiterature =>
+                "Medical / Scientific Literature",
+            _ => "Additional Evidence"
+        };
+
+    private static string BuildLiteratureCitation(
+        VeteransReviewerArtifactContent content)
+    {
+        if (!string.Equals(
+                content.Appendix,
+                VeteransReviewerPackageAppendix.MedicalLiterature,
+                StringComparison.Ordinal))
+            return string.Empty;
+
+        var metadata = content.Artifact.Metadata;
+        var authors = GetMetadataText(
+            metadata,
+            EMF.Extensions.VeteransClaims.Models
+                .VeteransArtifactMetadataKeys.LiteratureAuthors);
+        var publication = GetMetadataText(
+            metadata,
+            EMF.Extensions.VeteransClaims.Models
+                .VeteransArtifactMetadataKeys.LiteraturePublication);
+        var doi = GetMetadataText(
+            metadata,
+            EMF.Extensions.VeteransClaims.Models
+                .VeteransArtifactMetadataKeys.LiteratureDoi);
+        var pmid = GetMetadataText(
+            metadata,
+            EMF.Extensions.VeteransClaims.Models
+                .VeteransArtifactMetadataKeys.LiteraturePmid);
+
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(authors))
+            parts.Add(authors);
+
+        parts.Add(GetDisplayName(content));
+
+        if (!string.IsNullOrWhiteSpace(publication))
+            parts.Add(publication);
+
+        var year = GetEvidenceDate(content);
+        if (!string.IsNullOrWhiteSpace(year))
+            parts.Add(year);
+
+        if (!string.IsNullOrWhiteSpace(doi))
+            parts.Add($"DOI: {doi}");
+
+        if (!string.IsNullOrWhiteSpace(pmid))
+            parts.Add($"PMID: {pmid}");
+
+        return string.Join(". ", parts);
     }
 
     private static string ReviewerRoleDisplayName(string role) =>

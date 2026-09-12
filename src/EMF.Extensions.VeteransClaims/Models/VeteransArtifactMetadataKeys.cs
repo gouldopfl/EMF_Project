@@ -8,4 +8,8 @@ public static class VeteransArtifactMetadataKeys
     public const string NoteTitle = "noteTitle";
     public const string EvidenceDate = "evidenceDate";
     public const string EvidenceTitle = "evidenceTitle";
+    public const string LiteratureAuthors = "literatureAuthors";
+    public const string LiteraturePublication = "literaturePublication";
+    public const string LiteratureDoi = "literatureDoi";
+    public const string LiteraturePmid = "literaturePmid";
 }

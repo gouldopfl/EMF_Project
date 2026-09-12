@@ -358,6 +358,24 @@ public sealed class VeteransReviewerPackageDetailsService
                     source.PublicationYear.Value.ToString();
         }
 
+        metadata[
+            EMF.Extensions.VeteransClaims.Models.VeteransArtifactMetadataKeys.LiteratureAuthors] =
+                source.Authors;
+
+        metadata[
+            EMF.Extensions.VeteransClaims.Models.VeteransArtifactMetadataKeys.LiteraturePublication] =
+                source.Publication;
+
+        if (!string.IsNullOrWhiteSpace(source.Doi))
+            metadata[
+                EMF.Extensions.VeteransClaims.Models.VeteransArtifactMetadataKeys.LiteratureDoi] =
+                    source.Doi;
+
+        if (!string.IsNullOrWhiteSpace(source.Pmid))
+            metadata[
+                EMF.Extensions.VeteransClaims.Models.VeteransArtifactMetadataKeys.LiteraturePmid] =
+                    source.Pmid;
+
         return new Artifact
         {
             Id = artifact.Id,

@@ -90,11 +90,11 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "Package Reference: package-1",
             paragraphs);
 
-        Assert.Contains(
+        Assert.DoesNotContain(
             "EMF Package Reference: package-1",
             paragraphs);
 
-        Assert.Contains(
+        Assert.DoesNotContain(
             "EMF Claim Issue Reference: issue-1",
             paragraphs);
 
@@ -112,7 +112,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     "MedicalProfessional",
                     StringComparison.Ordinal));
 
-        Assert.Contains(
+        Assert.DoesNotContain(
             "EMF Reviewer Role: MedicalProfessional",
             paragraphs);
     }
@@ -262,47 +262,18 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "Sleep Study",
             text);
 
-        Assert.Contains(
-            "source-1",
-            text);
+        Assert.Contains("Category: Additional Evidence", text);
+        Assert.Contains("Evidence Date: 2025-07-30", text);
+        Assert.Contains("Source pages: 1003-1005", text);
 
-        Assert.Contains(
-            "Artifact Type: medical-record",
-            text);
-
-        Assert.Contains(
-            "Created UTC: 2026-08-01T12:00:00.0000000+00:00",
-            text);
-
-        Assert.Contains(
-            "Fingerprint: SHA-256 abc123",
-            text);
-
-        Assert.Contains("Source Start Page: 1003", text);
-        Assert.Contains("Source End Page: 1005", text);
-        Assert.Contains("Note Date: 2025-07-30", text);
-        Assert.Contains("Note Title: PAP SET-UP CONSULT", text);
-
-        Assert.Contains(
-            "Provenance: /records/sleep-study.pdf | " +
-            "EMF.Discovery | " +
-            "2026-08-01T13:00:00.0000000+00:00",
-            text);
-
-        Assert.Contains(
-            "Relationship: source-1 -> derived-1 | " +
-            "DerivedFrom | " +
-            "2026-08-01T14:00:00.0000000+00:00",
-            text);
-
-        Assert.Contains("Promoted By: promoter", text);
-        Assert.Contains(
-            "Promoted UTC: 2026-08-01T15:00:00.0000000+00:00",
-            text);
-        Assert.Contains("Reviewed By: reviewer", text);
-        Assert.Contains(
-            "Reviewed UTC: 2026-08-01T15:05:00.0000000+00:00",
-            text);
+        Assert.DoesNotContain("source-1", text);
+        Assert.DoesNotContain("Artifact Type:", text);
+        Assert.DoesNotContain("Created UTC:", text);
+        Assert.DoesNotContain("Fingerprint:", text);
+        Assert.DoesNotContain("Provenance:", text);
+        Assert.DoesNotContain("Relationship:", text);
+        Assert.DoesNotContain("Promoted By:", text);
+        Assert.DoesNotContain("Reviewed By:", text);
 
         Assert.Contains(
             "Severe obstructive sleep apnea documented.",
@@ -469,11 +440,11 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 .Document!
                 .InnerText;
 
-        Assert.Contains(
+        Assert.DoesNotContain(
             EvidencePackageContentRoles.UnderlyingEvidence,
             text);
 
-        Assert.Contains(
+        Assert.DoesNotContain(
             EvidencePackageContentRoles.GeneratedOrganizationalMaterial,
             text);
     }
@@ -987,36 +958,19 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     "2026-09-12T12:00:00.0000000+00:00",
                     StringComparison.Ordinal));
 
-        Assert.Contains(
-            "Reviewed Literature Requirement: requirement-reviewed-lit",
-            paragraphs);
-
-        Assert.Contains(
-            "Reviewed Literature Source: study-reviewed-lit",
-            paragraphs);
-
-        Assert.Contains(
-            $"Reviewed Literature Guidance Role: " +
-            $"{EvidenceGuidanceRoles.SupportsRequirement}",
-            paragraphs);
-
-        Assert.Contains(
-            "Reviewed Literature Promoted By: promotion-test",
-            paragraphs);
-
-        Assert.Contains(
-            "Reviewed Literature Promoted UTC: " +
-            "2026-09-12T12:05:00.0000000+00:00",
-            paragraphs);
-
-        Assert.Contains(
-            "Reviewed Literature Reviewed By: reviewer@example.test",
-            paragraphs);
-
-        Assert.Contains(
-            "Reviewed Literature Reviewed UTC: " +
+        Assert.DoesNotContain("requirement-reviewed-lit", text);
+        Assert.DoesNotContain("study-reviewed-lit", text);
+        Assert.DoesNotContain(
+            EvidenceGuidanceRoles.SupportsRequirement,
+            text);
+        Assert.DoesNotContain("promotion-test", text);
+        Assert.DoesNotContain("reviewer@example.test", text);
+        Assert.DoesNotContain(
             "2026-09-12T12:00:00.0000000+00:00",
-            paragraphs);
+            text);
+        Assert.DoesNotContain(
+            "2026-09-12T12:05:00.0000000+00:00",
+            text);
 
         Assert.True(
             text.IndexOf("1. Generic Evidence Title", StringComparison.Ordinal) <
@@ -1521,14 +1475,14 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     .Body!
                     .Elements<
                         DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                    .TakeWhile(
+                        paragraph =>
+                            paragraph.InnerText !=
+                            "Appendix F — Evidence Traceability")
                     .Where(
                         paragraph =>
-                            paragraph.InnerText.Contains(
-                                "Sleep Study",
-                                StringComparison.Ordinal) &&
-                            paragraph.InnerText.Contains(
-                                "source-1",
-                                StringComparison.Ordinal)));
+                            paragraph.InnerText ==
+                            "Sleep Study"));
 
         Assert.Equal(
             "Heading2",
@@ -1619,14 +1573,14 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     .Body!
                     .Elements<
                         DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                    .TakeWhile(
+                        paragraph =>
+                            paragraph.InnerText !=
+                            "Appendix F — Evidence Traceability")
                     .Where(
                         paragraph =>
-                            paragraph.InnerText.Contains(
-                                "Sleep Study",
-                                StringComparison.Ordinal) &&
-                            paragraph.InnerText.Contains(
-                                "source-1",
-                                StringComparison.Ordinal)));
+                            paragraph.InnerText ==
+                            "Sleep Study"));
 
         Assert.Equal(
             "120",
@@ -2360,7 +2314,9 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                         paragraph.ParagraphProperties?
                             .ParagraphStyleId?
                             .Val?
-                            .Value == "Heading2"));
+                            .Value == "Heading2" &&
+                        paragraph.ParagraphProperties?
+                            .PageBreakBefore is not null));
 
         Assert.NotNull(
             secondHeading.ParagraphProperties?.PageBreakBefore);
