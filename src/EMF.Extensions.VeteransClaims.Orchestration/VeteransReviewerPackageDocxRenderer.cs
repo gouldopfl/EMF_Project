@@ -1715,7 +1715,7 @@ public static class VeteransReviewerPackageDocxRenderer
                 FitPageToDocument(
                     width,
                     height,
-                    reserveSourceHeadingSpace: expectedPageNumber == 1);
+                    reserveSourceHeadingSpace: true);
 
             var drawingId =
                 checked((uint)mainPart.ImageParts.Count());

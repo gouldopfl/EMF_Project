@@ -2444,7 +2444,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
     }
 
     [Fact]
-    public void Render_ReservesHeadingSpaceOnFirstPrintableImagePage()
+    public void Render_ReservesSpaceOnEveryPrintableImagePage()
     {
         var details =
             CreatePrintableDetails(
@@ -2480,7 +2480,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         Assert.Equal(2, extents.Length);
         Assert.Equal(6_400_800L, extents[0].Cy?.Value);
-        Assert.Equal(7_772_400L, extents[1].Cy?.Value);
+        Assert.Equal(6_400_800L, extents[1].Cy?.Value);
     }
 
     [Fact]
