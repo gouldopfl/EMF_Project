@@ -389,13 +389,22 @@ public static class VeteransConsoleCommand
         }
 
 
-        if (args.Length >= 7 &&
+        var promoteLiteratureClassification =
+            args.Length >= 8 &&
             args[0] == "evidence" &&
             args[1] == "literature" &&
-            args[2] == "classify")
+            args[2] == "classify" &&
+            args[3] == "--promote";
+
+        if (args.Length >= (promoteLiteratureClassification ? 8 : 7) &&
+            args[0] == "evidence" &&
+            args[1] == "literature" &&
+            args[2] == "classify" &&
+            (args[3] != "--promote" || promoteLiteratureClassification))
         {
+            var literatureArgOffset = promoteLiteratureClassification ? 1 : 0;
             var literatureClassifyDatabasePath =
-                Path.GetFullPath(args[3]);
+                Path.GetFullPath(args[3 + literatureArgOffset]);
 
             if (!File.Exists(literatureClassifyDatabasePath))
             {
@@ -404,14 +413,30 @@ public static class VeteransConsoleCommand
                 return 2;
             }
 
+            var reviewedBy =
+                Environment.GetEnvironmentVariable("EMF_REVIEWED_BY");
+
+            if (promoteLiteratureClassification &&
+                string.IsNullOrWhiteSpace(reviewedBy))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Medical literature promotion requires review. " +
+                    "Set EMF_REVIEWED_BY to the reviewer identity.");
+                return 1;
+            }
+
             return await MedicalLiteratureConsoleCommand.RunClassifyAsync(
                 literatureClassifyDatabasePath,
-                new MedicalLiteratureSourceId(args[4]),
-                new ArtifactId(args[5]),
-                args[6..].Select(id => new RequirementId(id)).ToArray(),
+                new MedicalLiteratureSourceId(args[4 + literatureArgOffset]),
+                new ArtifactId(args[5 + literatureArgOffset]),
+                args[(6 + literatureArgOffset)..]
+                    .Select(id => new RequirementId(id))
+                    .ToArray(),
                 runtimeFactory,
                 contentStoreFactory(),
-                global::System.Console.Out);
+                global::System.Console.Out,
+                promoteLiteratureClassification,
+                reviewedBy);
         }
 
         if (args.Length == 6 &&
@@ -3221,7 +3246,7 @@ public static class VeteransConsoleCommand
 
         global::System.Console.WriteLine(
             "       emf veterans evidence literature classify " +
-            "<database-path> <literature-id> <artifact-id> " +
+            "[--promote] <database-path> <literature-id> <artifact-id> " +
             "<requirement-id> [<requirement-id> ...]");
 
         global::System.Console.WriteLine(

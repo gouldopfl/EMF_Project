@@ -192,7 +192,9 @@ internal static class MedicalLiteratureConsoleCommand
         IReadOnlyList<RequirementId> candidateRequirementIds,
         Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory,
         IArtifactContentStore? contentStore,
-        TextWriter output)
+        TextWriter output,
+        bool promote = false,
+        string? reviewedBy = null)
     {
         ArgumentNullException.ThrowIfNull(candidateRequirementIds);
         ArgumentNullException.ThrowIfNull(runtimeFactory);
@@ -200,6 +202,11 @@ internal static class MedicalLiteratureConsoleCommand
 
         try
         {
+            if (promote && string.IsNullOrWhiteSpace(reviewedBy))
+                throw new InvalidOperationException(
+                    "Medical literature promotion requires review. " +
+                    "Set EMF_REVIEWED_BY to the reviewer identity.");
+
             if (contentStore is null)
                 throw new InvalidOperationException(
                     "Artifact content store is not configured.");
@@ -272,6 +279,51 @@ internal static class MedicalLiteratureConsoleCommand
                         $"Excerpt       : offset={excerpt.StartOffset?.ToString() ?? "?"} " +
                         $"length={excerpt.Length?.ToString() ?? "?"} | " +
                         ConsoleTextSanitizer.Sanitize(excerpt.Text));
+            }
+
+            if (promote)
+            {
+                var promotedUtc = DateTimeOffset.UtcNow;
+                var intelligence = result.IntelligenceResult;
+                var metadata = intelligence.Metadata;
+
+                foreach (var classification in result.Proposal.Classifications)
+                {
+                    await literature.AddReviewedClassificationAsync(
+                        new ReviewedMedicalLiteratureClassification
+                        {
+                            Association = new RequirementMedicalLiterature
+                            {
+                                RequirementId = classification.RequirementId,
+                                MedicalLiteratureSourceId = sourceId,
+                                GuidanceRole = classification.GuidanceRole,
+                                Description = classification.Description
+                            },
+                            ArtifactId = artifactId,
+                            PromotedBy = runtime.SubjectId,
+                            PromotedUtc = promotedUtc,
+                            ReviewedBy = reviewedBy!,
+                            ReviewedUtc = promotedUtc,
+                            IntelligenceOutput = intelligence.Output!,
+                            CapabilityId = metadata.CapabilityId.Value,
+                            ProviderId = metadata.ProviderId.Value,
+                            CorrelationId = metadata.CorrelationId.Value,
+                            EngineName = metadata.EngineName,
+                            EngineVersion = metadata.EngineVersion,
+                            ProviderOperationId = metadata.ProviderOperationId,
+                            StartedUtc = metadata.StartedUtc,
+                            CompletedUtc = metadata.CompletedUtc,
+                            RequiresReview = intelligence.RequiresReview,
+                            Warnings = intelligence.Warnings.ToArray(),
+                            SourceExcerpts = classification.SourceExcerpts
+                        });
+                }
+
+                output.WriteLine();
+                output.WriteLine(
+                    $"Promoted      : {result.Proposal.Classifications.Count}");
+                output.WriteLine(
+                    $"Reviewed By   : {ConsoleTextSanitizer.Sanitize(reviewedBy!)}");
             }
 
             return 0;

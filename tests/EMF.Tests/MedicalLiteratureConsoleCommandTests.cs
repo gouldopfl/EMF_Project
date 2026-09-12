@@ -124,6 +124,162 @@ public sealed class MedicalLiteratureConsoleCommandTests
     }
 
     [Fact]
+    public async Task RunClassifyAsync_PromotesReviewedClassification()
+    {
+        var databasePath = Path.GetTempFileName();
+        var contentPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-literature-promote-{Guid.NewGuid():N}");
+
+        try
+        {
+            var sourceId = new MedicalLiteratureSourceId("source-promote");
+            var artifactId = new ArtifactId("artifact-promote");
+            var requirementId = new RequirementId("requirement-promote");
+
+            var literature = new SqliteMedicalLiteratureRepository(databasePath);
+            await literature.InitializeAsync();
+            await literature.AddMedicalLiteratureSourceAsync(
+                new MedicalLiteratureSource
+                {
+                    Id = sourceId,
+                    Title = "Promoted article",
+                    Authors = "Test Author",
+                    Publication = "Test Journal",
+                    PeerReviewed = true
+                });
+
+            var evidence = new SqliteEvidenceRepository(databasePath);
+            await evidence.InitializeAsync();
+            await evidence.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = artifactId,
+                    Name = "promoted-study.txt",
+                    ArtifactType = "file",
+                    Metadata = new Dictionary<string, object>
+                    {
+                        [ArtifactMetadataKeys.FileExtension] = ".txt"
+                    }
+                });
+
+            await literature.AddMedicalLiteratureSourceArtifactAsync(
+                new MedicalLiteratureSourceArtifact
+                {
+                    MedicalLiteratureSourceId = sourceId,
+                    ArtifactId = artifactId
+                });
+
+            var regulatory = new SqliteRegulatoryRepository(databasePath);
+            var authority = new RegulatoryAuthority
+            {
+                Id = new("authority-promote"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Test authority"
+            };
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+
+            var provision = new RegulatoryProvision
+            {
+                Id = new("provision-promote"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Requirement,
+                Citation = "38 CFR 3.310"
+            };
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+            await regulatory.AddRequirementAsync(
+                new Requirement
+                {
+                    Id = requirementId,
+                    RegulatoryProvisionId = provision.Id,
+                    Description = "Candidate requirement."
+                });
+
+            var contentStore = new EMF.Persistence.Storage
+                .FileSystemArtifactContentStore(contentPath);
+            await contentStore.WriteAsync(
+                artifactId,
+                System.Text.Encoding.UTF8.GetBytes(
+                    "PTSD was associated with OSA."));
+
+            using var output = new StringWriter();
+            var exitCode = await MedicalLiteratureConsoleCommand.RunClassifyAsync(
+                databasePath,
+                sourceId,
+                artifactId,
+                [requirementId],
+                () => Task.FromResult(Runtime(requirementId)),
+                contentStore,
+                output,
+                promote: true,
+                reviewedBy: "reviewer@example.test");
+
+            Assert.Equal(0, exitCode);
+            Assert.Contains("Promoted      : 1", output.ToString());
+            Assert.Contains(
+                "Reviewed By   : reviewer@example.test",
+                output.ToString());
+
+            var accepted = Assert.Single(
+                await literature.GetRequirementMedicalLiteratureAsync(
+                    requirementId));
+            Assert.Equal(sourceId, accepted.MedicalLiteratureSourceId);
+            Assert.Equal(
+                EvidenceGuidanceRoles.SupportsRequirement,
+                accepted.GuidanceRole);
+
+            var reviewed = Assert.Single(
+                await literature.GetReviewedClassificationsAsync(
+                    requirementId));
+            Assert.Equal(artifactId, reviewed.ArtifactId);
+            Assert.Equal("console-test", reviewed.PromotedBy);
+            Assert.Equal("reviewer@example.test", reviewed.ReviewedBy);
+            Assert.Equal(
+                IntelligenceCapabilityIds.TextStructuredExtraction.Value,
+                reviewed.CapabilityId);
+            Assert.Equal("test", reviewed.ProviderId);
+            Assert.Equal("test", reviewed.EngineName);
+            Assert.True(reviewed.RequiresReview);
+            Assert.Single(reviewed.SourceExcerpts);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+            if (Directory.Exists(contentPath))
+                Directory.Delete(contentPath, true);
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_LiteratureClassifyPromoteRequiresReviewer()
+    {
+        var databasePath = Path.GetTempFileName();
+        var previous = Environment.GetEnvironmentVariable("EMF_REVIEWED_BY");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("EMF_REVIEWED_BY", null);
+
+            var exitCode = await VeteransConsoleCommand.RunAsync(
+                [
+                    "evidence", "literature", "classify", "--promote",
+                    databasePath, "source-1", "artifact-1", "requirement-1"
+                ],
+                () => Task.FromResult(
+                    Runtime(new RequirementId("requirement-1"))),
+                () => null);
+
+            Assert.Equal(1, exitCode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("EMF_REVIEWED_BY", previous);
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_LiteratureClassifyRejectsMissingDatabase()
     {
         var path = Path.Combine(
