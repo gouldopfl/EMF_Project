@@ -56,6 +56,16 @@ public static class VeteransReviewerPackageDocxRenderer
             var footerRelationshipId =
                 mainPart.GetIdOfPart(footerPart);
 
+            var settingsPart =
+                mainPart.AddNewPart<DocumentSettingsPart>();
+
+            settingsPart.Settings =
+                new Settings(
+                    new UpdateFieldsOnOpen
+                    {
+                        Val = true
+                    });
+
             var body =
                 new Body(
                     ConfidentialParagraph(),
@@ -63,16 +73,10 @@ public static class VeteransReviewerPackageDocxRenderer
                         "Veterans Evidence Reviewer Report",
                         "Title"),
                     StyledParagraph(
-                        $"Claim Issue: {package.ClaimIssueId.Value}",
-                        "Subtitle"),
-                    StyledParagraph(
                         $"Purpose: {package.Purpose}",
                         "Subtitle"),
                     StyledParagraph(
-                        $"Reviewer Role: {package.ReviewerRole}",
-                        "Subtitle"),
-                    StyledParagraph(
-                        $"Package Reference: {package.Id.Value}",
+                        $"Reviewer Role: {ReviewerRoleDisplayName(package.ReviewerRole)}",
                         "Subtitle"),
                     PageBreakParagraph());
 
@@ -195,15 +199,11 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             ContentParagraph(
-                $"Claim issue under review: {package.ClaimIssueId.Value}"));
-
-        body.Append(
-            ContentParagraph(
                 $"Review purpose: {package.Purpose}"));
 
         body.Append(
             ContentParagraph(
-                $"Reviewer role: {package.ReviewerRole}"));
+                $"Reviewer role: {ReviewerRoleDisplayName(package.ReviewerRole)}"));
 
         body.Append(
             ContentParagraph(
@@ -382,24 +382,11 @@ public static class VeteransReviewerPackageDocxRenderer
 
                 body.Append(
                     ContentParagraph(
-                        $"Requirement: " +
-                        $"{reviewed.Association.RequirementId.Value}"));
-
-                body.Append(
-                    ContentParagraph(
-                        $"Role: {reviewed.Association.GuidanceRole}"));
+                        $"Role: {GuidanceRoleDisplayName(reviewed.Association.GuidanceRole)}"));
 
                 body.Append(
                     ContentParagraph(
                         $"Relevance: {reviewed.Association.Description}"));
-
-                body.Append(
-                    ContentParagraph(
-                        $"Reviewed By: {reviewed.ReviewedBy}"));
-
-                body.Append(
-                    ContentParagraph(
-                        $"Reviewed UTC: {reviewed.ReviewedUtc:O}"));
 
                 foreach (var excerpt in reviewed.SourceExcerpts)
                 {
@@ -645,8 +632,8 @@ public static class VeteransReviewerPackageDocxRenderer
         Body body,
         VeteransReviewerPackageDetails details)
     {
-        if (details.ArtifactContents.Count == 0)
-            return;
+        var package =
+            details.PackageDetails.Package;
 
         body.Append(
             StyledParagraph(
@@ -656,9 +643,21 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             ContentParagraph(
-                "This appendix preserves EMF artifact identity, integrity, " +
-                "provenance, and relationship information separately from " +
-                "the reviewer-facing source evidence."));
+                "This appendix preserves EMF package and artifact identity, " +
+                "integrity, provenance, and relationship information separately " +
+                "from the reviewer-facing source evidence."));
+
+        body.Append(
+            ContentParagraph(
+                $"EMF Package Reference: {package.Id.Value}"));
+
+        body.Append(
+            ContentParagraph(
+                $"EMF Claim Issue Reference: {package.ClaimIssueId.Value}"));
+
+        body.Append(
+            ContentParagraph(
+                $"EMF Reviewer Role: {package.ReviewerRole}"));
 
         foreach (var content in details.ArtifactContents)
         {
@@ -772,6 +771,41 @@ public static class VeteransReviewerPackageDocxRenderer
                 }
             }
 
+            foreach (var reviewed in
+                content.ReviewedMedicalLiteratureClassifications)
+            {
+                body.Append(
+                    ContentParagraph(
+                        $"Reviewed Literature Requirement: " +
+                        $"{reviewed.Association.RequirementId.Value}"));
+
+                body.Append(
+                    ContentParagraph(
+                        $"Reviewed Literature Source: " +
+                        $"{reviewed.Association.MedicalLiteratureSourceId.Value}"));
+
+                body.Append(
+                    ContentParagraph(
+                        $"Reviewed Literature Guidance Role: " +
+                        $"{reviewed.Association.GuidanceRole}"));
+
+                body.Append(
+                    ContentParagraph(
+                        $"Reviewed Literature Promoted By: {reviewed.PromotedBy}"));
+
+                body.Append(
+                    ContentParagraph(
+                        $"Reviewed Literature Promoted UTC: {reviewed.PromotedUtc:O}"));
+
+                body.Append(
+                    ContentParagraph(
+                        $"Reviewed Literature Reviewed By: {reviewed.ReviewedBy}"));
+
+                body.Append(
+                    ContentParagraph(
+                        $"Reviewed Literature Reviewed UTC: {reviewed.ReviewedUtc:O}"));
+            }
+
             foreach (var relationship in content.Relationships)
             {
                 body.Append(
@@ -784,6 +818,27 @@ public static class VeteransReviewerPackageDocxRenderer
             }
         }
     }
+
+    private static string ReviewerRoleDisplayName(string role) =>
+        role switch
+        {
+            "MedicalProfessional" => "Medical Professional",
+            _ => role
+        };
+
+    private static string GuidanceRoleDisplayName(string role) =>
+        role switch
+        {
+            EvidenceGuidanceRoles.SupportsRequirement =>
+                "Supports Requirement",
+            EvidenceGuidanceRoles.EstablishesElement =>
+                "Establishes Element",
+            EvidenceGuidanceRoles.Corroborates =>
+                "Corroborates",
+            EvidenceGuidanceRoles.Clarifies =>
+                "Clarifies",
+            _ => role
+        };
 
     private static string GetDisplayName(
         VeteransReviewerArtifactContent content)

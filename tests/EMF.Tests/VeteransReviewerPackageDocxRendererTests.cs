@@ -11,7 +11,7 @@ namespace EMF.Tests;
 public sealed partial class VeteransReviewerPackageDocxRendererTests
 {
     [Fact]
-    public void Render_IncludesReviewerPackageIdentity()
+    public void Render_SeparatesReviewerMetadataFromInternalIdentity()
     {
         var packageId =
             new EvidencePackageId("package-1");
@@ -66,16 +66,55 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             text);
 
         Assert.Contains(
-            "issue-1",
+            "Medical Professional",
             text);
 
-        Assert.Contains(
-            "MedicalProfessional",
-            text);
+        var paragraphs =
+            document.MainDocumentPart
+                .Document!
+                .Body!
+                .Elements<
+                    DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Select(paragraph => paragraph.InnerText)
+                .ToArray();
+
+        Assert.DoesNotContain(
+            "Claim Issue: issue-1",
+            paragraphs);
+
+        Assert.DoesNotContain(
+            "Claim issue under review: issue-1",
+            paragraphs);
+
+        Assert.DoesNotContain(
+            "Package Reference: package-1",
+            paragraphs);
 
         Assert.Contains(
-            "package-1",
-            text);
+            "EMF Package Reference: package-1",
+            paragraphs);
+
+        Assert.Contains(
+            "EMF Claim Issue Reference: issue-1",
+            paragraphs);
+
+        var traceabilityIndex =
+            Array.IndexOf(
+                paragraphs,
+                "Appendix F — Evidence Traceability");
+
+        Assert.True(traceabilityIndex >= 0);
+
+        Assert.DoesNotContain(
+            paragraphs[..traceabilityIndex],
+            paragraph =>
+                paragraph.Contains(
+                    "MedicalProfessional",
+                    StringComparison.Ordinal));
+
+        Assert.Contains(
+            "EMF Reviewer Role: MedicalProfessional",
+            paragraphs);
     }
 
     [Fact]
@@ -886,23 +925,11 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             text);
 
         Assert.Contains(
-            "Requirement: requirement-reviewed-lit",
-            text);
-
-        Assert.Contains(
-            $"Role: {EvidenceGuidanceRoles.SupportsRequirement}",
+            "Role: Supports Requirement",
             text);
 
         Assert.Contains(
             "Relevance: Supports the medical mechanism.",
-            text);
-
-        Assert.Contains(
-            "Reviewed By: reviewer@example.test",
-            text);
-
-        Assert.Contains(
-            "Reviewed UTC: 2026-09-12T12:00:00.0000000+00:00",
             text);
 
         Assert.Contains(
@@ -912,6 +939,84 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.Contains(
             "Exact accepted source excerpt.",
             text);
+
+        var paragraphs =
+            document.MainDocumentPart!
+                .Document!
+                .Body!
+                .Elements<
+                    DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Select(paragraph => paragraph.InnerText)
+                .ToArray();
+
+        var traceabilityIndex =
+            Array.IndexOf(
+                paragraphs,
+                "Appendix F — Evidence Traceability");
+
+        Assert.True(traceabilityIndex >= 0);
+
+        var reviewerFacingParagraphs =
+            paragraphs[..traceabilityIndex];
+
+        Assert.DoesNotContain(
+            reviewerFacingParagraphs,
+            paragraph =>
+                paragraph.Contains(
+                    "requirement-reviewed-lit",
+                    StringComparison.Ordinal));
+
+        Assert.DoesNotContain(
+            reviewerFacingParagraphs,
+            paragraph =>
+                paragraph.Contains(
+                    EvidenceGuidanceRoles.SupportsRequirement,
+                    StringComparison.Ordinal));
+
+        Assert.DoesNotContain(
+            reviewerFacingParagraphs,
+            paragraph =>
+                paragraph.Contains(
+                    "reviewer@example.test",
+                    StringComparison.Ordinal));
+
+        Assert.DoesNotContain(
+            reviewerFacingParagraphs,
+            paragraph =>
+                paragraph.Contains(
+                    "2026-09-12T12:00:00.0000000+00:00",
+                    StringComparison.Ordinal));
+
+        Assert.Contains(
+            "Reviewed Literature Requirement: requirement-reviewed-lit",
+            paragraphs);
+
+        Assert.Contains(
+            "Reviewed Literature Source: study-reviewed-lit",
+            paragraphs);
+
+        Assert.Contains(
+            $"Reviewed Literature Guidance Role: " +
+            $"{EvidenceGuidanceRoles.SupportsRequirement}",
+            paragraphs);
+
+        Assert.Contains(
+            "Reviewed Literature Promoted By: promotion-test",
+            paragraphs);
+
+        Assert.Contains(
+            "Reviewed Literature Promoted UTC: " +
+            "2026-09-12T12:05:00.0000000+00:00",
+            paragraphs);
+
+        Assert.Contains(
+            "Reviewed Literature Reviewed By: reviewer@example.test",
+            paragraphs);
+
+        Assert.Contains(
+            "Reviewed Literature Reviewed UTC: " +
+            "2026-09-12T12:00:00.0000000+00:00",
+            paragraphs);
 
         Assert.True(
             text.IndexOf("1. Generic Evidence Title", StringComparison.Ordinal) <
@@ -1183,6 +1288,18 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         Assert.Contains("PAGE", fieldInstructions);
         Assert.Contains("NUMPAGES", fieldInstructions);
+
+        var settingsPart =
+            Assert.IsType<DocumentSettingsPart>(
+                mainPart.DocumentSettingsPart);
+
+        var updateFields =
+            Assert.Single(
+                settingsPart.Settings!
+                    .Elements<
+                        DocumentFormat.OpenXml.Wordprocessing.UpdateFieldsOnOpen>());
+
+        Assert.True(updateFields.Val?.Value);
 
         var mainDocument =
             Assert.IsType<
@@ -1583,12 +1700,6 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 .Where(
                     paragraph =>
                         paragraph.InnerText.StartsWith(
-                            "Package Reference:",
-                            StringComparison.Ordinal) ||
-                        paragraph.InnerText.StartsWith(
-                            "Claim Issue:",
-                            StringComparison.Ordinal) ||
-                        paragraph.InnerText.StartsWith(
                             "Purpose:",
                             StringComparison.Ordinal) ||
                         paragraph.InnerText.StartsWith(
@@ -1597,7 +1708,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 .ToArray();
 
         Assert.Equal(
-            4,
+            2,
             metadata.Length);
 
         Assert.All(
@@ -1675,7 +1786,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 .ToArray();
 
         Assert.Equal(
-            4,
+            2,
             metadata.Length);
 
         Assert.All(
