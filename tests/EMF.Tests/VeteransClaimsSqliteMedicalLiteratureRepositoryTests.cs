@@ -312,6 +312,14 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
                     await literature.GetReviewedClassificationsAsync(
                         requirement.Id));
 
+            var storedByArtifact =
+                Assert.Single(
+                    await literature.GetReviewedClassificationsAsync(
+                        artifact.Id));
+
+            Assert.Equal(
+                stored.CorrelationId,
+                storedByArtifact.CorrelationId);
             Assert.Equal(artifact.Id, stored.ArtifactId);
             Assert.Equal(classification.PromotedBy, stored.PromotedBy);
             Assert.Equal(classification.PromotedUtc, stored.PromotedUtc);

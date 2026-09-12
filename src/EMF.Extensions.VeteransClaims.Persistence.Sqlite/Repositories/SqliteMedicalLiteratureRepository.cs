@@ -540,11 +540,34 @@ public sealed class SqliteMedicalLiteratureRepository :
         await transaction.CommitAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+    public Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
         GetReviewedClassificationsAsync(
             RequirementId requirementId,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default) =>
+        GetReviewedClassificationsAsync(
+            requirementId: requirementId,
+            artifactId: null,
+            cancellationToken: cancellationToken);
+
+    public Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+        GetReviewedClassificationsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+        GetReviewedClassificationsAsync(
+            requirementId: null,
+            artifactId: artifactId,
+            cancellationToken: cancellationToken);
+
+    private async Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+        GetReviewedClassificationsAsync(
+            RequirementId? requirementId,
+            ArtifactId? artifactId,
+            CancellationToken cancellationToken)
     {
+        if ((requirementId is null) == (artifactId is null))
+            throw new ArgumentException(
+                "Exactly one reviewed-classification filter is required.");
+
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
@@ -552,22 +575,44 @@ public sealed class SqliteMedicalLiteratureRepository :
 
         await using (var command = connection.CreateCommand())
         {
-            command.CommandText = """
-                SELECT RequirementId, MedicalLiteratureSourceId,
-                       GuidanceRole, ArtifactId, Description,
-                       PromotedBy, PromotedUtc, ReviewedBy, ReviewedUtc,
-                       IntelligenceOutput, CapabilityId, ProviderId,
-                       CorrelationId, EngineName, EngineVersion,
-                       ProviderOperationId, StartedUtc, CompletedUtc,
-                       RequiresReview, WarningsJson
-                FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
-                WHERE RequirementId = $requirement
-                ORDER BY MedicalLiteratureSourceId, GuidanceRole,
-                         ArtifactId, CorrelationId;
-                """;
-            command.Parameters.AddWithValue(
-                "$requirement",
-                requirementId.Value);
+            if (requirementId is not null)
+            {
+                command.CommandText = """
+                    SELECT RequirementId, MedicalLiteratureSourceId,
+                           GuidanceRole, ArtifactId, Description,
+                           PromotedBy, PromotedUtc, ReviewedBy, ReviewedUtc,
+                           IntelligenceOutput, CapabilityId, ProviderId,
+                           CorrelationId, EngineName, EngineVersion,
+                           ProviderOperationId, StartedUtc, CompletedUtc,
+                           RequiresReview, WarningsJson
+                    FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
+                    WHERE RequirementId = $filter
+                    ORDER BY MedicalLiteratureSourceId, GuidanceRole,
+                             ArtifactId, CorrelationId;
+                    """;
+                command.Parameters.AddWithValue(
+                    "$filter",
+                    requirementId.Value.Value);
+            }
+            else
+            {
+                command.CommandText = """
+                    SELECT RequirementId, MedicalLiteratureSourceId,
+                           GuidanceRole, ArtifactId, Description,
+                           PromotedBy, PromotedUtc, ReviewedBy, ReviewedUtc,
+                           IntelligenceOutput, CapabilityId, ProviderId,
+                           CorrelationId, EngineName, EngineVersion,
+                           ProviderOperationId, StartedUtc, CompletedUtc,
+                           RequiresReview, WarningsJson
+                    FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
+                    WHERE ArtifactId = $filter
+                    ORDER BY RequirementId, MedicalLiteratureSourceId,
+                             GuidanceRole, CorrelationId;
+                    """;
+                command.Parameters.AddWithValue(
+                    "$filter",
+                    artifactId!.Value.Value);
+            }
 
             await using var reader =
                 await command.ExecuteReaderAsync(cancellationToken);

@@ -792,7 +792,63 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                             "Published OSA Study\nAbstract text.",
                         Appendix =
                             VeteransReviewerPackageAppendix
-                                .MedicalLiterature
+                                .MedicalLiterature,
+                        ReviewedMedicalLiteratureClassifications =
+                        [
+                            new ReviewedMedicalLiteratureClassification
+                            {
+                                Association =
+                                    new RequirementMedicalLiterature
+                                    {
+                                        RequirementId =
+                                            new RequirementId(
+                                                "requirement-reviewed-lit"),
+                                        MedicalLiteratureSourceId =
+                                            new MedicalLiteratureSourceId(
+                                                "study-reviewed-lit"),
+                                        GuidanceRole =
+                                            EvidenceGuidanceRoles
+                                                .SupportsRequirement,
+                                        Description =
+                                            "Supports the medical mechanism."
+                                    },
+                                ArtifactId = literature.Id,
+                                PromotedBy = "promotion-test",
+                                PromotedUtc =
+                                    new DateTimeOffset(
+                                        2026, 9, 12, 12, 5, 0,
+                                        TimeSpan.Zero),
+                                ReviewedBy = "reviewer@example.test",
+                                ReviewedUtc =
+                                    new DateTimeOffset(
+                                        2026, 9, 12, 12, 0, 0,
+                                        TimeSpan.Zero),
+                                IntelligenceOutput = "{}",
+                                CapabilityId = "TextStructuredExtraction",
+                                ProviderId = "test-provider",
+                                CorrelationId = "docx-reviewed-lit",
+                                EngineName = "test-engine",
+                                StartedUtc =
+                                    new DateTimeOffset(
+                                        2026, 9, 12, 11, 58, 0,
+                                        TimeSpan.Zero),
+                                CompletedUtc =
+                                    new DateTimeOffset(
+                                        2026, 9, 12, 11, 59, 0,
+                                        TimeSpan.Zero),
+                                RequiresReview = true,
+                                Warnings = [],
+                                SourceExcerpts =
+                                [
+                                    new MedicalLiteratureSourceExcerpt
+                                    {
+                                        ArtifactId = literature.Id,
+                                        Text =
+                                            "Exact accepted source excerpt."
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 ]
             };
@@ -821,6 +877,34 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         Assert.Contains(
             "Published OSA Study",
+            text);
+
+        Assert.Contains(
+            "Requirement: requirement-reviewed-lit",
+            text);
+
+        Assert.Contains(
+            $"Role: {EvidenceGuidanceRoles.SupportsRequirement}",
+            text);
+
+        Assert.Contains(
+            "Relevance: Supports the medical mechanism.",
+            text);
+
+        Assert.Contains(
+            "Reviewed By: reviewer@example.test",
+            text);
+
+        Assert.Contains(
+            "Reviewed UTC: 2026-09-12T12:00:00.0000000+00:00",
+            text);
+
+        Assert.Contains(
+            "Accepted Source Excerpt:",
+            text);
+
+        Assert.Contains(
+            "Exact accepted source excerpt.",
             text);
 
         Assert.True(

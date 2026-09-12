@@ -861,7 +861,52 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
                 Authors = "Chinoy et al.",
                 Publication = "Sleep Medicine",
                 PublicationYear = 2022
-            }
+            },
+            ReviewedClassifications =
+            [
+                new ReviewedMedicalLiteratureClassification
+                {
+                    Association = new RequirementMedicalLiterature
+                    {
+                        RequirementId = new RequirementId("requirement-lit"),
+                        MedicalLiteratureSourceId =
+                            new MedicalLiteratureSourceId("study-1"),
+                        GuidanceRole =
+                            EvidenceGuidanceRoles.SupportsRequirement,
+                        Description = "Supports the medical mechanism."
+                    },
+                    ArtifactId = artifact.Id,
+                    PromotedBy = "promotion-test",
+                    PromotedUtc =
+                        new DateTimeOffset(
+                            2026, 9, 12, 12, 5, 0, TimeSpan.Zero),
+                    ReviewedBy = "reviewer@example.test",
+                    ReviewedUtc =
+                        new DateTimeOffset(
+                            2026, 9, 12, 12, 0, 0, TimeSpan.Zero),
+                    IntelligenceOutput = "{}",
+                    CapabilityId = "TextStructuredExtraction",
+                    ProviderId = "test-provider",
+                    CorrelationId = "details-reviewed-lit",
+                    EngineName = "test-engine",
+                    StartedUtc =
+                        new DateTimeOffset(
+                            2026, 9, 12, 11, 58, 0, TimeSpan.Zero),
+                    CompletedUtc =
+                        new DateTimeOffset(
+                            2026, 9, 12, 11, 59, 0, TimeSpan.Zero),
+                    RequiresReview = true,
+                    Warnings = [],
+                    SourceExcerpts =
+                    [
+                        new MedicalLiteratureSourceExcerpt
+                        {
+                            ArtifactId = artifact.Id,
+                            Text = "Exact accepted literature excerpt."
+                        }
+                    ]
+                }
+            ]
         };
 
         var service = new VeteransReviewerPackageDetailsService(
@@ -893,6 +938,17 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
             "2022",
             content.Artifact.Metadata[
                 VeteransArtifactMetadataKeys.EvidenceDate]);
+
+        var reviewed =
+            Assert.Single(
+                content.ReviewedMedicalLiteratureClassifications);
+
+        Assert.Equal(
+            "requirement-lit",
+            reviewed.Association.RequirementId.Value);
+        Assert.Equal(
+            "Exact accepted literature excerpt.",
+            Assert.Single(reviewed.SourceExcerpts).Text);
     }
 }
 
@@ -902,6 +958,9 @@ file sealed class RecordingMedicalLiteratureRepository :
     public required ArtifactId ArtifactId { get; init; }
     public required MedicalLiteratureSourceId SourceId { get; init; }
     public required MedicalLiteratureSource Source { get; init; }
+
+    public IReadOnlyList<ReviewedMedicalLiteratureClassification>
+        ReviewedClassifications { get; init; } = [];
 
     public Task AddMedicalLiteratureSourceAsync(
         MedicalLiteratureSource source,
@@ -931,4 +990,11 @@ file sealed class RecordingMedicalLiteratureRepository :
             CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<MedicalLiteratureSourceId>>(
             artifactId == ArtifactId ? [SourceId] : []);
+
+    public Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+        GetReviewedClassificationsAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ReviewedMedicalLiteratureClassification>>(
+            artifactId == ArtifactId ? ReviewedClassifications : []);
 }

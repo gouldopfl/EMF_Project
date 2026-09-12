@@ -2,6 +2,7 @@ using System.Text.Json;
 using EMF.Core.Contracts;
 using EMF.Core.Models;
 using EMF.Extensions.VeteransClaims.Contracts;
+using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
@@ -192,6 +193,12 @@ public sealed class VeteransReviewerPackageDetailsService
                     appendix,
                     cancellationToken);
 
+            var reviewedMedicalLiteratureClassifications =
+                await GetReviewedMedicalLiteratureClassificationsAsync(
+                    artifact.Id,
+                    appendix,
+                    cancellationToken);
+
             artifactContents.Add(
                 new VeteransReviewerArtifactContent
                 {
@@ -200,7 +207,9 @@ public sealed class VeteransReviewerPackageDetailsService
                     PrintablePages = printablePages,
                     Provenance = provenance,
                     Relationships = relationships,
-                    Appendix = appendix
+                    Appendix = appendix,
+                    ReviewedMedicalLiteratureClassifications =
+                        reviewedMedicalLiteratureClassifications
                 });
         }
 
@@ -210,6 +219,76 @@ public sealed class VeteransReviewerPackageDetailsService
             Artifacts = artifacts,
             ArtifactContents = artifactContents
         };
+    }
+
+    private async Task<
+        IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+        GetReviewedMedicalLiteratureClassificationsAsync(
+            EMF.Core.Models.Identities.ArtifactId artifactId,
+            string? appendix,
+            CancellationToken cancellationToken)
+    {
+        if (_medicalLiterature is null ||
+            appendix != VeteransReviewerPackageAppendix.MedicalLiterature)
+        {
+            return [];
+        }
+
+        IReadOnlyList<ReviewedMedicalLiteratureClassification> reviewed;
+
+        try
+        {
+            reviewed =
+                await _medicalLiterature.GetReviewedClassificationsAsync(
+                    artifactId,
+                    cancellationToken);
+        }
+        catch (NotSupportedException)
+        {
+            return [];
+        }
+
+        if (reviewed.Any(item => item.ArtifactId != artifactId))
+        {
+            throw new InvalidOperationException(
+                $"Medical literature artifact '{artifactId.Value}' reviewed " +
+                "classification lookup returned a different artifact.");
+        }
+
+        if (reviewed.Any(
+                item =>
+                    item.SourceExcerpts.Any(
+                        excerpt => excerpt.ArtifactId != artifactId)))
+        {
+            throw new InvalidOperationException(
+                $"Medical literature artifact '{artifactId.Value}' reviewed " +
+                "classification excerpt identity mismatch.");
+        }
+
+        var sourceIds =
+            await _medicalLiterature.GetMedicalLiteratureSourceIdsAsync(
+                artifactId,
+                cancellationToken);
+
+        if (reviewed.Any(
+                item =>
+                    !sourceIds.Contains(
+                        item.Association.MedicalLiteratureSourceId)))
+        {
+            throw new InvalidOperationException(
+                $"Medical literature artifact '{artifactId.Value}' reviewed " +
+                "classification source identity mismatch.");
+        }
+
+        return reviewed
+            .OrderBy(
+                item => item.Association.RequirementId.Value,
+                StringComparer.Ordinal)
+            .ThenBy(
+                item => item.Association.GuidanceRole,
+                StringComparer.Ordinal)
+            .ThenBy(item => item.ReviewedUtc)
+            .ToArray();
     }
 
     private async Task<Artifact> GetReviewerArtifactAsync(

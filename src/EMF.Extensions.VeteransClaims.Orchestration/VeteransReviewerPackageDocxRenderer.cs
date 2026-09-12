@@ -345,6 +345,58 @@ public static class VeteransReviewerPackageDocxRenderer
                     ContentParagraph(
                         $"Source: {content.Artifact.Name}"));
             }
+
+            foreach (var reviewed in
+                content.ReviewedMedicalLiteratureClassifications)
+            {
+                if (reviewed.ArtifactId != content.Artifact.Id)
+                {
+                    throw new InvalidOperationException(
+                        "Reviewed medical literature artifact identity mismatch.");
+                }
+
+                if (reviewed.SourceExcerpts.Any(
+                        excerpt =>
+                            excerpt.ArtifactId != content.Artifact.Id))
+                {
+                    throw new InvalidOperationException(
+                        "Reviewed medical literature excerpt artifact " +
+                        "identity mismatch.");
+                }
+
+                body.Append(
+                    ContentParagraph(
+                        $"Requirement: " +
+                        $"{reviewed.Association.RequirementId.Value}"));
+
+                body.Append(
+                    ContentParagraph(
+                        $"Role: {reviewed.Association.GuidanceRole}"));
+
+                body.Append(
+                    ContentParagraph(
+                        $"Relevance: {reviewed.Association.Description}"));
+
+                body.Append(
+                    ContentParagraph(
+                        $"Reviewed By: {reviewed.ReviewedBy}"));
+
+                body.Append(
+                    ContentParagraph(
+                        $"Reviewed UTC: {reviewed.ReviewedUtc:O}"));
+
+                foreach (var excerpt in reviewed.SourceExcerpts)
+                {
+                    body.Append(
+                        ContentParagraph(
+                            "Accepted Source Excerpt:",
+                            keepWithNext: true));
+
+                    AppendReviewerText(
+                        body,
+                        excerpt.Text);
+                }
+            }
         }
     }
 
