@@ -36,6 +36,34 @@ public sealed class HtmlArtifactTextExtractionProviderTests
     }
 
     [Fact]
+    public async Task ExtractTextAsync_PrefersArticleAndOmitsWebsiteChrome()
+    {
+        const string html =
+            "<html><body>" +
+            "<nav>Login Subscribe Menu</nav>" +
+            "<main><article>" +
+            "<h1>PTSD and Obstructive Sleep Apnea</h1>" +
+            "<p>Clinically relevant article content.</p>" +
+            "</article></main>" +
+            "<footer>Advertising Privacy Contact</footer>" +
+            "</body></html>";
+
+        var provider =
+            new HtmlArtifactTextExtractionProvider(
+                new StubContentStore(
+                    Encoding.UTF8.GetBytes(html)));
+
+        var text =
+            await provider.ExtractTextAsync(
+                new ArtifactId("article-001"));
+
+        Assert.Contains("PTSD and Obstructive Sleep Apnea", text);
+        Assert.Contains("Clinically relevant article content.", text);
+        Assert.DoesNotContain("Login Subscribe Menu", text);
+        Assert.DoesNotContain("Advertising Privacy Contact", text);
+    }
+
+    [Fact]
     public async Task ExtractTextAsync_RejectsOversizedInput()
     {
         var provider =

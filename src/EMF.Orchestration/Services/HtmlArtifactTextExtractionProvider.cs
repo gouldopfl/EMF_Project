@@ -73,53 +73,120 @@ public sealed class HtmlArtifactTextExtractionProvider :
                 "HTML input exceeds the maximum allowed size.");
         }
 
-        using var stream =
-            new MemoryStream(content, writable: false);
+        var preferred = FindPreferredContainer(content, cancellationToken);
 
-        var tokenizer =
-            new HtmlTokenizer(stream, Encoding.UTF8);
-
+        using var stream = new MemoryStream(content, writable: false);
+        var tokenizer = new HtmlTokenizer(stream, Encoding.UTF8);
         var builder = new StringBuilder();
-        var suppressed = false;
+        var targetDepth = preferred is null ? 1 : 0;
+        var suppressedDepth = 0;
         var tokenCount = 0;
 
         while (tokenizer.ReadNextToken(out var token))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (tokenCount >= _maxTokenCount)
-            {
+            if (tokenCount++ >= _maxTokenCount)
                 throw new InvalidDataException(
-                    "HTML input exceeds the maximum " +
-                    "allowed token count.");
-            }
-
-            tokenCount++;
+                    "HTML input exceeds the maximum allowed token count.");
 
             if (token is HtmlTagToken tag)
             {
-                if (tag.Name.Equals("script",
-                        StringComparison.OrdinalIgnoreCase) ||
-                    tag.Name.Equals("style",
-                        StringComparison.OrdinalIgnoreCase))
+                if (preferred is not null &&
+                    tag.Name.Equals(preferred, StringComparison.OrdinalIgnoreCase))
                 {
-                    suppressed = !tag.IsEndTag;
+                    targetDepth += tag.IsEndTag ? -1 : 1;
+                    continue;
                 }
+
+                if (IsSuppressedTag(tag.Name))
+                {
+                    suppressedDepth += tag.IsEndTag ? -1 : 1;
+                    suppressedDepth = Math.Max(0, suppressedDepth);
+                    continue;
+                }
+
+                if (targetDepth > 0 && suppressedDepth == 0 &&
+                    IsBlockTag(tag.Name))
+                    AppendBounded(builder, "\n");
 
                 continue;
             }
 
-            if (!suppressed &&
+            if (targetDepth > 0 && suppressedDepth == 0 &&
                 token is HtmlDataToken data)
-            {
-                AppendBounded(
-                    builder,
-                    WebUtility.HtmlDecode(data.Data));
-            }
+                AppendBounded(builder, WebUtility.HtmlDecode(data.Data));
         }
 
-        return builder.ToString().Trim();
+        return NormalizeText(builder.ToString());
     }
+
+    private string? FindPreferredContainer(
+        byte[] content,
+        CancellationToken cancellationToken)
+    {
+        using var stream = new MemoryStream(content, writable: false);
+        var tokenizer = new HtmlTokenizer(stream, Encoding.UTF8);
+        var hasMain = false;
+        var hasBody = false;
+        var tokenCount = 0;
+
+        while (tokenizer.ReadNextToken(out var token))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (tokenCount++ >= _maxTokenCount)
+                throw new InvalidDataException(
+                    "HTML input exceeds the maximum allowed token count.");
+
+            if (token is not HtmlTagToken tag || tag.IsEndTag)
+                continue;
+
+            if (tag.Name.Equals("article", StringComparison.OrdinalIgnoreCase))
+                return "article";
+
+            hasMain |= tag.Name.Equals("main", StringComparison.OrdinalIgnoreCase);
+            hasBody |= tag.Name.Equals("body", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return hasMain ? "main" : hasBody ? "body" : null;
+    }
+
+    private static bool IsSuppressedTag(string name) =>
+        name.Equals("script", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("style", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("nav", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("header", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("footer", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("aside", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("form", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("noscript", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("svg", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsBlockTag(string name) =>
+        name.Equals("p", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("br", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("div", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("section", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("li", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("tr", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("h1", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("h2", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("h3", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("h4", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("h5", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("h6", StringComparison.OrdinalIgnoreCase);
+
+    private static string NormalizeText(string value) =>
+        string.Join(
+            Environment.NewLine,
+            value.Replace("\r", string.Empty)
+                .Split('\n')
+                .Select(line => string.Join(
+                    " ",
+                    line.Split((char[]?)null,
+                        StringSplitOptions.RemoveEmptyEntries)))
+                .Where(line => line.Length > 0));
 
     private void AppendBounded(
         StringBuilder builder,
