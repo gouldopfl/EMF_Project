@@ -2464,7 +2464,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
     }
 
     [Fact]
-    public void Render_ReservesHeadingSpaceOnlyOnFirstImagePage()
+    public void Render_ReservesHeadingSpaceOnEachMultiPageImagePage()
     {
         var details =
             CreatePrintableDetails(
@@ -2500,7 +2500,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         Assert.Equal(2, extents.Length);
         Assert.Equal(6_400_800L, extents[0].Cy?.Value);
-        Assert.Equal(7_772_400L, extents[1].Cy?.Value);
+        Assert.Equal(6_400_800L, extents[1].Cy?.Value);
     }
 
     [Fact]
@@ -2549,17 +2549,36 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                 .ToArray();
 
+        var firstPageIndex =
+            Array.FindIndex(
+                paragraphs,
+                paragraph =>
+                    paragraph.InnerText == "Source Page 1");
+
         var secondPageIndex =
             Array.FindIndex(
                 paragraphs,
                 paragraph =>
                     paragraph.InnerText == "Source Page 2");
 
-        Assert.True(secondPageIndex > 0);
+        Assert.True(firstPageIndex >= 0);
+        Assert.True(secondPageIndex > firstPageIndex);
+
+        var interveningBreaks =
+            paragraphs
+                .Skip(firstPageIndex + 1)
+                .Take(secondPageIndex - firstPageIndex - 1)
+                .SelectMany(
+                    paragraph =>
+                        paragraph.Descendants<
+                            DocumentFormat.OpenXml.Wordprocessing.Break>())
+                .ToArray();
 
         Assert.Contains(
-            paragraphs[secondPageIndex - 1].Descendants<DocumentFormat.OpenXml.Wordprocessing.Break>(),
-            lineBreak => lineBreak.Type?.Value == DocumentFormat.OpenXml.Wordprocessing.BreakValues.Page);
+            interveningBreaks,
+            lineBreak =>
+                lineBreak.Type?.Value ==
+                    DocumentFormat.OpenXml.Wordprocessing.BreakValues.Page);
     }
 }
 
@@ -3276,5 +3295,96 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.DoesNotContain(
             "Source Page 12 was blank",
             text);
+    }
+}
+
+
+public sealed partial class VeteransReviewerPackageDocxRendererTests
+{
+    [Fact]
+    public void Render_AddsReviewerContinuationMarkersForMultiPageEvidence()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 11,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                },
+                new PrintableArtifactPage
+                {
+                    PageNumber = 13,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                }
+            ],
+            "");
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var paragraphs =
+            document.MainDocumentPart!
+                .Document!
+                .Body!
+                .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Select(paragraph => paragraph.InnerText)
+                .ToArray();
+
+        var displayName =
+            paragraphs.Single(
+                text =>
+                    text.Contains("1 of 2", StringComparison.Ordinal))
+                .Split(" — 1 of 2", StringSplitOptions.None)[0];
+
+        Assert.Contains(
+            $"{displayName} — 1 of 2",
+            paragraphs);
+
+        Assert.Contains(
+            $"{displayName} — 2 of 2 — Continued",
+            paragraphs);
+
+        Assert.DoesNotContain(
+            paragraphs,
+            text =>
+                text.Contains("3 of 3", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Render_DoesNotAddReviewerContinuationMarkerForSinglePageEvidence()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 7,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                }
+            ],
+            "");
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var text =
+            document.MainDocumentPart!
+                .Document!
+                .InnerText;
+
+        Assert.DoesNotContain("1 of 1", text);
+        Assert.Contains("Source Page 7", text);
     }
 }

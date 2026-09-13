@@ -936,6 +936,7 @@ public static class VeteransReviewerPackageDocxRenderer
                 mainPart,
                 body,
                 content.PrintablePages,
+                displayName,
                 reviewerPageSelectionApplied:
                     content.ReviewerPageSelection is not null);
             return;
@@ -1833,10 +1834,12 @@ public static class VeteransReviewerPackageDocxRenderer
         MainDocumentPart mainPart,
         Body body,
         IReadOnlyList<EMF.Core.Models.PrintableArtifactPage> pages,
+        string displayName,
         bool reviewerPageSelectionApplied)
     {
         var previousPageNumber = 0;
         var renderedPageCount = 0;
+        var reviewerPageCount = pages.Count;
 
         foreach (var page in pages)
         {
@@ -1849,6 +1852,15 @@ public static class VeteransReviewerPackageDocxRenderer
 
             if (renderedPageCount > 0)
                 body.Append(PageBreakParagraph());
+
+            if (reviewerPageCount > 1)
+            {
+                body.Append(
+                    ReviewerContinuationParagraph(
+                        displayName,
+                        renderedPageCount + 1,
+                        reviewerPageCount));
+            }
 
             if (!reviewerPageSelectionApplied &&
                 page.PageNumber > previousPageNumber + 1)
@@ -1915,7 +1927,8 @@ public static class VeteransReviewerPackageDocxRenderer
                     width,
                     height,
                     reserveSourceHeadingSpace:
-                        renderedPageCount == 0);
+                        renderedPageCount == 0 ||
+                        reviewerPageCount > 1);
 
             var drawingId =
                 checked((uint)mainPart.ImageParts.Count());
@@ -1936,6 +1949,61 @@ public static class VeteransReviewerPackageDocxRenderer
             previousPageNumber = page.PageNumber;
             renderedPageCount++;
         }
+    }
+
+    private static Paragraph ReviewerContinuationParagraph(
+        string displayName,
+        int reviewerPageNumber,
+        int reviewerPageCount)
+    {
+        if (reviewerPageNumber <= 0 ||
+            reviewerPageNumber > reviewerPageCount ||
+            reviewerPageCount <= 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(reviewerPageNumber));
+        }
+
+        var suffix =
+            reviewerPageNumber == 1
+                ? string.Empty
+                : " — Continued";
+
+        return new Paragraph(
+            new ParagraphProperties(
+                new Justification
+                {
+                    Val = JustificationValues.Right
+                },
+                new KeepNext(),
+                new SpacingBetweenLines
+                {
+                    Before = "0",
+                    After = "40"
+                }),
+            new Run(
+                new RunProperties(
+                    new RunFonts
+                    {
+                        Ascii = "Cambria",
+                        HighAnsi = "Cambria"
+                    },
+                    new Italic(),
+                    new Color
+                    {
+                        Val = "666666"
+                    },
+                    new FontSize
+                    {
+                        Val = "18"
+                    }),
+                new Text(
+                    SanitizeXmlText(
+                        $"{displayName} — {reviewerPageNumber} of " +
+                        $"{reviewerPageCount}{suffix}"))
+                {
+                    Space = SpaceProcessingModeValues.Preserve
+                }));
     }
 
     private static string DecodePrintableText(ReadOnlyMemory<byte> content)
