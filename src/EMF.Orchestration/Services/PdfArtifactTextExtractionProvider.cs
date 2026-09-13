@@ -113,11 +113,70 @@ public sealed class PdfArtifactTextExtractionProvider :
             cancellationToken);
     }
 
+    public Task<IReadOnlyList<ExtractedArtifactTextPage>?>
+        ExtractPagesAsync(
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+        ExtractPagesCoreAsync(
+            artifactId,
+            null,
+            null,
+            cancellationToken);
+
+    public Task<IReadOnlyList<ExtractedArtifactTextPage>?>
+        ExtractPageRangePagesAsync(
+            ArtifactId artifactId,
+            int startPage,
+            int endPage,
+            CancellationToken cancellationToken = default)
+    {
+        if (startPage <= 0 || endPage < startPage)
+            throw new ArgumentOutOfRangeException(nameof(startPage));
+
+        if ((long)endPage - startPage + 1 > _maxPageCount)
+            throw new InvalidDataException(
+                "PDF page range exceeds the maximum allowed page count.");
+
+        return ExtractPagesCoreAsync(
+            artifactId,
+            startPage,
+            endPage,
+            cancellationToken);
+    }
+
     private async Task<string?> ExtractTextCoreAsync(
         ArtifactId artifactId,
         int? startPage,
         int? endPage,
         CancellationToken cancellationToken)
+    {
+        var pages =
+            await ExtractPagesCoreAsync(
+                artifactId,
+                startPage,
+                endPage,
+                cancellationToken);
+
+        if (pages is null)
+            return null;
+
+        var builder = new StringBuilder();
+
+        foreach (var page in pages)
+        {
+            if (!string.IsNullOrEmpty(page.Text))
+                AppendPageText(builder, page.Text);
+        }
+
+        return builder.ToString();
+    }
+
+    private async Task<IReadOnlyList<ExtractedArtifactTextPage>?>
+        ExtractPagesCoreAsync(
+            ArtifactId artifactId,
+            int? startPage,
+            int? endPage,
+            CancellationToken cancellationToken)
     {
         var content =
             await _contentStore.ReadAsync(
@@ -136,10 +195,13 @@ public sealed class PdfArtifactTextExtractionProvider :
         using var document =
             PdfDocument.Open(content);
 
-        var builder = new StringBuilder();
+        var pages =
+            new List<ExtractedArtifactTextPage>();
+
         var pageIndex = 0;
         var ocrPageCount = 0;
         var selectedPageCount = 0;
+        var extractedTextCharacters = 0;
 
         foreach (var page in document.GetPages())
         {
@@ -201,8 +263,36 @@ public sealed class PdfArtifactTextExtractionProvider :
                 throw new InvalidDataException(
                     "PDF page text exceeds the maximum allowed size.");
 
-            if (!string.IsNullOrEmpty(text))
-                AppendPageText(builder, text);
+            text ??= string.Empty;
+
+            if (text.Length > 0)
+            {
+                var separatorCharacters =
+                    extractedTextCharacters == 0
+                        ? 0
+                        : Environment.NewLine.Length;
+
+                var requiredCharacters =
+                    text.Length +
+                    separatorCharacters;
+
+                if (requiredCharacters >
+                    _maxExtractedTextChars -
+                    extractedTextCharacters)
+                {
+                    throw new InvalidDataException(
+                        "PDF extracted text exceeds the maximum allowed size.");
+                }
+
+                extractedTextCharacters += requiredCharacters;
+            }
+
+            pages.Add(
+                new ExtractedArtifactTextPage
+                {
+                    PageNumber = pageNumber,
+                    Text = text
+                });
 
             pageIndex++;
         }
@@ -215,7 +305,7 @@ public sealed class PdfArtifactTextExtractionProvider :
                 "PDF page range exceeds the available page count.");
         }
 
-        return builder.ToString();
+        return pages;
     }
 
     private void AppendPageText(
