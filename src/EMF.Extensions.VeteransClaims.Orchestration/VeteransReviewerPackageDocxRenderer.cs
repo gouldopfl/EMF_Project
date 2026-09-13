@@ -641,14 +641,17 @@ public static class VeteransReviewerPackageDocxRenderer
                     displayName,
                     "Heading2"));
 
-            if (!string.Equals(
+            var sourceName = GetSourceName(content);
+
+            if (!string.IsNullOrWhiteSpace(sourceName) &&
+                !string.Equals(
                     displayName,
-                    content.Artifact.Name,
+                    sourceName,
                     StringComparison.OrdinalIgnoreCase))
             {
                 body.Append(
                     ContentParagraph(
-                        $"Source: {content.Artifact.Name}"));
+                        $"Source: {sourceName}"));
             }
 
             foreach (var reviewed in
@@ -891,7 +894,8 @@ public static class VeteransReviewerPackageDocxRenderer
 
         var sourceName = GetSourceName(content);
 
-        if (!string.Equals(
+        if (!string.IsNullOrWhiteSpace(sourceName) &&
+            !string.Equals(
                 displayName,
                 sourceName,
                 StringComparison.OrdinalIgnoreCase))
@@ -962,7 +966,8 @@ public static class VeteransReviewerPackageDocxRenderer
                     $"Category: {TraceabilityCategory(content)}"));
 
             var sourceName = GetSourceName(content);
-            if (!string.Equals(
+            if (!string.IsNullOrWhiteSpace(sourceName) &&
+                !string.Equals(
                     GetDisplayName(content),
                     sourceName,
                     StringComparison.OrdinalIgnoreCase))
@@ -999,18 +1004,6 @@ public static class VeteransReviewerPackageDocxRenderer
                 }
             }
 
-            if (content.Relationships.Any(
-                    relationship =>
-                        relationship.SourceArtifactId == content.Artifact.Id &&
-                        string.Equals(
-                            relationship.RelationshipType,
-                            "Supersedes",
-                            StringComparison.Ordinal)))
-            {
-                body.Append(
-                    ContentParagraph(
-                        "Version Status: Current version; supersedes prior version."));
-            }
         }
     }
 
@@ -1102,11 +1095,23 @@ public static class VeteransReviewerPackageDocxRenderer
             _ => role
         };
 
-    private static string GetSourceName(
-        VeteransReviewerArtifactContent content) =>
-        !string.IsNullOrWhiteSpace(content.SourceName)
-            ? content.SourceName
-            : content.Artifact.Name;
+    private static string? GetSourceName(
+        VeteransReviewerArtifactContent content)
+    {
+        if (VeteransReviewerDisplayNameResolver
+            .IsReviewerFacingLabel(content.SourceName))
+        {
+            return content.SourceName!.Trim();
+        }
+
+        if (VeteransReviewerDisplayNameResolver
+            .IsReviewerFacingLabel(content.Artifact.Name))
+        {
+            return content.Artifact.Name.Trim();
+        }
+
+        return null;
+    }
 
     private static string GetDisplayName(
         VeteransReviewerArtifactContent content)
@@ -1146,8 +1151,28 @@ public static class VeteransReviewerPackageDocxRenderer
             }
         }
 
-        return content.Artifact.Name;
+        return VeteransReviewerDisplayNameResolver.Resolve(
+            GetReviewerFallbackDisplayName(content),
+            content.SourceName,
+            content.Artifact.Name);
     }
+
+    private static string GetReviewerFallbackDisplayName(
+        VeteransReviewerArtifactContent content) =>
+        content.Appendix switch
+        {
+            VeteransReviewerPackageAppendix.MedicalEvidence =>
+                "Medical Evidence",
+            VeteransReviewerPackageAppendix.ServiceRecords =>
+                "Service Record",
+            VeteransReviewerPackageAppendix.LayEvidence =>
+                "Lay Evidence",
+            VeteransReviewerPackageAppendix.AdjudicativeRecords =>
+                "Adjudicative Record",
+            VeteransReviewerPackageAppendix.MedicalLiterature =>
+                "Medical / Scientific Literature",
+            _ => "Evidence of Record"
+        };
 
     private static string BuildEvidenceIndexReference(
         VeteransReviewerArtifactContent content)

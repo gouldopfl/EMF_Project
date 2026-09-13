@@ -342,24 +342,25 @@ internal static class VeteransReviewerPackageSourceFormatter
             foreach (var source in evidenceSources)
             {
                 var displayName =
-                    !string.IsNullOrWhiteSpace(source.EvidenceTitle)
-                        ? source.EvidenceTitle
-                        : !string.IsNullOrWhiteSpace(source.SourceName)
-                            ? source.SourceName
-                            : source.ArtifactName;
+                    VeteransReviewerDisplayNameResolver.Resolve(
+                        "Evidence of Record",
+                        source.EvidenceTitle,
+                        source.SourceName,
+                        source.ArtifactName);
 
                 builder.AppendLine(
                     $"- Evidence Source: " +
                     $"{SingleLine(displayName ?? "Evidence of record")}");
 
-                if (!string.IsNullOrWhiteSpace(source.SourceName) &&
+                if (VeteransReviewerDisplayNameResolver
+                        .IsReviewerFacingLabel(source.SourceName) &&
                     !string.Equals(
                         source.SourceName,
                         displayName,
                         StringComparison.OrdinalIgnoreCase))
                 {
                     builder.AppendLine(
-                        $"  Source: {SingleLine(source.SourceName)}");
+                        $"  Source: {SingleLine(source.SourceName!)}");
                 }
 
                 if (!string.IsNullOrWhiteSpace(source.EvidenceDate))
