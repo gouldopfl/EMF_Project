@@ -6,6 +6,7 @@ using EMF.Extensions.VeteransClaims.Models.Conditions;
 using EMF.Extensions.VeteransClaims.Models.Service;
 using EMF.Extensions.VeteransClaims.Regulatory;
 using EMF.Extensions.VeteransClaims.Models.Identities;
+using EMF.Extensions.VeteransClaims.Models.Medications;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
 using EMF.Integrity;
@@ -323,6 +324,153 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 6 &&
+            args[0] == "evidence" &&
+            args[1] == "medication" &&
+            args[2] == "basis")
+        {
+            var medicationBasisDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(medicationBasisDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: " +
+                    $"{medicationBasisDatabasePath}");
+                return 2;
+            }
+
+            return await RunEvidenceMedicationBasisAsync(
+                medicationBasisDatabasePath,
+                new ServiceConnectionBasisId(args[4]),
+                args[5],
+                global::System.Console.Out);
+        }
+
+        if ((args.Length == 13 || args.Length == 14) &&
+            args[0] == "evidence" &&
+            args[1] == "medication" &&
+            args[2] == "history")
+        {
+            var historyDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(historyDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {historyDatabasePath}");
+                return 2;
+            }
+
+            if (!DateOnly.TryParseExact(
+                    args[6],
+                    "yyyy-MM-dd",
+                    out var eventDate))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Medication history event date must use yyyy-MM-dd.");
+                return 2;
+            }
+
+            if (!int.TryParse(args[7], out var historySourcePage) ||
+                historySourcePage <= 0)
+            {
+                global::System.Console.Error.WriteLine(
+                    "Medication history source page is invalid.");
+                return 2;
+            }
+
+            string? OptionalHistory(string value) =>
+                value == "-" ? null : value;
+
+            return await RunEvidenceMedicationHistoryAsync(
+                historyDatabasePath,
+                new VeteranId(args[4]),
+                new ArtifactId(args[5]),
+                eventDate,
+                historySourcePage,
+                args[8],
+                args[9],
+                OptionalHistory(args[10]),
+                OptionalHistory(args[11]),
+                OptionalHistory(args[12]),
+                args.Length == 14 ? OptionalHistory(args[13]) : null,
+                global::System.Console.Out);
+        }
+
+        if (args.Length == 5 &&
+            args[0] == "evidence" &&
+            args[1] == "medication" &&
+            args[2] == "current")
+        {
+            var medicationDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(medicationDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: " +
+                    $"{medicationDatabasePath}");
+                return 2;
+            }
+
+            return await RunEvidenceCurrentMedicationsAsync(
+                medicationDatabasePath,
+                new VeteranId(args[4]),
+                global::System.Console.Out);
+        }
+
+        if ((args.Length == 12 || args.Length == 13) &&
+            args[0] == "evidence" &&
+            args[1] == "medication")
+        {
+            var medicationDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(medicationDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: " +
+                    $"{medicationDatabasePath}");
+                return 2;
+            }
+
+            if (!DateOnly.TryParseExact(
+                    args[5],
+                    "yyyy-MM-dd",
+                    out var recordDate))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Medication record date must use yyyy-MM-dd.");
+                return 2;
+            }
+
+            if (!int.TryParse(args[6], out var sourcePage) ||
+                sourcePage <= 0)
+            {
+                global::System.Console.Error.WriteLine(
+                    "Medication source page is invalid.");
+                return 2;
+            }
+
+            string? Optional(string value) =>
+                value == "-" ? null : value;
+
+            return await RunEvidenceMedicationAsync(
+                medicationDatabasePath,
+                new VeteranId(args[3]),
+                new ArtifactId(args[4]),
+                recordDate,
+                sourcePage,
+                args[7],
+                args[8],
+                Optional(args[9]),
+                Optional(args[10]),
+                Optional(args[11]),
+                args.Length == 13 ? Optional(args[12]) : null,
+                global::System.Console.Out);
+        }
+
         if (args.Length == 4 &&
             args[0] == "evidence" &&
             args[1] == "claim")
@@ -555,6 +703,50 @@ public static class VeteransConsoleCommand
                 new ClaimIssueId(args[3]),
                 new ArtifactId(args[4]),
                 args[5]);
+        }
+
+        if (args.Length == 6 &&
+            args[0] == "evidence" &&
+            args[1] == "package" &&
+            args[2] == "add")
+        {
+            var db = Path.GetFullPath(args[3]);
+            if (!File.Exists(db))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {db}");
+                return 2;
+            }
+
+            return await RunEvidencePackageAddAsync(
+                db,
+                new EvidencePackageId(args[4]),
+                new ArtifactId(args[5]),
+                global::System.Console.Out);
+        }
+
+        if (args.Length == 7 &&
+            args[0] == "evidence" &&
+            args[1] == "package" &&
+            args[2] == "pages")
+        {
+            var packageDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(packageDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {packageDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunEvidencePackagePagesAsync(
+                packageDatabasePath,
+                new EvidencePackageId(args[4]),
+                new ArtifactId(args[5]),
+                args[6],
+                global::System.Console.Out);
         }
 
         if (args.Length == 4 &&
@@ -1359,7 +1551,10 @@ public static class VeteransConsoleCommand
                 Environment.GetEnvironmentVariable(
                     "EMF_REVIEWED_BY")!,
                 DateTimeOffset.UtcNow,
-                result);
+                result,
+                string.IsNullOrWhiteSpace(basisId)
+                    ? null
+                    : new ServiceConnectionBasisId(basisId));
 
         global::System.Console.WriteLine(
             ConsoleTextSanitizer.Sanitize(
@@ -1937,6 +2132,330 @@ public static class VeteransConsoleCommand
         {
             global::System.Console.Error.WriteLine(
                 $"Clinical note derivation failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+
+    internal static async Task<int> RunEvidenceMedicationBasisAsync(
+        string databasePath,
+        ServiceConnectionBasisId basisId,
+        string medicationName,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (string.IsNullOrWhiteSpace(medicationName))
+        {
+            global::System.Console.Error.WriteLine(
+                "Medication name must not be empty.");
+            return 2;
+        }
+
+        try
+        {
+            var repository =
+                new SqliteServiceConnectionRepository(databasePath);
+
+            var existing =
+                await repository.GetPrescribedMedicationNamesAsync(
+                    basisId);
+
+            var name = medicationName.Trim();
+
+            if (!existing.Contains(
+                    name,
+                    StringComparer.OrdinalIgnoreCase))
+            {
+                await repository.AddBasisPrescribedMedicationAsync(
+                    new ServiceConnectionBasisPrescribedMedication
+                    {
+                        ServiceConnectionBasisId = basisId,
+                        MedicationName = name
+                    });
+            }
+
+            await output.WriteLineAsync(
+                $"Basis      : {basisId.Value}");
+            await output.WriteLineAsync(
+                $"Medication : {name}");
+            await output.WriteLineAsync(
+                $"Status     : " +
+                $"{(existing.Contains(name, StringComparer.OrdinalIgnoreCase) ? "Existing" : "Persisted")}");
+
+            return 0;
+        }
+        catch (Exception ex)
+            when (ex is not OperationCanceledException)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Medication basis association failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+
+    internal static async Task<int> RunEvidenceCurrentMedicationsAsync(
+        string databasePath,
+        VeteranId veteranId,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        var veterans =
+            new SqliteVeteranRepository(databasePath);
+
+        var veteran =
+            await veterans.GetVeteranAsync(veteranId);
+
+        if (veteran is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Veteran not found: {veteranId.Value}");
+            return 2;
+        }
+
+        try
+        {
+            var service =
+                new CurrentMedicationService(
+                    new SqliteMedicationRepository(databasePath));
+
+            var records =
+                await service.GetCurrentMedicationsAsync(veteranId);
+
+            await output.WriteLineAsync(
+                $"Current Medications : {records.Count}");
+
+            foreach (var record in records)
+            {
+                await output.WriteLineAsync();
+                await output.WriteLineAsync(
+                    $"Medication  : {record.MedicationName}");
+                await output.WriteLineAsync(
+                    $"Strength    : {record.Strength ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Directions  : {record.Directions ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Indication  : {record.Indication ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Status      : {record.Status}");
+                await output.WriteLineAsync(
+                    $"Record Date : {record.RecordDate:yyyy-MM-dd}");
+                await output.WriteLineAsync(
+                    $"Source Page : {record.SourcePage}");
+            }
+
+            return 0;
+        }
+        catch (Exception ex)
+            when (ex is not OperationCanceledException)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Current medication resolution failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+
+    internal static async Task<int> RunEvidenceMedicationHistoryAsync(
+        string databasePath,
+        VeteranId veteranId,
+        ArtifactId sourceArtifactId,
+        DateOnly eventDate,
+        int sourcePage,
+        string eventType,
+        string medicationName,
+        string? strength,
+        string? directions,
+        string? pharmacyIndication,
+        string? prescriptionNumber,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (string.IsNullOrWhiteSpace(medicationName) ||
+            string.IsNullOrWhiteSpace(eventType))
+        {
+            global::System.Console.Error.WriteLine(
+                "Medication name and history event type must not be empty.");
+            return 2;
+        }
+
+        var veterans =
+            new SqliteVeteranRepository(databasePath);
+
+        if (await veterans.GetVeteranAsync(veteranId) is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Veteran not found: {veteranId.Value}");
+            return 2;
+        }
+
+        var evidence =
+            new SqliteEvidenceRepository(databasePath);
+
+        await evidence.InitializeAsync();
+
+        if (await evidence.GetArtifactAsync(sourceArtifactId) is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Source artifact not found: {sourceArtifactId.Value}");
+            return 2;
+        }
+
+        try
+        {
+            var repository =
+                new SqliteMedicationRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var historyEvent =
+                new MedicationHistoryEvent
+                {
+                    Id =
+                        new MedicationHistoryEventId(
+                            Guid.NewGuid().ToString("N")),
+                    VeteranId = veteranId,
+                    SourceArtifactId = sourceArtifactId,
+                    EventDate = eventDate,
+                    SourcePage = sourcePage,
+                    MedicationName = medicationName.Trim(),
+                    EventType = eventType.Trim(),
+                    Strength = strength?.Trim(),
+                    Directions = directions?.Trim(),
+                    PharmacyIndication = pharmacyIndication?.Trim(),
+                    PrescriptionNumber = prescriptionNumber?.Trim()
+                };
+
+            await repository.AddMedicationHistoryEventAsync(historyEvent);
+
+            await output.WriteLineAsync(
+                $"Medication History ID : {historyEvent.Id.Value}");
+            await output.WriteLineAsync(
+                $"Medication            : {historyEvent.MedicationName}");
+            await output.WriteLineAsync(
+                $"Event Type            : {historyEvent.EventType}");
+            await output.WriteLineAsync(
+                $"Event Date            : {historyEvent.EventDate:yyyy-MM-dd}");
+            await output.WriteLineAsync(
+                $"Source Page           : {historyEvent.SourcePage}");
+            await output.WriteLineAsync(
+                $"Source Artifact       : {historyEvent.SourceArtifactId.Value}");
+
+            return 0;
+        }
+        catch (Exception ex)
+            when (ex is not OperationCanceledException)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Medication history persistence failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+
+    internal static async Task<int> RunEvidenceMedicationAsync(
+        string databasePath,
+        VeteranId veteranId,
+        ArtifactId sourceArtifactId,
+        DateOnly recordDate,
+        int sourcePage,
+        string status,
+        string medicationName,
+        string? strength,
+        string? directions,
+        string? indication,
+        string? sourceDesignation,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (string.IsNullOrWhiteSpace(medicationName) ||
+            string.IsNullOrWhiteSpace(status))
+        {
+            global::System.Console.Error.WriteLine(
+                "Medication name and status must not be empty.");
+            return 2;
+        }
+
+        var veterans =
+            new SqliteVeteranRepository(databasePath);
+
+        var veteran =
+            await veterans.GetVeteranAsync(veteranId);
+
+        if (veteran is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Veteran not found: {veteranId.Value}");
+            return 2;
+        }
+
+        var evidence =
+            new SqliteEvidenceRepository(databasePath);
+
+        await evidence.InitializeAsync();
+
+        var sourceArtifact =
+            await evidence.GetArtifactAsync(sourceArtifactId);
+
+        if (sourceArtifact is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Source artifact not found: {sourceArtifactId.Value}");
+            return 2;
+        }
+
+        try
+        {
+            var repository =
+                new SqliteMedicationRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var record =
+                new MedicationRecord
+                {
+                    Id =
+                        new MedicationRecordId(
+                            Guid.NewGuid().ToString("N")),
+                    VeteranId = veteranId,
+                    SourceArtifactId = sourceArtifactId,
+                    RecordDate = recordDate,
+                    SourcePage = sourcePage,
+                    MedicationName = medicationName.Trim(),
+                    Strength = strength?.Trim(),
+                    Directions = directions?.Trim(),
+                    Indication = indication?.Trim(),
+                    Status = status.Trim(),
+                    SourceDesignation =
+                        sourceDesignation?.Trim()
+                };
+
+            await repository.AddMedicationRecordAsync(record);
+
+            await output.WriteLineAsync(
+                $"Medication Record ID : {record.Id.Value}");
+            await output.WriteLineAsync(
+                $"Medication           : {record.MedicationName}");
+            await output.WriteLineAsync(
+                $"Status               : {record.Status}");
+            await output.WriteLineAsync(
+                $"Record Date          : {record.RecordDate:yyyy-MM-dd}");
+            await output.WriteLineAsync(
+                $"Source Page          : {record.SourcePage}");
+            await output.WriteLineAsync(
+                $"Source Artifact      : {record.SourceArtifactId.Value}");
+
+            return 0;
+        }
+        catch (Exception ex)
+            when (ex is not OperationCanceledException)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Medication evidence persistence failed: {ex.Message}");
             return 1;
         }
     }
@@ -2763,6 +3282,75 @@ public static class VeteransConsoleCommand
     }
 
 
+    internal static async Task<int> RunEvidencePackageAddAsync(
+        string databasePath,
+        EvidencePackageId packageId,
+        ArtifactId artifactId,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        await new VeteransClaimsSqliteSchema(databasePath)
+            .InitializeAsync();
+
+        var service = new EvidencePackageService(
+            new SqliteEvidencePackageRepository(databasePath),
+            new GuidIdGenerator());
+
+        var result = await service.AddArtifactAsync(
+            packageId,
+            artifactId,
+            EvidencePackageContentRoles.UnderlyingEvidence);
+
+        output.WriteLine($"Artifact    : {result.ArtifactId.Value}");
+        output.WriteLine($"Content Role: {result.ContentRole}");
+        return 0;
+    }
+
+
+    internal static async Task<int> RunEvidencePackagePagesAsync(
+        string databasePath,
+        EvidencePackageId evidencePackageId,
+        ArtifactId artifactId,
+        string selection,
+        TextWriter output)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(selection);
+        ArgumentNullException.ThrowIfNull(output);
+
+        await new VeteransClaimsSqliteSchema(databasePath)
+            .InitializeAsync();
+
+        var service =
+            new EvidencePackageService(
+                new SqliteEvidencePackageRepository(databasePath),
+                new GuidIdGenerator());
+
+        var reviewerPageSelection =
+            string.Equals(
+                selection,
+                "all",
+                StringComparison.OrdinalIgnoreCase)
+                ? null
+                : selection;
+
+        var result =
+            await service.SetReviewerPageSelectionAsync(
+                evidencePackageId,
+                artifactId,
+                reviewerPageSelection);
+
+        output.WriteLine(
+            $"Artifact             : {result.ArtifactId.Value}");
+
+        output.WriteLine(
+            $"Reviewer source pages: " +
+            $"{result.ReviewerPageSelection ?? "all"}");
+
+        return 0;
+    }
+
+
     internal static async Task<int> RunEvidencePackageAsync(
         string databasePath,
         EvidencePackageId evidencePackageId,
@@ -2921,6 +3509,26 @@ public static class VeteransConsoleCommand
 
         if (details is null)
             return 1;
+
+        var reviewerMedications =
+            await new VeteransReviewerPackageMedicationService(
+                    new SqliteClaimIssueRepository(fullDatabasePath),
+                    new SqliteClaimRepository(fullDatabasePath),
+                    new SqliteServiceConnectionRepository(fullDatabasePath),
+                    new CurrentMedicationService(
+                        new SqliteMedicationRepository(fullDatabasePath)),
+                    new MedicationHistorySummaryService(
+                        new SqliteMedicationRepository(fullDatabasePath)))
+                .GetAsync(details.PackageDetails.Package);
+
+        details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails = details.PackageDetails,
+                Artifacts = details.Artifacts,
+                ArtifactContents = details.ArtifactContents,
+                CurrentPrescribedMedications = reviewerMedications
+            };
 
         if (contentStore is null &&
             details.PackageDetails.Artifacts.Any(
@@ -3361,6 +3969,29 @@ public static class VeteransConsoleCommand
             "       emf veterans evidence literature link " +
             "<database-path> <requirement-id> <source-id> " +
             "<role> <description>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence medication basis " +
+            "<database-path> <basis-id> <medication-name>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence medication current " +
+            "<database-path> <veteran-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence medication " +
+            "<database-path> <veteran-id> <source-artifact-id> " +
+            "<yyyy-MM-dd> <page> <status> <medication-name> " +
+            "<strength|-> <directions|-> <indication|-> " +
+            "[source-designation|-]");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence package add " +
+            "<database-path> <package-id> <artifact-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence package pages " +
+            "<database-path> <package-id> <artifact-id> <selection|all>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence package " +

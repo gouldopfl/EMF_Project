@@ -145,6 +145,18 @@ public sealed partial class EvidencePackageServiceTests
 
         public int ArtifactQueryCount { get; private set; }
 
+        public EvidencePackageId? UpdatedPackageId
+        { get; private set; }
+
+        public ArtifactId? UpdatedArtifactId
+        { get; private set; }
+
+        public string? UpdatedReviewerPageSelection
+        { get; private set; }
+
+        public int ReviewerPageSelectionUpdateCount
+        { get; private set; }
+
         public Task AddEvidencePackageAsync(
             EvidencePackage evidencePackage,
             CancellationToken cancellationToken = default)
@@ -175,6 +187,19 @@ public sealed partial class EvidencePackageServiceTests
             EvidencePackageId evidencePackageId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(ExistingPackage);
+
+        public Task SetReviewerPageSelectionAsync(
+            EvidencePackageId evidencePackageId,
+            ArtifactId artifactId,
+            string? reviewerPageSelection,
+            CancellationToken cancellationToken = default)
+        {
+            UpdatedPackageId = evidencePackageId;
+            UpdatedArtifactId = artifactId;
+            UpdatedReviewerPageSelection = reviewerPageSelection;
+            ReviewerPageSelectionUpdateCount++;
+            return Task.CompletedTask;
+        }
 
         public Task<IReadOnlyList<EvidencePackageArtifact>>
             GetEvidencePackageArtifactsAsync(
@@ -683,5 +708,149 @@ public sealed partial class EvidencePackageServiceTests
         Assert.Equal(
             0,
             repository.ArtifactQueryCount);
+    }
+}
+
+public sealed partial class EvidencePackageServiceTests
+{
+    [Fact]
+    public async Task SetReviewerPageSelectionAsync_PersistsSelection()
+    {
+        var packageId = new EvidencePackageId("package-pages");
+        var artifactId = new ArtifactId("artifact-pages");
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingArtifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = artifactId,
+                        ContentRole =
+                            EvidencePackageContentRoles.UnderlyingEvidence
+                    }
+                ]
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var result =
+            await service.SetReviewerPageSelectionAsync(
+                packageId,
+                artifactId,
+                " 11,13-17 ");
+
+        Assert.Equal("11,13-17", result.ReviewerPageSelection);
+        Assert.Equal(packageId, repository.UpdatedPackageId);
+        Assert.Equal(artifactId, repository.UpdatedArtifactId);
+        Assert.Equal(
+            "11,13-17",
+            repository.UpdatedReviewerPageSelection);
+        Assert.Equal(1, repository.ReviewerPageSelectionUpdateCount);
+    }
+
+    [Fact]
+    public async Task SetReviewerPageSelectionAsync_ClearsSelection()
+    {
+        var packageId = new EvidencePackageId("package-pages");
+        var artifactId = new ArtifactId("artifact-pages");
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingArtifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = artifactId,
+                        ContentRole =
+                            EvidencePackageContentRoles.UnderlyingEvidence,
+                        ReviewerPageSelection = "11,13-17"
+                    }
+                ]
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var result =
+            await service.SetReviewerPageSelectionAsync(
+                packageId,
+                artifactId,
+                null);
+
+        Assert.Null(result.ReviewerPageSelection);
+        Assert.Null(repository.UpdatedReviewerPageSelection);
+        Assert.Equal(1, repository.ReviewerPageSelectionUpdateCount);
+    }
+}
+
+public sealed partial class EvidencePackageServiceTests
+{
+    [Fact]
+    public async Task SetReviewerPageSelectionAsync_RejectsMissingArtifact()
+    {
+        var repository = new RecordingRepository();
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () =>
+                    service.SetReviewerPageSelectionAsync(
+                        new EvidencePackageId("package-pages"),
+                        new ArtifactId("artifact-missing"),
+                        "11,13-17"));
+
+        Assert.Contains("artifact-missing", exception.Message);
+        Assert.Equal(0, repository.ReviewerPageSelectionUpdateCount);
+    }
+
+    [Fact]
+    public async Task SetReviewerPageSelectionAsync_RejectsGeneratedMaterial()
+    {
+        var packageId = new EvidencePackageId("package-pages");
+        var artifactId = new ArtifactId("artifact-summary");
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingArtifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = artifactId,
+                        ContentRole =
+                            EvidencePackageContentRoles
+                                .GeneratedOrganizationalMaterial
+                    }
+                ]
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () =>
+                service.SetReviewerPageSelectionAsync(
+                    packageId,
+                    artifactId,
+                    "1"));
+
+        Assert.Equal(0, repository.ReviewerPageSelectionUpdateCount);
     }
 }

@@ -39,6 +39,7 @@ public sealed class VeteransClaimsPersistenceFactoryTests
             Assert.NotNull(persistence.Conditions);
             Assert.NotNull(persistence.Regulatory);
             Assert.NotNull(persistence.ServiceConnections);
+            Assert.NotNull(persistence.Medications);
 
             var veteran = new Veteran
             {

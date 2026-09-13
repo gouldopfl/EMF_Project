@@ -23,7 +23,8 @@ internal static class VeteransReviewerPackagePublisher
             string promotedBy,
             string reviewedBy,
             DateTimeOffset promotedUtc,
-            IntelligenceAgentResult<string> result)
+            IntelligenceAgentResult<string> result,
+            ServiceConnectionBasisId? serviceConnectionBasisId = null)
     {
         await new VeteransClaimsSqliteSchema(
                 databasePath)
@@ -61,7 +62,8 @@ internal static class VeteransReviewerPackagePublisher
                 promotedBy,
                 reviewedBy,
                 promotedUtc,
-                result);
+                result,
+                serviceConnectionBasisId);
     }
 
     public static async

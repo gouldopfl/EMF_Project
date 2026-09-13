@@ -418,3 +418,171 @@ public sealed partial class VeteransEvidencePackageConsoleTests
         }
     }
 }
+
+public sealed partial class VeteransEvidencePackageConsoleTests
+{
+    [Fact]
+    public async Task EvidencePackageAdd_AddsUnderlyingEvidence()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var packageId = await SeedPackageAsync(path);
+            var artifactId = new ArtifactId("source-2");
+
+            var evidence = new SqliteEvidenceRepository(path);
+            await evidence.InitializeAsync();
+            await evidence.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = artifactId,
+                    Name = "VA Blue Button Report",
+                    ArtifactType = "file"
+                });
+
+            using var output = new StringWriter();
+
+            var code =
+                await VeteransConsoleCommand.RunEvidencePackageAddAsync(
+                    path, packageId, artifactId, output);
+
+            Assert.Equal(0, code);
+
+            var artifacts =
+                await new SqliteEvidencePackageRepository(path)
+                    .GetEvidencePackageArtifactsAsync(packageId);
+
+            var stored =
+                Assert.Single(artifacts, x => x.ArtifactId == artifactId);
+
+            Assert.Equal(
+                EvidencePackageContentRoles.UnderlyingEvidence,
+                stored.ContentRole);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task EvidencePackageAdd_RoutesCommand()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var packageId = await SeedPackageAsync(path);
+            var artifactId = new ArtifactId("source-route");
+
+            var evidence = new SqliteEvidenceRepository(path);
+            await evidence.InitializeAsync();
+            await evidence.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = artifactId,
+                    Name = "VA Blue Button Report",
+                    ArtifactType = "file"
+                });
+
+            var code = await VeteransConsoleCommand.RunAsync(
+                [
+                    "evidence", "package", "add",
+                    path, packageId.Value, artifactId.Value
+                ]);
+
+            Assert.Equal(0, code);
+
+            var artifacts =
+                await new SqliteEvidencePackageRepository(path)
+                    .GetEvidencePackageArtifactsAsync(packageId);
+
+            Assert.Contains(
+                artifacts,
+                x => x.ArtifactId == artifactId &&
+                     x.ContentRole ==
+                     EvidencePackageContentRoles.UnderlyingEvidence);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task EvidencePackagePages_SetsAndClearsReviewerSelection()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            var packageId =
+                await SeedPackageAsync(databasePath);
+
+            var artifactId =
+                new ArtifactId("source-1");
+
+            using var output = new StringWriter();
+
+            var exitCode =
+                await VeteransConsoleCommand
+                    .RunEvidencePackagePagesAsync(
+                        databasePath,
+                        packageId,
+                        artifactId,
+                        "11,13-17",
+                        output);
+
+            Assert.Equal(0, exitCode);
+
+            var repository =
+                new SqliteEvidencePackageRepository(
+                    databasePath);
+
+            var artifacts =
+                await repository
+                    .GetEvidencePackageArtifactsAsync(
+                        packageId);
+
+            var stored =
+                Assert.Single(
+                    artifacts,
+                    x => x.ArtifactId == artifactId);
+
+            Assert.Equal(
+                "11,13-17",
+                stored.ReviewerPageSelection);
+
+            output.GetStringBuilder().Clear();
+
+            exitCode =
+                await VeteransConsoleCommand
+                    .RunEvidencePackagePagesAsync(
+                        databasePath,
+                        packageId,
+                        artifactId,
+                        "all",
+                        output);
+
+            Assert.Equal(0, exitCode);
+
+            artifacts =
+                await repository
+                    .GetEvidencePackageArtifactsAsync(
+                        packageId);
+
+            stored =
+                Assert.Single(
+                    artifacts,
+                    x => x.ArtifactId == artifactId);
+
+            Assert.Null(stored.ReviewerPageSelection);
+            Assert.Contains(
+                "Reviewer source pages: all",
+                output.ToString());
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+}

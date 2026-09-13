@@ -16,6 +16,8 @@ public interface IVeteransClaimsPersistence
 
     IMedicalOpinionRepository MedicalOpinions { get; }
 
+    IMedicationRepository Medications { get; }
+
     IEvidenceClassificationRepository EvidenceClassifications { get; }
 
     IFindingRepository Findings { get; }

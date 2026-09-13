@@ -14,6 +14,9 @@ public sealed class VeteransReviewerArtifactContent
     public IReadOnlyList<PrintableArtifactPage> PrintablePages
     { get; init; } = [];
 
+    public string? ReviewerPageSelection
+    { get; init; }
+
     public string? Appendix
     { get; init; }
 

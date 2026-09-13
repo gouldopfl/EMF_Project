@@ -23,6 +23,28 @@ public sealed class VeteransReviewerPackagePreparationService
         _packagePreparation = packagePreparation;
     }
 
+    public Task<VeteransReviewerPackagePreparationResult> PrepareAsync(
+        ClaimIssueId claimIssueId,
+        string purpose,
+        string reviewerRole,
+        string summaryName,
+        string promotedBy,
+        string reviewedBy,
+        DateTimeOffset promotedUtc,
+        IntelligenceAgentResult<string> summaryResult,
+        CancellationToken cancellationToken = default) =>
+        PrepareAsync(
+            claimIssueId,
+            purpose,
+            reviewerRole,
+            summaryName,
+            promotedBy,
+            reviewedBy,
+            promotedUtc,
+            summaryResult,
+            null,
+            cancellationToken);
+
     public async Task<VeteransReviewerPackagePreparationResult> PrepareAsync(
         ClaimIssueId claimIssueId,
         string purpose,
@@ -32,6 +54,7 @@ public sealed class VeteransReviewerPackagePreparationService
         string reviewedBy,
         DateTimeOffset promotedUtc,
         IntelligenceAgentResult<string> summaryResult,
+        ServiceConnectionBasisId? serviceConnectionBasisId,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(summaryResult);
@@ -55,13 +78,15 @@ public sealed class VeteransReviewerPackagePreparationService
                 reviewerRole,
                 summaryResult.SourceArtifactIds,
                 [summaryArtifact.Id],
+                serviceConnectionBasisId,
                 cancellationToken);
 
         ValidatePackage(
             package,
             claimIssueId,
             purpose,
-            reviewerRole);
+            reviewerRole,
+            serviceConnectionBasisId);
 
         return new VeteransReviewerPackagePreparationResult
         {
@@ -123,7 +148,8 @@ public sealed class VeteransReviewerPackagePreparationService
         EvidencePackage package,
         ClaimIssueId claimIssueId,
         string purpose,
-        string reviewerRole)
+        string reviewerRole,
+        ServiceConnectionBasisId? serviceConnectionBasisId = null)
     {
         ArgumentNullException.ThrowIfNull(package);
 
@@ -140,6 +166,12 @@ public sealed class VeteransReviewerPackagePreparationService
         {
             throw new InvalidOperationException(
                 "Reviewer package purpose mismatch.");
+        }
+
+        if (package.ServiceConnectionBasisId != serviceConnectionBasisId)
+        {
+            throw new InvalidOperationException(
+                "Reviewer package service-connection basis mismatch.");
         }
 
         if (!string.Equals(

@@ -1,3 +1,4 @@
+using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Services;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
@@ -9,9 +10,25 @@ internal static class PapTherapyReviewerFormatter
         var sessions =
             new OscarPapTherapyCsvParser().Parse(csv.Span);
 
-        var a =
-            new PapTherapyAnalysisService().Analyze(sessions);
+        return FormatAnalysis(
+            new PapTherapyAnalysisService().Analyze(sessions),
+            "OSCAR");
+    }
 
+    public static string FormatSnore(ReadOnlyMemory<byte> json)
+    {
+        var sessions =
+            new SnorePapTherapyJsonParser().Parse(json.Span);
+
+        return FormatAnalysis(
+            new PapTherapyAnalysisService().Analyze(sessions),
+            "SNORE");
+    }
+
+    private static string FormatAnalysis(
+        PapTherapyAnalysis a,
+        string sourceName)
+    {
         return $"""
 PAP Therapy Analysis
 
@@ -30,8 +47,8 @@ Maximum daily AHI: {a.MaximumDailyAhi:F2}
 
 Machine(s): {string.Join(", ", a.Machines)}
 
-Derived deterministically from the retained OSCAR session export.
-Raw OSCAR session rows are intentionally omitted from this physician report.
+Derived deterministically from the retained {sourceName} session export.
+Raw {sourceName} session records are intentionally omitted from this physician report.
 """;
     }
 }

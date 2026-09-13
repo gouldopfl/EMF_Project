@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Text;
 using DocumentFormat.OpenXml;
 using A = DocumentFormat.OpenXml.Drawing;
@@ -84,6 +85,10 @@ public static class VeteransReviewerPackageDocxRenderer
                 body,
                 details);
 
+            AppendPrescribedMedications(
+                body,
+                details);
+
             AppendKeyEvidenceAndChronology(
                 body,
                 details);
@@ -92,20 +97,13 @@ public static class VeteransReviewerPackageDocxRenderer
                 body,
                 details);
 
+            body.Append(PageBreakParagraph());
+
             AppendReviewerQuestions(
                 body);
 
-            AppendEvidenceIndex(
-                body,
-                details,
-                pageBreakBefore: true);
-
             AppendEvidenceAppendices(
                 mainPart,
-                body,
-                details);
-
-            AppendTraceabilityAppendix(
                 body,
                 details);
 
@@ -337,10 +335,9 @@ public static class VeteransReviewerPackageDocxRenderer
             ContentParagraph(
                 "Review the Issues Presented for Medical Review and Questions for the " +
                 "Reviewing Physician first. Use the Key Evidence and Chronology for " +
-                "orientation to the principal medical evidence, then use the Evidence " +
-                "Index and appendices to review the underlying source material. " +
-                "Medical/scientific literature is reproduced in Appendix E, and " +
-                "Appendix F provides reviewer-facing source traceability."));
+                "orientation to the principal medical evidence, then use the " +
+                "appendices to review the underlying source material. " +
+                "Medical/scientific literature is reproduced in Appendix E."));
 
         body.Append(
             StyledParagraph(
@@ -373,6 +370,14 @@ public static class VeteransReviewerPackageDocxRenderer
             "Issues Presented for Medical Review",
             "Defines the review purpose, reviewer role, evidence scope, and limitations.");
 
+        if (details.CurrentPrescribedMedications.Count > 0)
+        {
+            AppendPackageGuideEntry(
+                body,
+                "VA Prescribed Medications Relevant to Claimed Conditions",
+                "Summarizes current relevant VA prescriptions and documented medication history.");
+        }
+
         AppendPackageGuideEntry(
             body,
             "Key Evidence and Chronology",
@@ -388,10 +393,6 @@ public static class VeteransReviewerPackageDocxRenderer
             "Questions for the Reviewing Physician",
             "Lists the medical questions the reviewing physician is asked to address.");
 
-        AppendPackageGuideEntry(
-            body,
-            "Evidence Index",
-            "Provides a human-readable listing of the evidence sources in the package.");
 
         var appendices =
             GetRoleContents(
@@ -428,10 +429,7 @@ public static class VeteransReviewerPackageDocxRenderer
                 description);
         }
 
-        AppendPackageGuideEntry(
-            body,
-            "Appendix F — Evidence Traceability",
-            "Provides human-readable reviewer-facing source traceability while internal technical provenance remains within EMF.");
+
     }
 
     private static void AppendPackageGuideEntry(
@@ -504,6 +502,69 @@ public static class VeteransReviewerPackageDocxRenderer
                 "It does not make a medical, legal, or adjudicative conclusion."));
     }
 
+    private static void AppendPrescribedMedications(
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        var medications =
+            details.CurrentPrescribedMedications
+                .OrderBy(
+                    item => item.CurrentMedication.MedicationName,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        if (medications.Length == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                "VA Prescribed Medications Relevant to Claimed Conditions",
+                "Heading1"));
+
+        body.Append(
+            ContentParagraph(
+                "Current prescription information below is drawn from VA " +
+                "medication records associated with this review. Historical " +
+                "release dates are shown only when explicitly documented."));
+
+        foreach (var item in medications)
+        {
+            var medication = item.CurrentMedication;
+
+            body.Append(
+                StyledParagraph(
+                    medication.MedicationName,
+                    "Heading2"));
+
+            if (!string.IsNullOrWhiteSpace(medication.Strength))
+                body.Append(ContentParagraph(
+                    $"Strength: {medication.Strength.Trim()}"));
+
+            if (!string.IsNullOrWhiteSpace(medication.Directions))
+                body.Append(ContentParagraph(
+                    $"Directions: {medication.Directions.Trim()}"));
+
+            if (!string.IsNullOrWhiteSpace(medication.Indication))
+                body.Append(ContentParagraph(
+                    $"Documented indication: {medication.Indication.Trim()}"));
+
+            body.Append(
+                ContentParagraph(
+                    $"Current status: {medication.Status.Trim()}"));
+
+            if (item.EarliestDocumentedRelease is not null)
+            {
+                body.Append(
+                    ContentParagraph(
+                        "Earliest documented VA release: " +
+                        item.EarliestDocumentedRelease.EventDate.ToString(
+                            "MMMM d, yyyy",
+                            CultureInfo.InvariantCulture)));
+            }
+        }
+    }
+
+
     private static void AppendKeyEvidenceAndChronology(
         Body body,
         VeteransReviewerPackageDetails details)
@@ -532,7 +593,7 @@ public static class VeteransReviewerPackageDocxRenderer
             ContentParagraph(
                 "The chronology below uses evidence dates explicitly preserved " +
                 "in artifact metadata. Medical sources without an indexed evidence " +
-                "date remain listed after the dated entries and in the Evidence Index."));
+                "date remain listed after the dated entries and in the applicable appendix."));
 
         foreach (var content in
             contents
@@ -730,56 +791,6 @@ public static class VeteransReviewerPackageDocxRenderer
                 "evidence that weighs against the opinion."));
     }
 
-    private static void AppendEvidenceIndex(
-        Body body,
-        VeteransReviewerPackageDetails details,
-        bool pageBreakBefore)
-    {
-        var contents =
-            GetRoleContents(
-                details,
-                EvidencePackageContentRoles.UnderlyingEvidence);
-
-        if (contents.Count == 0)
-            return;
-
-        body.Append(
-            StyledParagraph(
-                "Evidence Index",
-                "Heading1",
-                pageBreakBefore));
-
-        body.Append(
-            ContentParagraph(
-                "The source evidence reviewed for this report is listed below. " +
-                "Complete source material follows in the appendices."));
-
-        var index = 1;
-
-        foreach (var content in
-            contents
-                .OrderBy(content => AppendixOrder(content.Appendix ?? string.Empty))
-                .ThenBy(
-                    content =>
-                        string.IsNullOrWhiteSpace(GetEvidenceDate(content))
-                            ? 1
-                            : 0)
-                .ThenBy(content => GetEvidenceDate(content), StringComparer.Ordinal)
-                .ThenBy(content => GetDisplayName(content), StringComparer.OrdinalIgnoreCase))
-        {
-            body.Append(
-                StyledParagraph(
-                    $"{index}. {GetDisplayName(content)}",
-                    "Heading2"));
-
-            body.Append(
-                ContentParagraph(
-                    BuildEvidenceIndexReference(content)));
-
-            index++;
-        }
-    }
-
     private static void AppendEvidenceAppendices(
         MainDocumentPart mainPart,
         Body body,
@@ -911,7 +922,9 @@ public static class VeteransReviewerPackageDocxRenderer
             AppendPrintablePages(
                 mainPart,
                 body,
-                content.PrintablePages);
+                content.PrintablePages,
+                reviewerPageSelectionApplied:
+                    content.ReviewerPageSelection is not null);
             return;
         }
 
@@ -934,95 +947,6 @@ public static class VeteransReviewerPackageDocxRenderer
             }
         }
     }
-
-    private static void AppendTraceabilityAppendix(
-        Body body,
-        VeteransReviewerPackageDetails details)
-    {
-        body.Append(
-            StyledParagraph(
-                "Appendix F — Evidence Traceability",
-                "Heading1",
-                pageBreakBefore: true));
-
-        body.Append(
-            ContentParagraph(
-                "This appendix provides reviewer-facing source traceability. " +
-                "Internal EMF identifiers, hashes, timestamps, file-system paths, " +
-                "and audit provenance remain preserved within EMF."));
-
-        foreach (var content in
-            GetRoleContents(
-                details,
-                EvidencePackageContentRoles.UnderlyingEvidence))
-        {
-            body.Append(
-                StyledParagraph(
-                    GetDisplayName(content),
-                    "Heading2"));
-
-            body.Append(
-                ContentParagraph(
-                    $"Category: {TraceabilityCategory(content)}"));
-
-            var sourceName = GetSourceName(content);
-            if (!string.IsNullOrWhiteSpace(sourceName) &&
-                !string.Equals(
-                    GetDisplayName(content),
-                    sourceName,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                body.Append(
-                    ContentParagraph($"Source: {sourceName}"));
-            }
-
-            var date = GetEvidenceDate(content);
-            if (!string.IsNullOrWhiteSpace(date))
-                body.Append(ContentParagraph($"Evidence Date: {date}"));
-
-            var pages = GetSourcePageReference(content);
-            if (!string.IsNullOrWhiteSpace(pages))
-                body.Append(ContentParagraph(pages));
-
-            var citation = BuildLiteratureCitation(content);
-            if (!string.IsNullOrWhiteSpace(citation))
-                body.Append(ContentParagraph($"Citation: {citation}"));
-
-            foreach (var reviewed in
-                content.ReviewedMedicalLiteratureClassifications)
-            {
-                body.Append(
-                    ContentParagraph(
-                        $"Role: {GuidanceRoleDisplayName(reviewed.Association.GuidanceRole)}"));
-
-                if (!string.IsNullOrWhiteSpace(
-                        reviewed.Association.Description))
-                {
-                    body.Append(
-                        ContentParagraph(
-                            $"Relevance: {reviewed.Association.Description}"));
-                }
-            }
-
-        }
-    }
-
-    private static string TraceabilityCategory(
-        VeteransReviewerArtifactContent content) =>
-        content.Appendix switch
-        {
-            VeteransReviewerPackageAppendix.MedicalEvidence =>
-                "Medical Evidence",
-            VeteransReviewerPackageAppendix.ServiceRecords =>
-                "Service Records",
-            VeteransReviewerPackageAppendix.LayEvidence =>
-                "Lay Evidence",
-            VeteransReviewerPackageAppendix.AdjudicativeRecords =>
-                "Adjudicative Records",
-            VeteransReviewerPackageAppendix.MedicalLiterature =>
-                "Medical / Scientific Literature",
-            _ => "Additional Evidence"
-        };
 
     private static string BuildLiteratureCitation(
         VeteransReviewerArtifactContent content)
@@ -1173,29 +1097,6 @@ public static class VeteransReviewerPackageDocxRenderer
                 "Medical / Scientific Literature",
             _ => "Evidence of Record"
         };
-
-    private static string BuildEvidenceIndexReference(
-        VeteransReviewerArtifactContent content)
-    {
-        var parts = new List<string>();
-
-        if (content.Appendix is not null)
-            parts.Add(AppendixHeading(content.Appendix));
-        else
-            parts.Add("Additional Evidence");
-
-        var date = GetEvidenceDate(content);
-
-        if (!string.IsNullOrWhiteSpace(date))
-            parts.Add($"Date: {date}");
-
-        var pages = GetSourcePageReference(content);
-
-        if (!string.IsNullOrWhiteSpace(pages))
-            parts.Add(pages);
-
-        return string.Join(" | ", parts);
-    }
 
     private static string BuildSourceReference(
         VeteransReviewerArtifactContent content)
@@ -1349,7 +1250,8 @@ public static class VeteransReviewerPackageDocxRenderer
         var field =
             new SimpleField
             {
-                Instruction = instruction
+                Instruction = instruction,
+                Dirty = true
             };
 
         field.Append(
@@ -1917,7 +1819,8 @@ public static class VeteransReviewerPackageDocxRenderer
     private static void AppendPrintablePages(
         MainDocumentPart mainPart,
         Body body,
-        IReadOnlyList<EMF.Core.Models.PrintableArtifactPage> pages)
+        IReadOnlyList<EMF.Core.Models.PrintableArtifactPage> pages,
+        bool reviewerPageSelectionApplied)
     {
         var previousPageNumber = 0;
         var renderedPageCount = 0;
@@ -1934,7 +1837,8 @@ public static class VeteransReviewerPackageDocxRenderer
             if (renderedPageCount > 0)
                 body.Append(PageBreakParagraph());
 
-            if (page.PageNumber > previousPageNumber + 1)
+            if (!reviewerPageSelectionApplied &&
+                page.PageNumber > previousPageNumber + 1)
             {
                 var firstBlankPage = previousPageNumber + 1;
                 var lastBlankPage = page.PageNumber - 1;
@@ -1997,7 +1901,8 @@ public static class VeteransReviewerPackageDocxRenderer
                 FitPageToDocument(
                     width,
                     height,
-                    reserveSourceHeadingSpace: true);
+                    reserveSourceHeadingSpace:
+                        renderedPageCount == 0);
 
             var drawingId =
                 checked((uint)mainPart.ImageParts.Count());

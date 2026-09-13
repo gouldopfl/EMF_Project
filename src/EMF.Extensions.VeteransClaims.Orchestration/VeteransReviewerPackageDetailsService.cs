@@ -125,10 +125,17 @@ public sealed class VeteransReviewerPackageDetailsService
                 artifact.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) &&
                 artifact.Name.Contains("OSCAR", StringComparison.OrdinalIgnoreCase);
 
+            var isSnore =
+                artifact.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
+                artifact.Name.Contains("SNORE", StringComparison.OrdinalIgnoreCase);
+
+            var isPapExport =
+                isOscar || isSnore;
+
             var text =
                 GetTextSummary(artifact);
 
-            if ((isOscar || string.IsNullOrWhiteSpace(text)) &&
+            if ((isPapExport || string.IsNullOrWhiteSpace(text)) &&
                 _textExtractor is not null)
             {
                 text =
@@ -137,14 +144,22 @@ public sealed class VeteransReviewerPackageDetailsService
                         cancellationToken);
             }
 
-            if (isOscar)
+            if (isPapExport)
             {
+                var papSourceName =
+                    isSnore ? "SNORE" : "OSCAR";
+
                 if (string.IsNullOrWhiteSpace(text))
                     throw new InvalidOperationException(
-                        "OSCAR evidence has no extractable session data.");
+                        $"{papSourceName} evidence has no extractable session data.");
 
-                text = PapTherapyReviewerFormatter.Format(
-                    Encoding.UTF8.GetBytes(text));
+                var bytes =
+                    Encoding.UTF8.GetBytes(text);
+
+                text =
+                    isSnore
+                        ? PapTherapyReviewerFormatter.FormatSnore(bytes)
+                        : PapTherapyReviewerFormatter.Format(bytes);
             }
 
             IReadOnlyList<PrintableArtifactPage> printablePages = [];
@@ -157,7 +172,7 @@ public sealed class VeteransReviewerPackageDetailsService
                 _printRenderer is not null)
             {
                 printablePages =
-                    isOscar
+                    isPapExport
                         ? [new PrintableArtifactPage
                         {
                             PageNumber = 1,
@@ -174,6 +189,24 @@ public sealed class VeteransReviewerPackageDetailsService
                         $"Underlying evidence artifact '{artifact.Id.Value}' " +
                         "has no printable source representation.");
                 }
+            }
+
+            if (packageArtifact.ReviewerPageSelection is not null)
+            {
+                if (!string.Equals(
+                        packageArtifact.ContentRole,
+                        EvidencePackageContentRoles.UnderlyingEvidence,
+                        StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        "Reviewer page selection is only valid for " +
+                        "underlying evidence.");
+                }
+
+                printablePages =
+                    VeteransReviewerPageSelector.Select(
+                        printablePages,
+                        packageArtifact.ReviewerPageSelection);
             }
 
             var provenance =
@@ -233,6 +266,8 @@ public sealed class VeteransReviewerPackageDetailsService
                     Artifact = reviewerArtifact,
                     Text = text ?? string.Empty,
                     PrintablePages = printablePages,
+                    ReviewerPageSelection =
+                        packageArtifact.ReviewerPageSelection,
                     Provenance = provenance,
                     Relationships = relationships,
                     Appendix = appendix,

@@ -98,13 +98,15 @@ public sealed class SqliteEvidencePackageRepository :
                 Id,
                 ClaimIssueId,
                 Purpose,
-                ReviewerRole
+                ReviewerRole,
+                ServiceConnectionBasisId
             )
             VALUES (
                 $id,
                 $claimIssueId,
                 $purpose,
-                $reviewerRole
+                $reviewerRole,
+                $serviceConnectionBasisId
             );
             """;
 
@@ -124,6 +126,12 @@ public sealed class SqliteEvidencePackageRepository :
             "$reviewerRole",
             evidencePackage.ReviewerRole);
 
+        command.Parameters.AddWithValue(
+            "$serviceConnectionBasisId",
+            evidencePackage.ServiceConnectionBasisId.HasValue
+                ? evidencePackage.ServiceConnectionBasisId.Value.Value
+                : DBNull.Value);
+
         await command.ExecuteNonQueryAsync(
             cancellationToken);
     }
@@ -138,7 +146,12 @@ public sealed class SqliteEvidencePackageRepository :
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT Id, ClaimIssueId, Purpose, ReviewerRole
+            SELECT
+                Id,
+                ClaimIssueId,
+                Purpose,
+                ReviewerRole,
+                ServiceConnectionBasisId
             FROM VeteransClaims_EvidencePackages
             WHERE Id = $id;
             """;
@@ -167,7 +180,12 @@ public sealed class SqliteEvidencePackageRepository :
             Purpose =
                 reader.GetString(2),
             ReviewerRole =
-                reader.GetString(3)
+                reader.GetString(3),
+            ServiceConnectionBasisId =
+                reader.IsDBNull(4)
+                    ? null
+                    : new ServiceConnectionBasisId(
+                        reader.GetString(4))
         };
     }
 
@@ -200,12 +218,14 @@ public sealed class SqliteEvidencePackageRepository :
             INSERT INTO VeteransClaims_EvidencePackageArtifacts (
                 EvidencePackageId,
                 ArtifactId,
-                ContentRole
+                ContentRole,
+                ReviewerPageSelection
             )
             VALUES (
                 $evidencePackageId,
                 $artifactId,
-                $contentRole
+                $contentRole,
+                $reviewerPageSelection
             );
             """;
 
@@ -221,8 +241,48 @@ public sealed class SqliteEvidencePackageRepository :
             "$contentRole",
             artifact.ContentRole);
 
+        command.Parameters.AddWithValue(
+            "$reviewerPageSelection",
+            (object?)artifact.ReviewerPageSelection ?? DBNull.Value);
+
         await command.ExecuteNonQueryAsync(
             cancellationToken);
+    }
+
+    public async Task SetReviewerPageSelectionAsync(
+        EvidencePackageId evidencePackageId,
+        EMF.Core.Models.Identities.ArtifactId artifactId,
+        string? reviewerPageSelection,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE VeteransClaims_EvidencePackageArtifacts
+            SET ReviewerPageSelection = $reviewerPageSelection
+            WHERE EvidencePackageId = $evidencePackageId
+              AND ArtifactId = $artifactId;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$reviewerPageSelection",
+            (object?)reviewerPageSelection ?? DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$evidencePackageId",
+            evidencePackageId.Value);
+        command.Parameters.AddWithValue(
+            "$artifactId",
+            artifactId.Value);
+
+        var affected =
+            await command.ExecuteNonQueryAsync(cancellationToken);
+
+        if (affected != 1)
+            throw new InvalidOperationException(
+                "Evidence package artifact association was not found.");
     }
 
     public async Task<IReadOnlyList<EvidencePackageArtifact>>
@@ -236,7 +296,11 @@ public sealed class SqliteEvidencePackageRepository :
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT EvidencePackageId, ArtifactId, ContentRole
+            SELECT
+                EvidencePackageId,
+                ArtifactId,
+                ContentRole,
+                ReviewerPageSelection
             FROM VeteransClaims_EvidencePackageArtifacts
             WHERE EvidencePackageId = $evidencePackageId
             ORDER BY ArtifactId, ContentRole;
@@ -265,7 +329,11 @@ public sealed class SqliteEvidencePackageRepository :
                         new EMF.Core.Models.Identities.ArtifactId(
                             reader.GetString(1)),
                     ContentRole =
-                        reader.GetString(2)
+                        reader.GetString(2),
+                    ReviewerPageSelection =
+                        reader.IsDBNull(3)
+                            ? null
+                            : reader.GetString(3)
                 });
         }
 
@@ -283,7 +351,12 @@ public sealed class SqliteEvidencePackageRepository :
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT Id, ClaimIssueId, Purpose, ReviewerRole
+            SELECT
+                Id,
+                ClaimIssueId,
+                Purpose,
+                ReviewerRole,
+                ServiceConnectionBasisId
             FROM VeteransClaims_EvidencePackages
             WHERE ClaimIssueId = $claimIssueId
             ORDER BY Id;
@@ -314,7 +387,12 @@ public sealed class SqliteEvidencePackageRepository :
                     Purpose =
                         reader.GetString(2),
                     ReviewerRole =
-                        reader.GetString(3)
+                        reader.GetString(3),
+                    ServiceConnectionBasisId =
+                        reader.IsDBNull(4)
+                            ? null
+                            : new ServiceConnectionBasisId(
+                                reader.GetString(4))
                 });
         }
 

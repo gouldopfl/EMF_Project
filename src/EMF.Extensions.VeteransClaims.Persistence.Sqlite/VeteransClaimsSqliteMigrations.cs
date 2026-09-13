@@ -2093,6 +2093,98 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_ReviewedMedicalLiteratureClassifications (
                     SupersededByCorrelationId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                72,
+                "AddReviewerPageSelection",
+                """
+                ALTER TABLE VeteransClaims_EvidencePackageArtifacts
+                ADD COLUMN ReviewerPageSelection TEXT NULL;
+                """),
+            new VeteransClaimsSqliteMigration(
+                73,
+                "AddMedicationRecords",
+                """
+                CREATE TABLE VeteransClaims_MedicationRecords (
+                    Id TEXT PRIMARY KEY,
+                    VeteranId TEXT NOT NULL,
+                    SourceArtifactId TEXT NOT NULL,
+                    RecordDate TEXT NOT NULL,
+                    SourcePage INTEGER NOT NULL CHECK (SourcePage > 0),
+                    MedicationName TEXT NOT NULL,
+                    Strength TEXT NULL,
+                    Directions TEXT NULL,
+                    Indication TEXT NULL,
+                    Status TEXT NOT NULL,
+                    SourceDesignation TEXT NULL,
+                    FOREIGN KEY (VeteranId)
+                        REFERENCES VeteransClaims_Veterans (Id)
+                );
+
+                CREATE INDEX IX_VeteransClaims_MedicationRecords_Veteran
+                ON VeteransClaims_MedicationRecords (
+                    VeteranId, RecordDate DESC
+                );
+
+                CREATE INDEX IX_VeteransClaims_MedicationRecords_Medication
+                ON VeteransClaims_MedicationRecords (
+                    VeteranId, MedicationName, RecordDate DESC
+                );
+
+                CREATE INDEX IX_VeteransClaims_MedicationRecords_Artifact
+                ON VeteransClaims_MedicationRecords (SourceArtifactId);
+                """),
+            new VeteransClaimsSqliteMigration(
+                74,
+                "AddEvidencePackageBasisScope",
+                """
+                ALTER TABLE VeteransClaims_EvidencePackages
+                ADD COLUMN ServiceConnectionBasisId TEXT NULL
+                    REFERENCES VeteransClaims_ServiceConnectionBases (Id);
+
+                CREATE INDEX
+                    IX_VeteransClaims_EvidencePackages_Basis
+                ON VeteransClaims_EvidencePackages (
+                    ServiceConnectionBasisId
+                );
+                """),
+            new VeteransClaimsSqliteMigration(
+                75,
+                "AddMedicationHistoryEvents",
+                """
+                CREATE TABLE VeteransClaims_MedicationHistoryEvents (
+                    Id TEXT PRIMARY KEY,
+                    VeteranId TEXT NOT NULL,
+                    SourceArtifactId TEXT NOT NULL,
+                    EventDate TEXT NOT NULL,
+                    SourcePage INTEGER NOT NULL CHECK (SourcePage > 0),
+                    MedicationName TEXT NOT NULL,
+                    EventType TEXT NOT NULL,
+                    Strength TEXT NULL,
+                    Directions TEXT NULL,
+                    PharmacyIndication TEXT NULL,
+                    PrescriptionNumber TEXT NULL,
+                    FOREIGN KEY (VeteranId)
+                        REFERENCES VeteransClaims_Veterans (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicationHistoryEvents_Veteran
+                ON VeteransClaims_MedicationHistoryEvents (
+                    VeteranId, EventDate
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicationHistoryEvents_Medication
+                ON VeteransClaims_MedicationHistoryEvents (
+                    VeteranId, MedicationName, EventDate
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicationHistoryEvents_Artifact
+                ON VeteransClaims_MedicationHistoryEvents (
+                    SourceArtifactId
+                );
                 """)
         };
 }

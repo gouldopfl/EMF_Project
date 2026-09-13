@@ -11,4 +11,6 @@ public sealed class EvidencePackage
     public required string Purpose { get; init; }
 
     public required string ReviewerRole { get; init; }
+
+    public ServiceConnectionBasisId? ServiceConnectionBasisId { get; init; }
 }

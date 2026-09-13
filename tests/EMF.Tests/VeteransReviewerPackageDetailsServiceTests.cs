@@ -753,6 +753,78 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_ReplacesSnoreJsonWithPapAnalysis()
+    {
+        var packageId = new EvidencePackageId("package-snore");
+
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId("artifact-snore"),
+            Name = "SNORE_Mike_Gould_sessions.json",
+            ArtifactType = "test"
+        };
+
+        const string json = """
+        {
+          "snore_export_format": "1.0",
+          "session_count": 1,
+          "sessions": [{
+            "device_session_id": "20250730_220208_merged",
+            "date": "2025-07-30",
+            "start_time": "2025-07-30T22:02:57",
+            "duration_hours": 10.82,
+            "device": { "model": "AirCurve11ASV" },
+            "statistics": {
+              "ahi": 9.592476489028213,
+              "unclassified_apneas": 44,
+              "hypopneas": 58,
+              "usage_hours": 10.633333333333333
+            }
+          }]
+        }
+        """;
+
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var printRenderer = new RecordingPrintRenderer([]);
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService
+                {
+                    Details = CreateDetails(packageId, artifact.Id)
+                },
+                evidence,
+                new RecordingClassificationRepository(),
+                new RecordingTextExtractor(json),
+                printRenderer);
+
+        var result = await service.GetAsync(packageId);
+
+        Assert.NotNull(result);
+
+        var content = Assert.Single(result.ArtifactContents);
+        var page = Assert.Single(content.PrintablePages);
+
+        Assert.Contains("PAP Therapy Analysis", content.Text);
+        Assert.Contains("Sessions: 1", content.Text);
+        Assert.Contains("retained SNORE session export", content.Text);
+        Assert.DoesNotContain("device_session_id", content.Text);
+
+        var printable =
+            global::System.Text.Encoding.UTF8.GetString(
+                page.Content.Span);
+
+        Assert.Contains("PAP Therapy Analysis", printable);
+        Assert.Contains("Sessions: 1", printable);
+        Assert.Contains("retained SNORE session export", printable);
+        Assert.DoesNotContain("device_session_id", printable);
+
+        Assert.Equal(0, printRenderer.CallCount);
+    }
+
+    [Fact]
     public async Task GetAsync_RejectsUnderlyingEvidenceWithoutPrintablePages()
     {
         var packageId = new EvidencePackageId("package-print-2");
@@ -868,6 +940,80 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         Assert.NotNull(result);
         Assert.Single(result.ArtifactContents);
         Assert.Equal(0, printRenderer.CallCount);
+    }
+}
+
+public sealed partial class VeteransReviewerPackageDetailsServiceTests
+{
+    [Fact]
+    public async Task GetAsync_AppliesReviewerPageSelectionAfterRendering()
+    {
+        var packageId =
+            new EvidencePackageId("package-page-selection");
+
+        var artifact =
+            CreateArtifact("artifact-page-selection");
+
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(artifact);
+
+        var details =
+            new EvidencePackageDetails
+            {
+                Package = new EvidencePackage
+                {
+                    Id = packageId,
+                    ClaimIssueId = new ClaimIssueId("issue-1"),
+                    Purpose = "Physician reviewer package",
+                    ReviewerRole = "MedicalProfessional"
+                },
+                Artifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = artifact.Id,
+                        ContentRole =
+                            EvidencePackageContentRoles.UnderlyingEvidence,
+                        ReviewerPageSelection = "11,13-17"
+                    }
+                ]
+            };
+
+        var renderedPages =
+            Enumerable.Range(1, 17)
+                .Select(
+                    number =>
+                        new PrintableArtifactPage
+                        {
+                            PageNumber = number,
+                            ContentType = "image/png",
+                            Content = ReadOnlyMemory<byte>.Empty
+                        })
+                .ToArray();
+
+        var printRenderer =
+            new RecordingPrintRenderer(renderedPages);
+
+        var service =
+            new VeteransReviewerPackageDetailsService(
+                new RecordingPackageService { Details = details },
+                evidence,
+                new RecordingClassificationRepository(),
+                new RecordingTextExtractor("reviewable text"),
+                printRenderer);
+
+        var result = await service.GetAsync(packageId);
+
+        Assert.NotNull(result);
+        Assert.Equal(17, renderedPages.Length);
+        Assert.Equal(1, printRenderer.CallCount);
+
+        var content = Assert.Single(result.ArtifactContents);
+
+        Assert.Equal(
+            [11, 13, 14, 15, 16, 17],
+            content.PrintablePages.Select(x => x.PageNumber));
     }
 }
 

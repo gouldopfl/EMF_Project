@@ -80,6 +80,24 @@ public sealed class EvidencePackagePreparationService :
             cancellationToken);
     }
 
+    public Task<EvidencePackage> PrepareAsync(
+        ClaimIssueId claimIssueId,
+        string purpose,
+        string reviewerRole,
+        IReadOnlyCollection<ArtifactId>
+            underlyingEvidenceArtifactIds,
+        IReadOnlyCollection<ArtifactId>
+            generatedOrganizationalMaterialArtifactIds,
+        CancellationToken cancellationToken = default) =>
+        PrepareAsync(
+            claimIssueId,
+            purpose,
+            reviewerRole,
+            underlyingEvidenceArtifactIds,
+            generatedOrganizationalMaterialArtifactIds,
+            null,
+            cancellationToken);
+
     public async Task<EvidencePackage> PrepareAsync(
         ClaimIssueId claimIssueId,
         string purpose,
@@ -88,6 +106,7 @@ public sealed class EvidencePackagePreparationService :
             underlyingEvidenceArtifactIds,
         IReadOnlyCollection<ArtifactId>
             generatedOrganizationalMaterialArtifactIds,
+        ServiceConnectionBasisId? serviceConnectionBasisId,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(
@@ -105,6 +124,7 @@ public sealed class EvidencePackagePreparationService :
                 generatedOrganizationalMaterialArtifactIds
                     .Distinct()
                     .ToArray(),
+                serviceConnectionBasisId,
                 cancellationToken);
 
         ValidatePackage(

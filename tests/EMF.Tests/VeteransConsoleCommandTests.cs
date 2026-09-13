@@ -1546,6 +1546,31 @@ public sealed partial class VeteransConsoleCommandTests
             await new SqliteClaimIssueRepository(databasePath)
                 .AddClaimIssueAsync(issue);
 
+            var connections =
+                new SqliteServiceConnectionRepository(databasePath);
+
+            var theory = new ServiceConnectionTheory
+            {
+                Id =
+                    new ServiceConnectionTheoryId(
+                        "theory-osa-secondary"),
+                ClaimIssueId = issue.Id,
+                TheoryType = ServiceConnectionTheoryTypes.Secondary
+            };
+
+            await connections.AddServiceConnectionTheoryAsync(theory);
+
+            var basis = new ServiceConnectionBasis
+            {
+                Id =
+                    new ServiceConnectionBasisId(
+                        "basis-osa-secondary"),
+                ClaimIssueId = issue.Id,
+                ServiceConnectionTheoryId = theory.Id
+            };
+
+            await connections.AddServiceConnectionBasisAsync(basis);
+
             var sourceArtifactId =
                 new ArtifactId("artifact-reviewer-001");
 
@@ -1604,6 +1629,8 @@ public sealed partial class VeteransConsoleCommandTests
                         "reviewer",
                         databasePath,
                         issue.Id.Value,
+                        "--basis",
+                        basis.Id.Value,
                         outputPath
                     ],
                     () => Task.FromResult(
@@ -1668,6 +1695,10 @@ public sealed partial class VeteransConsoleCommandTests
             Assert.Equal(
                 "MedicalProfessional",
                 package.ReviewerRole);
+
+            Assert.Equal(
+                basis.Id,
+                package.ServiceConnectionBasisId);
 
             var packageArtifacts =
                 await packageRepository

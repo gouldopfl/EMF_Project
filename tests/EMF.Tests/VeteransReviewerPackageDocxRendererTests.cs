@@ -98,15 +98,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "EMF Claim Issue Reference: issue-1",
             paragraphs);
 
-        var traceabilityIndex =
-            Array.IndexOf(
-                paragraphs,
-                "Appendix F — Evidence Traceability");
-
-        Assert.True(traceabilityIndex >= 0);
-
         Assert.DoesNotContain(
-            paragraphs[..traceabilityIndex],
+            paragraphs,
             paragraph =>
                 paragraph.Contains(
                     "MedicalProfessional",
@@ -262,8 +255,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "Sleep Study",
             text);
 
-        Assert.Contains("Category: Additional Evidence", text);
-        Assert.Contains("Evidence Date: 2025-07-30", text);
+
+        Assert.Contains("Date: 2025-07-30", text);
         Assert.Contains("Source pages: 1003-1005", text);
 
         Assert.DoesNotContain("source-1", text);
@@ -556,15 +549,11 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "Executive Summary";
 
         const string evidenceHeading =
-            "Evidence Index";
+            "Additional Evidence";
 
-        Assert.Contains(
-            generatedHeading,
-            text);
-
-        Assert.Contains(
-            evidenceHeading,
-            text);
+        Assert.Contains(generatedHeading, text);
+        Assert.Contains(evidenceHeading, text);
+        Assert.DoesNotContain("Evidence Index", text);
 
         Assert.True(
             text.IndexOf(
@@ -920,15 +909,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 .Select(paragraph => paragraph.InnerText)
                 .ToArray();
 
-        var traceabilityIndex =
-            Array.IndexOf(
-                paragraphs,
-                "Appendix F — Evidence Traceability");
-
-        Assert.True(traceabilityIndex >= 0);
-
         var reviewerFacingParagraphs =
-            paragraphs[..traceabilityIndex];
+            paragraphs;
 
         Assert.DoesNotContain(
             reviewerFacingParagraphs,
@@ -973,8 +955,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             text);
 
         Assert.True(
-            text.IndexOf("1. Generic Evidence Title", StringComparison.Ordinal) <
-            text.IndexOf("2. Undated Medical Evidence", StringComparison.Ordinal));
+            text.IndexOf("Generic Evidence Title", StringComparison.Ordinal) <
+            text.IndexOf("Undated Medical Evidence", StringComparison.Ordinal));
     }
 
 
@@ -1243,6 +1225,17 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.Contains("PAGE", fieldInstructions);
         Assert.Contains("NUMPAGES", fieldInstructions);
 
+        var footerFields =
+            footer
+                .Descendants<
+                    DocumentFormat.OpenXml.Wordprocessing.SimpleField>()
+                .ToArray();
+
+        Assert.Equal(2, footerFields.Length);
+        Assert.All(
+            footerFields,
+            field => Assert.True(field.Dirty?.Value));
+
         var settingsPart =
             Assert.IsType<DocumentSettingsPart>(
                 mainPart.DocumentSettingsPart);
@@ -1475,17 +1468,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     .Body!
                     .Elements<
                         DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
-                    .TakeWhile(
-                        paragraph =>
-                            !(paragraph.InnerText ==
-                                  "Appendix F — Evidence Traceability" &&
-                              string.Equals(
-                                  paragraph.ParagraphProperties?
-                                      .ParagraphStyleId?
-                                      .Val?
-                                      .Value,
-                                  "Heading1",
-                                  StringComparison.Ordinal)))
+
                     .Where(
                         paragraph =>
                             paragraph.InnerText == "Sleep Study" &&
@@ -1586,17 +1569,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     .Body!
                     .Elements<
                         DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
-                    .TakeWhile(
-                        paragraph =>
-                            !(paragraph.InnerText ==
-                                  "Appendix F — Evidence Traceability" &&
-                              string.Equals(
-                                  paragraph.ParagraphProperties?
-                                      .ParagraphStyleId?
-                                      .Val?
-                                      .Value,
-                                  "Heading1",
-                                  StringComparison.Ordinal)))
+
                     .Where(
                         paragraph =>
                             paragraph.InnerText == "Sleep Study" &&
@@ -2168,7 +2141,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
             .Single(
                 x =>
-                    x.InnerText == "Evidence Index" &&
+                    x.InnerText == "Additional Evidence" &&
                     x.ParagraphProperties?.PageBreakBefore is not null);
 
         Assert.NotNull(
@@ -2436,7 +2409,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
     }
 
     [Fact]
-    public void Render_ReservesSpaceOnEveryPrintableImagePage()
+    public void Render_ReservesHeadingSpaceOnlyOnFirstImagePage()
     {
         var details =
             CreatePrintableDetails(
@@ -2472,7 +2445,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         Assert.Equal(2, extents.Length);
         Assert.Equal(6_400_800L, extents[0].Cy?.Value);
-        Assert.Equal(6_400_800L, extents[1].Cy?.Value);
+        Assert.Equal(7_772_400L, extents[1].Cy?.Value);
     }
 
     [Fact]
@@ -2719,7 +2692,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 {
     private static VeteransReviewerPackageDetails CreatePrintableDetails(
         IReadOnlyList<PrintableArtifactPage> pages,
-        string text)
+        string text,
+        string? reviewerPageSelection = null)
     {
         var packageId =
             new EvidencePackageId("package-print");
@@ -2754,7 +2728,9 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                             ArtifactId = artifact.Id,
                             ContentRole =
                                 EvidencePackageContentRoles
-                                    .UnderlyingEvidence
+                                    .UnderlyingEvidence,
+                            ReviewerPageSelection =
+                                reviewerPageSelection
                         }
                     ]
                 },
@@ -2765,7 +2741,9 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 {
                     Artifact = artifact,
                     Text = text,
-                    PrintablePages = pages
+                    PrintablePages = pages,
+                    ReviewerPageSelection =
+                        reviewerPageSelection
                 }
             ]
         };
@@ -3202,4 +3180,46 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             Artifact = artifact,
             Text = "Integrity test content."
         };
+}
+
+public sealed partial class VeteransReviewerPackageDocxRendererTests
+{
+    [Fact]
+    public void Render_DoesNotDescribeReviewerExcludedPagesAsBlank()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 11,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                },
+                new PrintableArtifactPage
+                {
+                    PageNumber = 13,
+                    ContentType = "image/png",
+                    Content = TinyPng()
+                }
+            ],
+            "",
+            "11,13-17");
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var text =
+            document.MainDocumentPart!.Document!.InnerText;
+
+        Assert.Contains("Source Page 11", text);
+        Assert.Contains("Source Page 13", text);
+        Assert.DoesNotContain(
+            "Source Page 12 was blank",
+            text);
+    }
 }

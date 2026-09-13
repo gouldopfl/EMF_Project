@@ -10,4 +10,6 @@ public sealed class EvidencePackageArtifact
     public required ArtifactId ArtifactId { get; init; }
 
     public required string ContentRole { get; init; }
+
+    public string? ReviewerPageSelection { get; init; }
 }

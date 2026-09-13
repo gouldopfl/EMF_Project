@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 
@@ -34,6 +35,16 @@ public interface IEvidencePackageRepository
     {
         throw new NotSupportedException(
             "Evidence package artifacts are not supported by this repository.");
+    }
+
+    Task SetReviewerPageSelectionAsync(
+        EvidencePackageId evidencePackageId,
+        ArtifactId artifactId,
+        string? reviewerPageSelection,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Reviewer page selection updates are not supported.");
     }
 
     Task<IReadOnlyList<EvidencePackageArtifact>>

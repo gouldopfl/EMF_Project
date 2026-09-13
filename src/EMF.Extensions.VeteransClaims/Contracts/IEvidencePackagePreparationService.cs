@@ -30,4 +30,25 @@ public interface IEvidencePackagePreparationService
             generatedOrganizationalMaterialArtifactIds,
         CancellationToken cancellationToken = default);
 
+    Task<EvidencePackage> PrepareAsync(
+        ClaimIssueId claimIssueId,
+        string purpose,
+        string reviewerRole,
+        IReadOnlyCollection<ArtifactId>
+            underlyingEvidenceArtifactIds,
+        IReadOnlyCollection<ArtifactId>
+            generatedOrganizationalMaterialArtifactIds,
+        ServiceConnectionBasisId? serviceConnectionBasisId,
+        CancellationToken cancellationToken = default) =>
+        serviceConnectionBasisId is null
+            ? PrepareAsync(
+                claimIssueId,
+                purpose,
+                reviewerRole,
+                underlyingEvidenceArtifactIds,
+                generatedOrganizationalMaterialArtifactIds,
+                cancellationToken)
+            : throw new NotSupportedException(
+                "Basis-scoped evidence package preparation is not supported.");
+
 }

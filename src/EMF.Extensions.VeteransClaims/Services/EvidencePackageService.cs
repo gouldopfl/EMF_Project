@@ -36,6 +36,24 @@ public sealed class EvidencePackageService :
             [],
             cancellationToken);
 
+    public Task<EvidencePackage> CreateAsync(
+        ClaimIssueId claimIssueId,
+        string purpose,
+        string reviewerRole,
+        IReadOnlyCollection<ArtifactId>
+            underlyingEvidenceArtifactIds,
+        IReadOnlyCollection<ArtifactId>
+            generatedOrganizationalMaterialArtifactIds,
+        CancellationToken cancellationToken = default) =>
+        CreateAsync(
+            claimIssueId,
+            purpose,
+            reviewerRole,
+            underlyingEvidenceArtifactIds,
+            generatedOrganizationalMaterialArtifactIds,
+            null,
+            cancellationToken);
+
     public async Task<EvidencePackage> CreateAsync(
         ClaimIssueId claimIssueId,
         string purpose,
@@ -44,6 +62,7 @@ public sealed class EvidencePackageService :
             underlyingEvidenceArtifactIds,
         IReadOnlyCollection<ArtifactId>
             generatedOrganizationalMaterialArtifactIds,
+        ServiceConnectionBasisId? serviceConnectionBasisId,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
@@ -74,7 +93,8 @@ public sealed class EvidencePackageService :
                         _idGenerator.Generate()),
                 ClaimIssueId = claimIssueId,
                 Purpose = purpose,
-                ReviewerRole = reviewerRole
+                ReviewerRole = reviewerRole,
+                ServiceConnectionBasisId = serviceConnectionBasisId
             };
 
         var artifacts =
@@ -161,6 +181,62 @@ public sealed class EvidencePackageService :
             cancellationToken);
 
         return artifact;
+    }
+
+    public async Task<EvidencePackageArtifact>
+        SetReviewerPageSelectionAsync(
+            EvidencePackageId evidencePackageId,
+            ArtifactId artifactId,
+            string? reviewerPageSelection,
+            CancellationToken cancellationToken = default)
+    {
+        if (reviewerPageSelection is not null &&
+            string.IsNullOrWhiteSpace(reviewerPageSelection))
+        {
+            throw new ArgumentException(
+                "Reviewer page selection cannot be empty.",
+                nameof(reviewerPageSelection));
+        }
+
+        var artifacts =
+            await _repository.GetEvidencePackageArtifactsAsync(
+                evidencePackageId,
+                cancellationToken);
+
+        ValidateArtifacts(evidencePackageId, artifacts);
+
+        var artifact =
+            artifacts.SingleOrDefault(
+                x => x.ArtifactId == artifactId)
+            ?? throw new InvalidOperationException(
+                $"Artifact '{artifactId.Value}' is not associated with " +
+                $"evidence package '{evidencePackageId.Value}'.");
+
+        if (!string.Equals(
+                artifact.ContentRole,
+                EvidencePackageContentRoles.UnderlyingEvidence,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Reviewer page selection is only valid for underlying evidence.");
+        }
+
+        var normalized =
+            reviewerPageSelection?.Trim();
+
+        await _repository.SetReviewerPageSelectionAsync(
+            evidencePackageId,
+            artifactId,
+            normalized,
+            cancellationToken);
+
+        return new EvidencePackageArtifact
+        {
+            EvidencePackageId = artifact.EvidencePackageId,
+            ArtifactId = artifact.ArtifactId,
+            ContentRole = artifact.ContentRole,
+            ReviewerPageSelection = normalized
+        };
     }
 
     public async Task<IReadOnlyList<EvidencePackageDetails>> GetAsync(
