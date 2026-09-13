@@ -71,9 +71,31 @@ public sealed class EvidenceRecognitionTermProposalServiceTests
         Assert.Contains(
             "- Major depressive disorder",
             executor.Request.Text);
+        var normalizedInstruction =
+            string.Join(
+                " ",
+                executor.Request.Instruction.Split(
+                    (char[]?)null,
+                    StringSplitOptions.RemoveEmptyEntries));
+
         Assert.Contains(
             "requirement-310-a",
-            executor.Request.Instruction);
+            normalizedInstruction);
+        Assert.Contains(
+            "case-insensitive literal substring search",
+            normalizedInstruction);
+        Assert.Contains(
+            "It does not use stemming, regex, semantic similarity, or inference.",
+            normalizedInstruction);
+        Assert.Contains(
+            "Do not combine supplied condition names into hypothetical nexus sentences",
+            normalizedInstruction);
+        Assert.Contains(
+            "Do not fill a quota.",
+            normalizedInstruction);
+        Assert.Contains(
+            $"never more than {EvidenceRecognitionTermProposalService.MaximumProposals}",
+            normalizedInstruction);
     }
 
     [Fact]

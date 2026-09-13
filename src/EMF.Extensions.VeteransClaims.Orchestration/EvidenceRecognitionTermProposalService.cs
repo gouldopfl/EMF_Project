@@ -10,7 +10,7 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 
 internal sealed class EvidenceRecognitionTermProposalService
 {
-    public const int MaximumProposals = 24;
+    public const int MaximumProposals = 12;
     public const int MaximumTermCharacters = 200;
     public const int MaximumRationaleCharacters = 1_000;
 
@@ -276,22 +276,47 @@ internal sealed class EvidenceRecognitionTermProposalService
     private static string BuildInstruction(
         Requirement requirement) =>
         $"""
-        Propose recognition terms that deterministic software can use to find
-        potentially relevant evidence for the supplied VA claim requirement.
-        The terms are search vocabulary, not medical findings and not an
+        Propose a small, precision-oriented set of recognition terms that
+        deterministic software can use to nominate potentially relevant evidence
+        for the supplied VA claim requirement. The matcher performs only a
+        case-insensitive literal substring search against one source record at a
+        time. It does not use stemming, regex, semantic similarity, or inference.
+        Therefore propose text that is reasonably likely to occur verbatim in
+        real clinical or evidentiary records.
+
+        The terms are retrieval vocabulary, not medical findings and not an
         adjudication. Use only the supplied requirement and condition context.
         Do not invent diagnoses, symptoms, medications, treatment, events,
-        medical relationships, or patient facts. Prefer specific clinical
-        phrases, recognized acronyms, and meaningful synonyms over generic
-        words. Return at most {MaximumProposals} terms. Every returned term
-        must use requirementId '{requirement.Id.Value}'. EvidenceClassification
-        may be null. Allowed termType values: Keyword, Phrase, Acronym, Synonym.
-        Allowed recognitionRole values: Diagnosis, SeverityCriterion,
-        FunctionalImpact, ServiceConnection, MedicalNexus, Aggravation,
-        Presumptive, EvidenceType. Allowed evidenceClassification values:
-        MedicalEvidence, ServiceTreatmentRecord, ServiceRecord, LayEvidence,
-        Examination, MedicalOpinion, AdjudicativeRecord, or null. Provide a
-        short rationale explaining why each term may identify relevant evidence.
+        medical mechanisms, patient facts, or relationships between conditions.
+        Do not combine supplied condition names into hypothetical nexus sentences
+        such as "condition A secondary to condition B" merely because that
+        sentence would satisfy the requirement.
+
+        Prefer short lexical anchors: supplied condition names, commonly used
+        abbreviations or genuine synonyms of those names, and concise
+        requirement-specific relationship, severity, or functional language that
+        is likely to appear literally in records. Most terms should be one to five
+        words. Avoid long synthetic phrases, legal boilerplate, generic document
+        labels, and terms that merely restate the full requirement.
+
+        Keep each proposal within the scope of this requirement. Do not propose
+        Aggravation terms unless the supplied requirement addresses aggravation.
+        Do not propose causation or secondary-nexus terms unless the supplied
+        requirement addresses causation or nexus. EvidenceClassification should
+        be null unless the proposed literal text is strongly characteristic of a
+        specific evidence classification.
+
+        Quality is more important than quantity. Do not fill a quota. Return only
+        distinct high-value terms, normally 6 to 10 and never more than
+        {MaximumProposals}. Every returned term must use requirementId
+        '{requirement.Id.Value}'. Allowed termType values: Keyword, Phrase,
+        Acronym, Synonym. Allowed recognitionRole values: Diagnosis,
+        SeverityCriterion, FunctionalImpact, ServiceConnection, MedicalNexus,
+        Aggravation, Presumptive, EvidenceType. Allowed evidenceClassification
+        values: MedicalEvidence, ServiceTreatmentRecord, ServiceRecord,
+        LayEvidence, Examination, MedicalOpinion, AdjudicativeRecord, or null.
+        Provide a short rationale explaining why the literal term may identify
+        relevant evidence.
         """;
 
     private static string BuildJsonShape() =>
