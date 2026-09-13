@@ -3521,13 +3521,20 @@ public static class VeteransConsoleCommand
                         new SqliteMedicationRepository(fullDatabasePath)))
                 .GetAsync(details.PackageDetails.Package);
 
+        var medicalOpinionRequested =
+            await new VeteransReviewerMedicalOpinionRequestService(
+                    new SqliteServiceConnectionRepository(fullDatabasePath),
+                    new SqliteConditionRepository(fullDatabasePath))
+                .GetAsync(details.PackageDetails.Package);
+
         details =
             new VeteransReviewerPackageDetails
             {
                 PackageDetails = details.PackageDetails,
                 Artifacts = details.Artifacts,
                 ArtifactContents = details.ArtifactContents,
-                CurrentPrescribedMedications = reviewerMedications
+                CurrentPrescribedMedications = reviewerMedications,
+                MedicalOpinionRequested = medicalOpinionRequested
             };
 
         if (contentStore is null &&

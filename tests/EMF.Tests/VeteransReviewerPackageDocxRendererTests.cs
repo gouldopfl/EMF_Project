@@ -1071,6 +1071,61 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
 
     [Fact]
+    public void Render_IncludesMedicalOpinionRequested()
+    {
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = new EvidencePackageId("package-opinion"),
+                                ClaimIssueId = new ClaimIssueId("issue-opinion"),
+                                Purpose = "Medical review",
+                                ReviewerRole = "MedicalProfessional"
+                            },
+                        Artifacts = []
+                    },
+                Artifacts = [],
+                MedicalOpinionRequested =
+                    "Determine whether the Veteran's Obstructive Sleep Apnea " +
+                    "is at least as likely as not caused or aggravated by PTSD."
+            };
+
+        var content =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream =
+            new MemoryStream(content);
+
+        using var document =
+            WordprocessingDocument.Open(
+                stream,
+                false);
+
+        var paragraphs =
+            document.MainDocumentPart!
+                .Document!
+                .Body!
+                .Elements<
+                    DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Select(paragraph => paragraph.InnerText)
+                .ToArray();
+
+        Assert.Contains(
+            "Medical Opinion Requested",
+            paragraphs);
+
+        Assert.Contains(
+            "Determine whether the Veteran's Obstructive Sleep Apnea " +
+            "is at least as likely as not caused or aggravated by PTSD.",
+            paragraphs);
+    }
+
+    [Fact]
     public void Render_UsesStandardPageMargins()
     {
         var packageId =

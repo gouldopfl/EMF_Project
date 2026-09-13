@@ -326,6 +326,19 @@ public static class VeteransReviewerPackageDocxRenderer
                 "evidence efficiently. It does not make a medical, legal, or " +
                 "adjudicative conclusion."));
 
+        if (!string.IsNullOrWhiteSpace(
+                details.MedicalOpinionRequested))
+        {
+            body.Append(
+                StyledParagraph(
+                    "Medical Opinion Requested",
+                    "Heading2"));
+
+            body.Append(
+                ContentParagraph(
+                    details.MedicalOpinionRequested));
+        }
+
         body.Append(
             StyledParagraph(
                 "How to Use This Package",

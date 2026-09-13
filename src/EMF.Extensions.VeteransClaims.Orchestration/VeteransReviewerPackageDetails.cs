@@ -19,4 +19,6 @@ public sealed class VeteransReviewerPackageDetails
     public IReadOnlyList<VeteransReviewerMedication> CurrentPrescribedMedications
     { get; init; } =
         Array.Empty<VeteransReviewerMedication>();
+
+    public string? MedicalOpinionRequested { get; init; }
 }
