@@ -223,6 +223,29 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 5 &&
+            args[0] == "evidence" &&
+            args[1] == "recognition" &&
+            args[2] == "propose")
+        {
+            var recognitionDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(recognitionDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {recognitionDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunEvidenceRecognitionTermProposalsAsync(
+                recognitionDatabasePath,
+                new ClaimIssueId(args[4]),
+                runtimeFactory,
+                global::System.Console.Out);
+        }
+
         if (args.Length == 4 &&
             args[0] == "evidence" &&
             args[1] == "ingest")
@@ -1602,6 +1625,101 @@ public static class VeteransConsoleCommand
 
         return 0;
     }
+
+    internal static async Task<int>
+        RunEvidenceRecognitionTermProposalsAsync(
+            string databasePath,
+            ClaimIssueId claimIssueId,
+            Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory,
+            TextWriter output)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        ArgumentNullException.ThrowIfNull(runtimeFactory);
+        ArgumentNullException.ThrowIfNull(output);
+
+        var runtime = await runtimeFactory();
+
+        var coordinator =
+            VeteransEvidenceOrchestrationFactory
+                .CreateEvidenceRecognitionTermProposalCoordinator(
+                    CreateAdjudicationDetailsService(databasePath),
+                    runtime.TextStructuredExtractionCapabilityExecutor);
+
+        var results =
+            await coordinator.ProposeAsync(
+                claimIssueId,
+                new IntelligenceExecutionContext(
+                    runtime.SubjectId,
+                    new IntelligenceCorrelationId(
+                        $"veterans-recognition-proposal-{Guid.NewGuid():N}"),
+                    runtime.ClassificationId,
+                    []));
+
+        if (results.Count == 0)
+        {
+            output.WriteLine(
+                "No recognition-term proposal contexts were found.");
+            return 0;
+        }
+
+        foreach (var result in results)
+        {
+            output.WriteLine(
+                $"Basis             : {ConsoleTextSanitizer.Sanitize(result.BasisId.Value)}");
+            output.WriteLine(
+                $"Claimed Condition : {ConsoleTextSanitizer.Sanitize(result.ClaimedCondition)}");
+            output.WriteLine(
+                $"Requirement       : {ConsoleTextSanitizer.Sanitize(result.RequirementId.Value)}");
+
+            foreach (var condition in result.ServiceConnectedConditions)
+            {
+                output.WriteLine(
+                    $"Service Connected : {ConsoleTextSanitizer.Sanitize(condition)}");
+            }
+
+            if (!result.ProposalResult.IntelligenceResult.Success)
+            {
+                output.WriteLine("Status            : FAILED");
+                output.WriteLine(
+                    "Message           : " +
+                    ConsoleTextSanitizer.Sanitize(
+                        result.ProposalResult.IntelligenceResult.Message ??
+                        "Recognition-term proposal failed."));
+                output.WriteLine();
+                return 1;
+            }
+
+            output.WriteLine(
+                $"Requires Review    : {result.ProposalResult.IntelligenceResult.RequiresReview}");
+            output.WriteLine(
+                $"Proposals          : {result.ProposalResult.Proposals.Count}");
+
+            var index = 0;
+            foreach (var proposal in result.ProposalResult.Proposals)
+            {
+                index++;
+                output.WriteLine();
+                output.WriteLine($"  Proposal {index}");
+                output.WriteLine(
+                    $"  Term             : {ConsoleTextSanitizer.Sanitize(proposal.Term)}");
+                output.WriteLine(
+                    $"  Term Type        : {ConsoleTextSanitizer.Sanitize(proposal.TermType)}");
+                output.WriteLine(
+                    $"  Recognition Role : {ConsoleTextSanitizer.Sanitize(proposal.RecognitionRole)}");
+                output.WriteLine(
+                    $"  Classification   : {ConsoleTextSanitizer.Sanitize(proposal.EvidenceClassification ?? "Not specified")}");
+                output.WriteLine(
+                    $"  Authority Source : {ConsoleTextSanitizer.Sanitize(proposal.AuthoritySource)}");
+                output.WriteLine(
+                    $"  Rationale        : {ConsoleTextSanitizer.Sanitize(proposal.Rationale)}");
+            }
+
+            output.WriteLine();
+        }
+
+        return 0;
+    }
+
 
     private static ClaimIssueAdjudicationDetailsService
         CreateAdjudicationDetailsService(

@@ -7,7 +7,7 @@ using EMF.Intelligence.Models;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
-internal sealed class EvidenceRecognitionTermBasisProposalResult
+public sealed class EvidenceRecognitionTermBasisProposalResult
 {
     public required ServiceConnectionBasisId BasisId
     { get; init; }
@@ -28,7 +28,7 @@ internal sealed class EvidenceRecognitionTermBasisProposalResult
     { get; init; }
 }
 
-internal sealed class EvidenceRecognitionTermProposalCoordinator
+public sealed class EvidenceRecognitionTermProposalCoordinator
 {
     private readonly IClaimIssueAdjudicationDetailsService _details;
     private readonly EvidenceRecognitionTermProposalService _proposalService;

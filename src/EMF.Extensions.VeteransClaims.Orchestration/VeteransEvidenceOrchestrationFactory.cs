@@ -8,6 +8,21 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 
 public static class VeteransEvidenceOrchestrationFactory
 {
+    public static EvidenceRecognitionTermProposalCoordinator
+        CreateEvidenceRecognitionTermProposalCoordinator(
+            IClaimIssueAdjudicationDetailsService details,
+            IIntelligenceCapabilityExecutor<
+                TextStructuredExtractionRequest,
+                string> executor)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        ArgumentNullException.ThrowIfNull(executor);
+
+        return new EvidenceRecognitionTermProposalCoordinator(
+            details,
+            executor);
+    }
+
     public static IVeteransEvidenceSummaryPromotionService
         CreateEvidenceSummaryPromotionService(
             IIntelligenceEvidencePromotionService promotionService)
