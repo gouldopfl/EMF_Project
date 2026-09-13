@@ -119,9 +119,78 @@ public sealed class EvidenceRecognitionTermProposalAuditServiceTests
         Assert.Equal(2, result.DiagnosisAnchorRecordCount);
         Assert.Equal(2, result.RequirementSignalRecordCount);
         Assert.Equal(1, result.QualifiedRecordCount);
+        Assert.Equal(new[] { 0 }, result.QualifiedRecordIndexes);
         Assert.Equal(
             "Qualified",
             Assert.Single(result.QualifiedSamples).Title);
+    }
+
+
+    [Fact]
+    public void Audit_DoesNotQualifyDistantSignalInSameRecord()
+    {
+        var lines =
+            new List<string>
+            {
+                "Current severity is greater than baseline."
+            };
+
+        lines.AddRange(
+            Enumerable.Repeat(
+                "Unrelated questionnaire content.",
+                40));
+
+        lines.Add("OSA diagnosed.");
+
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [
+                Proposal(
+                    "OSA",
+                    EvidenceRecognitionRoles.Diagnosis),
+                Proposal(
+                    "current severity",
+                    EvidenceRecognitionRoles.Aggravation)
+            ],
+            [
+                Record(
+                    "Long C&P record",
+                    string.Join(Environment.NewLine, lines),
+                    60)
+            ]);
+
+        Assert.Equal(1, result.DiagnosisAnchorRecordCount);
+        Assert.Equal(1, result.RequirementSignalRecordCount);
+        Assert.Equal(0, result.QualifiedRecordCount);
+        Assert.Empty(result.QualifiedRecordIndexes);
+    }
+
+    [Fact]
+    public void Audit_QualifiesNearbySignalWithinDiagnosisWindow()
+    {
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [
+                Proposal(
+                    "obstructive sleep apnea",
+                    EvidenceRecognitionRoles.Diagnosis),
+                Proposal(
+                    "proximately due to",
+                    EvidenceRecognitionRoles.MedicalNexus)
+            ],
+            [
+                Record(
+                    "OSA opinion",
+                    string.Join(
+                        Environment.NewLine,
+                        "The claimed condition is less likely than not proximately due to the service connected condition.",
+                        "Rationale follows.",
+                        "Obstructive sleep apnea was diagnosed after testing."),
+                    61)
+            ]);
+
+        Assert.Equal(1, result.DiagnosisAnchorRecordCount);
+        Assert.Equal(1, result.RequirementSignalRecordCount);
+        Assert.Equal(1, result.QualifiedRecordCount);
+        Assert.Equal(new[] { 0 }, result.QualifiedRecordIndexes);
     }
 
 
@@ -147,6 +216,7 @@ public sealed class EvidenceRecognitionTermProposalAuditServiceTests
         Assert.Equal(1, result.DiagnosisAnchorRecordCount);
         Assert.Equal(0, result.RequirementSignalRecordCount);
         Assert.Equal(0, result.QualifiedRecordCount);
+        Assert.Empty(result.QualifiedRecordIndexes);
         Assert.Empty(result.QualifiedSamples);
     }
 

@@ -223,7 +223,7 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
-        if (args.Length == 5 &&
+        if ((args.Length == 5 || args.Length == 6) &&
             args[0] == "evidence" &&
             args[1] == "recognition" &&
             args[2] == "replay")
@@ -239,11 +239,17 @@ public static class VeteransConsoleCommand
                 return 2;
             }
 
+            var qualifiedOutputPath =
+                args.Length == 6
+                    ? Path.GetFullPath(args[5])
+                    : null;
+
             return await RunEvidenceRecognitionTermReplayAsync(
                 replaySnapshotPath,
                 new ArtifactId(args[4]),
                 contentStoreFactory(),
-                global::System.Console.Out);
+                global::System.Console.Out,
+                qualifiedOutputPath);
         }
 
         if (args.Length == 6 &&
@@ -1774,7 +1780,8 @@ public static class VeteransConsoleCommand
             string snapshotPath,
             ArtifactId blueButtonArtifactId,
             IArtifactContentStore? contentStore,
-            TextWriter output)
+            TextWriter output,
+            string? qualifiedOutputPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(snapshotPath);
         ArgumentNullException.ThrowIfNull(output);
@@ -1826,6 +1833,9 @@ public static class VeteransConsoleCommand
         var allProposals =
             new List<EvidenceRecognitionTermProposal>();
 
+        var qualifiedRequirementsByRecordIndex =
+            new Dictionary<int, HashSet<string>>();
+
         foreach (var context in contexts)
         {
             var audit =
@@ -1834,6 +1844,22 @@ public static class VeteransConsoleCommand
                     records);
 
             allProposals.AddRange(context.Proposals);
+
+            foreach (var recordIndex in audit.QualifiedRecordIndexes)
+            {
+                if (!qualifiedRequirementsByRecordIndex.TryGetValue(
+                        recordIndex,
+                        out var requirementIds))
+                {
+                    requirementIds =
+                        new HashSet<string>(StringComparer.Ordinal);
+                    qualifiedRequirementsByRecordIndex.Add(
+                        recordIndex,
+                        requirementIds);
+                }
+
+                requirementIds.Add(context.RequirementId.Value);
+            }
 
             output.WriteLine(
                 $"Basis             : {ConsoleTextSanitizer.Sanitize(context.BasisId.Value)}");
@@ -1913,7 +1939,80 @@ public static class VeteransConsoleCommand
                 global::System.Globalization.CultureInfo.InvariantCulture) +
             "%");
 
+        if (!string.IsNullOrWhiteSpace(qualifiedOutputPath))
+        {
+            await WriteQualifiedReplayRecordsAsync(
+                qualifiedOutputPath,
+                records,
+                qualifiedRequirementsByRecordIndex);
+
+            output.WriteLine(
+                $"Qualified Text     : {qualifiedOutputPath}");
+        }
+
         return 0;
+    }
+
+
+    private static async Task WriteQualifiedReplayRecordsAsync(
+        string outputPath,
+        IReadOnlyList<VeteransBlueButtonCareSummaryRecord> records,
+        IReadOnlyDictionary<int, HashSet<string>> requirementIdsByRecordIndex)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(requirementIdsByRecordIndex);
+
+        var directory = Path.GetDirectoryName(outputPath);
+
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
+
+        await using var writer =
+            new StreamWriter(
+                outputPath,
+                append: false,
+                encoding: new global::System.Text.UTF8Encoding(
+                    encoderShouldEmitUTF8Identifier: false));
+
+        foreach (var item in requirementIdsByRecordIndex
+                     .OrderBy(item => item.Key))
+        {
+            if (item.Key < 0 || item.Key >= records.Count)
+            {
+                throw new InvalidDataException(
+                    "Qualified replay record index is outside the parsed record collection.");
+            }
+
+            var record = records[item.Key];
+
+            await writer.WriteLineAsync(
+                "===== QUALIFIED BLUE BUTTON RECORD =====");
+            await writer.WriteLineAsync(
+                $"Date Entered : {record.DateEntered}");
+            await writer.WriteLineAsync(
+                $"Pages        : {record.SourceStartPage}-{record.SourceEndPage}");
+            await writer.WriteLineAsync(
+                $"Title        : {record.Title}");
+            await writer.WriteLineAsync(
+                "Requirements : " +
+                string.Join(
+                    ", ",
+                    item.Value.OrderBy(
+                        value => value,
+                        StringComparer.Ordinal)));
+
+            if (record.NoteTitles.Count > 0)
+            {
+                await writer.WriteLineAsync(
+                    "Note Titles  : " +
+                    string.Join(" | ", record.NoteTitles));
+            }
+
+            await writer.WriteLineAsync();
+            await writer.WriteLineAsync(record.Text);
+            await writer.WriteLineAsync();
+        }
     }
 
 

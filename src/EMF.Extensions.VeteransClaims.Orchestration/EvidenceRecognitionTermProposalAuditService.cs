@@ -36,6 +36,8 @@ public sealed class EvidenceRecognitionTermProposalAuditResult
 
     public required int QualifiedRecordCount { get; init; }
 
+    public required IReadOnlyList<int> QualifiedRecordIndexes { get; init; }
+
     public required IReadOnlyList<EvidenceRecognitionTermProposalAuditSample>
         QualifiedSamples { get; init; }
 
@@ -46,6 +48,8 @@ public sealed class EvidenceRecognitionTermProposalAuditResult
 public sealed class EvidenceRecognitionTermProposalAuditService
 {
     public const int DefaultMaximumSamples = 3;
+
+    private const int QualifiedWindowRadiusLines = 16;
 
     public EvidenceRecognitionTermProposalAuditResult Audit(
         IReadOnlyList<EvidenceRecognitionTermProposal> proposals,
@@ -128,6 +132,7 @@ public sealed class EvidenceRecognitionTermProposalAuditService
         var diagnosisAnchorRecordCount = 0;
         var requirementSignalRecordCount = 0;
         var qualifiedRecordCount = 0;
+        var qualifiedRecordIndexes = new List<int>();
         var qualifiedSamples =
             new List<EvidenceRecognitionTermProposalAuditSample>(
                 Math.Min(maximumSamples, records.Count));
@@ -161,10 +166,18 @@ public sealed class EvidenceRecognitionTermProposalAuditService
             if (hasRequirementSignal)
                 requirementSignalRecordCount++;
 
-            if (!hasDiagnosisAnchor || !hasRequirementSignal)
+            if (!hasDiagnosisAnchor ||
+                !hasRequirementSignal ||
+                !HasBoundedQualifiedWindow(
+                    record.Text,
+                    diagnosisAnchors,
+                    requirementSignals))
+            {
                 continue;
+            }
 
             qualifiedRecordCount++;
+            qualifiedRecordIndexes.Add(index);
 
             if (qualifiedSamples.Count < maximumSamples)
             {
@@ -186,10 +199,91 @@ public sealed class EvidenceRecognitionTermProposalAuditService
             DiagnosisAnchorRecordCount = diagnosisAnchorRecordCount,
             RequirementSignalRecordCount = requirementSignalRecordCount,
             QualifiedRecordCount = qualifiedRecordCount,
+            QualifiedRecordIndexes = qualifiedRecordIndexes,
             QualifiedSamples = qualifiedSamples,
             Audits = audits
         };
     }
+
+
+    private static bool HasBoundedQualifiedWindow(
+        string text,
+        IReadOnlyList<EvidenceRecognitionTermProposal> diagnosisAnchors,
+        IReadOnlyList<EvidenceRecognitionTermProposal> requirementSignals)
+    {
+        var lines =
+            text
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Replace('\r', '\n')
+                .Split('\n');
+
+        for (var lineIndex = 0;
+             lineIndex < lines.Length;
+             lineIndex++)
+        {
+            var anchorProbeEnd =
+                Math.Min(
+                    lines.Length - 1,
+                    lineIndex + 1);
+
+            var anchorProbe =
+                JoinLines(
+                    lines,
+                    lineIndex,
+                    anchorProbeEnd);
+
+            if (!ContainsAnyTerm(
+                    anchorProbe,
+                    diagnosisAnchors))
+            {
+                continue;
+            }
+
+            var windowStart =
+                Math.Max(
+                    0,
+                    lineIndex - QualifiedWindowRadiusLines);
+
+            var windowEnd =
+                Math.Min(
+                    lines.Length - 1,
+                    lineIndex + QualifiedWindowRadiusLines);
+
+            var windowText =
+                JoinLines(
+                    lines,
+                    windowStart,
+                    windowEnd);
+
+            if (ContainsAnyTerm(
+                    windowText,
+                    requirementSignals))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsAnyTerm(
+        string text,
+        IReadOnlyList<EvidenceRecognitionTermProposal> proposals) =>
+        proposals.Any(
+            proposal =>
+                EvidenceRecognitionTextMatcher.ContainsTerm(
+                    text,
+                    proposal.Term));
+
+    private static string JoinLines(
+        string[] lines,
+        int start,
+        int end) =>
+        string.Join(
+            " ",
+            lines,
+            start,
+            end - start + 1);
 
     private static bool IsDiagnosisAnchor(
         EvidenceRecognitionTermProposal proposal) =>
