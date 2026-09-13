@@ -223,6 +223,29 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 5 &&
+            args[0] == "evidence" &&
+            args[1] == "recognition" &&
+            args[2] == "replay")
+        {
+            var replaySnapshotPath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(replaySnapshotPath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Recognition replay snapshot not found: {replaySnapshotPath}");
+
+                return 2;
+            }
+
+            return await RunEvidenceRecognitionTermReplayAsync(
+                replaySnapshotPath,
+                new ArtifactId(args[4]),
+                contentStoreFactory(),
+                global::System.Console.Out);
+        }
+
         if (args.Length == 6 &&
             args[0] == "evidence" &&
             args[1] == "recognition" &&
@@ -1741,6 +1764,139 @@ public static class VeteransConsoleCommand
 
             output.WriteLine();
         }
+
+        return 0;
+    }
+
+
+    internal static async Task<int>
+        RunEvidenceRecognitionTermReplayAsync(
+            string snapshotPath,
+            ArtifactId blueButtonArtifactId,
+            IArtifactContentStore? contentStore,
+            TextWriter output)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(snapshotPath);
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (contentStore is null)
+        {
+            global::System.Console.Error.WriteLine(
+                "Artifact content store is not configured.");
+            return 2;
+        }
+
+        var contexts =
+            new EvidenceRecognitionTermReplaySnapshotParser().Parse(
+                await File.ReadAllTextAsync(snapshotPath));
+
+#pragma warning disable CA1416
+        var extractor =
+            new PdfArtifactTextExtractionProvider(
+                contentStore,
+                new PdfToImagePageRenderer(),
+                new PaddleImageOcrService());
+#pragma warning restore CA1416
+
+        var pages =
+            await extractor.ExtractPagesAsync(
+                blueButtonArtifactId);
+
+        if (pages is null || pages.Count == 0)
+        {
+            global::System.Console.Error.WriteLine(
+                "Blue Button artifact contains no extractable PDF pages.");
+            return 1;
+        }
+
+        var records =
+            new VeteransBlueButtonCareSummaryParser().Parse(pages);
+
+        output.WriteLine("Mode                : OFFLINE REPLAY");
+        output.WriteLine("Azure Intelligence  : NOT USED");
+        output.WriteLine(
+            $"Blue Button Pages   : {pages.Count}");
+        output.WriteLine(
+            $"Care Summary Records: {records.Count}");
+        output.WriteLine();
+
+        var auditService =
+            new EvidenceRecognitionTermProposalAuditService();
+
+        var allProposals =
+            new List<EvidenceRecognitionTermProposal>();
+
+        foreach (var context in contexts)
+        {
+            var audit =
+                auditService.Audit(
+                    context.Proposals,
+                    records);
+
+            allProposals.AddRange(context.Proposals);
+
+            output.WriteLine(
+                $"Basis             : {ConsoleTextSanitizer.Sanitize(context.BasisId.Value)}");
+            output.WriteLine(
+                $"Requirement       : {ConsoleTextSanitizer.Sanitize(context.RequirementId.Value)}");
+            output.WriteLine(
+                $"Proposals          : {audit.Audits.Count}");
+            output.WriteLine(
+                $"Unique Record Hits : {audit.UniqueMatchingRecordCount} / {audit.RecordCount}");
+
+            foreach (var item in audit.Audits)
+            {
+                var percentage =
+                    audit.RecordCount == 0
+                        ? 0.0
+                        : 100.0 * item.MatchingRecordCount / audit.RecordCount;
+
+                output.WriteLine();
+                output.WriteLine(
+                    $"  Term             : {ConsoleTextSanitizer.Sanitize(item.Proposal.Term)}");
+                output.WriteLine(
+                    $"  Role             : {ConsoleTextSanitizer.Sanitize(item.Proposal.RecognitionRole)}");
+                output.WriteLine(
+                    $"  Hits             : {item.MatchingRecordCount} " +
+                    $"({percentage.ToString("F2", global::System.Globalization.CultureInfo.InvariantCulture)}%)");
+
+                foreach (var sample in item.Samples)
+                {
+                    output.WriteLine(
+                        "    Sample         : " +
+                        $"{ConsoleTextSanitizer.Sanitize(sample.DateEntered)} | " +
+                        $"pages {sample.SourceStartPage}-{sample.SourceEndPage} | " +
+                        ConsoleTextSanitizer.Sanitize(sample.Title));
+                }
+            }
+
+            output.WriteLine();
+        }
+
+        var overallAudit =
+            auditService.Audit(
+                allProposals,
+                records,
+                maximumSamples: 0);
+
+        output.WriteLine("===== OVERALL REPLAY COVERAGE =====");
+        output.WriteLine(
+            $"Proposal Terms      : {allProposals.Count}");
+        output.WriteLine(
+            $"Unique Record Hits  : {overallAudit.UniqueMatchingRecordCount} / {overallAudit.RecordCount}");
+
+        var overallPercentage =
+            overallAudit.RecordCount == 0
+                ? 0.0
+                : 100.0 * overallAudit.UniqueMatchingRecordCount /
+                    overallAudit.RecordCount;
+
+        output.WriteLine(
+            "Coverage Percentage : " +
+            overallPercentage.ToString(
+                "F2",
+                global::System.Globalization.CultureInfo.InvariantCulture) +
+            "%");
 
         return 0;
     }
