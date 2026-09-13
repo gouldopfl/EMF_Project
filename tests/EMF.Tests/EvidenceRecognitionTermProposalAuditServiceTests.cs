@@ -1,0 +1,108 @@
+using EMF.Extensions.VeteransClaims.Models.Identities;
+using EMF.Extensions.VeteransClaims.Orchestration;
+
+namespace EMF.Tests;
+
+public sealed class EvidenceRecognitionTermProposalAuditServiceTests
+{
+    [Fact]
+    public void Audit_UsesCaseInsensitiveLiteralSubstringMatching()
+    {
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [Proposal("sleep apnea")],
+            [
+                Record("Sleep note", "OBSTRUCTIVE SLEEP APNEA documented.", 10),
+                Record("Other note", "No matching phrase.", 11)
+            ]);
+
+        var audit = Assert.Single(result.Audits);
+        Assert.Equal(2, result.RecordCount);
+        Assert.Equal(1, result.UniqueMatchingRecordCount);
+        Assert.Equal(1, audit.MatchingRecordCount);
+        Assert.Equal("Sleep note", Assert.Single(audit.Samples).Title);
+    }
+
+    [Fact]
+    public void Audit_ReportsZeroHitProposal()
+    {
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [Proposal("proximately due to coronary artery disease")],
+            [Record("Sleep note", "OSA follow-up.", 20)]);
+
+        var audit = Assert.Single(result.Audits);
+        Assert.Equal(0, audit.MatchingRecordCount);
+        Assert.Empty(audit.Samples);
+        Assert.Equal(0, result.UniqueMatchingRecordCount);
+    }
+
+    [Fact]
+    public void Audit_LimitsSamplesWithoutLimitingHitCount()
+    {
+        var records = Enumerable.Range(1, 5)
+            .Select(index =>
+                Record($"Note {index}", "CPAP compliance reviewed.", index))
+            .ToArray();
+
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [Proposal("CPAP")],
+            records,
+            maximumSamples: 2);
+
+        var audit = Assert.Single(result.Audits);
+        Assert.Equal(5, audit.MatchingRecordCount);
+        Assert.Equal(2, audit.Samples.Count);
+        Assert.Equal(5, result.UniqueMatchingRecordCount);
+    }
+
+    [Fact]
+    public void Audit_UnionCountsEachRecordOnceAcrossTerms()
+    {
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [Proposal("OSA"), Proposal("CPAP")],
+            [
+                Record("Both", "OSA treated with CPAP.", 30),
+                Record("OSA", "OSA diagnosis.", 31),
+                Record("Neither", "Routine primary care.", 32)
+            ]);
+
+        Assert.Equal(2, result.UniqueMatchingRecordCount);
+        Assert.Equal(2, result.Audits[0].MatchingRecordCount);
+        Assert.Equal(1, result.Audits[1].MatchingRecordCount);
+    }
+
+    [Fact]
+    public void Audit_RejectsNegativeSampleLimit()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new EvidenceRecognitionTermProposalAuditService().Audit(
+                [],
+                [],
+                -1));
+    }
+
+    private static EvidenceRecognitionTermProposal Proposal(string term) =>
+        new()
+        {
+            RequirementId = new RequirementId("requirement-1"),
+            Term = term,
+            TermType = "Phrase",
+            RecognitionRole = "MedicalNexus",
+            EvidenceClassification = null,
+            AuthoritySource = "provision-1",
+            Rationale = "Test proposal."
+        };
+
+    private static VeteransBlueButtonCareSummaryRecord Record(
+        string title,
+        string text,
+        int page) =>
+        new()
+        {
+            Title = title,
+            DateEntered = "2026-01-01",
+            SourceStartPage = page,
+            SourceEndPage = page,
+            NoteTitles = [],
+            Text = text
+        };
+}
