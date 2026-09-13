@@ -37,9 +37,9 @@ public sealed class EvidenceRecognitionMatcher
 
         foreach (var term in terms)
         {
-            if (text.Contains(
-                    term.Term,
-                    StringComparison.OrdinalIgnoreCase))
+            if (EvidenceRecognitionTextMatcher.ContainsTerm(
+                    text,
+                    term.Term))
             {
                 matches.Add(
                     new EvidenceRecognitionMatch

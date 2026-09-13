@@ -1,3 +1,5 @@
+using EMF.Extensions.VeteransClaims.Services;
+
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
 public sealed class EvidenceRecognitionTermProposalAuditSample
@@ -71,9 +73,9 @@ public sealed class EvidenceRecognitionTermProposalAuditService
                         "Blue Button audit records must not contain null entries.");
 
                 if (string.IsNullOrEmpty(record.Text) ||
-                    !record.Text.Contains(
-                        proposal.Term,
-                        StringComparison.OrdinalIgnoreCase))
+                    !EvidenceRecognitionTextMatcher.ContainsTerm(
+                        record.Text,
+                        proposal.Term))
                 {
                     continue;
                 }

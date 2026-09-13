@@ -6,7 +6,7 @@ namespace EMF.Tests;
 public sealed class EvidenceRecognitionTermProposalAuditServiceTests
 {
     [Fact]
-    public void Audit_UsesCaseInsensitiveLiteralSubstringMatching()
+    public void Audit_UsesCaseInsensitiveBoundaryAwareLiteralMatching()
     {
         var result = new EvidenceRecognitionTermProposalAuditService().Audit(
             [Proposal("sleep apnea")],
@@ -20,6 +20,23 @@ public sealed class EvidenceRecognitionTermProposalAuditServiceTests
         Assert.Equal(1, result.UniqueMatchingRecordCount);
         Assert.Equal(1, audit.MatchingRecordCount);
         Assert.Equal("Sleep note", Assert.Single(audit.Samples).Title);
+    }
+
+
+    [Fact]
+    public void Audit_DoesNotMatchAcronymInsideLargerWord()
+    {
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [Proposal("OSA")],
+            [
+                Record("Medication", "Medication dosage adjusted.", 12),
+                Record("Sleep", "OSA treated with CPAP.", 13)
+            ]);
+
+        var audit = Assert.Single(result.Audits);
+        Assert.Equal(1, audit.MatchingRecordCount);
+        Assert.Equal(1, result.UniqueMatchingRecordCount);
+        Assert.Equal("Sleep", Assert.Single(audit.Samples).Title);
     }
 
     [Fact]

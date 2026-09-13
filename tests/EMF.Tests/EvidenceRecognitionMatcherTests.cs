@@ -104,6 +104,39 @@ public sealed class EvidenceRecognitionMatcherTests
     }
 
 
+
+    [Fact]
+    public async Task FindMatchesAsync_DoesNotMatchAcronymInsideLargerWord()
+    {
+        var repository =
+            new InMemoryEvidenceRecognitionTermRepository();
+
+        var requirement =
+            new RequirementId("requirement-001");
+
+        await repository.AddEvidenceRecognitionTermAsync(
+            CreateTerm(
+                "term-osa",
+                requirement,
+                "OSA"));
+
+        var matcher =
+            new EvidenceRecognitionMatcher(repository);
+
+        var embedded =
+            await matcher.FindMatchesAsync(
+                requirement,
+                "Medication dosage adjusted.");
+
+        var bounded =
+            await matcher.FindMatchesAsync(
+                requirement,
+                "OSA/CPAP treatment reviewed.");
+
+        Assert.Empty(embedded);
+        Assert.Single(bounded);
+    }
+
     [Fact]
     public async Task FindMatchesAsync_RejectsTermForDifferentRequirement()
     {
