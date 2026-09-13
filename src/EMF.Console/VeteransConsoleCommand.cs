@@ -1833,8 +1833,10 @@ public static class VeteransConsoleCommand
         var allProposals =
             new List<EvidenceRecognitionTermProposal>();
 
-        var qualifiedRequirementsByRecordIndex =
-            new Dictionary<int, HashSet<string>>();
+        var qualifiedWindows =
+            new List<(
+                EvidenceRecognitionTermProposalAuditWindow Window,
+                string RequirementId)>();
 
         foreach (var context in contexts)
         {
@@ -1845,20 +1847,10 @@ public static class VeteransConsoleCommand
 
             allProposals.AddRange(context.Proposals);
 
-            foreach (var recordIndex in audit.QualifiedRecordIndexes)
+            foreach (var window in audit.QualifiedWindows)
             {
-                if (!qualifiedRequirementsByRecordIndex.TryGetValue(
-                        recordIndex,
-                        out var requirementIds))
-                {
-                    requirementIds =
-                        new HashSet<string>(StringComparer.Ordinal);
-                    qualifiedRequirementsByRecordIndex.Add(
-                        recordIndex,
-                        requirementIds);
-                }
-
-                requirementIds.Add(context.RequirementId.Value);
+                qualifiedWindows.Add(
+                    (window, context.RequirementId.Value));
             }
 
             output.WriteLine(
@@ -1941,27 +1933,26 @@ public static class VeteransConsoleCommand
 
         if (!string.IsNullOrWhiteSpace(qualifiedOutputPath))
         {
-            await WriteQualifiedReplayRecordsAsync(
+            await WriteQualifiedReplayWindowsAsync(
                 qualifiedOutputPath,
-                records,
-                qualifiedRequirementsByRecordIndex);
+                qualifiedWindows);
 
             output.WriteLine(
-                $"Qualified Text     : {qualifiedOutputPath}");
+                $"Qualified Windows  : {qualifiedOutputPath}");
         }
 
         return 0;
     }
 
 
-    private static async Task WriteQualifiedReplayRecordsAsync(
+    private static async Task WriteQualifiedReplayWindowsAsync(
         string outputPath,
-        IReadOnlyList<VeteransBlueButtonCareSummaryRecord> records,
-        IReadOnlyDictionary<int, HashSet<string>> requirementIdsByRecordIndex)
+        IReadOnlyList<(
+            EvidenceRecognitionTermProposalAuditWindow Window,
+            string RequirementId)> qualifiedWindows)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-        ArgumentNullException.ThrowIfNull(records);
-        ArgumentNullException.ThrowIfNull(requirementIdsByRecordIndex);
+        ArgumentNullException.ThrowIfNull(qualifiedWindows);
 
         var directory = Path.GetDirectoryName(outputPath);
 
@@ -1975,45 +1966,55 @@ public static class VeteransConsoleCommand
                 encoding: new global::System.Text.UTF8Encoding(
                     encoderShouldEmitUTF8Identifier: false));
 
-        foreach (var item in requirementIdsByRecordIndex
-                     .OrderBy(item => item.Key))
+        var groups =
+            qualifiedWindows
+                .GroupBy(item =>
+                    (
+                        item.Window.RecordIndex,
+                        item.Window.StartLineNumber,
+                        item.Window.EndLineNumber))
+                .OrderBy(group => group.Key.RecordIndex)
+                .ThenBy(group => group.Key.StartLineNumber)
+                .ThenBy(group => group.Key.EndLineNumber);
+
+        foreach (var group in groups)
         {
-            if (item.Key < 0 || item.Key >= records.Count)
-            {
-                throw new InvalidDataException(
-                    "Qualified replay record index is outside the parsed record collection.");
-            }
-
-            var record = records[item.Key];
+            var window = group.First().Window;
 
             await writer.WriteLineAsync(
-                "===== QUALIFIED BLUE BUTTON RECORD =====");
+                "===== QUALIFIED BLUE BUTTON EVIDENCE WINDOW =====");
             await writer.WriteLineAsync(
-                $"Date Entered : {record.DateEntered}");
+                $"Date Entered : {window.DateEntered}");
             await writer.WriteLineAsync(
-                $"Pages        : {record.SourceStartPage}-{record.SourceEndPage}");
+                $"Record Pages : {window.SourceStartPage}-{window.SourceEndPage}");
             await writer.WriteLineAsync(
-                $"Title        : {record.Title}");
+                $"Title        : {window.Title}");
+            await writer.WriteLineAsync(
+                $"Record Lines : {window.StartLineNumber}-{window.EndLineNumber}");
             await writer.WriteLineAsync(
                 "Requirements : " +
                 string.Join(
                     ", ",
-                    item.Value.OrderBy(
-                        value => value,
-                        StringComparer.Ordinal)));
+                    group
+                        .Select(item => item.RequirementId)
+                        .Distinct(StringComparer.Ordinal)
+                        .OrderBy(
+                            value => value,
+                            StringComparer.Ordinal)));
 
-            if (record.NoteTitles.Count > 0)
+            if (window.NoteTitles.Count > 0)
             {
                 await writer.WriteLineAsync(
                     "Note Titles  : " +
-                    string.Join(" | ", record.NoteTitles));
+                    string.Join(" | ", window.NoteTitles));
             }
 
             await writer.WriteLineAsync();
-            await writer.WriteLineAsync(record.Text);
+            await writer.WriteLineAsync(window.Text);
             await writer.WriteLineAsync();
         }
     }
+
 
 
     internal static async Task<int>

@@ -162,6 +162,7 @@ public sealed class EvidenceRecognitionTermProposalAuditServiceTests
         Assert.Equal(1, result.RequirementSignalRecordCount);
         Assert.Equal(0, result.QualifiedRecordCount);
         Assert.Empty(result.QualifiedRecordIndexes);
+        Assert.Empty(result.QualifiedWindows);
     }
 
     [Fact]
@@ -191,6 +192,182 @@ public sealed class EvidenceRecognitionTermProposalAuditServiceTests
         Assert.Equal(1, result.RequirementSignalRecordCount);
         Assert.Equal(1, result.QualifiedRecordCount);
         Assert.Equal(new[] { 0 }, result.QualifiedRecordIndexes);
+
+        var window = Assert.Single(result.QualifiedWindows);
+        Assert.Equal(0, window.RecordIndex);
+        Assert.Equal("OSA opinion", window.Title);
+        Assert.Contains(
+            "proximately due to",
+            window.Text,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "Obstructive sleep apnea",
+            window.Text,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Audit_ReturnsOnlyBoundedTextForQualifiedWindow()
+    {
+        var lines =
+            new List<string>
+            {
+                "Distant material that must not be exported."
+            };
+
+        lines.AddRange(
+            Enumerable.Repeat(
+                "Unrelated content.",
+                20));
+
+        lines.Add("OSA diagnosed.");
+        lines.Add("Condition is proximately due to another condition.");
+
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [
+                Proposal(
+                    "OSA",
+                    EvidenceRecognitionRoles.Diagnosis),
+                Proposal(
+                    "proximately due to",
+                    EvidenceRecognitionRoles.MedicalNexus)
+            ],
+            [
+                Record(
+                    "Bounded opinion",
+                    string.Join(Environment.NewLine, lines),
+                    62)
+            ]);
+
+        var window = Assert.Single(result.QualifiedWindows);
+        Assert.DoesNotContain(
+            "Distant material",
+            window.Text,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "OSA diagnosed",
+            window.Text,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "proximately due to",
+            window.Text,
+            StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public void Audit_UsesStructuredOpinionBoundaryToExcludePriorOpinion()
+    {
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [
+                Proposal(
+                    "obstructive sleep apnea",
+                    EvidenceRecognitionRoles.Diagnosis),
+                Proposal(
+                    "proximately due to",
+                    EvidenceRecognitionRoles.MedicalNexus)
+            ],
+            [
+                Record(
+                    "Multiple opinions",
+                    string.Join(
+                        Environment.NewLine,
+                        "RESTATEMENT OF REQUESTED OPINION:",
+                        "Diabetic peripheral neuropathy is proximately due to diabetes.",
+                        "***************",
+                        "RESTATEMENT OF REQUESTED OPINION:",
+                        "Is obstructive sleep apnea proximately due to coronary artery disease?",
+                        "Rationale: obstructive sleep apnea is less likely than not proximately due to coronary artery disease.",
+                        "***************"),
+                    63)
+            ]);
+
+        var window = Assert.Single(result.QualifiedWindows);
+        Assert.DoesNotContain(
+            "peripheral neuropathy",
+            window.Text,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "obstructive sleep apnea",
+            window.Text,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "coronary artery disease",
+            window.Text,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Audit_ExtendsStructuredOpinionThroughDistantConclusion()
+    {
+        var lines = new List<string>
+        {
+            "2A. TYPE OF MEDICAL OPINION REQUESTED: Secondary Service connection.",
+            "The claimed condition is less likely than not proximately due to the service connected condition."
+        };
+
+        lines.AddRange(Enumerable.Repeat("Evidence review detail.", 20));
+        lines.Add("Obstructive sleep apnea diagnosed by sleep study.");
+        lines.AddRange(Enumerable.Repeat("Medical literature discussion.", 24));
+        lines.Add("Secondary nexus not established after thorough review of evidence.");
+        lines.Add("11A. Examiner's signature: /es/ Examiner");
+
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [
+                Proposal(
+                    "obstructive sleep apnea",
+                    EvidenceRecognitionRoles.Diagnosis),
+                Proposal(
+                    "proximately due to",
+                    EvidenceRecognitionRoles.MedicalNexus)
+            ],
+            [
+                Record(
+                    "Long OSA addendum",
+                    string.Join(Environment.NewLine, lines),
+                    64)
+            ]);
+
+        var window = Assert.Single(result.QualifiedWindows);
+        Assert.Contains(
+            "Secondary nexus not established",
+            window.Text,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Examiner's signature",
+            window.Text,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Audit_DoesNotUseTemplateSignalOutsideStructuredOpinionSection()
+    {
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [
+                Proposal(
+                    "OSA",
+                    EvidenceRecognitionRoles.Diagnosis),
+                Proposal(
+                    "current severity",
+                    EvidenceRecognitionRoles.Aggravation)
+            ],
+            [
+                Record(
+                    "OSA addendum",
+                    string.Join(
+                        Environment.NewLine,
+                        "III. Is the current severity greater than the baseline? [No Response Provided]",
+                        "2A. TYPE OF MEDICAL OPINION REQUESTED: Secondary Service connection.",
+                        "OSA diagnosed after sleep testing.",
+                        "Secondary nexus not established.",
+                        "11A. Examiner's signature: /es/ Examiner"),
+                    65)
+            ]);
+
+        Assert.Equal(1, result.DiagnosisAnchorRecordCount);
+        Assert.Equal(1, result.RequirementSignalRecordCount);
+        Assert.Equal(0, result.QualifiedRecordCount);
+        Assert.Empty(result.QualifiedWindows);
     }
 
 
@@ -217,6 +394,7 @@ public sealed class EvidenceRecognitionTermProposalAuditServiceTests
         Assert.Equal(0, result.RequirementSignalRecordCount);
         Assert.Equal(0, result.QualifiedRecordCount);
         Assert.Empty(result.QualifiedRecordIndexes);
+        Assert.Empty(result.QualifiedWindows);
         Assert.Empty(result.QualifiedSamples);
     }
 
