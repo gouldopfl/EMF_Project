@@ -1843,6 +1843,21 @@ public static class VeteransConsoleCommand
                 $"Proposals          : {audit.Audits.Count}");
             output.WriteLine(
                 $"Unique Record Hits : {audit.UniqueMatchingRecordCount} / {audit.RecordCount}");
+            output.WriteLine(
+                $"Diagnosis Anchors   : {audit.DiagnosisAnchorRecordCount} / {audit.RecordCount}");
+            output.WriteLine(
+                $"Requirement Signals : {audit.RequirementSignalRecordCount} / {audit.RecordCount}");
+            output.WriteLine(
+                $"Qualified Records   : {audit.QualifiedRecordCount} / {audit.RecordCount}");
+
+            foreach (var sample in audit.QualifiedSamples)
+            {
+                output.WriteLine(
+                    "  Qualified Sample : " +
+                    $"{ConsoleTextSanitizer.Sanitize(sample.DateEntered)} | " +
+                    $"pages {sample.SourceStartPage}-{sample.SourceEndPage} | " +
+                    ConsoleTextSanitizer.Sanitize(sample.Title));
+            }
 
             foreach (var item in audit.Audits)
             {
@@ -2013,6 +2028,21 @@ public static class VeteransConsoleCommand
                 $"Proposals          : {audit.Audits.Count}");
             output.WriteLine(
                 $"Unique Record Hits : {audit.UniqueMatchingRecordCount} / {audit.RecordCount}");
+            output.WriteLine(
+                $"Diagnosis Anchors   : {audit.DiagnosisAnchorRecordCount} / {audit.RecordCount}");
+            output.WriteLine(
+                $"Requirement Signals : {audit.RequirementSignalRecordCount} / {audit.RecordCount}");
+            output.WriteLine(
+                $"Qualified Records   : {audit.QualifiedRecordCount} / {audit.RecordCount}");
+
+            foreach (var sample in audit.QualifiedSamples)
+            {
+                output.WriteLine(
+                    "  Qualified Sample : " +
+                    $"{ConsoleTextSanitizer.Sanitize(sample.DateEntered)} | " +
+                    $"pages {sample.SourceStartPage}-{sample.SourceEndPage} | " +
+                    ConsoleTextSanitizer.Sanitize(sample.Title));
+            }
 
             foreach (var item in audit.Audits)
             {

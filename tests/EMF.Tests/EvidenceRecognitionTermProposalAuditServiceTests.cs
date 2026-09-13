@@ -1,3 +1,4 @@
+using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Orchestration;
 
@@ -87,6 +88,68 @@ public sealed class EvidenceRecognitionTermProposalAuditServiceTests
         Assert.Equal(1, result.Audits[1].MatchingRecordCount);
     }
 
+
+    [Fact]
+    public void Audit_ReportsDiagnosisAndRequirementSignalCooccurrence()
+    {
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [
+                Proposal(
+                    "OSA",
+                    EvidenceRecognitionRoles.Diagnosis),
+                Proposal(
+                    "proximately due to",
+                    EvidenceRecognitionRoles.MedicalNexus)
+            ],
+            [
+                Record(
+                    "Qualified",
+                    "OSA is proximately due to another condition.",
+                    40),
+                Record(
+                    "Diagnosis only",
+                    "OSA treated with CPAP.",
+                    41),
+                Record(
+                    "Signal only",
+                    "Condition is proximately due to another disease.",
+                    42)
+            ]);
+
+        Assert.Equal(2, result.DiagnosisAnchorRecordCount);
+        Assert.Equal(2, result.RequirementSignalRecordCount);
+        Assert.Equal(1, result.QualifiedRecordCount);
+        Assert.Equal(
+            "Qualified",
+            Assert.Single(result.QualifiedSamples).Title);
+    }
+
+
+    [Fact]
+    public void Audit_ExcludesEvidenceTypeFromRequirementSignals()
+    {
+        var result = new EvidenceRecognitionTermProposalAuditService().Audit(
+            [
+                Proposal(
+                    "OSA",
+                    EvidenceRecognitionRoles.Diagnosis),
+                Proposal(
+                    "medical opinion",
+                    EvidenceRecognitionRoles.EvidenceType)
+            ],
+            [
+                Record(
+                    "Document label only",
+                    "OSA medical opinion reviewed.",
+                    50)
+            ]);
+
+        Assert.Equal(1, result.DiagnosisAnchorRecordCount);
+        Assert.Equal(0, result.RequirementSignalRecordCount);
+        Assert.Equal(0, result.QualifiedRecordCount);
+        Assert.Empty(result.QualifiedSamples);
+    }
+
     [Fact]
     public void Audit_RejectsNegativeSampleLimit()
     {
@@ -97,13 +160,15 @@ public sealed class EvidenceRecognitionTermProposalAuditServiceTests
                 -1));
     }
 
-    private static EvidenceRecognitionTermProposal Proposal(string term) =>
+    private static EvidenceRecognitionTermProposal Proposal(
+        string term,
+        string recognitionRole = EvidenceRecognitionRoles.MedicalNexus) =>
         new()
         {
             RequirementId = new RequirementId("requirement-1"),
             Term = term,
             TermType = "Phrase",
-            RecognitionRole = "MedicalNexus",
+            RecognitionRole = recognitionRole,
             EvidenceClassification = null,
             AuthoritySource = "provision-1",
             Rationale = "Test proposal."
