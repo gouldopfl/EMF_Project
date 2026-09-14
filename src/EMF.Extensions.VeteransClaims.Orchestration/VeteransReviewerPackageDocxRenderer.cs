@@ -754,6 +754,14 @@ public static class VeteransReviewerPackageDocxRenderer
                     ContentParagraph(
                         $"Relevance: {reviewed.Association.Description}"));
 
+                body.Append(
+                    ContentParagraph(
+                        $"Reviewed by: {reviewed.ReviewedBy}"));
+
+                body.Append(
+                    ContentParagraph(
+                        $"Reviewed UTC: {reviewed.ReviewedUtc:yyyy-MM-dd HH:mm:ss} UTC"));
+
                 foreach (var excerpt in reviewed.SourceExcerpts)
                 {
                     body.Append(
@@ -1089,11 +1097,94 @@ public static class VeteransReviewerPackageDocxRenderer
             }
         }
 
+        var derivedDisplayName =
+            GetReviewerDerivedDisplayName(content);
+
+        if (!string.IsNullOrWhiteSpace(derivedDisplayName))
+            return derivedDisplayName;
+
         return VeteransReviewerDisplayNameResolver.Resolve(
             GetReviewerFallbackDisplayName(content),
             content.SourceName,
             content.Artifact.Name);
     }
+
+    private static string? GetReviewerDerivedDisplayName(
+        VeteransReviewerArtifactContent content)
+    {
+        var artifactName = content.Artifact.Name;
+        var text = content.Text;
+
+        if (ContainsReviewerText(artifactName, "Blue-Button") ||
+            ContainsReviewerText(artifactName, "Blue Button"))
+        {
+            return "VA Blue Button Report";
+        }
+
+        if (string.Equals(
+                content.Appendix,
+                VeteransReviewerPackageAppendix.MedicalEvidence,
+                StringComparison.Ordinal))
+        {
+            if (ContainsReviewerText(artifactName, "OSCAR"))
+                return "OSCAR PAP Therapy Data";
+
+            if (ContainsReviewerText(artifactName, "Jupiter") &&
+                ContainsReviewerText(artifactName, "CPAP-Titration"))
+            {
+                return "CPAP Titration Study — Jupiter Medical Center";
+            }
+
+            if ((ContainsReviewerText(text, "AirCurve 11 ASV") ||
+                 ContainsReviewerText(text, "AirCurve11ASV")) &&
+                (ContainsReviewerText(text, "AirView") ||
+                 ContainsReviewerText(text, "Therapy Report")))
+            {
+                return "ResMed AirView Therapy Report — AirCurve 11 ASV";
+            }
+
+            if (ContainsReviewerText(text, "OSCAR"))
+                return "OSCAR PAP Therapy Data";
+
+            if (ContainsReviewerText(text, "Jupiter Medical Center") &&
+                (ContainsReviewerText(text, "CPAP titration") ||
+                 ContainsReviewerText(text, "polysomnogram")))
+            {
+                return "CPAP Titration Study — Jupiter Medical Center";
+            }
+        }
+
+        if (string.Equals(
+                content.Appendix,
+                VeteransReviewerPackageAppendix.LayEvidence,
+                StringComparison.Ordinal))
+        {
+            if (ContainsReviewerText(artifactName, "spousal"))
+                return "Spousal Statement";
+
+            if (ContainsReviewerText(artifactName, "personal"))
+                return "Veteran Personal Statement";
+        }
+
+        if (string.Equals(
+                content.Appendix,
+                VeteransReviewerPackageAppendix.AdjudicativeRecords,
+                StringComparison.Ordinal) &&
+            (ContainsReviewerText(artifactName, "ClaimLetter") ||
+             ContainsReviewerText(text, "Rating Decision")))
+        {
+            return "VA Claim Decision Letter";
+        }
+
+        return null;
+    }
+
+    private static bool ContainsReviewerText(
+        string? value,
+        string expected) =>
+        value?.Contains(
+            expected,
+            StringComparison.OrdinalIgnoreCase) == true;
 
     private static string GetReviewerFallbackDisplayName(
         VeteransReviewerArtifactContent content) =>

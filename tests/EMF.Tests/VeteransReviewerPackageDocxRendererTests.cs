@@ -926,19 +926,13 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     EvidenceGuidanceRoles.SupportsRequirement,
                     StringComparison.Ordinal));
 
-        Assert.DoesNotContain(
-            reviewerFacingParagraphs,
-            paragraph =>
-                paragraph.Contains(
-                    "reviewer@example.test",
-                    StringComparison.Ordinal));
+        Assert.Contains(
+            "Reviewed by: reviewer@example.test",
+            reviewerFacingParagraphs);
 
-        Assert.DoesNotContain(
-            reviewerFacingParagraphs,
-            paragraph =>
-                paragraph.Contains(
-                    "2026-09-12T12:00:00.0000000+00:00",
-                    StringComparison.Ordinal));
+        Assert.Contains(
+            "Reviewed UTC: 2026-09-12 12:00:00 UTC",
+            reviewerFacingParagraphs);
 
         Assert.DoesNotContain("requirement-reviewed-lit", text);
         Assert.DoesNotContain("study-reviewed-lit", text);
@@ -946,7 +940,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             EvidenceGuidanceRoles.SupportsRequirement,
             text);
         Assert.DoesNotContain("promotion-test", text);
-        Assert.DoesNotContain("reviewer@example.test", text);
+        Assert.Contains("Reviewed by: reviewer@example.test", text);
+        Assert.Contains("Reviewed UTC: 2026-09-12 12:00:00 UTC", text);
         Assert.DoesNotContain(
             "2026-09-12T12:00:00.0000000+00:00",
             text);
@@ -3386,5 +3381,201 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         Assert.DoesNotContain("1 of 1", text);
         Assert.Contains("Source Page 7", text);
+    }
+}
+
+public sealed partial class VeteransReviewerPackageDocxRendererTests
+{
+    [Fact]
+    public void Render_DerivesHumanReadableLegacyEvidenceLabels()
+    {
+        var packageId = new EvidencePackageId("package-display-labels");
+
+        Artifact CreateArtifact(string id, string name) =>
+            new()
+            {
+                Id = new ArtifactId(id),
+                Name = name,
+                ArtifactType = "file"
+            };
+
+        var titration = CreateArtifact(
+            "titration",
+            "Jupiter-Medical-Center-CPAP-Titration-2013-11-07-page-1-of-6.pdf");
+        var airView = CreateArtifact("airview", "m gould 5668 07 22 26.pdf");
+        var oscar = CreateArtifact("oscar", "OSCAR_Mike_Gould_by_Session_full.csv");
+        var personal = CreateArtifact(
+            "personal",
+            "Michael_Gould_OSA_Personal_Statement_V2.pdf");
+        var spousal = CreateArtifact(
+            "spousal",
+            "spousal_statement_sleep_apnea.pdf");
+        var decision = CreateArtifact("decision", "ClaimLetter-2024-10-25.pdf");
+        var blueButton = CreateArtifact(
+            "blue-button",
+            "VA-Blue-Button-report-Michael-Gould-9-9-2026_0506pm.pdf");
+
+        var artifacts =
+            new[]
+            {
+                titration,
+                airView,
+                oscar,
+                personal,
+                spousal,
+                decision,
+                blueButton
+            };
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId = new ClaimIssueId("issue-display-labels"),
+                                Purpose = "Physician reviewer package",
+                                ReviewerRole = "MedicalProfessional"
+                            },
+                        Artifacts =
+                            artifacts
+                                .Select(artifact =>
+                                    new EvidencePackageArtifact
+                                    {
+                                        EvidencePackageId = packageId,
+                                        ArtifactId = artifact.Id,
+                                        ContentRole =
+                                            EvidencePackageContentRoles.UnderlyingEvidence
+                                    })
+                                .ToArray()
+                    },
+                Artifacts = artifacts,
+                ArtifactContents =
+                [
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = titration,
+                        Text =
+                            "Jupiter Medical Center nocturnal polysomnogram with CPAP titration.",
+                        Appendix = VeteransReviewerPackageAppendix.MedicalEvidence
+                    },
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = airView,
+                        Text =
+                            "Therapy Report\nAirCurve 11 ASV\nPrinted from ResMed AirView.",
+                        Appendix = VeteransReviewerPackageAppendix.MedicalEvidence
+                    },
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = oscar,
+                        Text = "PAP session data.",
+                        Appendix = VeteransReviewerPackageAppendix.MedicalEvidence
+                    },
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = personal,
+                        Text = "Personal statement regarding sleep apnea.",
+                        Appendix = VeteransReviewerPackageAppendix.LayEvidence
+                    },
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = spousal,
+                        Text = "Spousal observations regarding sleep apnea.",
+                        Appendix = VeteransReviewerPackageAppendix.LayEvidence
+                    },
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = decision,
+                        Text = "VA claim decision.",
+                        Appendix = VeteransReviewerPackageAppendix.AdjudicativeRecords
+                    },
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = blueButton,
+                        Text = "VA medical record export.",
+                        Appendix = null
+                    }
+                ]
+            };
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document = WordprocessingDocument.Open(stream, false);
+        var text = document.MainDocumentPart!.Document!.InnerText;
+
+        Assert.Contains(
+            "CPAP Titration Study — Jupiter Medical Center",
+            text);
+        Assert.Contains(
+            "ResMed AirView Therapy Report — AirCurve 11 ASV",
+            text);
+        Assert.Contains("OSCAR PAP Therapy Data", text);
+        Assert.Contains("Veteran Personal Statement", text);
+        Assert.Contains("Spousal Statement", text);
+        Assert.Contains("VA Claim Decision Letter", text);
+        Assert.Contains("VA Blue Button Report", text);
+
+        foreach (var artifact in artifacts)
+            Assert.DoesNotContain(artifact.Name, text);
+    }
+
+    [Fact]
+    public void Render_KeepsExecutiveSummaryAfterTitlePageBreak()
+    {
+        var packageId = new EvidencePackageId("package-title-page");
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId = new ClaimIssueId("issue-title-page"),
+                                Purpose = "Physician reviewer package",
+                                ReviewerRole = "MedicalProfessional"
+                            },
+                        Artifacts = []
+                    },
+                Artifacts = [],
+                ArtifactContents = []
+            };
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document = WordprocessingDocument.Open(stream, false);
+        var body = document.MainDocumentPart!.Document!.Body!;
+        var elements = body.ChildElements.ToArray();
+
+        var titleIndex =
+            Array.FindIndex(
+                elements,
+                element =>
+                    element.InnerText == "Veterans Evidence Reviewer Report");
+        var executiveSummaryIndex =
+            Array.FindIndex(
+                elements,
+                element => element.InnerText == "Executive Summary");
+
+        Assert.True(titleIndex >= 0);
+        Assert.True(executiveSummaryIndex > titleIndex);
+        Assert.Contains(
+            elements.Skip(titleIndex + 1).Take(executiveSummaryIndex - titleIndex - 1),
+            element =>
+                element
+                    .Descendants<DocumentFormat.OpenXml.Wordprocessing.Break>()
+                    .Any(
+                        pageBreak =>
+                            pageBreak.Type?.Value ==
+                                DocumentFormat.OpenXml.Wordprocessing.BreakValues.Page));
     }
 }
