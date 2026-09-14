@@ -287,21 +287,136 @@ public sealed class VeteransBoundedEvidenceInterpretationService
                 excerpt.Text,
                 StringComparison.Ordinal);
 
-        if (startOffset < 0)
+        if (startOffset >= 0)
+        {
+            return new VeteransBoundedEvidenceSourceExcerpt
+            {
+                ArtifactId = artifactId,
+                Text = excerpt.Text,
+                StartOffset = startOffset,
+                Length = excerpt.Text.Length
+            };
+        }
+
+        var normalizedExcerpt =
+            NormalizeWhitespaceForGrounding(excerpt.Text);
+        var normalizedSource =
+            NormalizeWhitespaceForGroundingWithOffsets(sourceText);
+
+        var normalizedStart =
+            normalizedSource.Text.IndexOf(
+                normalizedExcerpt,
+                StringComparison.Ordinal);
+
+        if (normalizedStart < 0)
         {
             throw new InvalidOperationException(
                 "A bounded evidence source excerpt does not match " +
                 "the bounded evidence text.");
         }
 
+        var duplicateStart =
+            normalizedSource.Text.IndexOf(
+                normalizedExcerpt,
+                normalizedStart + 1,
+                StringComparison.Ordinal);
+
+        if (duplicateStart >= 0)
+        {
+            throw new InvalidOperationException(
+                "A whitespace-normalized bounded evidence source excerpt " +
+                "is ambiguous within the bounded evidence text.");
+        }
+
+        var normalizedEnd =
+            normalizedStart + normalizedExcerpt.Length - 1;
+        var groundedStart =
+            normalizedSource.StartOffsets[normalizedStart];
+        var groundedEndExclusive =
+            normalizedSource.EndOffsets[normalizedEnd];
+        var groundedLength = groundedEndExclusive - groundedStart;
+
         return new VeteransBoundedEvidenceSourceExcerpt
         {
             ArtifactId = artifactId,
-            Text = excerpt.Text,
-            StartOffset = startOffset,
-            Length = excerpt.Text.Length
+            Text = sourceText.Substring(groundedStart, groundedLength),
+            StartOffset = groundedStart,
+            Length = groundedLength
         };
     }
+
+    private static string NormalizeWhitespaceForGrounding(string text)
+    {
+        var normalized = new StringBuilder(text.Length);
+        var pendingWhitespace = false;
+
+        foreach (var character in text)
+        {
+            if (char.IsWhiteSpace(character))
+            {
+                pendingWhitespace = normalized.Length > 0;
+                continue;
+            }
+
+            if (pendingWhitespace)
+            {
+                normalized.Append(' ');
+                pendingWhitespace = false;
+            }
+
+            normalized.Append(character);
+        }
+
+        return normalized.ToString();
+    }
+
+    private static NormalizedGroundingText
+        NormalizeWhitespaceForGroundingWithOffsets(string text)
+    {
+        var normalized = new StringBuilder(text.Length);
+        var startOffsets = new List<int>(text.Length);
+        var endOffsets = new List<int>(text.Length);
+        int? whitespaceStart = null;
+        var whitespaceEnd = 0;
+
+        for (var index = 0; index < text.Length; index++)
+        {
+            var character = text[index];
+
+            if (char.IsWhiteSpace(character))
+            {
+                if (normalized.Length > 0)
+                {
+                    whitespaceStart ??= index;
+                    whitespaceEnd = index + 1;
+                }
+
+                continue;
+            }
+
+            if (whitespaceStart.HasValue)
+            {
+                normalized.Append(' ');
+                startOffsets.Add(whitespaceStart.Value);
+                endOffsets.Add(whitespaceEnd);
+                whitespaceStart = null;
+            }
+
+            normalized.Append(character);
+            startOffsets.Add(index);
+            endOffsets.Add(index + 1);
+        }
+
+        return new NormalizedGroundingText(
+            normalized.ToString(),
+            startOffsets.ToArray(),
+            endOffsets.ToArray());
+    }
+
+    private sealed record NormalizedGroundingText(
+        string Text,
+        int[] StartOffsets,
+        int[] EndOffsets);
 
     private static void Validate(
         VeteransBoundedEvidenceInterpretation interpretation,

@@ -199,6 +199,78 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
     }
 
     [Fact]
+    public async Task InterpretAsync_GroundsExcerptAcrossWhitespaceDifferences()
+    {
+        const string sourceText =
+            "Prefix. Medical literature review & pertinent evidence review\n" +
+            "does not support claim. Suffix.";
+        const string modelExcerpt =
+            "Medical literature review & pertinent evidence review " +
+            "does not support claim.";
+
+        var fixture = await CreateSingleFixtureAsync(sourceText);
+        var executor =
+            new ExactExcerptFakeExecutor(modelExcerpt);
+
+        var service =
+            new VeteransBoundedEvidenceInterpretationService(
+                fixture.Selection,
+                fixture.ContentStore,
+                executor);
+
+        var result =
+            Assert.Single(
+                await service.InterpretAsync(
+                    new ClaimIssueId("issue-osa"),
+                    new ServiceConnectionBasisId("basis-osa-secondary"),
+                    Requirement(),
+                    fixture.Source,
+                    TestContext()));
+
+        var interpretation =
+            Assert.IsType<VeteransBoundedEvidenceInterpretation>(
+                result.Interpretation);
+        var excerpt = Assert.Single(interpretation.SourceExcerpts);
+
+        Assert.Equal(
+            "Medical literature review & pertinent evidence review\n" +
+            "does not support claim.",
+            excerpt.Text);
+        Assert.Equal(8, excerpt.StartOffset);
+        Assert.Equal(excerpt.Text.Length, excerpt.Length);
+    }
+
+    [Fact]
+    public async Task InterpretAsync_RejectsAmbiguousWhitespaceNormalizedExcerpt()
+    {
+        var fixture =
+            await CreateSingleFixtureAsync(
+                "Exact\nquote. Between. Exact\tquote.");
+        var executor =
+            new ExactExcerptFakeExecutor("Exact quote.");
+
+        var service =
+            new VeteransBoundedEvidenceInterpretationService(
+                fixture.Selection,
+                fixture.ContentStore,
+                executor);
+
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.InterpretAsync(
+                    new ClaimIssueId("issue-osa"),
+                    new ServiceConnectionBasisId("basis-osa-secondary"),
+                    Requirement(),
+                    fixture.Source,
+                    TestContext()));
+
+        Assert.Contains(
+            "ambiguous",
+            exception.Message,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task InterpretAsync_NoSelectedEvidenceMakesNoIntelligenceCall()
     {
         var repository =
