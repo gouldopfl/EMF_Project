@@ -392,9 +392,7 @@ public sealed class VeteransBoundedEvidenceInterpretationConsoleCommandTests
                     {
                         new
                         {
-                            text = request.Text,
-                            startOffset = 0,
-                            length = request.Text.Length
+                            text = request.Text
                         }
                     }
                 });

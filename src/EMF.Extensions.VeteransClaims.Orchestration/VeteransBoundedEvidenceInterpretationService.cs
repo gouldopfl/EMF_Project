@@ -230,7 +230,7 @@ public sealed class VeteransBoundedEvidenceInterpretationService
                     "returned no interpretation.");
 
             var interpretation =
-                Map(item.Artifact.Id, extracted);
+                Map(item.Artifact.Id, extracted, text);
 
             Validate(
                 interpretation,
@@ -252,7 +252,8 @@ public sealed class VeteransBoundedEvidenceInterpretationService
 
     private static VeteransBoundedEvidenceInterpretation Map(
         ArtifactId artifactId,
-        ExtractedInterpretation extracted) =>
+        ExtractedInterpretation extracted,
+        string sourceText) =>
         new()
         {
             ArtifactId = artifactId,
@@ -264,14 +265,43 @@ public sealed class VeteransBoundedEvidenceInterpretationService
             SourceExcerpts =
                 extracted.SourceExcerpts.Select(
                     excerpt =>
-                        new VeteransBoundedEvidenceSourceExcerpt
-                        {
-                            ArtifactId = artifactId,
-                            Text = excerpt.Text,
-                            StartOffset = excerpt.StartOffset,
-                            Length = excerpt.Length
-                        }).ToArray()
+                        MapExcerpt(
+                            artifactId,
+                            excerpt,
+                            sourceText)).ToArray()
         };
+
+    private static VeteransBoundedEvidenceSourceExcerpt MapExcerpt(
+        ArtifactId artifactId,
+        ExtractedExcerpt excerpt,
+        string sourceText)
+    {
+        if (string.IsNullOrWhiteSpace(excerpt.Text))
+        {
+            throw new InvalidOperationException(
+                "A bounded evidence source excerpt cannot be empty.");
+        }
+
+        var startOffset =
+            sourceText.IndexOf(
+                excerpt.Text,
+                StringComparison.Ordinal);
+
+        if (startOffset < 0)
+        {
+            throw new InvalidOperationException(
+                "A bounded evidence source excerpt does not match " +
+                "the bounded evidence text.");
+        }
+
+        return new VeteransBoundedEvidenceSourceExcerpt
+        {
+            ArtifactId = artifactId,
+            Text = excerpt.Text,
+            StartOffset = startOffset,
+            Length = excerpt.Text.Length
+        };
+    }
 
     private static void Validate(
         VeteransBoundedEvidenceInterpretation interpretation,
@@ -417,9 +447,10 @@ public sealed class VeteransBoundedEvidenceInterpretationService
         State the medical conclusion and summarize the stated rationale.
         Use only facts and reasoning present in the bounded source text.
         Do not invent diagnoses, relationships, medical mechanisms, or facts.
-        Include at least one exact source excerpt supporting the interpretation.
-        Every source excerpt must include its zero-based character startOffset
-        and exact character length in the supplied bounded text.
+        Include at least one exact, verbatim source excerpt supporting the
+        interpretation. Return only the excerpt text. Do not calculate or return
+        character offsets or lengths; EMF derives those deterministically from
+        the supplied bounded text.
         """;
 
     private static string BuildJsonShape() =>
@@ -431,9 +462,7 @@ public sealed class VeteransBoundedEvidenceInterpretationService
           "medicalConclusion": "string",
           "rationaleSummary": "string",
           "sourceExcerpts": [{
-            "text": "string",
-            "startOffset": 0,
-            "length": 0
+            "text": "string"
           }]
         }
         """;
@@ -457,9 +486,5 @@ public sealed class VeteransBoundedEvidenceInterpretationService
     private sealed class ExtractedExcerpt
     {
         public required string Text { get; init; }
-
-        public int? StartOffset { get; init; }
-
-        public int? Length { get; init; }
     }
 }

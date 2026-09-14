@@ -87,6 +87,8 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
 
             var excerpt = Assert.Single(interpretation.SourceExcerpts);
             Assert.Equal(result.Evidence.Artifact.Id, excerpt.ArtifactId);
+            Assert.Equal(0, excerpt.StartOffset);
+            Assert.Equal(excerpt.Text.Length, excerpt.Length);
         }
 
         Assert.All(
@@ -160,6 +162,40 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
         Assert.Equal(
             second.Id,
             Assert.Single(executor.Requests).Context.InputArtifactIds.Single());
+    }
+
+    [Fact]
+    public async Task InterpretAsync_DerivesSourceExcerptOffsetsDeterministically()
+    {
+        var fixture =
+            await CreateSingleFixtureAsync(
+                "Prefix. Exact quote. Suffix.");
+        var executor =
+            new ExactExcerptFakeExecutor("Exact quote.");
+
+        var service =
+            new VeteransBoundedEvidenceInterpretationService(
+                fixture.Selection,
+                fixture.ContentStore,
+                executor);
+
+        var result =
+            Assert.Single(
+                await service.InterpretAsync(
+                    new ClaimIssueId("issue-osa"),
+                    new ServiceConnectionBasisId("basis-osa-secondary"),
+                    Requirement(),
+                    fixture.Source,
+                    TestContext()));
+
+        var interpretation =
+            Assert.IsType<VeteransBoundedEvidenceInterpretation>(
+                result.Interpretation);
+        var excerpt = Assert.Single(interpretation.SourceExcerpts);
+
+        Assert.Equal("Exact quote.", excerpt.Text);
+        Assert.Equal(8, excerpt.StartOffset);
+        Assert.Equal(12, excerpt.Length);
     }
 
     [Fact]
@@ -447,6 +483,15 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
                     .MaximumStructuredOutputTokenCount,
                 request.MaximumOutputTokenCount);
 
+            Assert.DoesNotContain(
+                "startOffset",
+                request.JsonSchema,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(
+                "length",
+                request.JsonSchema,
+                StringComparison.OrdinalIgnoreCase);
+
             var excerpt = request.Text;
             var output = JsonSerializer.Serialize(
                 new
@@ -460,9 +505,44 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
                     {
                         new
                         {
-                            text = excerpt,
-                            startOffset = 0,
-                            length = excerpt.Length
+                            text = excerpt
+                        }
+                    }
+                });
+
+            return Task.FromResult(Result(context, output));
+        }
+    }
+
+    private sealed class ExactExcerptFakeExecutor :
+        IIntelligenceCapabilityExecutor<TextStructuredExtractionRequest, string>
+    {
+        private readonly string _excerpt;
+
+        public ExactExcerptFakeExecutor(string excerpt)
+        {
+            _excerpt = excerpt;
+        }
+
+        public Task<IntelligenceCapabilityResult<string>> ExecuteAsync(
+            IntelligenceCapabilityId capabilityId,
+            TextStructuredExtractionRequest request,
+            IntelligenceExecutionContext context,
+            CancellationToken cancellationToken = default)
+        {
+            var output = JsonSerializer.Serialize(
+                new
+                {
+                    requirementId = "req-causation",
+                    direction = VeteransBoundedEvidenceDirections.OpposesRequirement,
+                    opinionStandard = VeteransMedicalOpinionStandards.LessLikelyThanNot,
+                    medicalConclusion = "Negative opinion.",
+                    rationaleSummary = "Negative rationale.",
+                    sourceExcerpts = new[]
+                    {
+                        new
+                        {
+                            text = _excerpt
                         }
                     }
                 });
@@ -492,9 +572,7 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
                     {
                         new
                         {
-                            text = "This text is not in the source.",
-                            startOffset = 0,
-                            length = 31
+                            text = "This text is not in the source."
                         }
                     }
                 });
@@ -524,9 +602,7 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
                     {
                         new
                         {
-                            text = request.Text,
-                            startOffset = 0,
-                            length = request.Text.Length
+                            text = request.Text
                         }
                     }
                 });
