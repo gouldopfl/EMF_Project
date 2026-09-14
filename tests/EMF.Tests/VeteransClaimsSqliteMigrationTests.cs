@@ -956,7 +956,8 @@ public sealed class VeteransClaimsSqliteMigrationTests
                 (73, "AddMedicationRecords"),
                 (74, "AddEvidencePackageBasisScope"),
                 (75, "AddMedicationHistoryEvents"),
-                (76, "AddReviewedBoundedEvidenceInterpretations")
+                (76, "AddReviewedBoundedEvidenceInterpretations"),
+                (77, "AddServiceConnectionBasisReviewerLabel")
             };
 
             foreach (var expected in remainingMigrations)

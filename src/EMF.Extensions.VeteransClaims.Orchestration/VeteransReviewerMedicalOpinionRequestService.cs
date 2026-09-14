@@ -130,8 +130,15 @@ public sealed class VeteransReviewerMedicalOpinionRequestService
                 claimedConditions.Select(x => x.Name));
 
         var serviceConnectedNames =
-            FormatConditionNames(
-                serviceConnectedConditions.Select(x => x.Name));
+            string.IsNullOrWhiteSpace(basis.ReviewerLabel)
+                ? FormatConditionNames(
+                    serviceConnectedConditions.Select(x => x.Name))
+                : basis.ReviewerLabel.Trim();
+
+        if (!VeteransReviewerDisplayNameResolver
+                .IsReviewerFacingLabel(serviceConnectedNames))
+            throw new InvalidOperationException(
+                "Reviewer medical opinion basis label is invalid.");
 
         var verb = claimedConditions.Count == 1 ? "is" : "are";
 

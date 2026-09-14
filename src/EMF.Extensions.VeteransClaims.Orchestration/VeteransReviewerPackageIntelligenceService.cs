@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Intelligence.Agents;
@@ -30,6 +31,30 @@ public sealed class VeteransReviewerPackageIntelligenceService :
         _agent =
             new TextSummarizationAgent(
                 summarizationExecutor);
+    }
+
+    public static string CreateReuseKey(
+        ClaimIssueAdjudicationDetails details,
+        IReadOnlyList<VeteransReviewerEvidenceSource> evidenceSources,
+        IReadOnlyList<VeteransReviewerEvidenceDevelopmentDetails>
+            developmentDetails)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        ArgumentNullException.ThrowIfNull(evidenceSources);
+        ArgumentNullException.ThrowIfNull(developmentDetails);
+
+        var source =
+            VeteransReviewerPackageSourceFormatter.Format(
+                details,
+                evidenceSources,
+                developmentDetails);
+
+        var input = BuildInput(source);
+
+        return Convert.ToHexString(
+                SHA256.HashData(
+                    Encoding.UTF8.GetBytes(input)))
+            .ToLowerInvariant();
     }
 
     public Task<IntelligenceAgentResult<string>>

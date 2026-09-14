@@ -2298,6 +2298,13 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_ReviewedBoundedEvidenceInterpretations (
                     SupersededByCorrelationId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                77,
+                "AddServiceConnectionBasisReviewerLabel",
+                """
+                ALTER TABLE VeteransClaims_ServiceConnectionBases
+                ADD COLUMN ReviewerLabel TEXT NULL;
                 """)
         };
 }

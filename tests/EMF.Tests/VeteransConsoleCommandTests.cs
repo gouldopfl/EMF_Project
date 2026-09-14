@@ -1507,6 +1507,11 @@ public sealed partial class VeteransConsoleCommandTests
                 Path.GetTempPath(),
                 $"{Guid.NewGuid():N}.docx");
 
+        var reusedOutputPath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"{Guid.NewGuid():N}.docx");
+
         var previous =
             Environment.GetEnvironmentVariable("EMF_REVIEWED_BY");
 
@@ -1570,6 +1575,60 @@ public sealed partial class VeteransConsoleCommandTests
             };
 
             await connections.AddServiceConnectionBasisAsync(basis);
+
+            var conditions =
+                new SqliteConditionRepository(databasePath);
+
+            var claimedCondition =
+                new EMF.Extensions.VeteransClaims.Models.Conditions
+                    .ClaimedCondition
+                {
+                    Id =
+                        new ClaimedConditionId(
+                            "claimed-osa-reviewer-001"),
+                    ClaimIssueId = issue.Id,
+                    Name = "Obstructive Sleep Apnea"
+                };
+
+            await conditions.AddClaimedConditionAsync(
+                claimedCondition);
+
+            await connections.AddBasisClaimedConditionAsync(
+                new ServiceConnectionBasisClaimedCondition
+                {
+                    ServiceConnectionBasisId = basis.Id,
+                    ClaimedConditionId = claimedCondition.Id
+                });
+
+            var serviceConnectedCondition =
+                new EMF.Extensions.VeteransClaims.Models.Conditions
+                    .MedicalCondition
+                {
+                    Id =
+                        new MedicalConditionId(
+                            "service-connected-psychiatric-reviewer-001"),
+                    Name = "Psychiatric disability"
+                };
+
+            await conditions.AddMedicalConditionAsync(
+                serviceConnectedCondition);
+
+            await conditions.AddVeteranMedicalConditionAsync(
+                new EMF.Extensions.VeteransClaims.Models.Conditions
+                    .VeteranMedicalCondition
+                {
+                    VeteranId = veteran.Id,
+                    MedicalConditionId =
+                        serviceConnectedCondition.Id
+                });
+
+            await connections.AddBasisServiceConnectedConditionAsync(
+                new ServiceConnectionBasisServiceConnectedCondition
+                {
+                    ServiceConnectionBasisId = basis.Id,
+                    ServiceConnectedConditionId =
+                        serviceConnectedCondition.Id
+                });
 
             var sourceArtifactId =
                 new ArtifactId("artifact-reviewer-001");
@@ -1721,6 +1780,36 @@ public sealed partial class VeteransConsoleCommandTests
                     x.ContentRole ==
                         EvidencePackageContentRoles
                             .GeneratedOrganizationalMaterial);
+
+            var runtimeCreated = false;
+
+            var reuseExitCode =
+                await VeteransConsoleCommand.RunAsync(
+                    [
+                        "evidence",
+                        "reviewer",
+                        databasePath,
+                        issue.Id.Value,
+                        "--basis",
+                        basis.Id.Value,
+                        reusedOutputPath
+                    ],
+                    () =>
+                    {
+                        runtimeCreated = true;
+                        throw new InvalidOperationException(
+                            "Reviewer reuse unexpectedly created an AI runtime.");
+                    },
+                    () => contentStore);
+
+            Assert.Equal(0, reuseExitCode);
+            Assert.False(runtimeCreated);
+            Assert.True(File.Exists(reusedOutputPath));
+            Assert.True(new FileInfo(reusedOutputPath).Length > 0);
+
+            Assert.Single(
+                await packageRepository
+                    .GetEvidencePackagesAsync(issue.Id));
         }
         finally
         {
@@ -1730,6 +1819,7 @@ public sealed partial class VeteransConsoleCommandTests
 
             File.Delete(databasePath);
             File.Delete(outputPath);
+            File.Delete(reusedOutputPath);
         }
     }
 

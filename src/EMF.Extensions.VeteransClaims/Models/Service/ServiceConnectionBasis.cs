@@ -9,4 +9,6 @@ public sealed class ServiceConnectionBasis
     public required ClaimIssueId ClaimIssueId { get; init; }
 
     public required ServiceConnectionTheoryId ServiceConnectionTheoryId { get; init; }
+
+    public string? ReviewerLabel { get; init; }
 }

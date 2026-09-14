@@ -92,6 +92,59 @@ public sealed class VeteransReviewerMedicalOpinionRequestServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_SecondaryUsesReviewerBasisLabelWhenPresent()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(path).InitializeAsync();
+
+            var seeded =
+                await SeedAsync(
+                    path,
+                    "reviewer-label",
+                    ServiceConnectionTheoryTypes.Secondary,
+                    "Obstructive Sleep Apnea",
+                    ["Major depressive disorder with anxious distress to include mild neurocognitive disorder"]);
+
+            await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection(
+                $"Data Source={path}"))
+            {
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText =
+                    """
+                    UPDATE VeteransClaims_ServiceConnectionBases
+                    SET ReviewerLabel = $label
+                    WHERE Id = $id;
+                    """;
+                command.Parameters.AddWithValue(
+                    "$label",
+                    "psychiatric disability, including PTSD, anxiety, and major depressive disorder");
+                command.Parameters.AddWithValue(
+                    "$id",
+                    seeded.BasisId.Value);
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var result =
+                await CreateService(path).GetAsync(
+                    Package(seeded.IssueId, seeded.BasisId));
+
+            Assert.NotNull(result);
+            Assert.Contains(
+                "service-connected psychiatric disability, including PTSD, anxiety, and major depressive disorder",
+                result);
+            Assert.DoesNotContain("coronary", result, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task GetAsync_NonSecondaryReturnsNull()
     {
         var path = Path.GetTempFileName();

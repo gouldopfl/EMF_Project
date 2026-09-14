@@ -102,7 +102,8 @@ public sealed class
                         "basis-001"),
                 ClaimIssueId = claimIssue.Id,
                 ServiceConnectionTheoryId =
-                    theory.Id
+                    theory.Id,
+                ReviewerLabel = "Psychiatric disability including PTSD"
             };
 
             await repository
@@ -134,6 +135,11 @@ public sealed class
             Assert.Equal(
                 basis.ServiceConnectionTheoryId,
                 storedBasis.ServiceConnectionTheoryId);
+            Assert.Equal(
+                basis.ReviewerLabel,
+                storedBasis.ReviewerLabel);
+            Assert.Equal(basis.ReviewerLabel, Assert.Single(issueBases).ReviewerLabel);
+            Assert.Equal(basis.ReviewerLabel, Assert.Single(theoryBases).ReviewerLabel);
 
             Assert.Equal(
                 basis.Id,

@@ -8,7 +8,7 @@ using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Orchestration;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
 using EMF.Persistence.Repositories;
-using Microsoft.Data.Sqlite;
+using EMF.Security.Persistence.Sqlite.Auditing;
 
 namespace EMF.ConsoleApplication;
 
@@ -223,8 +223,7 @@ internal static class VeteransBoundedEvidenceReviewConsoleService
             FileNotFoundException or
             InvalidDataException or
             InvalidOperationException or
-            JsonException or
-            SqliteException)
+            JsonException)
         {
             global::System.Console.Error.WriteLine(
                 ConsoleTextSanitizer.Sanitize(exception.Message));
@@ -385,45 +384,17 @@ internal static class VeteransBoundedEvidenceReviewConsoleService
         string correlationId,
         CancellationToken cancellationToken)
     {
-        var connectionString =
-            new SqliteConnectionStringBuilder
-            {
-                DataSource = auditDatabasePath,
-                Mode = SqliteOpenMode.ReadOnly
-            }.ToString();
-
-        await using var connection =
-            new SqliteConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
-
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT ResourceId, SubjectId, Destination, Outcome, FactsJson
-            FROM SecurityAuditRecords
-            WHERE Operation = 'IntelligenceCapability.Execute'
-              AND ResourceType = 'IntelligenceCapability'
-              AND ResourceId = 'text.structured.extract'
-              AND json_extract(FactsJson, '$.correlationId') = $correlation
-            ORDER BY Id DESC
-            LIMIT 2;
-            """;
-        command.Parameters.AddWithValue("$correlation", correlationId);
-
-        var rows = new List<AuditRow>();
-
-        await using var reader =
-            await command.ExecuteReaderAsync(cancellationToken);
-
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            rows.Add(
-                new AuditRow(
-                    reader.GetString(0),
-                    reader.GetString(1),
-                    reader.IsDBNull(2) ? null : reader.GetString(2),
-                    reader.GetString(3),
-                    reader.GetString(4)));
-        }
+        var rows =
+            await new SqliteSecurityAuditRecordReader(
+                    auditDatabasePath)
+                .FindByFactAsync(
+                    "IntelligenceCapability.Execute",
+                    "IntelligenceCapability",
+                    "text.structured.extract",
+                    "correlationId",
+                    correlationId,
+                    maxResults: 2,
+                    cancellationToken: cancellationToken);
 
         if (rows.Count != 1)
         {
@@ -436,7 +407,7 @@ internal static class VeteransBoundedEvidenceReviewConsoleService
         var row = rows[0];
 
         if (!string.Equals(row.Outcome, "Succeeded", StringComparison.Ordinal) ||
-            string.IsNullOrWhiteSpace(row.ProviderId))
+            string.IsNullOrWhiteSpace(row.Destination))
         {
             throw new InvalidOperationException(
                 "The matching intelligence audit record is not a successful " +
@@ -486,9 +457,9 @@ internal static class VeteransBoundedEvidenceReviewConsoleService
 
         return new AuditMetadata
         {
-            CapabilityId = row.CapabilityId,
+            CapabilityId = row.ResourceId,
             SubjectId = row.SubjectId,
-            ProviderId = row.ProviderId!,
+            ProviderId = row.Destination!,
             EngineName = Required("engineName"),
             EngineVersion = Optional("engineVersion"),
             ProviderOperationId = Optional("providerOperationId"),
@@ -542,10 +513,4 @@ internal static class VeteransBoundedEvidenceReviewConsoleService
         public required DateTimeOffset CompletedUtc { get; init; }
     }
 
-    private sealed record AuditRow(
-        string CapabilityId,
-        string SubjectId,
-        string? ProviderId,
-        string Outcome,
-        string FactsJson);
 }

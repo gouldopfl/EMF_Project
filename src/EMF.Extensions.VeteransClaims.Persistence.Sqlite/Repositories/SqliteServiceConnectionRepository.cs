@@ -176,12 +176,14 @@ public sealed class SqliteServiceConnectionRepository :
                 VeteransClaims_ServiceConnectionBases (
                     Id,
                     ClaimIssueId,
-                    ServiceConnectionTheoryId
+                    ServiceConnectionTheoryId,
+                    ReviewerLabel
                 )
             VALUES (
                 $id,
                 $claimIssueId,
-                $theoryId
+                $theoryId,
+                $reviewerLabel
             );
             """;
 
@@ -196,6 +198,11 @@ public sealed class SqliteServiceConnectionRepository :
         command.Parameters.AddWithValue(
             "$theoryId",
             basis.ServiceConnectionTheoryId.Value);
+
+        command.Parameters.AddWithValue(
+            "$reviewerLabel",
+            (object?)basis.ReviewerLabel?.Trim() ??
+                DBNull.Value);
 
         await command.ExecuteNonQueryAsync(
             cancellationToken);
@@ -215,7 +222,8 @@ public sealed class SqliteServiceConnectionRepository :
             SELECT
                 Id,
                 ClaimIssueId,
-                ServiceConnectionTheoryId
+                ServiceConnectionTheoryId,
+                ReviewerLabel
             FROM VeteransClaims_ServiceConnectionBases
             WHERE Id = $id;
             """;
@@ -243,7 +251,11 @@ public sealed class SqliteServiceConnectionRepository :
                     reader.GetString(1)),
             ServiceConnectionTheoryId =
                 new ServiceConnectionTheoryId(
-                    reader.GetString(2))
+                    reader.GetString(2)),
+            ReviewerLabel =
+                reader.IsDBNull(3)
+                    ? null
+                    : reader.GetString(3)
         };
     }
 
@@ -261,7 +273,8 @@ public sealed class SqliteServiceConnectionRepository :
             SELECT
                 Id,
                 ClaimIssueId,
-                ServiceConnectionTheoryId
+                ServiceConnectionTheoryId,
+                ReviewerLabel
             FROM VeteransClaims_ServiceConnectionBases
             WHERE ClaimIssueId = $claimIssueId
             ORDER BY Id;
@@ -290,7 +303,11 @@ public sealed class SqliteServiceConnectionRepository :
                             reader.GetString(1)),
                     ServiceConnectionTheoryId =
                         new ServiceConnectionTheoryId(
-                            reader.GetString(2))
+                            reader.GetString(2)),
+                    ReviewerLabel =
+                        reader.IsDBNull(3)
+                            ? null
+                            : reader.GetString(3)
                 });
         }
 
@@ -311,7 +328,8 @@ public sealed class SqliteServiceConnectionRepository :
             SELECT
                 Id,
                 ClaimIssueId,
-                ServiceConnectionTheoryId
+                ServiceConnectionTheoryId,
+                ReviewerLabel
             FROM VeteransClaims_ServiceConnectionBases
             WHERE ServiceConnectionTheoryId = $theoryId
             ORDER BY Id;
@@ -340,7 +358,11 @@ public sealed class SqliteServiceConnectionRepository :
                             reader.GetString(1)),
                     ServiceConnectionTheoryId =
                         new ServiceConnectionTheoryId(
-                            reader.GetString(2))
+                            reader.GetString(2)),
+                    ReviewerLabel =
+                        reader.IsDBNull(3)
+                            ? null
+                            : reader.GetString(3)
                 });
         }
 

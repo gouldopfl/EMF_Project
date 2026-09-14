@@ -1613,6 +1613,74 @@ public static class VeteransConsoleCommand
             global::System.Console.Out.Flush();
         }
 
+        static void WriteReviewerAiCostSummary(
+            IReadOnlyList<IntelligenceExecutionMetadata> executions,
+            bool reusedPackage)
+        {
+            var inputTokens =
+                executions.Sum(
+                    item => (long)(item.InputTokenCount ?? 0));
+
+            var outputTokens =
+                executions.Sum(
+                    item => (long)(item.OutputTokenCount ?? 0));
+
+            var totalTokens =
+                executions.Sum(
+                    item => (long)(item.TotalTokenCount ?? 0));
+
+            var estimatedCost =
+                executions.Sum(
+                    item => item.EstimatedCostUsd ?? 0m);
+
+            var providers =
+                executions
+                    .Select(item => item.ProviderId.Value)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+
+            var engines =
+                executions
+                    .Select(item => item.EngineName)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+
+            global::System.Console.WriteLine();
+            global::System.Console.WriteLine(
+                "===== AI COST SUMMARY =====");
+            global::System.Console.WriteLine(
+                $"Reviewer summary calls : {executions.Count}");
+            global::System.Console.WriteLine(
+                $"Input tokens           : {inputTokens}");
+            global::System.Console.WriteLine(
+                $"Output tokens          : {outputTokens}");
+            global::System.Console.WriteLine(
+                $"Total tokens           : {totalTokens}");
+            global::System.Console.WriteLine(
+                "Estimated cost         : $" +
+                estimatedCost.ToString(
+                    "0.00000",
+                    System.Globalization.CultureInfo.InvariantCulture));
+            global::System.Console.WriteLine(
+                $"Reused summaries       : {(reusedPackage ? 1 : 0)}");
+            global::System.Console.WriteLine(
+                $"New AI summaries       : {(reusedPackage ? 0 : 1)}");
+            global::System.Console.WriteLine(
+                $"Reused package         : {(reusedPackage ? "Yes" : "No")}");
+            global::System.Console.WriteLine(
+                "AI provider            : " +
+                (providers.Length == 0
+                    ? "Not invoked"
+                    : string.Join(", ", providers)));
+            global::System.Console.WriteLine(
+                "Model                  : " +
+                (engines.Length == 0
+                    ? "Not invoked"
+                    : string.Join(", ", engines)));
+        }
+
         OperatorStatus(
             "REVIEWER",
             $"Starting reviewer package for {claimIssueId.Value}");
@@ -1684,7 +1752,12 @@ public static class VeteransConsoleCommand
                     gapRepository)
                 .GetAsync(claimIssueId);
 
-        if (!string.IsNullOrWhiteSpace(basisId))
+        ServiceConnectionBasisId? requestedBasisId =
+            string.IsNullOrWhiteSpace(basisId)
+                ? null
+                : new ServiceConnectionBasisId(basisId);
+
+        if (requestedBasisId.HasValue)
         {
             try
             {
@@ -1695,7 +1768,7 @@ public static class VeteransConsoleCommand
                         .ScopeAsync(
                             details,
                             developmentDetails,
-                            new ServiceConnectionBasisId(basisId));
+                            requestedBasisId.Value);
 
                 details = scope.Details;
                 developmentDetails = scope.DevelopmentDetails;
@@ -1744,6 +1817,166 @@ public static class VeteransConsoleCommand
             return 1;
         }
 
+        var reviewerReuseKey =
+            VeteransReviewerPackageIntelligenceService
+                .CreateReuseKey(
+                    details,
+                    evidenceSources,
+                    developmentDetails);
+
+        var packageRepository =
+            new SqliteEvidencePackageRepository(
+                databasePath);
+
+        var expectedSourceArtifactIds =
+            sourceArtifactIds.ToHashSet();
+
+        EvidencePackageId? reusablePackageId = null;
+
+        foreach (var package in
+                 await packageRepository
+                     .GetEvidencePackagesAsync(claimIssueId))
+        {
+            if (!string.Equals(
+                    package.Purpose,
+                    "Physician reviewer package",
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    package.ReviewerRole,
+                    "MedicalProfessional",
+                    StringComparison.Ordinal) ||
+                package.ServiceConnectionBasisId != requestedBasisId)
+            {
+                continue;
+            }
+
+            var packageArtifacts =
+                await packageRepository
+                    .GetEvidencePackageArtifactsAsync(
+                        package.Id);
+
+            var packageSourceArtifactIds =
+                packageArtifacts
+                    .Where(
+                        artifact =>
+                            string.Equals(
+                                artifact.ContentRole,
+                                EvidencePackageContentRoles
+                                    .UnderlyingEvidence,
+                                StringComparison.Ordinal))
+                    .Select(artifact => artifact.ArtifactId)
+                    .ToHashSet();
+
+            if (!packageSourceArtifactIds
+                    .SetEquals(expectedSourceArtifactIds))
+            {
+                continue;
+            }
+
+            foreach (var generatedArtifact in
+                     packageArtifacts.Where(
+                         artifact =>
+                             string.Equals(
+                                 artifact.ContentRole,
+                                 EvidencePackageContentRoles
+                                     .GeneratedOrganizationalMaterial,
+                                 StringComparison.Ordinal)))
+            {
+                var summaryArtifact =
+                    await evidenceRepository.GetArtifactAsync(
+                        generatedArtifact.ArtifactId);
+
+                if (summaryArtifact is null ||
+                    !summaryArtifact.Metadata.TryGetValue(
+                        "reviewerSummaryReuseKey",
+                        out var storedReuseKey) ||
+                    !string.Equals(
+                        storedReuseKey?.ToString(),
+                        reviewerReuseKey,
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var provenance =
+                    await evidenceRepository.GetProvenanceAsync(
+                        generatedArtifact.ArtifactId);
+
+                var reviewed =
+                    provenance.Any(
+                        item =>
+                            string.Equals(
+                                item.Source,
+                                "EMF.Intelligence",
+                                StringComparison.Ordinal) &&
+                            item.Properties is not null &&
+                            item.Properties.TryGetValue(
+                                "reviewedBy",
+                                out var reviewedByValue) &&
+                            !string.IsNullOrWhiteSpace(
+                                reviewedByValue?.ToString()));
+
+                if (!reviewed)
+                    continue;
+
+                reusablePackageId = package.Id;
+                break;
+            }
+
+            if (reusablePackageId.HasValue)
+                break;
+        }
+
+        if (reusablePackageId.HasValue)
+        {
+            OperatorStatus(
+                "REUSE",
+                "Reusing reviewed reviewer package; Azure OpenAI not invoked");
+
+            global::System.Console.WriteLine(
+                $"Package ID          : {reusablePackageId.Value.Value}");
+
+            WriteReviewerAiCostSummary(
+                Array.Empty<IntelligenceExecutionMetadata>(),
+                reusedPackage: true);
+
+            if (outputPath is null)
+            {
+                OperatorStatus(
+                    "COMPLETE",
+                    "Reviewer package complete");
+
+                return 0;
+            }
+
+            OperatorStatus(
+                "DOCX",
+                "Creating reviewer document from reviewed package");
+
+            var reusedExportExitCode =
+                await RunEvidencePackageDocxAsync(
+                    databasePath,
+                    reusablePackageId.Value,
+                    outputPath,
+                    contentStore);
+
+            if (reusedExportExitCode != 0)
+                return reusedExportExitCode;
+
+            global::System.Console.WriteLine(
+                $"Package DOCX        : {outputPath}");
+
+            OperatorStatus(
+                "COMPLETE",
+                $"Reviewer document created: {outputPath}");
+
+            return 0;
+        }
+
+        global::System.Console.WriteLine();
+        global::System.Console.WriteLine(
+            "===== USES AZURE OPENAI — PAID =====");
+
         OperatorStatus(
             "AI",
             "Initializing Azure OpenAI runtime");
@@ -1776,6 +2009,10 @@ public static class VeteransConsoleCommand
             "AI",
             "Reviewer summarization complete");
 
+        WriteReviewerAiCostSummary(
+            result.CapabilityExecutions,
+            reusedPackage: false);
+
         if (!result.Success)
         {
             global::System.Console.Error.WriteLine(
@@ -1802,9 +2039,14 @@ public static class VeteransConsoleCommand
                     "EMF_REVIEWED_BY")!,
                 DateTimeOffset.UtcNow,
                 result,
-                string.IsNullOrWhiteSpace(basisId)
-                    ? null
-                    : new ServiceConnectionBasisId(basisId));
+                requestedBasisId);
+
+        await evidenceRepository.MergeArtifactMetadataAsync(
+            prepared.SummaryArtifact.Id,
+            new Dictionary<string, object>
+            {
+                ["reviewerSummaryReuseKey"] = reviewerReuseKey
+            });
 
         global::System.Console.WriteLine(
             ConsoleTextSanitizer.Sanitize(
