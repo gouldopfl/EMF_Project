@@ -313,6 +313,33 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 8 &&
+            args[0] == "evidence" &&
+            args[1] == "bounded" &&
+            args[2] == "interpret")
+        {
+            var boundedDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(boundedDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {boundedDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunBoundedEvidenceInterpretAsync(
+                boundedDatabasePath,
+                new ClaimIssueId(args[4]),
+                new ServiceConnectionBasisId(args[5]),
+                new RequirementId(args[6]),
+                new ArtifactId(args[7]),
+                runtimeFactory,
+                contentStoreFactory(),
+                global::System.Console.Out);
+        }
+
         if (args.Length == 6 &&
             args[0] == "evidence" &&
             args[1] == "recognition" &&
@@ -2329,6 +2356,188 @@ public static class VeteransConsoleCommand
         }
 
         return 0;
+    }
+
+
+    internal static async Task<int>
+        RunBoundedEvidenceInterpretAsync(
+            string databasePath,
+            ClaimIssueId claimIssueId,
+            ServiceConnectionBasisId basisId,
+            RequirementId requirementId,
+            ArtifactId sourceArtifactId,
+            Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory,
+            IArtifactContentStore? contentStore,
+            TextWriter output)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        ArgumentNullException.ThrowIfNull(runtimeFactory);
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (contentStore is null)
+        {
+            global::System.Console.Error.WriteLine(
+                "Artifact content store is not configured.");
+            return 2;
+        }
+
+        var regulatory =
+            new SqliteRegulatoryRepository(databasePath);
+
+        await regulatory.InitializeAsync();
+
+        var requirement =
+            await regulatory.GetRequirementAsync(requirementId);
+
+        if (requirement is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Regulatory requirement not found: {requirementId.Value}");
+            return 1;
+        }
+
+        var repository =
+            new SqliteEvidenceRepository(databasePath);
+
+        await repository.InitializeAsync();
+
+        var runtime = await runtimeFactory();
+
+        var service =
+            new VeteransBoundedEvidenceInterpretationService(
+                new VeteransBoundedEvidenceSelectionService(repository),
+                contentStore,
+                runtime.TextStructuredExtractionCapabilityExecutor);
+
+        var results =
+            await service.InterpretAsync(
+                claimIssueId,
+                basisId,
+                requirement,
+                sourceArtifactId,
+                new IntelligenceExecutionContext(
+                    runtime.SubjectId,
+                    new IntelligenceCorrelationId(
+                        $"veterans-bounded-interpret-{Guid.NewGuid():N}"),
+                    runtime.ClassificationId,
+                    []));
+
+        output.WriteLine("Mode                : BOUNDED INTERPRET");
+        output.WriteLine($"Claim Issue         : {claimIssueId.Value}");
+        output.WriteLine($"Basis               : {basisId.Value}");
+        output.WriteLine($"Requirement         : {requirementId.Value}");
+        output.WriteLine($"Source Artifact     : {sourceArtifactId.Value}");
+        output.WriteLine($"Bounded Evidence    : {results.Count}");
+        output.WriteLine();
+
+        var failed = 0;
+
+        foreach (var result in results)
+        {
+            var intelligence = result.IntelligenceResult;
+            var metadata = intelligence.Metadata;
+
+            await output.WriteLineAsync(
+                $"Artifact ID         : {result.Evidence.Artifact.Id.Value}");
+            await output.WriteLineAsync(
+                $"Evidence Date       : {result.Evidence.EvidenceDate:yyyy-MM-dd}");
+            await output.WriteLineAsync(
+                "Evidence Title      : " +
+                ConsoleTextSanitizer.Sanitize(
+                    result.Evidence.EvidenceTitle));
+
+            if (!intelligence.Success || result.Interpretation is null)
+            {
+                failed++;
+                await output.WriteLineAsync("Status              : FAILED");
+                await output.WriteLineAsync(
+                    "Message             : " +
+                    ConsoleTextSanitizer.Sanitize(
+                        intelligence.Message ??
+                        "Bounded evidence interpretation failed."));
+                await WriteIntelligenceTelemetryAsync(output, metadata);
+                await output.WriteLineAsync();
+                continue;
+            }
+
+            var interpretation = result.Interpretation;
+
+            await output.WriteLineAsync("Status              : INTERPRETED");
+            await output.WriteLineAsync(
+                $"Direction           : {interpretation.Direction}");
+            await output.WriteLineAsync(
+                $"Opinion Standard    : {interpretation.OpinionStandard}");
+            await output.WriteLineAsync(
+                "Medical Conclusion  : " +
+                ConsoleTextSanitizer.Sanitize(
+                    interpretation.MedicalConclusion));
+            await output.WriteLineAsync(
+                "Rationale           : " +
+                ConsoleTextSanitizer.Sanitize(
+                    interpretation.RationaleSummary));
+            await output.WriteLineAsync(
+                $"Requires Review     : {intelligence.RequiresReview}");
+            await output.WriteLineAsync(
+                $"Source Excerpts     : {interpretation.SourceExcerpts.Count}");
+
+            foreach (var excerpt in interpretation.SourceExcerpts)
+            {
+                await output.WriteLineAsync(
+                    $"  [{excerpt.StartOffset},{excerpt.Length}] " +
+                    ConsoleTextSanitizer.Sanitize(excerpt.Text));
+            }
+
+            await WriteIntelligenceTelemetryAsync(output, metadata);
+            await output.WriteLineAsync();
+        }
+
+        output.WriteLine("===== INTERPRETATION SUMMARY =====");
+        output.WriteLine($"Interpreted         : {results.Count - failed}");
+        output.WriteLine($"Failed              : {failed}");
+        output.WriteLine($"Total               : {results.Count}");
+
+        return failed == 0 ? 0 : 1;
+    }
+
+
+    private static async Task WriteIntelligenceTelemetryAsync(
+        TextWriter output,
+        IntelligenceExecutionMetadata? metadata)
+    {
+        if (metadata is null)
+            return;
+
+        await output.WriteLineAsync(
+            $"Provider            : {metadata.ProviderId.Value}");
+        await output.WriteLineAsync(
+            "Engine              : " +
+            ConsoleTextSanitizer.Sanitize(metadata.EngineName));
+        await output.WriteLineAsync(
+            $"Correlation         : {metadata.CorrelationId.Value}");
+
+        if (metadata.InputTokenCount.HasValue)
+        {
+            await output.WriteLineAsync(
+                $"Input Tokens        : {metadata.InputTokenCount.Value}");
+        }
+
+        if (metadata.OutputTokenCount.HasValue)
+        {
+            await output.WriteLineAsync(
+                $"Output Tokens       : {metadata.OutputTokenCount.Value}");
+        }
+
+        if (metadata.TotalTokenCount.HasValue)
+        {
+            await output.WriteLineAsync(
+                $"Total Tokens        : {metadata.TotalTokenCount.Value}");
+        }
+
+        if (metadata.EstimatedCostUsd.HasValue)
+        {
+            await output.WriteLineAsync(
+                $"Estimated Cost USD  : {metadata.EstimatedCostUsd.Value:G29}");
+        }
     }
 
 
@@ -4847,6 +5056,16 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence checklist " +
             "<database-path> <claim-issue-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence bounded list " +
+            "<database-path> <claim-issue-id> <basis-id> " +
+            "<requirement-id> <source-artifact-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence bounded interpret " +
+            "<database-path> <claim-issue-id> <basis-id> " +
+            "<requirement-id> <source-artifact-id>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence reviewer " +
