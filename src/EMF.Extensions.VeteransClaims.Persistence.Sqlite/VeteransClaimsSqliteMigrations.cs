@@ -2185,6 +2185,119 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_MedicationHistoryEvents (
                     SourceArtifactId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                76,
+                "AddReviewedBoundedEvidenceInterpretations",
+                """
+                CREATE TABLE
+                    VeteransClaims_ReviewedBoundedEvidenceInterpretations (
+                    ClaimIssueId TEXT NOT NULL,
+                    ServiceConnectionBasisId TEXT NOT NULL,
+                    RequirementId TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    Direction TEXT NOT NULL,
+                    OpinionStandard TEXT NOT NULL,
+                    MedicalConclusion TEXT NOT NULL,
+                    RationaleSummary TEXT NOT NULL,
+                    PromotedBy TEXT NOT NULL,
+                    PromotedUtc TEXT NOT NULL,
+                    ReviewedBy TEXT NOT NULL,
+                    ReviewedUtc TEXT NOT NULL,
+                    CapabilityId TEXT NOT NULL,
+                    ProviderId TEXT NOT NULL,
+                    CorrelationId TEXT NOT NULL,
+                    EngineName TEXT NOT NULL,
+                    EngineVersion TEXT NULL,
+                    ProviderOperationId TEXT NULL,
+                    InputTokenCount INTEGER NULL,
+                    OutputTokenCount INTEGER NULL,
+                    TotalTokenCount INTEGER NULL,
+                    EstimatedCostUsd TEXT NULL,
+                    StartedUtc TEXT NOT NULL,
+                    CompletedUtc TEXT NOT NULL,
+                    RequiresReview INTEGER NOT NULL,
+                    WarningsJson TEXT NOT NULL,
+                    SupersededByCorrelationId TEXT NULL,
+                    SupersededUtc TEXT NULL,
+                    PRIMARY KEY (
+                        ClaimIssueId,
+                        ServiceConnectionBasisId,
+                        RequirementId,
+                        ArtifactId,
+                        CorrelationId
+                    )
+                );
+
+                CREATE TABLE
+                    VeteransClaims_ReviewedBoundedEvidenceExcerpts (
+                    ClaimIssueId TEXT NOT NULL,
+                    ServiceConnectionBasisId TEXT NOT NULL,
+                    RequirementId TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    CorrelationId TEXT NOT NULL,
+                    ExcerptOrdinal INTEGER NOT NULL,
+                    Text TEXT NOT NULL,
+                    StartOffset INTEGER NOT NULL CHECK (StartOffset >= 0),
+                    Length INTEGER NOT NULL CHECK (Length > 0),
+                    PRIMARY KEY (
+                        ClaimIssueId,
+                        ServiceConnectionBasisId,
+                        RequirementId,
+                        ArtifactId,
+                        CorrelationId,
+                        ExcerptOrdinal
+                    ),
+                    FOREIGN KEY (
+                        ClaimIssueId,
+                        ServiceConnectionBasisId,
+                        RequirementId,
+                        ArtifactId,
+                        CorrelationId
+                    )
+                        REFERENCES
+                            VeteransClaims_ReviewedBoundedEvidenceInterpretations (
+                            ClaimIssueId,
+                            ServiceConnectionBasisId,
+                            RequirementId,
+                            ArtifactId,
+                            CorrelationId
+                        )
+                );
+
+                CREATE UNIQUE INDEX
+                    UX_VeteransClaims_ReviewedBoundedEvidence_LogicalDecision
+                ON VeteransClaims_ReviewedBoundedEvidenceInterpretations (
+                    ClaimIssueId,
+                    ServiceConnectionBasisId,
+                    RequirementId,
+                    ArtifactId
+                )
+                WHERE SupersededUtc IS NULL;
+
+                CREATE INDEX
+                    IX_VeteransClaims_ReviewedBoundedEvidence_Requirement
+                ON VeteransClaims_ReviewedBoundedEvidenceInterpretations (
+                    RequirementId
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ReviewedBoundedEvidence_Artifact
+                ON VeteransClaims_ReviewedBoundedEvidenceInterpretations (
+                    ArtifactId
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ReviewedBoundedEvidence_Correlation
+                ON VeteransClaims_ReviewedBoundedEvidenceInterpretations (
+                    CorrelationId
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ReviewedBoundedEvidence_SupersededBy
+                ON VeteransClaims_ReviewedBoundedEvidenceInterpretations (
+                    SupersededByCorrelationId
+                );
                 """)
         };
 }
