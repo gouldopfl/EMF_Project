@@ -388,13 +388,7 @@ public sealed class VeteransBoundedEvidenceInterpretationConsoleCommandTests
                         "The opinion weighs against secondary causation.",
                     rationaleSummary =
                         "The examiner did not establish a secondary nexus.",
-                    sourceExcerpts = new[]
-                    {
-                        new
-                        {
-                            text = request.Text
-                        }
-                    }
+                    sourceSegmentIds = new[] { "S001" }
                 });
 
             return Task.FromResult(

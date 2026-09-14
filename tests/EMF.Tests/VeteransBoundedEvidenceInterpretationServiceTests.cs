@@ -102,11 +102,15 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
 
         Assert.Contains(
             executor.Requests,
-            call => call.Request.Text == firstText &&
+            call => call.Request.Text.Contains(
+                        "[S001] " + firstText,
+                        StringComparison.Ordinal) &&
                     call.Context.InputArtifactIds.Contains(first.Id));
         Assert.Contains(
             executor.Requests,
-            call => call.Request.Text == secondText &&
+            call => call.Request.Text.Contains(
+                        "[S001] " + secondText,
+                        StringComparison.Ordinal) &&
                     call.Context.InputArtifactIds.Contains(second.Id));
     }
 
@@ -165,13 +169,13 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
     }
 
     [Fact]
-    public async Task InterpretAsync_DerivesSourceExcerptOffsetsDeterministically()
+    public async Task InterpretAsync_MapsSourceSegmentIdsToExactOffsets()
     {
         var fixture =
             await CreateSingleFixtureAsync(
-                "Prefix. Exact quote. Suffix.");
+                "Prefix.\nExact quote.\nSuffix.");
         var executor =
-            new ExactExcerptFakeExecutor("Exact quote.");
+            new SegmentIdFakeExecutor("S002");
 
         var service =
             new VeteransBoundedEvidenceInterpretationService(
@@ -196,21 +200,19 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
         Assert.Equal("Exact quote.", excerpt.Text);
         Assert.Equal(8, excerpt.StartOffset);
         Assert.Equal(12, excerpt.Length);
+        Assert.Contains("[S002] Exact quote.", executor.RequestText);
     }
 
     [Fact]
-    public async Task InterpretAsync_GroundsExcerptAcrossWhitespaceDifferences()
+    public async Task InterpretAsync_MapsMultipleSourceSegmentsToOriginalText()
     {
         const string sourceText =
-            "Prefix. Medical literature review & pertinent evidence review\n" +
-            "does not support claim. Suffix.";
-        const string modelExcerpt =
-            "Medical literature review & pertinent evidence review " +
+            "Medical literature review & pertinent evidence review\n" +
             "does not support claim.";
 
         var fixture = await CreateSingleFixtureAsync(sourceText);
         var executor =
-            new ExactExcerptFakeExecutor(modelExcerpt);
+            new SegmentIdFakeExecutor("S001", "S002");
 
         var service =
             new VeteransBoundedEvidenceInterpretationService(
@@ -230,24 +232,30 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
         var interpretation =
             Assert.IsType<VeteransBoundedEvidenceInterpretation>(
                 result.Interpretation);
-        var excerpt = Assert.Single(interpretation.SourceExcerpts);
 
+        Assert.Equal(2, interpretation.SourceExcerpts.Count);
         Assert.Equal(
-            "Medical literature review & pertinent evidence review\n" +
+            "Medical literature review & pertinent evidence review",
+            interpretation.SourceExcerpts[0].Text);
+        Assert.Equal(0, interpretation.SourceExcerpts[0].StartOffset);
+        Assert.Equal(
             "does not support claim.",
-            excerpt.Text);
-        Assert.Equal(8, excerpt.StartOffset);
-        Assert.Equal(excerpt.Text.Length, excerpt.Length);
+            interpretation.SourceExcerpts[1].Text);
+        Assert.Equal(
+            sourceText.IndexOf(
+                "does not support claim.",
+                StringComparison.Ordinal),
+            interpretation.SourceExcerpts[1].StartOffset);
     }
 
     [Fact]
-    public async Task InterpretAsync_RejectsAmbiguousWhitespaceNormalizedExcerpt()
+    public async Task InterpretAsync_RejectsUnknownSourceSegmentId()
     {
         var fixture =
             await CreateSingleFixtureAsync(
-                "Exact\nquote. Between. Exact\tquote.");
+                "Bounded medical opinion text.");
         var executor =
-            new ExactExcerptFakeExecutor("Exact quote.");
+            new SegmentIdFakeExecutor("S999");
 
         var service =
             new VeteransBoundedEvidenceInterpretationService(
@@ -265,7 +273,7 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
                     TestContext()));
 
         Assert.Contains(
-            "ambiguous",
+            "does not exist",
             exception.Message,
             StringComparison.OrdinalIgnoreCase);
     }
@@ -308,10 +316,10 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
     }
 
     [Fact]
-    public async Task InterpretAsync_RejectsUngroundedSourceExcerpt()
+    public async Task InterpretAsync_RejectsUnknownGroundingSegment()
     {
         var fixture = await CreateSingleFixtureAsync("Actual bounded opinion text.");
-        var executor = new UngroundedFakeExecutor();
+        var executor = new UnknownSegmentFakeExecutor();
 
         var service =
             new VeteransBoundedEvidenceInterpretationService(
@@ -555,16 +563,19 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
                     .MaximumStructuredOutputTokenCount,
                 request.MaximumOutputTokenCount);
 
-            Assert.DoesNotContain(
-                "startOffset",
+            Assert.Contains(
+                "sourceSegmentIds",
                 request.JsonSchema,
-                StringComparison.OrdinalIgnoreCase);
+                StringComparison.Ordinal);
             Assert.DoesNotContain(
-                "length",
+                "sourceExcerpts",
                 request.JsonSchema,
-                StringComparison.OrdinalIgnoreCase);
+                StringComparison.Ordinal);
+            Assert.Contains(
+                "[S001]",
+                request.Text,
+                StringComparison.Ordinal);
 
-            var excerpt = request.Text;
             var output = JsonSerializer.Serialize(
                 new
                 {
@@ -573,28 +584,24 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
                     opinionStandard = VeteransMedicalOpinionStandards.LessLikelyThanNot,
                     medicalConclusion = "The medical opinion weighs against secondary causation.",
                     rationaleSummary = "The examiner did not establish a secondary nexus.",
-                    sourceExcerpts = new[]
-                    {
-                        new
-                        {
-                            text = excerpt
-                        }
-                    }
+                    sourceSegmentIds = new[] { "S001" }
                 });
 
             return Task.FromResult(Result(context, output));
         }
     }
 
-    private sealed class ExactExcerptFakeExecutor :
+    private sealed class SegmentIdFakeExecutor :
         IIntelligenceCapabilityExecutor<TextStructuredExtractionRequest, string>
     {
-        private readonly string _excerpt;
+        private readonly string[] _segmentIds;
 
-        public ExactExcerptFakeExecutor(string excerpt)
+        public SegmentIdFakeExecutor(params string[] segmentIds)
         {
-            _excerpt = excerpt;
+            _segmentIds = segmentIds;
         }
+
+        public string? RequestText { get; private set; }
 
         public Task<IntelligenceCapabilityResult<string>> ExecuteAsync(
             IntelligenceCapabilityId capabilityId,
@@ -602,6 +609,8 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
             IntelligenceExecutionContext context,
             CancellationToken cancellationToken = default)
         {
+            RequestText = request.Text;
+
             var output = JsonSerializer.Serialize(
                 new
                 {
@@ -610,20 +619,14 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
                     opinionStandard = VeteransMedicalOpinionStandards.LessLikelyThanNot,
                     medicalConclusion = "Negative opinion.",
                     rationaleSummary = "Negative rationale.",
-                    sourceExcerpts = new[]
-                    {
-                        new
-                        {
-                            text = _excerpt
-                        }
-                    }
+                    sourceSegmentIds = _segmentIds
                 });
 
             return Task.FromResult(Result(context, output));
         }
     }
 
-    private sealed class UngroundedFakeExecutor :
+    private sealed class UnknownSegmentFakeExecutor :
         IIntelligenceCapabilityExecutor<TextStructuredExtractionRequest, string>
     {
         public Task<IntelligenceCapabilityResult<string>> ExecuteAsync(
@@ -640,13 +643,7 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
                     opinionStandard = VeteransMedicalOpinionStandards.LessLikelyThanNot,
                     medicalConclusion = "Negative opinion.",
                     rationaleSummary = "Negative rationale.",
-                    sourceExcerpts = new[]
-                    {
-                        new
-                        {
-                            text = "This text is not in the source."
-                        }
-                    }
+                    sourceSegmentIds = new[] { "S999" }
                 });
 
             return Task.FromResult(Result(context, output));
@@ -670,13 +667,7 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
                     opinionStandard = VeteransMedicalOpinionStandards.LessLikelyThanNot,
                     medicalConclusion = "Negative opinion.",
                     rationaleSummary = "Negative rationale.",
-                    sourceExcerpts = new[]
-                    {
-                        new
-                        {
-                            text = request.Text
-                        }
-                    }
+                    sourceSegmentIds = new[] { "S001" }
                 });
 
             return Task.FromResult(Result(context, output));

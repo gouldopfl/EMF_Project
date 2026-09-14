@@ -181,6 +181,12 @@ public sealed class VeteransBoundedEvidenceInterpretationService
                     "contains no text.");
             }
 
+            var groundingSegments =
+                BuildGroundingSegments(text);
+
+            var groundedInput =
+                BuildGroundedInput(groundingSegments);
+
             var inputArtifactIds =
                 context.InputArtifactIds
                     .Append(item.Artifact.Id)
@@ -199,7 +205,7 @@ public sealed class VeteransBoundedEvidenceInterpretationService
                 await _executor.ExecuteAsync(
                     IntelligenceCapabilityIds.TextStructuredExtraction,
                     new TextStructuredExtractionRequest(
-                        text,
+                        groundedInput,
                         BuildInstruction(requirement, item),
                         BuildJsonShape(),
                         MaximumStructuredOutputTokenCount),
@@ -230,7 +236,10 @@ public sealed class VeteransBoundedEvidenceInterpretationService
                     "returned no interpretation.");
 
             var interpretation =
-                Map(item.Artifact.Id, extracted, text);
+                Map(
+                    item.Artifact.Id,
+                    extracted,
+                    groundingSegments);
 
             Validate(
                 interpretation,
@@ -253,8 +262,28 @@ public sealed class VeteransBoundedEvidenceInterpretationService
     private static VeteransBoundedEvidenceInterpretation Map(
         ArtifactId artifactId,
         ExtractedInterpretation extracted,
-        string sourceText) =>
-        new()
+        IReadOnlyList<GroundingSegment> groundingSegments)
+    {
+        var segmentById =
+            groundingSegments.ToDictionary(
+                segment => segment.Id,
+                StringComparer.Ordinal);
+
+        var requestedSegmentIds =
+            extracted.SourceSegmentIds
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+        var excerpts =
+            requestedSegmentIds
+                .Select(segmentId =>
+                    MapSegment(
+                        artifactId,
+                        segmentId,
+                        segmentById))
+                .ToArray();
+
+        return new VeteransBoundedEvidenceInterpretation
         {
             ArtifactId = artifactId,
             RequirementId = new RequirementId(extracted.RequirementId),
@@ -262,161 +291,121 @@ public sealed class VeteransBoundedEvidenceInterpretationService
             OpinionStandard = extracted.OpinionStandard,
             MedicalConclusion = extracted.MedicalConclusion,
             RationaleSummary = extracted.RationaleSummary,
-            SourceExcerpts =
-                extracted.SourceExcerpts.Select(
-                    excerpt =>
-                        MapExcerpt(
-                            artifactId,
-                            excerpt,
-                            sourceText)).ToArray()
+            SourceExcerpts = excerpts
         };
+    }
 
-    private static VeteransBoundedEvidenceSourceExcerpt MapExcerpt(
+    private static VeteransBoundedEvidenceSourceExcerpt MapSegment(
         ArtifactId artifactId,
-        ExtractedExcerpt excerpt,
-        string sourceText)
+        string segmentId,
+        IReadOnlyDictionary<string, GroundingSegment> segmentById)
     {
-        if (string.IsNullOrWhiteSpace(excerpt.Text))
+        if (string.IsNullOrWhiteSpace(segmentId) ||
+            !segmentById.TryGetValue(segmentId, out var segment))
         {
             throw new InvalidOperationException(
-                "A bounded evidence source excerpt cannot be empty.");
+                $"Bounded evidence source segment '{segmentId}' " +
+                "does not exist in the bounded evidence text.");
         }
-
-        var startOffset =
-            sourceText.IndexOf(
-                excerpt.Text,
-                StringComparison.Ordinal);
-
-        if (startOffset >= 0)
-        {
-            return new VeteransBoundedEvidenceSourceExcerpt
-            {
-                ArtifactId = artifactId,
-                Text = excerpt.Text,
-                StartOffset = startOffset,
-                Length = excerpt.Text.Length
-            };
-        }
-
-        var normalizedExcerpt =
-            NormalizeWhitespaceForGrounding(excerpt.Text);
-        var normalizedSource =
-            NormalizeWhitespaceForGroundingWithOffsets(sourceText);
-
-        var normalizedStart =
-            normalizedSource.Text.IndexOf(
-                normalizedExcerpt,
-                StringComparison.Ordinal);
-
-        if (normalizedStart < 0)
-        {
-            throw new InvalidOperationException(
-                "A bounded evidence source excerpt does not match " +
-                "the bounded evidence text.");
-        }
-
-        var duplicateStart =
-            normalizedSource.Text.IndexOf(
-                normalizedExcerpt,
-                normalizedStart + 1,
-                StringComparison.Ordinal);
-
-        if (duplicateStart >= 0)
-        {
-            throw new InvalidOperationException(
-                "A whitespace-normalized bounded evidence source excerpt " +
-                "is ambiguous within the bounded evidence text.");
-        }
-
-        var normalizedEnd =
-            normalizedStart + normalizedExcerpt.Length - 1;
-        var groundedStart =
-            normalizedSource.StartOffsets[normalizedStart];
-        var groundedEndExclusive =
-            normalizedSource.EndOffsets[normalizedEnd];
-        var groundedLength = groundedEndExclusive - groundedStart;
 
         return new VeteransBoundedEvidenceSourceExcerpt
         {
             ArtifactId = artifactId,
-            Text = sourceText.Substring(groundedStart, groundedLength),
-            StartOffset = groundedStart,
-            Length = groundedLength
+            Text = segment.Text,
+            StartOffset = segment.StartOffset,
+            Length = segment.Length
         };
     }
 
-    private static string NormalizeWhitespaceForGrounding(string text)
+    private static IReadOnlyList<GroundingSegment>
+        BuildGroundingSegments(string sourceText)
     {
-        var normalized = new StringBuilder(text.Length);
-        var pendingWhitespace = false;
+        var segments = new List<GroundingSegment>();
+        var lineStart = 0;
 
-        foreach (var character in text)
+        for (var index = 0; index <= sourceText.Length; index++)
         {
-            if (char.IsWhiteSpace(character))
-            {
-                pendingWhitespace = normalized.Length > 0;
+            var atEnd = index == sourceText.Length;
+            var isLineBreak =
+                !atEnd &&
+                (sourceText[index] == '\r' ||
+                 sourceText[index] == '\n');
+
+            if (!atEnd && !isLineBreak)
                 continue;
-            }
 
-            if (pendingWhitespace)
+            AddGroundingSegment(
+                sourceText,
+                lineStart,
+                index,
+                segments);
+
+            if (!atEnd &&
+                sourceText[index] == '\r' &&
+                index + 1 < sourceText.Length &&
+                sourceText[index + 1] == '\n')
             {
-                normalized.Append(' ');
-                pendingWhitespace = false;
+                index++;
             }
 
-            normalized.Append(character);
+            lineStart = index + 1;
         }
 
-        return normalized.ToString();
-    }
-
-    private static NormalizedGroundingText
-        NormalizeWhitespaceForGroundingWithOffsets(string text)
-    {
-        var normalized = new StringBuilder(text.Length);
-        var startOffsets = new List<int>(text.Length);
-        var endOffsets = new List<int>(text.Length);
-        int? whitespaceStart = null;
-        var whitespaceEnd = 0;
-
-        for (var index = 0; index < text.Length; index++)
+        if (segments.Count == 0)
         {
-            var character = text[index];
-
-            if (char.IsWhiteSpace(character))
-            {
-                if (normalized.Length > 0)
-                {
-                    whitespaceStart ??= index;
-                    whitespaceEnd = index + 1;
-                }
-
-                continue;
-            }
-
-            if (whitespaceStart.HasValue)
-            {
-                normalized.Append(' ');
-                startOffsets.Add(whitespaceStart.Value);
-                endOffsets.Add(whitespaceEnd);
-                whitespaceStart = null;
-            }
-
-            normalized.Append(character);
-            startOffsets.Add(index);
-            endOffsets.Add(index + 1);
+            throw new InvalidOperationException(
+                "Bounded evidence content contains no grounding segments.");
         }
 
-        return new NormalizedGroundingText(
-            normalized.ToString(),
-            startOffsets.ToArray(),
-            endOffsets.ToArray());
+        return segments;
     }
 
-    private sealed record NormalizedGroundingText(
+    private static void AddGroundingSegment(
+        string sourceText,
+        int start,
+        int endExclusive,
+        ICollection<GroundingSegment> segments)
+    {
+        while (start < endExclusive &&
+               char.IsWhiteSpace(sourceText[start]))
+        {
+            start++;
+        }
+
+        while (endExclusive > start &&
+               char.IsWhiteSpace(sourceText[endExclusive - 1]))
+        {
+            endExclusive--;
+        }
+
+        if (start >= endExclusive)
+            return;
+
+        var text =
+            sourceText.Substring(
+                start,
+                endExclusive - start);
+
+        segments.Add(
+            new GroundingSegment(
+                $"S{segments.Count + 1:D3}",
+                text,
+                start,
+                text.Length));
+    }
+
+    private static string BuildGroundedInput(
+        IReadOnlyList<GroundingSegment> groundingSegments) =>
+        string.Join(
+            '\n',
+            groundingSegments.Select(
+                segment => $"[{segment.Id}] {segment.Text}"));
+
+    private sealed record GroundingSegment(
+        string Id,
         string Text,
-        int[] StartOffsets,
-        int[] EndOffsets);
+        int StartOffset,
+        int Length);
 
     private static void Validate(
         VeteransBoundedEvidenceInterpretation interpretation,
@@ -562,10 +551,13 @@ public sealed class VeteransBoundedEvidenceInterpretationService
         State the medical conclusion and summarize the stated rationale.
         Use only facts and reasoning present in the bounded source text.
         Do not invent diagnoses, relationships, medical mechanisms, or facts.
-        Include at least one exact, verbatim source excerpt supporting the
-        interpretation. Return only the excerpt text. Do not calculate or return
-        character offsets or lengths; EMF derives those deterministically from
-        the supplied bounded text.
+
+        The supplied bounded source text is split into deterministic segments
+        tagged [S001], [S002], and so on. Cite at least one sourceSegmentId that
+        directly supports the interpretation. Return only segment IDs from the
+        supplied text. Do not copy or paraphrase source excerpts and do not
+        calculate character offsets or lengths. EMF maps validated segment IDs
+        back to the exact original bounded text.
         """;
 
     private static string BuildJsonShape() =>
@@ -576,9 +568,7 @@ public sealed class VeteransBoundedEvidenceInterpretationService
           "opinionStandard": "AtLeastAsLikelyAsNot|LessLikelyThanNot|NoExplicitStandard|Other",
           "medicalConclusion": "string",
           "rationaleSummary": "string",
-          "sourceExcerpts": [{
-            "text": "string"
-          }]
+          "sourceSegmentIds": ["S001"]
         }
         """;
 
@@ -594,12 +584,7 @@ public sealed class VeteransBoundedEvidenceInterpretationService
 
         public required string RationaleSummary { get; init; }
 
-        public required IReadOnlyList<ExtractedExcerpt>
-            SourceExcerpts { get; init; }
-    }
-
-    private sealed class ExtractedExcerpt
-    {
-        public required string Text { get; init; }
+        public required IReadOnlyList<string>
+            SourceSegmentIds { get; init; }
     }
 }
