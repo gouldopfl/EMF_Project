@@ -98,6 +98,13 @@ public sealed class VeteransBlueButtonClinicalNoteSelectionServiceTests
         Assert.Contains(
             "No Blue Button care-summary record matched",
             ex.Message);
+        Assert.Contains("Parsed records: 1", ex.Message);
+        Assert.Contains(
+            "Parsable date span: 2025-06-06..2025-06-06",
+            ex.Message);
+        Assert.Contains("Nearest-date candidates:", ex.Message);
+        Assert.Contains("Text-title candidates:", ex.Message);
+        Assert.Contains("Boundary candidates:", ex.Message);
     }
 
     [Fact]

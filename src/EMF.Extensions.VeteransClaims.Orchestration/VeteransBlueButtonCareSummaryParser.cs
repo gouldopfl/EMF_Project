@@ -292,6 +292,39 @@ public sealed class VeteransBlueButtonCareSummaryParser
         IReadOnlyList<PageLine> lines,
         int sectionStart)
     {
+        var sectionListCareSummaries =
+            FindLastExactLineBefore(
+                lines,
+                CareSummariesHeading,
+                sectionStart);
+
+        if (sectionListCareSummaries >= 0)
+        {
+            for (var index = sectionListCareSummaries + 1;
+                 index < sectionStart;
+                 index++)
+            {
+                var heading = Normalize(lines[index].Text);
+
+                if (!FollowingSectionHeadings.Contains(heading))
+                    continue;
+
+                var resolved =
+                    FindLastExactLineAfter(
+                        lines,
+                        heading,
+                        sectionStart);
+
+                if (resolved >= 0)
+                    return resolved;
+
+                break;
+            }
+        }
+
+        // Fallback for bounded fragments and older inputs that do not
+        // include the report's section list. Full Blue Button reports
+        // should resolve the following section from that list above.
         for (var index = sectionStart + 1;
              index < lines.Count;
              index++)
@@ -306,6 +339,48 @@ public sealed class VeteransBlueButtonCareSummaryParser
 
             if (FollowingSectionHeadings.Contains(
                     Normalize(raw)))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int FindLastExactLineBefore(
+        IReadOnlyList<PageLine> lines,
+        string expected,
+        int maximumIndex)
+    {
+        for (var index = maximumIndex - 1;
+             index >= 0;
+             index--)
+        {
+            if (string.Equals(
+                    Normalize(lines[index].Text),
+                    expected,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int FindLastExactLineAfter(
+        IReadOnlyList<PageLine> lines,
+        string expected,
+        int minimumIndex)
+    {
+        for (var index = lines.Count - 1;
+             index > minimumIndex;
+             index--)
+        {
+            if (string.Equals(
+                    Normalize(lines[index].Text),
+                    expected,
+                    StringComparison.OrdinalIgnoreCase))
             {
                 return index;
             }

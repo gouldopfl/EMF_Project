@@ -106,6 +106,58 @@ public sealed class VeteransBlueButtonCareSummaryParserTests
     }
 
     [Fact]
+    public void Parse_UsesReportSectionListInsteadOfSectionLikeNoteText()
+    {
+        var parser =
+            new VeteransBlueButtonCareSummaryParser();
+
+        var records =
+            parser.Parse(
+            [
+                Page(
+                    1,
+                    """
+                    Records in this report
+                    Care summaries and notes
+                    Allergies and reactions
+                    Health conditions
+                    Medications
+                    My HealtheVet account summary
+                    """),
+                Page(
+                    414,
+                    """
+                    Care summaries and notes
+                    Showing 2 records from newest to oldest
+                    FIRST CLINICAL NOTE
+                    Details
+                    Date entered: August 20, 2026
+                    LOCAL TITLE: FIRST CLINICAL NOTE
+                    Clinical content before a section-like line.
+                    Medications
+                    Clinical content after a section-like line.
+                    SLEEP MED TELEPHONE NOTE
+                    Details
+                    Date entered: April 17, 2025
+                    LOCAL TITLE: SLEEP MED TELEPHONE NOTE
+                    Residual AHI remains elevated.
+                    Allergies and reactions
+                    """)
+            ]);
+
+        Assert.Equal(2, records.Count);
+        Assert.Contains(
+            "Clinical content after a section-like line.",
+            records[0].Text);
+        Assert.Equal(
+            "April 17, 2025",
+            records[1].DateEntered);
+        Assert.Equal(
+            "SLEEP MED TELEPHONE NOTE",
+            records[1].Title);
+    }
+
+    [Fact]
     public void Parse_UsesAllergiesAsFollowingTopLevelSection()
     {
         var parser =
