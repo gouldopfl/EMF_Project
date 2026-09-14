@@ -11,7 +11,8 @@ public sealed class TextStructuredExtractionRequestTests
             new TextStructuredExtractionRequest(
                 "Decision text.",
                 "Extract the decision.",
-                """{"outcome":"string"}""");
+                """{"outcome":"string"}""",
+                512);
 
         Assert.Equal("Decision text.", request.Text);
         Assert.Equal(
@@ -20,6 +21,7 @@ public sealed class TextStructuredExtractionRequestTests
         Assert.Equal(
             """{"outcome":"string"}""",
             request.JsonSchema);
+        Assert.Equal(512, request.MaximumOutputTokenCount);
     }
 
     [Theory]
@@ -37,4 +39,18 @@ public sealed class TextStructuredExtractionRequestTests
                 instruction,
                 jsonSchema));
     }
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_RejectsInvalidMaximumOutputTokenCount(
+        int maximumOutputTokenCount)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new TextStructuredExtractionRequest(
+                "text",
+                "instruction",
+                "{}",
+                maximumOutputTokenCount));
+    }
+
 }

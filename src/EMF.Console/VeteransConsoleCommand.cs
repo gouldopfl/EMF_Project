@@ -313,7 +313,7 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
-        if (args.Length == 8 &&
+        if ((args.Length == 8 || args.Length == 9) &&
             args[0] == "evidence" &&
             args[1] == "bounded" &&
             args[2] == "interpret")
@@ -329,6 +329,11 @@ public static class VeteransConsoleCommand
                 return 2;
             }
 
+            ArtifactId? boundedArtifactId =
+                args.Length == 9
+                    ? new ArtifactId(args[8])
+                    : null;
+
             return await RunBoundedEvidenceInterpretAsync(
                 boundedDatabasePath,
                 new ClaimIssueId(args[4]),
@@ -337,7 +342,8 @@ public static class VeteransConsoleCommand
                 new ArtifactId(args[7]),
                 runtimeFactory,
                 contentStoreFactory(),
-                global::System.Console.Out);
+                global::System.Console.Out,
+                boundedArtifactId);
         }
 
         if (args.Length == 6 &&
@@ -2368,7 +2374,8 @@ public static class VeteransConsoleCommand
             ArtifactId sourceArtifactId,
             Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory,
             IArtifactContentStore? contentStore,
-            TextWriter output)
+            TextWriter output,
+            ArtifactId? boundedArtifactId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
         ArgumentNullException.ThrowIfNull(runtimeFactory);
@@ -2420,13 +2427,21 @@ public static class VeteransConsoleCommand
                     new IntelligenceCorrelationId(
                         $"veterans-bounded-interpret-{Guid.NewGuid():N}"),
                     runtime.ClassificationId,
-                    []));
+                    []),
+                boundedArtifactId);
 
         output.WriteLine("Mode                : BOUNDED INTERPRET");
         output.WriteLine($"Claim Issue         : {claimIssueId.Value}");
         output.WriteLine($"Basis               : {basisId.Value}");
         output.WriteLine($"Requirement         : {requirementId.Value}");
         output.WriteLine($"Source Artifact     : {sourceArtifactId.Value}");
+
+        if (boundedArtifactId.HasValue)
+        {
+            output.WriteLine(
+                $"Target Artifact     : {boundedArtifactId.Value.Value}");
+        }
+
         output.WriteLine($"Bounded Evidence    : {results.Count}");
         output.WriteLine();
 

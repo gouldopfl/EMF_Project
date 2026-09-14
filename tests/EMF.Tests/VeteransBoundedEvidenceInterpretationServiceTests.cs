@@ -109,6 +109,60 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
     }
 
     [Fact]
+    public async Task InterpretAsync_TargetsOnlyRequestedBoundedArtifact()
+    {
+        var repository =
+            new TestInfrastructure.InMemoryEvidenceRepository();
+        var source = new ArtifactId("blue-button-001");
+
+        await repository.AddArtifactAsync(
+            new Artifact
+            {
+                Id = source,
+                Name = "VA Blue Button Report",
+                ArtifactType = "pdf"
+            });
+
+        var first = CreateBoundedArtifact("bounded-001", "2021-09-29", "3021", "3042", "645", "668");
+        var second = CreateBoundedArtifact("bounded-002", "2025-11-19", "718", "729", "261", "365");
+
+        await repository.AddArtifactAsync(first);
+        await repository.AddArtifactAsync(second);
+        await AddLineageAsync(repository, source, first.Id);
+        await AddLineageAsync(repository, source, second.Id);
+
+        var contentStore = new FakeContentStore();
+        contentStore.Add(first.Id, "First bounded opinion.");
+        contentStore.Add(
+            second.Id,
+            "Secondary nexus not established after thorough review of evidence.");
+
+        var executor = new GroundedFakeExecutor();
+        var service =
+            new VeteransBoundedEvidenceInterpretationService(
+                new VeteransBoundedEvidenceSelectionService(repository),
+                contentStore,
+                executor);
+
+        var results =
+            await service.InterpretAsync(
+                new ClaimIssueId("issue-osa"),
+                new ServiceConnectionBasisId("basis-osa-secondary"),
+                Requirement(),
+                source,
+                TestContext(),
+                second.Id);
+
+        var result = Assert.Single(results);
+        Assert.Equal(second.Id, result.Evidence.Artifact.Id);
+        Assert.Single(executor.Requests);
+        Assert.Equal(1, contentStore.ReadCount);
+        Assert.Equal(
+            second.Id,
+            Assert.Single(executor.Requests).Context.InputArtifactIds.Single());
+    }
+
+    [Fact]
     public async Task InterpretAsync_NoSelectedEvidenceMakesNoIntelligenceCall()
     {
         var repository =
@@ -388,6 +442,10 @@ public sealed class VeteransBoundedEvidenceInterpretationServiceTests
         {
             Requests.Add((request, context));
             Assert.Equal(IntelligenceCapabilityIds.TextStructuredExtraction, capabilityId);
+            Assert.Equal(
+                VeteransBoundedEvidenceInterpretationService
+                    .MaximumStructuredOutputTokenCount,
+                request.MaximumOutputTokenCount);
 
             var excerpt = request.Text;
             var output = JsonSerializer.Serialize(

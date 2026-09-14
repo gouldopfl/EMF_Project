@@ -96,6 +96,76 @@ public sealed class VeteransBoundedEvidenceInterpretationConsoleCommandTests
     }
 
     [Fact]
+    public async Task RunBoundedEvidenceInterpretAsync_TargetsOneOfTwoSelectedArtifacts()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var requirement =
+                await AddRequirementAsync(databasePath);
+
+            var source = new ArtifactId("blue-button-001");
+            var first = new ArtifactId("bounded-001");
+            var second = new ArtifactId("bounded-002");
+            var repository = new SqliteEvidenceRepository(databasePath);
+
+            await repository.InitializeAsync();
+            await repository.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = source,
+                    Name = "VA Blue Button Report",
+                    ArtifactType = "pdf"
+                });
+            await repository.AddArtifactAsync(
+                CreateBoundedArtifact(first, requirement.Id));
+            await repository.AddArtifactAsync(
+                CreateBoundedArtifact(second, requirement.Id));
+            await AddLineageAsync(repository, source, first);
+            await AddLineageAsync(repository, source, second);
+
+            var contentStore = new FakeContentStore();
+            contentStore.Add(first, "First bounded opinion.");
+            contentStore.Add(
+                second,
+                "The claimed condition is less likely than not proximately due to coronary artery disease.");
+
+            var executor = new GroundedFakeExecutor(requirement.Id);
+            using var output = new StringWriter();
+
+            var exitCode =
+                await VeteransConsoleCommand.RunBoundedEvidenceInterpretAsync(
+                    databasePath,
+                    new ClaimIssueId("issue-osa"),
+                    new ServiceConnectionBasisId("basis-osa-secondary"),
+                    requirement.Id,
+                    source,
+                    () => Task.FromResult(Runtime(executor)),
+                    contentStore,
+                    output,
+                    second);
+
+            var rendered = output.ToString();
+
+            Assert.Equal(0, exitCode);
+            Assert.Equal(1, executor.CallCount);
+            Assert.Equal(1, contentStore.ReadCount);
+            Assert.Contains($"Target Artifact     : {second.Value}", rendered);
+            Assert.Contains("Bounded Evidence    : 1", rendered);
+            Assert.Contains($"Artifact ID         : {second.Value}", rendered);
+            Assert.DoesNotContain($"Artifact ID         : {first.Value}", rendered);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task RunBoundedEvidenceInterpretAsync_NoSelectedEvidenceMakesNoIntelligenceCall()
     {
         var databasePath = Path.GetTempFileName();

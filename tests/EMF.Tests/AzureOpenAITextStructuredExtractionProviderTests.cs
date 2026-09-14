@@ -57,7 +57,8 @@ public sealed class
                 new TextStructuredExtractionRequest(
                     "Decision text.",
                     "Extract the decision.",
-                    """{"outcome":"string"}"""),
+                    """{"outcome":"string"}""",
+                    321),
                 context);
 
         Assert.True(result.Success);
@@ -80,6 +81,8 @@ public sealed class
         Assert.Contains(
             """{"outcome":"string"}""",
             client.SystemInstruction);
+
+        Assert.Equal(321, client.MaximumOutputTokenCount);
     }
     [Fact]
     public async Task ExecuteAsync_RejectsInvalidJson()

@@ -79,7 +79,8 @@ public sealed class
             await _textClient.CompleteAsync(
                 instruction,
                 request.Text,
-                cancellationToken);
+                cancellationToken,
+                request.MaximumOutputTokenCount);
 
         try
         {

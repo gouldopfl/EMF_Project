@@ -67,6 +67,8 @@ public sealed class VeteransBoundedEvidenceInterpretationResult
 
 public sealed class VeteransBoundedEvidenceInterpretationService
 {
+    internal const int MaximumStructuredOutputTokenCount = 1024;
+
     private static readonly UTF8Encoding StrictUtf8 =
         new(
             encoderShouldEmitUTF8Identifier: false,
@@ -101,6 +103,7 @@ public sealed class VeteransBoundedEvidenceInterpretationService
             Requirement requirement,
             ArtifactId sourceArtifactId,
             IntelligenceExecutionContext context,
+            ArtifactId? boundedArtifactId = null,
             CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(requirement);
@@ -113,6 +116,23 @@ public sealed class VeteransBoundedEvidenceInterpretationService
                 requirement.Id,
                 sourceArtifactId,
                 cancellationToken);
+
+        if (boundedArtifactId.HasValue)
+        {
+            evidence =
+                evidence
+                    .Where(item =>
+                        item.Artifact.Id == boundedArtifactId.Value)
+                    .ToArray();
+
+            if (evidence.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Bounded evidence artifact '{boundedArtifactId.Value.Value}' " +
+                    "was not selected for the requested claim, basis, " +
+                    "requirement, and source artifact.");
+            }
+        }
 
         if (evidence.Count == 0)
             return Array.Empty<
@@ -181,7 +201,8 @@ public sealed class VeteransBoundedEvidenceInterpretationService
                     new TextStructuredExtractionRequest(
                         text,
                         BuildInstruction(requirement, item),
-                        BuildJsonShape()),
+                        BuildJsonShape(),
+                        MaximumStructuredOutputTokenCount),
                     itemContext,
                     cancellationToken);
 
