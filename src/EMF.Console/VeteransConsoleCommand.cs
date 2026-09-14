@@ -288,6 +288,31 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 8 &&
+            args[0] == "evidence" &&
+            args[1] == "bounded" &&
+            args[2] == "list")
+        {
+            var boundedDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(boundedDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {boundedDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunBoundedEvidenceListAsync(
+                boundedDatabasePath,
+                new ClaimIssueId(args[4]),
+                new ServiceConnectionBasisId(args[5]),
+                new RequirementId(args[6]),
+                new ArtifactId(args[7]),
+                global::System.Console.Out);
+        }
+
         if (args.Length == 6 &&
             args[0] == "evidence" &&
             args[1] == "recognition" &&
@@ -2242,6 +2267,66 @@ public static class VeteransConsoleCommand
         output.WriteLine($"Persisted           : {persisted}");
         output.WriteLine($"Existing            : {reused}");
         output.WriteLine($"Total               : {groups.Length}");
+
+        return 0;
+    }
+
+
+    internal static async Task<int>
+        RunBoundedEvidenceListAsync(
+            string databasePath,
+            ClaimIssueId claimIssueId,
+            ServiceConnectionBasisId basisId,
+            RequirementId requirementId,
+            ArtifactId sourceArtifactId,
+            TextWriter output)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        ArgumentNullException.ThrowIfNull(output);
+
+        var repository =
+            new SqliteEvidenceRepository(databasePath);
+
+        await repository.InitializeAsync();
+
+        var service =
+            new VeteransBoundedEvidenceSelectionService(repository);
+
+        var selections =
+            await service.GetAsync(
+                claimIssueId,
+                basisId,
+                requirementId,
+                sourceArtifactId);
+
+        output.WriteLine("Mode                : LOCAL SELECT");
+        output.WriteLine("Azure Intelligence  : NOT USED");
+        output.WriteLine($"Claim Issue         : {claimIssueId.Value}");
+        output.WriteLine($"Basis               : {basisId.Value}");
+        output.WriteLine($"Requirement         : {requirementId.Value}");
+        output.WriteLine($"Source Artifact     : {sourceArtifactId.Value}");
+        output.WriteLine($"Bounded Evidence    : {selections.Count}");
+        output.WriteLine();
+
+        foreach (var selection in selections)
+        {
+            await output.WriteLineAsync(
+                $"Artifact ID  : {selection.Artifact.Id.Value}");
+            await output.WriteLineAsync(
+                $"Evidence Date: {selection.EvidenceDate:yyyy-MM-dd}");
+            await output.WriteLineAsync(
+                $"Evidence Title: {ConsoleTextSanitizer.Sanitize(selection.EvidenceTitle)}");
+            await output.WriteLineAsync(
+                $"Source Pages : {selection.SourceStartPage}-{selection.SourceEndPage}");
+            await output.WriteLineAsync(
+                $"Record Lines : {selection.SourceStartLine}-{selection.SourceEndLine}");
+            await output.WriteLineAsync(
+                "Requirements : " +
+                string.Join(
+                    ", ",
+                    selection.RequirementIds.Select(id => id.Value)));
+            await output.WriteLineAsync();
+        }
 
         return 0;
     }
