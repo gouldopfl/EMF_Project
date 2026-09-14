@@ -35,6 +35,9 @@ public sealed class AzureOpenAIIntegrationTests
                     Endpoint = endpoint,
                     DeploymentName = deployment,
                     ProviderId = "azure.openai",
+                    LiveCallsEnabled = true,
+                    InputCostUsdPerMillionTokens = 0m,
+                    OutputCostUsdPerMillionTokens = 0m,
                     ManagedIdentityClientId =
                         Environment.GetEnvironmentVariable(
                             "EMF_AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID")

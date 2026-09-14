@@ -1,3 +1,4 @@
+using System.Globalization;
 using EMF.Intelligence.AzureOpenAI.Configuration;
 
 namespace EMF.ConsoleApplication;
@@ -22,6 +23,28 @@ internal static class AzureOpenAIConsoleOptionsFactory
                 "EMF_AZURE_OPENAI_MAX_RETRIES",
                 2);
 
+        var liveCallsEnabled =
+            ParseBoolean(
+                "EMF_AZURE_OPENAI_LIVE",
+                false);
+
+        var inputCost =
+            ParseOptionalDecimal(
+                "EMF_AZURE_OPENAI_INPUT_COST_USD_PER_MILLION");
+
+        var outputCost =
+            ParseOptionalDecimal(
+                "EMF_AZURE_OPENAI_OUTPUT_COST_USD_PER_MILLION");
+
+        if (liveCallsEnabled &&
+            (!inputCost.HasValue || !outputCost.HasValue))
+        {
+            throw new InvalidOperationException(
+                "Live Azure OpenAI calls require both " +
+                "EMF_AZURE_OPENAI_INPUT_COST_USD_PER_MILLION " +
+                "and EMF_AZURE_OPENAI_OUTPUT_COST_USD_PER_MILLION.");
+        }
+
         return new AzureOpenAIOptions
         {
             Endpoint = endpoint,
@@ -35,7 +58,10 @@ internal static class AzureOpenAIConsoleOptionsFactory
                     "EMF_AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID"),
             RequestTimeout =
                 TimeSpan.FromSeconds(timeoutSeconds),
-            MaximumRetries = maximumRetries
+            MaximumRetries = maximumRetries,
+            LiveCallsEnabled = liveCallsEnabled,
+            InputCostUsdPerMillionTokens = inputCost,
+            OutputCostUsdPerMillionTokens = outputCost
         };
     }
 
@@ -67,6 +93,48 @@ internal static class AzureOpenAIConsoleOptionsFactory
         {
             throw new InvalidOperationException(
                 $"{name} must be an integer.");
+        }
+
+        return parsed;
+    }
+
+    private static bool ParseBoolean(
+        string name,
+        bool defaultValue)
+    {
+        var value =
+            Environment.GetEnvironmentVariable(name);
+
+        if (string.IsNullOrWhiteSpace(value))
+            return defaultValue;
+
+        if (!bool.TryParse(value, out var parsed))
+        {
+            throw new InvalidOperationException(
+                $"{name} must be true or false.");
+        }
+
+        return parsed;
+    }
+
+    private static decimal? ParseOptionalDecimal(
+        string name)
+    {
+        var value =
+            Environment.GetEnvironmentVariable(name);
+
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        if (!decimal.TryParse(
+                value,
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var parsed) ||
+            parsed < 0)
+        {
+            throw new InvalidOperationException(
+                $"{name} must be a nonnegative decimal.");
         }
 
         return parsed;

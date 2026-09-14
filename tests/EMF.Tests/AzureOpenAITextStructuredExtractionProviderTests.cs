@@ -190,4 +190,45 @@ public sealed class
             new ProtectionClassificationId("confidential"),
             Array.Empty<ArtifactId>());
 
+    [Fact]
+    public async Task ExecuteAsync_ExposesTokenTelemetry()
+    {
+        var client =
+            new RecordingAzureOpenAITextClient
+            {
+                Completion =
+                    new(
+                        """{"outcome":"Denied"}""",
+                        "gpt-test",
+                        "operation-telemetry",
+                        "Stop",
+                        InputTokenCount: 40,
+                        OutputTokenCount: 10,
+                        TotalTokenCount: 50)
+            };
+
+        var provider =
+            new AzureOpenAITextStructuredExtractionProvider(
+                client,
+                new AzureOpenAIOptions
+                {
+                    Endpoint =
+                        "https://example.openai.azure.com",
+                    DeploymentName = "extract-deployment",
+                    ProviderId = "azure.openai"
+                });
+
+        var result =
+            await provider.ExecuteAsync(
+                new TextStructuredExtractionRequest(
+                    "Decision text.",
+                    "Extract.",
+                    """{"outcome":"string"}"""),
+                TestContext());
+
+        Assert.Equal(40, result.Metadata.InputTokenCount);
+        Assert.Equal(10, result.Metadata.OutputTokenCount);
+        Assert.Equal(50, result.Metadata.TotalTokenCount);
+    }
+
 }

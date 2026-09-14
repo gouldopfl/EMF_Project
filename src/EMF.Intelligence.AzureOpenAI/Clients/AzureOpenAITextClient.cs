@@ -10,7 +10,10 @@ namespace EMF.Intelligence.AzureOpenAI.Clients;
 internal sealed class AzureOpenAITextClient :
     IAzureOpenAITextClient
 {
-    private readonly ChatClient _chatClient;
+    private readonly ChatClient? _chatClient;
+    private readonly bool _liveCallsEnabled;
+    private readonly decimal? _inputCostUsdPerMillionTokens;
+    private readonly decimal? _outputCostUsdPerMillionTokens;
 
     public AzureOpenAITextClient(
         IAzureOpenAIClientFactory clientFactory,
@@ -19,6 +22,15 @@ internal sealed class AzureOpenAITextClient :
         ArgumentNullException.ThrowIfNull(
             clientFactory);
         AzureOpenAIOptionsValidator.Validate(options);
+
+        _liveCallsEnabled = options.LiveCallsEnabled;
+        _inputCostUsdPerMillionTokens =
+            options.InputCostUsdPerMillionTokens;
+        _outputCostUsdPerMillionTokens =
+            options.OutputCostUsdPerMillionTokens;
+
+        if (!_liveCallsEnabled)
+            return;
 
         _chatClient =
             clientFactory.CreateClient()
@@ -38,6 +50,18 @@ internal sealed class AzureOpenAITextClient :
             systemInstruction);
         ArgumentException.ThrowIfNullOrWhiteSpace(input);
 
+        if (!_liveCallsEnabled)
+        {
+            throw new InvalidOperationException(
+                "Azure OpenAI live calls are disabled. " +
+                "Explicitly enable live calls before invoking the provider.");
+        }
+
+        var chatClient =
+            _chatClient ??
+            throw new InvalidOperationException(
+                "Azure OpenAI client is not configured for live calls.");
+
         if (maximumOutputTokenCount is <= 0)
         {
             throw new ArgumentOutOfRangeException(
@@ -56,7 +80,7 @@ internal sealed class AzureOpenAITextClient :
         try
         {
             response =
-                await _chatClient.CompleteChatAsync(
+                await chatClient.CompleteChatAsync(
                     [
                         new SystemChatMessage(
                             systemInstruction),
@@ -121,12 +145,38 @@ internal sealed class AzureOpenAITextClient :
                 out operationId);
         }
 
+        var usage = completion.Usage;
+
+        var inputTokenCount =
+            usage?.InputTokenCount;
+
+        var outputTokenCount =
+            usage?.OutputTokenCount;
+
+        var totalTokenCount =
+            usage?.TotalTokenCount;
+
+        var estimatedCostUsd =
+            AzureOpenAICostEstimator.EstimateUsd(
+                inputTokenCount,
+                outputTokenCount,
+                _inputCostUsdPerMillionTokens,
+                _outputCostUsdPerMillionTokens);
+
         return new AzureOpenAITextCompletion(
             text,
             ModelVersion: completion.Model,
             ProviderOperationId: operationId,
             FinishReason:
-                completion.FinishReason.ToString());
+                completion.FinishReason.ToString(),
+            InputTokenCount: inputTokenCount,
+            OutputTokenCount: outputTokenCount,
+            TotalTokenCount: totalTokenCount,
+            InputCostUsdPerMillionTokens:
+                _inputCostUsdPerMillionTokens,
+            OutputCostUsdPerMillionTokens:
+                _outputCostUsdPerMillionTokens,
+            EstimatedCostUsd: estimatedCostUsd);
     }
 
     private static AzureOpenAIProviderException

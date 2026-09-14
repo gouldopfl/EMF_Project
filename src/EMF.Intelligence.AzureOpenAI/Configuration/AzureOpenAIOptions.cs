@@ -14,4 +14,10 @@ public sealed class AzureOpenAIOptions
         = TimeSpan.FromMinutes(2);
 
     public int MaximumRetries { get; init; } = 2;
+
+    public bool LiveCallsEnabled { get; init; }
+
+    public decimal? InputCostUsdPerMillionTokens { get; init; }
+
+    public decimal? OutputCostUsdPerMillionTokens { get; init; }
 }

@@ -51,6 +51,33 @@ internal static class AzureOpenAIOptionsValidator
             throw new ArgumentOutOfRangeException(
                 nameof(options));
         }
+
+        ValidateCostRates(options);
+    }
+
+    private static void ValidateCostRates(
+        AzureOpenAIOptions options)
+    {
+        var inputRate =
+            options.InputCostUsdPerMillionTokens;
+
+        var outputRate =
+            options.OutputCostUsdPerMillionTokens;
+
+        if (inputRate.HasValue != outputRate.HasValue)
+        {
+            throw new ArgumentException(
+                "Azure OpenAI input and output cost rates " +
+                "must be configured together.",
+                nameof(options));
+        }
+
+        if (inputRate is < 0 || outputRate is < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "Azure OpenAI cost rates cannot be negative.");
+        }
     }
 
     private static void ValidateManagedIdentityClientId(

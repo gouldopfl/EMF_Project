@@ -140,6 +140,94 @@ public sealed partial class IntelligenceCapabilityExecutorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_AuditsTokenAndCostTelemetry()
+    {
+        var capabilityId =
+            new IntelligenceCapabilityId(
+                "document-analysis");
+
+        var providerId =
+            new IntelligenceProviderId(
+                "provider-one");
+
+        var provider =
+            new TestProvider(
+                capabilityId,
+                providerId);
+
+        provider.Result =
+            new IntelligenceCapabilityResult<string>
+            {
+                Success = true,
+                Output = "result-content",
+                Metadata =
+                    new IntelligenceExecutionMetadata
+                    {
+                        CapabilityId = capabilityId,
+                        ProviderId = providerId,
+                        CorrelationId =
+                            new IntelligenceCorrelationId(
+                                "operation-001"),
+                        EngineName = "test-engine",
+                        InputTokenCount = 100,
+                        OutputTokenCount = 20,
+                        TotalTokenCount = 120,
+                        InputCostUsdPerMillionTokens = 2m,
+                        OutputCostUsdPerMillionTokens = 8m,
+                        EstimatedCostUsd = 0.00036m,
+                        StartedUtc = DateTimeOffset.UtcNow,
+                        CompletedUtc = DateTimeOffset.UtcNow
+                    }
+            };
+
+        var context = CreateContext();
+
+        var router =
+            new IntelligenceCapabilityProviderRouter<
+                string,
+                string>(
+                [provider],
+                new ConfiguredIntelligenceProviderRoutingPolicy(
+                    [
+                        new IntelligenceProviderRoutingGrant(
+                            providerId,
+                            capabilityId,
+                            context.ProtectionClassificationId)
+                    ]));
+
+        var auditSink = new RecordingAuditSink();
+
+        var executor =
+            new IntelligenceCapabilityExecutor<
+                string,
+                string>(
+                router,
+                new RecordingAuthorizationPolicy(),
+                auditSink);
+
+        await executor.ExecuteAsync(
+            capabilityId,
+            "request-content",
+            context);
+
+        var audit = Assert.Single(auditSink.Records);
+
+        Assert.Equal("1", audit.Facts["modelCallCount"]);
+        Assert.Equal("100", audit.Facts["inputTokenCount"]);
+        Assert.Equal("20", audit.Facts["outputTokenCount"]);
+        Assert.Equal("120", audit.Facts["totalTokenCount"]);
+        Assert.Equal(
+            "2",
+            audit.Facts["inputCostUsdPerMillionTokens"]);
+        Assert.Equal(
+            "8",
+            audit.Facts["outputCostUsdPerMillionTokens"]);
+        Assert.Equal(
+            "0.00036",
+            audit.Facts["estimatedCostUsd"]);
+    }
+
+    [Fact]
     public async Task
         ExecuteAsync_DoesNotFallbackAfterSelectedProviderFailure()
     {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
 using EMF.Security.Auditing;
@@ -73,6 +74,43 @@ internal sealed class IntelligenceCapabilityAuditWriter
             {
                 facts["providerOperationId"] =
                     metadata.ProviderOperationId;
+            }
+
+            if (metadata.InputTokenCount.HasValue &&
+                metadata.OutputTokenCount.HasValue &&
+                metadata.TotalTokenCount.HasValue)
+            {
+                facts["modelCallCount"] = "1";
+                facts["inputTokenCount"] =
+                    metadata.InputTokenCount.Value.ToString(
+                        CultureInfo.InvariantCulture);
+                facts["outputTokenCount"] =
+                    metadata.OutputTokenCount.Value.ToString(
+                        CultureInfo.InvariantCulture);
+                facts["totalTokenCount"] =
+                    metadata.TotalTokenCount.Value.ToString(
+                        CultureInfo.InvariantCulture);
+            }
+
+            if (metadata.InputCostUsdPerMillionTokens.HasValue &&
+                metadata.OutputCostUsdPerMillionTokens.HasValue)
+            {
+                facts["inputCostUsdPerMillionTokens"] =
+                    metadata.InputCostUsdPerMillionTokens.Value.ToString(
+                        "G29",
+                        CultureInfo.InvariantCulture);
+                facts["outputCostUsdPerMillionTokens"] =
+                    metadata.OutputCostUsdPerMillionTokens.Value.ToString(
+                        "G29",
+                        CultureInfo.InvariantCulture);
+            }
+
+            if (metadata.EstimatedCostUsd.HasValue)
+            {
+                facts["estimatedCostUsd"] =
+                    metadata.EstimatedCostUsd.Value.ToString(
+                        "G29",
+                        CultureInfo.InvariantCulture);
             }
         }
 

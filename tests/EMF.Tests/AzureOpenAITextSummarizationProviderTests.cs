@@ -236,4 +236,62 @@ public sealed class
         Assert.Null(client.SystemInstruction);
         Assert.Null(client.Input);
     }
+    [Fact]
+    public async Task ExecuteAsync_ExposesTokenAndCostTelemetry()
+    {
+        var client =
+            new RecordingAzureOpenAITextClient
+            {
+                Completion =
+                    new(
+                        "summary",
+                        "gpt-test",
+                        "operation-telemetry",
+                        "Stop",
+                        InputTokenCount: 100,
+                        OutputTokenCount: 20,
+                        TotalTokenCount: 120,
+                        InputCostUsdPerMillionTokens: 2m,
+                        OutputCostUsdPerMillionTokens: 8m,
+                        EstimatedCostUsd: 0.00036m)
+            };
+
+        var provider =
+            new AzureOpenAITextSummarizationProvider(
+                client,
+                new AzureOpenAIOptions
+                {
+                    Endpoint =
+                        "https://example.openai.azure.com",
+                    DeploymentName = "summary-deployment",
+                    ProviderId = "azure.openai"
+                });
+
+        var result =
+            await provider.ExecuteAsync(
+                new TextSummarizationRequest(
+                    "Source evidence text.",
+                    100),
+                new IntelligenceExecutionContext(
+                    "security-steward",
+                    new IntelligenceCorrelationId(
+                        "operation-telemetry"),
+                    new ProtectionClassificationId(
+                        "confidential"),
+                    []));
+
+        Assert.Equal(100, result.Metadata.InputTokenCount);
+        Assert.Equal(20, result.Metadata.OutputTokenCount);
+        Assert.Equal(120, result.Metadata.TotalTokenCount);
+        Assert.Equal(
+            2m,
+            result.Metadata.InputCostUsdPerMillionTokens);
+        Assert.Equal(
+            8m,
+            result.Metadata.OutputCostUsdPerMillionTokens);
+        Assert.Equal(
+            0.00036m,
+            result.Metadata.EstimatedCostUsd);
+    }
+
 }

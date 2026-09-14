@@ -98,4 +98,41 @@ public sealed class AzureOpenAIOptionsTests
             () => new AzureOpenAIClientFactory(
                 options));
     }
+    [Fact]
+    public void Factory_RequiresCostRatesAsPair()
+    {
+        var options =
+            new AzureOpenAIOptions
+            {
+                Endpoint =
+                    "https://example.openai.azure.com",
+                DeploymentName = "test-deployment",
+                ProviderId = "azure.openai",
+                InputCostUsdPerMillionTokens = 2m
+            };
+
+        Assert.Throws<ArgumentException>(
+            () => new AzureOpenAIClientFactory(
+                options));
+    }
+
+    [Fact]
+    public void Factory_RejectsNegativeCostRates()
+    {
+        var options =
+            new AzureOpenAIOptions
+            {
+                Endpoint =
+                    "https://example.openai.azure.com",
+                DeploymentName = "test-deployment",
+                ProviderId = "azure.openai",
+                InputCostUsdPerMillionTokens = -1m,
+                OutputCostUsdPerMillionTokens = 2m
+            };
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new AzureOpenAIClientFactory(
+                options));
+    }
+
 }

@@ -127,6 +127,18 @@ public sealed class
                         completion.ModelVersion,
                     ProviderOperationId =
                         completion.ProviderOperationId,
+                    InputTokenCount =
+                        completion.InputTokenCount,
+                    OutputTokenCount =
+                        completion.OutputTokenCount,
+                    TotalTokenCount =
+                        completion.TotalTokenCount,
+                    InputCostUsdPerMillionTokens =
+                        completion.InputCostUsdPerMillionTokens,
+                    OutputCostUsdPerMillionTokens =
+                        completion.OutputCostUsdPerMillionTokens,
+                    EstimatedCostUsd =
+                        completion.EstimatedCostUsd,
                     StartedUtc = startedUtc,
                     CompletedUtc =
                         DateTimeOffset.UtcNow

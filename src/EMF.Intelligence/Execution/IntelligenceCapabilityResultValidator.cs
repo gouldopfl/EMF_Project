@@ -55,9 +55,61 @@ internal static class
             Fail("The result execution timestamps are invalid.");
         }
 
+        ValidateUsage(metadata);
+
         if (result.Success && result.Output is null)
         {
             Fail("A successful result must contain output.");
+        }
+    }
+
+    private static void ValidateUsage(
+        IntelligenceExecutionMetadata metadata)
+    {
+        var hasInput = metadata.InputTokenCount.HasValue;
+        var hasOutput = metadata.OutputTokenCount.HasValue;
+        var hasTotal = metadata.TotalTokenCount.HasValue;
+
+        if (hasInput || hasOutput || hasTotal)
+        {
+            if (!hasInput || !hasOutput || !hasTotal)
+            {
+                Fail("Token usage metadata must be complete.");
+            }
+
+            if (metadata.InputTokenCount < 0 ||
+                metadata.OutputTokenCount < 0 ||
+                metadata.TotalTokenCount < 0 ||
+                metadata.TotalTokenCount !=
+                    metadata.InputTokenCount +
+                    metadata.OutputTokenCount)
+            {
+                Fail("Token usage metadata is invalid.");
+            }
+        }
+
+        var hasInputRate =
+            metadata.InputCostUsdPerMillionTokens.HasValue;
+        var hasOutputRate =
+            metadata.OutputCostUsdPerMillionTokens.HasValue;
+
+        if (hasInputRate != hasOutputRate)
+        {
+            Fail("Cost-rate metadata must be complete.");
+        }
+
+        if (metadata.InputCostUsdPerMillionTokens is < 0 ||
+            metadata.OutputCostUsdPerMillionTokens is < 0 ||
+            metadata.EstimatedCostUsd is < 0)
+        {
+            Fail("Cost metadata cannot be negative.");
+        }
+
+        if (metadata.EstimatedCostUsd.HasValue &&
+            (!hasInput || !hasOutput ||
+             !hasInputRate || !hasOutputRate))
+        {
+            Fail("Estimated cost requires token usage and cost rates.");
         }
     }
 
