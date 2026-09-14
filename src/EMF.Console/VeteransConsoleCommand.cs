@@ -313,6 +313,85 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        var supersedeBoundedReview =
+            args.Length == 12 &&
+            args[0] == "evidence" &&
+            args[1] == "bounded" &&
+            args[2] == "review" &&
+            args[3] == "--supersede";
+
+        if ((args.Length == 10 || supersedeBoundedReview) &&
+            args[0] == "evidence" &&
+            args[1] == "bounded" &&
+            args[2] == "review")
+        {
+            var reviewArgOffset = supersedeBoundedReview ? 2 : 0;
+            var supersedesCorrelationId =
+                supersedeBoundedReview ? args[4] : null;
+            var boundedReviewDatabasePath =
+                Path.GetFullPath(args[3 + reviewArgOffset]);
+            var auditDatabasePath =
+                Path.GetFullPath(args[4 + reviewArgOffset]);
+            var receiptPath =
+                Path.GetFullPath(args[9 + reviewArgOffset]);
+
+            if (!File.Exists(boundedReviewDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {boundedReviewDatabasePath}");
+                return 2;
+            }
+
+            if (!File.Exists(auditDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Intelligence audit database not found: {auditDatabasePath}");
+                return 2;
+            }
+
+            if (!File.Exists(receiptPath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Interpretation receipt not found: {receiptPath}");
+                return 2;
+            }
+
+            return await VeteransBoundedEvidenceReviewConsoleService.ReviewAsync(
+                boundedReviewDatabasePath,
+                auditDatabasePath,
+                new ClaimIssueId(args[5 + reviewArgOffset]),
+                new ServiceConnectionBasisId(args[6 + reviewArgOffset]),
+                new RequirementId(args[7 + reviewArgOffset]),
+                new ArtifactId(args[8 + reviewArgOffset]),
+                receiptPath,
+                contentStoreFactory(),
+                Environment.GetEnvironmentVariable("EMF_REVIEWED_BY"),
+                global::System.Console.Out,
+                supersedesCorrelationId);
+        }
+
+        if (args.Length == 6 &&
+            args[0] == "evidence" &&
+            args[1] == "bounded" &&
+            args[2] == "reviewed")
+        {
+            var boundedReviewDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(boundedReviewDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {boundedReviewDatabasePath}");
+                return 2;
+            }
+
+            return await VeteransBoundedEvidenceReviewConsoleService.ListAsync(
+                boundedReviewDatabasePath,
+                args[4],
+                args[5],
+                global::System.Console.Out);
+        }
+
         if ((args.Length == 8 || args.Length == 9) &&
             args[0] == "evidence" &&
             args[1] == "bounded" &&
