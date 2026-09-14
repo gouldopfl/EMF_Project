@@ -4,6 +4,11 @@ public static class VeteransArtifactMetadataKeys
 {
     public const string SourceStartPage = "sourceStartPage";
     public const string SourceEndPage = "sourceEndPage";
+    public const string SourceStartLine = "sourceStartLine";
+    public const string SourceEndLine = "sourceEndLine";
+    public const string ClaimIssueId = "claimIssueId";
+    public const string ServiceConnectionBasisId = "serviceConnectionBasisId";
+    public const string RequirementIds = "requirementIds";
     public const string NoteDate = "noteDate";
     public const string NoteTitle = "noteTitle";
     public const string EvidenceDate = "evidenceDate";

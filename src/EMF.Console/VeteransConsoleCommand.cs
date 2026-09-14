@@ -252,6 +252,42 @@ public static class VeteransConsoleCommand
                 qualifiedOutputPath);
         }
 
+        if (args.Length == 7 &&
+            args[0] == "evidence" &&
+            args[1] == "recognition" &&
+            args[2] == "persist")
+        {
+            var persistenceDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(persistenceDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {persistenceDatabasePath}");
+
+                return 2;
+            }
+
+            var persistenceSnapshotPath =
+                Path.GetFullPath(args[4]);
+
+            if (!File.Exists(persistenceSnapshotPath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Recognition replay snapshot not found: {persistenceSnapshotPath}");
+
+                return 2;
+            }
+
+            return await RunEvidenceRecognitionPersistAsync(
+                persistenceDatabasePath,
+                persistenceSnapshotPath,
+                new ClaimIssueId(args[5]),
+                new ArtifactId(args[6]),
+                contentStoreFactory(),
+                global::System.Console.Out);
+        }
+
         if (args.Length == 6 &&
             args[0] == "evidence" &&
             args[1] == "recognition" &&
@@ -2015,6 +2051,200 @@ public static class VeteransConsoleCommand
         }
     }
 
+
+
+    internal static async Task<int>
+        RunEvidenceRecognitionPersistAsync(
+            string databasePath,
+            string snapshotPath,
+            ClaimIssueId claimIssueId,
+            ArtifactId blueButtonArtifactId,
+            IArtifactContentStore? contentStore,
+            TextWriter output)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(snapshotPath);
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (contentStore is null)
+        {
+            global::System.Console.Error.WriteLine(
+                "Artifact content store is not configured.");
+            return 2;
+        }
+
+        var contexts =
+            new EvidenceRecognitionTermReplaySnapshotParser().Parse(
+                await File.ReadAllTextAsync(snapshotPath));
+
+#pragma warning disable CA1416
+        var extractor =
+            new PdfArtifactTextExtractionProvider(
+                contentStore,
+                new PdfToImagePageRenderer(),
+                new PaddleImageOcrService());
+#pragma warning restore CA1416
+
+        var pages =
+            await extractor.ExtractPagesAsync(
+                blueButtonArtifactId);
+
+        if (pages is null || pages.Count == 0)
+        {
+            global::System.Console.Error.WriteLine(
+                "Blue Button artifact contains no extractable PDF pages.");
+            return 1;
+        }
+
+        var records =
+            new VeteransBlueButtonCareSummaryParser().Parse(pages);
+
+        var auditService =
+            new EvidenceRecognitionTermProposalAuditService();
+
+        var qualifiedWindows =
+            new List<(
+                ServiceConnectionBasisId BasisId,
+                RequirementId RequirementId,
+                EvidenceRecognitionTermProposalAuditWindow Window)>();
+
+        foreach (var context in contexts)
+        {
+            var audit =
+                auditService.Audit(
+                    context.Proposals,
+                    records);
+
+            foreach (var window in audit.QualifiedWindows)
+            {
+                qualifiedWindows.Add(
+                    (
+                        context.BasisId,
+                        context.RequirementId,
+                        window));
+            }
+        }
+
+        var groups =
+            qualifiedWindows
+                .GroupBy(item =>
+                    (
+                        BasisId: item.BasisId.Value,
+                        item.Window.RecordIndex,
+                        item.Window.StartLineNumber,
+                        item.Window.EndLineNumber))
+                .OrderBy(group => group.Key.BasisId, StringComparer.Ordinal)
+                .ThenBy(group => group.Key.RecordIndex)
+                .ThenBy(group => group.Key.StartLineNumber)
+                .ThenBy(group => group.Key.EndLineNumber)
+                .ToArray();
+
+        var repository =
+            new SqliteEvidenceRepository(databasePath);
+
+        await repository.InitializeAsync();
+
+        var service =
+            new VeteransBoundedEvidenceDerivationService(
+                repository,
+                contentStore,
+                new Sha256ContentFingerprintService(),
+                new GuidArtifactIdGenerator(),
+                new ArtifactFactory());
+
+        output.WriteLine("Mode                : LOCAL PERSIST");
+        output.WriteLine("Azure Intelligence  : NOT USED");
+        output.WriteLine($"Blue Button Pages   : {pages.Count}");
+        output.WriteLine($"Care Summary Records: {records.Count}");
+        output.WriteLine($"Qualified Windows   : {groups.Length}");
+        output.WriteLine();
+
+        var persisted = 0;
+        var reused = 0;
+
+        foreach (var group in groups)
+        {
+            var first = group.First();
+            var window = first.Window;
+
+            if (!DateOnly.TryParseExact(
+                    window.DateEntered,
+                    "MMMM d, yyyy",
+                    global::System.Globalization.CultureInfo.InvariantCulture,
+                    global::System.Globalization.DateTimeStyles.None,
+                    out var evidenceDate))
+            {
+                throw new InvalidDataException(
+                    $"Qualified evidence date '{window.DateEntered}' is invalid.");
+            }
+
+            var requirements =
+                group
+                    .Select(item => item.RequirementId)
+                    .Distinct()
+                    .OrderBy(id => id.Value, StringComparer.Ordinal)
+                    .ToArray();
+
+            var bytes =
+                global::System.Text.Encoding.UTF8.GetBytes(
+                    window.Text);
+
+            VeteransBoundedEvidenceDerivationResult result;
+
+            try
+            {
+                result =
+                    await service.DeriveAsync(
+                        blueButtonArtifactId,
+                        claimIssueId,
+                        first.BasisId,
+                        requirements,
+                        window.SourceStartPage,
+                        window.SourceEndPage,
+                        window.StartLineNumber,
+                        window.EndLineNumber,
+                        evidenceDate,
+                        window.Title,
+                        bytes);
+            }
+            finally
+            {
+                global::System.Security.Cryptography
+                    .CryptographicOperations.ZeroMemory(bytes);
+            }
+
+            if (result.AlreadyExisted)
+                reused++;
+            else
+                persisted++;
+
+            await output.WriteLineAsync(
+                $"Artifact ID  : {result.Artifact.Id.Value}");
+            await output.WriteLineAsync(
+                $"Status       : {(result.AlreadyExisted ? "Existing" : "Persisted")}");
+            await output.WriteLineAsync(
+                $"Basis        : {first.BasisId.Value}");
+            await output.WriteLineAsync(
+                "Requirements : " +
+                string.Join(", ", requirements.Select(id => id.Value)));
+            await output.WriteLineAsync(
+                $"Source Pages : {window.SourceStartPage}-{window.SourceEndPage}");
+            await output.WriteLineAsync(
+                $"Record Lines : {window.StartLineNumber}-{window.EndLineNumber}");
+            await output.WriteLineAsync(
+                $"Evidence Date: {evidenceDate:yyyy-MM-dd}");
+            await output.WriteLineAsync(
+                $"Evidence Title: {ConsoleTextSanitizer.Sanitize(window.Title)}");
+            await output.WriteLineAsync();
+        }
+
+        output.WriteLine("===== PERSISTENCE SUMMARY =====");
+        output.WriteLine($"Persisted           : {persisted}");
+        output.WriteLine($"Existing            : {reused}");
+        output.WriteLine($"Total               : {groups.Length}");
+
+        return 0;
+    }
 
 
     internal static async Task<int>
