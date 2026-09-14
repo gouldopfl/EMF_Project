@@ -199,6 +199,77 @@ public sealed class SqliteMedicalLiteratureRepository :
         return results;
     }
 
+    public async Task<IReadOnlyList<RequirementMedicalLiterature>>
+        GetActiveRequirementMedicalLiteratureAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT association.RequirementId,
+                   association.MedicalLiteratureSourceId,
+                   association.GuidanceRole,
+                   association.Description
+            FROM VeteransClaims_RequirementMedicalLiterature AS association
+            WHERE association.RequirementId = $requirement
+              AND (
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
+                             AS reviewed
+                        WHERE reviewed.RequirementId =
+                                  association.RequirementId
+                          AND reviewed.MedicalLiteratureSourceId =
+                                  association.MedicalLiteratureSourceId
+                          AND reviewed.GuidanceRole =
+                                  association.GuidanceRole
+                    )
+                    OR EXISTS (
+                        SELECT 1
+                        FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
+                             AS reviewed
+                        WHERE reviewed.RequirementId =
+                                  association.RequirementId
+                          AND reviewed.MedicalLiteratureSourceId =
+                                  association.MedicalLiteratureSourceId
+                          AND reviewed.GuidanceRole =
+                                  association.GuidanceRole
+                          AND reviewed.SupersededUtc IS NULL
+                    )
+                  )
+            ORDER BY association.MedicalLiteratureSourceId,
+                     association.GuidanceRole;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$requirement",
+            requirementId.Value);
+
+        var results = new List<RequirementMedicalLiterature>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(
+                new RequirementMedicalLiterature
+                {
+                    RequirementId =
+                        new RequirementId(reader.GetString(0)),
+                    MedicalLiteratureSourceId =
+                        new MedicalLiteratureSourceId(
+                            reader.GetString(1)),
+                    GuidanceRole = reader.GetString(2),
+                    Description = reader.GetString(3)
+                });
+        }
+
+        return results;
+    }
+
 
     public async Task AddMedicalLiteratureSourceArtifactAsync(
         MedicalLiteratureSourceArtifact association,
@@ -486,6 +557,220 @@ public sealed class SqliteMedicalLiteratureRepository :
                 classification,
                 cancellationToken);
         }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task SupersedeReviewedClassificationAsync(
+        string supersededCorrelationId,
+        ReviewedMedicalLiteratureClassification classification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            supersededCorrelationId);
+        ArgumentNullException.ThrowIfNull(classification);
+        ValidateReviewedClassification(classification);
+
+        if (string.Equals(
+                supersededCorrelationId,
+                classification.CorrelationId,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "A reviewed medical literature classification cannot supersede itself.");
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqliteTransaction)
+            await connection.BeginTransactionAsync(cancellationToken);
+
+        string? originalRequirementId = null;
+        string? originalSourceId = null;
+        string? originalGuidanceRole = null;
+        string? originalArtifactId = null;
+        var originalCount = 0;
+
+        await using (var lookup = connection.CreateCommand())
+        {
+            lookup.Transaction = transaction;
+            lookup.CommandText = """
+                SELECT RequirementId, MedicalLiteratureSourceId,
+                       GuidanceRole, ArtifactId
+                FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
+                WHERE CorrelationId = $correlation
+                  AND SupersededUtc IS NULL;
+                """;
+            lookup.Parameters.AddWithValue(
+                "$correlation",
+                supersededCorrelationId);
+
+            await using var reader =
+                await lookup.ExecuteReaderAsync(cancellationToken);
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                originalCount++;
+                originalRequirementId = reader.GetString(0);
+                originalSourceId = reader.GetString(1);
+                originalGuidanceRole = reader.GetString(2);
+                originalArtifactId = reader.GetString(3);
+            }
+        }
+
+        if (originalCount == 0)
+            throw new InvalidOperationException(
+                "The reviewed medical literature correlation to supersede is not active.");
+
+        if (originalCount != 1)
+            throw new InvalidOperationException(
+                "Human review supersession requires exactly one active reviewed medical literature decision.");
+
+        var replacement = classification.Association;
+
+        if (!string.Equals(
+                originalRequirementId,
+                replacement.RequirementId.Value,
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                originalSourceId,
+                replacement.MedicalLiteratureSourceId.Value,
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                originalArtifactId,
+                classification.ArtifactId.Value,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Human review supersession must preserve the requirement, source, and artifact identity.");
+        }
+
+        await using (var association = connection.CreateCommand())
+        {
+            association.Transaction = transaction;
+            association.CommandText = """
+                SELECT Description
+                FROM VeteransClaims_RequirementMedicalLiterature
+                WHERE RequirementId = $requirement
+                  AND MedicalLiteratureSourceId = $source
+                  AND GuidanceRole = $role;
+                """;
+            association.Parameters.AddWithValue(
+                "$requirement",
+                replacement.RequirementId.Value);
+            association.Parameters.AddWithValue(
+                "$source",
+                replacement.MedicalLiteratureSourceId.Value);
+            association.Parameters.AddWithValue(
+                "$role",
+                replacement.GuidanceRole);
+
+            var existing =
+                await association.ExecuteScalarAsync(cancellationToken);
+
+            if (existing is string)
+            {
+                await using var update = connection.CreateCommand();
+                update.Transaction = transaction;
+                update.CommandText = """
+                    UPDATE VeteransClaims_RequirementMedicalLiterature
+                    SET Description = $description
+                    WHERE RequirementId = $requirement
+                      AND MedicalLiteratureSourceId = $source
+                      AND GuidanceRole = $role;
+                    """;
+                update.Parameters.AddWithValue(
+                    "$description",
+                    replacement.Description);
+                update.Parameters.AddWithValue(
+                    "$requirement",
+                    replacement.RequirementId.Value);
+                update.Parameters.AddWithValue(
+                    "$source",
+                    replacement.MedicalLiteratureSourceId.Value);
+                update.Parameters.AddWithValue(
+                    "$role",
+                    replacement.GuidanceRole);
+
+                if (await update.ExecuteNonQueryAsync(
+                        cancellationToken) != 1)
+                {
+                    throw new InvalidOperationException(
+                        "The replacement medical literature association changed unexpectedly.");
+                }
+            }
+            else
+            {
+                await using var insert = connection.CreateCommand();
+                insert.Transaction = transaction;
+                insert.CommandText = """
+                    INSERT INTO VeteransClaims_RequirementMedicalLiterature
+                    (RequirementId, MedicalLiteratureSourceId,
+                     GuidanceRole, Description)
+                    VALUES ($requirement, $source, $role, $description);
+                    """;
+                insert.Parameters.AddWithValue(
+                    "$requirement",
+                    replacement.RequirementId.Value);
+                insert.Parameters.AddWithValue(
+                    "$source",
+                    replacement.MedicalLiteratureSourceId.Value);
+                insert.Parameters.AddWithValue(
+                    "$role",
+                    replacement.GuidanceRole);
+                insert.Parameters.AddWithValue(
+                    "$description",
+                    replacement.Description);
+                await insert.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
+
+        await using (var supersede = connection.CreateCommand())
+        {
+            supersede.Transaction = transaction;
+            supersede.CommandText = """
+                UPDATE VeteransClaims_ReviewedMedicalLiteratureClassifications
+                SET SupersededByCorrelationId = $replacement,
+                    SupersededUtc = $supersededUtc
+                WHERE RequirementId = $requirement
+                  AND MedicalLiteratureSourceId = $source
+                  AND GuidanceRole = $role
+                  AND ArtifactId = $artifact
+                  AND CorrelationId = $superseded
+                  AND SupersededUtc IS NULL;
+                """;
+            supersede.Parameters.AddWithValue(
+                "$replacement",
+                classification.CorrelationId);
+            supersede.Parameters.AddWithValue(
+                "$supersededUtc",
+                classification.PromotedUtc.ToString("O"));
+            supersede.Parameters.AddWithValue(
+                "$requirement",
+                originalRequirementId!);
+            supersede.Parameters.AddWithValue(
+                "$source",
+                originalSourceId!);
+            supersede.Parameters.AddWithValue(
+                "$role",
+                originalGuidanceRole!);
+            supersede.Parameters.AddWithValue(
+                "$artifact",
+                originalArtifactId!);
+            supersede.Parameters.AddWithValue(
+                "$superseded",
+                supersededCorrelationId);
+
+            if (await supersede.ExecuteNonQueryAsync(cancellationToken) != 1)
+                throw new InvalidOperationException(
+                    "The active reviewed medical literature decision changed unexpectedly.");
+        }
+
+        await AddReviewedClassificationAsync(
+            connection,
+            transaction,
+            classification,
+            cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
     }

@@ -843,6 +843,63 @@ public static class VeteransConsoleCommand
         }
 
 
+        if (args.Length >= 12 &&
+            args[0] == "evidence" &&
+            args[1] == "literature" &&
+            args[2] == "review" &&
+            args[3] == "--supersede")
+        {
+            var reviewedBy =
+                Environment.GetEnvironmentVariable("EMF_REVIEWED_BY");
+
+            if (string.IsNullOrWhiteSpace(reviewedBy))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Medical literature human review requires review. " +
+                    "Set EMF_REVIEWED_BY to the reviewer identity.");
+                return 1;
+            }
+
+            var literatureReviewDatabasePath =
+                Path.GetFullPath(args[5]);
+
+            if (!File.Exists(literatureReviewDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {literatureReviewDatabasePath}");
+                return 2;
+            }
+
+            var excerptOrdinals = new List<int>();
+
+            foreach (var value in args[11..])
+            {
+                if (!int.TryParse(value, out var ordinal) ||
+                    ordinal < 0)
+                {
+                    global::System.Console.Error.WriteLine(
+                        $"Invalid reviewed literature excerpt ordinal: {value}");
+                    return 1;
+                }
+
+                excerptOrdinals.Add(ordinal);
+            }
+
+            return await MedicalLiteratureConsoleCommand
+                .RunReviewSupersedeAsync(
+                    literatureReviewDatabasePath,
+                    new MedicalLiteratureSourceId(args[6]),
+                    new ArtifactId(args[7]),
+                    new RequirementId(args[8]),
+                    args[4],
+                    args[9],
+                    args[10],
+                    excerptOrdinals,
+                    reviewedBy,
+                    global::System.Console.Out);
+        }
+
+
         var supersedeLiteratureClassification =
             args.Length >= 9 &&
             args[0] == "evidence" &&
@@ -5578,6 +5635,12 @@ public static class VeteransConsoleCommand
             "       emf veterans evidence literature classify " +
             "[--promote] <database-path> <literature-id> <artifact-id> " +
             "<requirement-id> [<requirement-id> ...]");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence literature review --supersede " +
+            "<correlation-id> <database-path> <literature-id> <artifact-id> " +
+            "<requirement-id> <role> <description> <excerpt-ordinal> " +
+            "[<excerpt-ordinal> ...]");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence literature artifact " +

@@ -24,6 +24,12 @@ public interface IMedicalLiteratureRepository
             RequirementId requirementId,
             CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<RequirementMedicalLiterature>>
+        GetActiveRequirementMedicalLiteratureAsync(
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default) =>
+        GetRequirementMedicalLiteratureAsync(requirementId, cancellationToken);
+
     Task AddMedicalLiteratureSourceArtifactAsync(
         MedicalLiteratureSourceArtifact association,
         CancellationToken cancellationToken = default) =>
@@ -55,6 +61,12 @@ public interface IMedicalLiteratureRepository
         string supersededCorrelationId,
         IReadOnlyList<ReviewedMedicalLiteratureClassification>
             classifications,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task SupersedeReviewedClassificationAsync(
+        string supersededCorrelationId,
+        ReviewedMedicalLiteratureClassification classification,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 

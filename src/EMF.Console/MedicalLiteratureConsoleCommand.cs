@@ -185,6 +185,182 @@ internal static class MedicalLiteratureConsoleCommand
     }
 
 
+    internal static async Task<int> RunReviewSupersedeAsync(
+        string databasePath,
+        MedicalLiteratureSourceId sourceId,
+        ArtifactId artifactId,
+        RequirementId requirementId,
+        string supersededCorrelationId,
+        string guidanceRole,
+        string description,
+        IReadOnlyList<int> excerptOrdinals,
+        string? reviewedBy,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(excerptOrdinals);
+        ArgumentNullException.ThrowIfNull(output);
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(reviewedBy))
+                throw new InvalidOperationException(
+                    "Medical literature human review requires review. " +
+                    "Set EMF_REVIEWED_BY to the reviewer identity.");
+
+            if (guidanceRole is not (
+                EvidenceGuidanceRoles.SupportsRequirement or
+                EvidenceGuidanceRoles.EstablishesElement or
+                EvidenceGuidanceRoles.Corroborates or
+                EvidenceGuidanceRoles.Clarifies))
+            {
+                throw new ArgumentException(
+                    $"Unsupported evidence guidance role '{guidanceRole}'.",
+                    nameof(guidanceRole));
+            }
+
+            if (string.IsNullOrWhiteSpace(description))
+                throw new ArgumentException(
+                    "A human-reviewed literature description is required.",
+                    nameof(description));
+
+            if (excerptOrdinals.Count == 0)
+                throw new ArgumentException(
+                    "At least one accepted excerpt ordinal is required.",
+                    nameof(excerptOrdinals));
+
+            if (excerptOrdinals.Any(ordinal => ordinal < 0) ||
+                excerptOrdinals.Distinct().Count() != excerptOrdinals.Count)
+            {
+                throw new ArgumentException(
+                    "Accepted excerpt ordinals must be unique non-negative integers.",
+                    nameof(excerptOrdinals));
+            }
+
+            var literature =
+                new SqliteMedicalLiteratureRepository(databasePath);
+            await literature.InitializeAsync();
+
+            var matches =
+                (await literature.GetReviewedClassificationsAsync(
+                    requirementId))
+                .Where(
+                    classification =>
+                        string.Equals(
+                            classification.CorrelationId,
+                            supersededCorrelationId,
+                            StringComparison.Ordinal) &&
+                        classification.Association
+                            .MedicalLiteratureSourceId == sourceId &&
+                        classification.ArtifactId == artifactId)
+                .ToArray();
+
+            if (matches.Length != 1)
+                throw new InvalidOperationException(
+                    "The active reviewed medical literature decision to supersede was not found uniquely.");
+
+            var original = matches[0];
+
+            if (excerptOrdinals.Any(
+                    ordinal =>
+                        ordinal >= original.SourceExcerpts.Count))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(excerptOrdinals),
+                    "An accepted excerpt ordinal exceeds the available reviewed excerpts.");
+            }
+
+            var acceptedOrdinals =
+                excerptOrdinals.OrderBy(ordinal => ordinal).ToArray();
+            var promotedUtc = DateTimeOffset.UtcNow;
+            var replacementCorrelationId =
+                $"veterans-literature-review-{Guid.NewGuid():N}";
+
+            var replacement =
+                new ReviewedMedicalLiteratureClassification
+                {
+                    Association = new RequirementMedicalLiterature
+                    {
+                        RequirementId = requirementId,
+                        MedicalLiteratureSourceId = sourceId,
+                        GuidanceRole = guidanceRole,
+                        Description = description
+                    },
+                    ArtifactId = artifactId,
+                    PromotedBy = reviewedBy!,
+                    PromotedUtc = promotedUtc,
+                    ReviewedBy = reviewedBy!,
+                    ReviewedUtc = promotedUtc,
+                    IntelligenceOutput =
+                        JsonSerializer.Serialize(
+                            new
+                            {
+                                ReviewType = "Human",
+                                SupersedesCorrelationId =
+                                    supersededCorrelationId,
+                                AcceptedExcerptOrdinals =
+                                    acceptedOrdinals
+                            }),
+                    CapabilityId = "human.review",
+                    ProviderId = "human",
+                    CorrelationId = replacementCorrelationId,
+                    EngineName = "human-review",
+                    StartedUtc = promotedUtc,
+                    CompletedUtc = promotedUtc,
+                    RequiresReview = false,
+                    Warnings = [],
+                    SourceExcerpts =
+                        acceptedOrdinals
+                            .Select(
+                                ordinal =>
+                                {
+                                    var excerpt =
+                                        original.SourceExcerpts[ordinal];
+                                    return new MedicalLiteratureSourceExcerpt
+                                    {
+                                        ArtifactId = excerpt.ArtifactId,
+                                        Text = excerpt.Text,
+                                        StartOffset = excerpt.StartOffset,
+                                        Length = excerpt.Length
+                                    };
+                                })
+                            .ToArray()
+                };
+
+            await literature.SupersedeReviewedClassificationAsync(
+                supersededCorrelationId,
+                replacement);
+
+            output.WriteLine(
+                $"Superseded    : {ConsoleTextSanitizer.Sanitize(supersededCorrelationId)}");
+            output.WriteLine(
+                $"Replacement   : {ConsoleTextSanitizer.Sanitize(replacementCorrelationId)}");
+            output.WriteLine($"Requirement   : {requirementId.Value}");
+            output.WriteLine(
+                $"Guidance Role : {ConsoleTextSanitizer.Sanitize(guidanceRole)}");
+            output.WriteLine(
+                $"Description   : {ConsoleTextSanitizer.Sanitize(description)}");
+            output.WriteLine(
+                $"Excerpts      : {string.Join(", ", acceptedOrdinals)}");
+            output.WriteLine(
+                $"Reviewed By   : {ConsoleTextSanitizer.Sanitize(reviewedBy!)}");
+
+            return 0;
+        }
+        catch (ArgumentException ex)
+        {
+            global::System.Console.Error.WriteLine(
+                ConsoleTextSanitizer.Sanitize(ex.Message));
+            return 1;
+        }
+        catch (InvalidOperationException ex)
+        {
+            global::System.Console.Error.WriteLine(
+                ConsoleTextSanitizer.Sanitize(ex.Message));
+            return 1;
+        }
+    }
+
+
     internal static async Task<int> RunClassifyAsync(
         string databasePath,
         MedicalLiteratureSourceId sourceId,

@@ -626,6 +626,39 @@ public sealed class MedicalLiteratureConsoleCommandTests
     }
 
     [Fact]
+    public async Task RunAsync_LiteratureReviewSupersedeRequiresReviewer()
+    {
+        var databasePath = Path.GetTempFileName();
+        var previous = Environment.GetEnvironmentVariable("EMF_REVIEWED_BY");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("EMF_REVIEWED_BY", null);
+
+            var exitCode = await VeteransConsoleCommand.RunAsync(
+                [
+                    "evidence", "literature", "review", "--supersede",
+                    "prior-correlation", databasePath, "source-1",
+                    "artifact-1", "requirement-1",
+                    EvidenceGuidanceRoles.Corroborates,
+                    "Human-reviewed relevance.", "0"
+                ],
+                () => Task.FromResult(
+                    Runtime(new RequirementId("requirement-1"))),
+                () => null);
+
+            Assert.Equal(1, exitCode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                previous);
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_LiteratureClassifyRejectsMissingDatabase()
     {
         var path = Path.Combine(
@@ -687,11 +720,7 @@ public sealed class MedicalLiteratureConsoleCommandTests
                         "requirementId": "{{requirementId.Value}}",
                         "guidanceRole": "SupportsRequirement",
                         "description": "Supports the candidate requirement.",
-                        "sourceExcerpts": [{
-                          "text": "PTSD was associated with OSA.",
-                          "startOffset": 0,
-                          "length": 29
-                        }]
+                        "sourceSegmentIds": ["S001"]
                       }]
                     }
                     """,
@@ -719,20 +748,12 @@ public sealed class MedicalLiteratureConsoleCommandTests
                         "requirementId": "{{requirementId.Value}}",
                         "guidanceRole": "SupportsRequirement",
                         "description": "Supports the candidate requirement.",
-                        "sourceExcerpts": [{
-                          "text": "PTSD was associated with OSA.",
-                          "startOffset": 0,
-                          "length": 29
-                        }]
+                        "sourceSegmentIds": ["S001"]
                       }, {
                         "requirementId": "{{requirementId.Value}}",
                         "guidanceRole": "Corroborates",
                         "description": "Corroborates the candidate requirement.",
-                        "sourceExcerpts": [{
-                          "text": "PTSD was associated with OSA.",
-                          "startOffset": 0,
-                          "length": 29
-                        }]
+                        "sourceSegmentIds": ["S001"]
                       }]
                     }
                     """,

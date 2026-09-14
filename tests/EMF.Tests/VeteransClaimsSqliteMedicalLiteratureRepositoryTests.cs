@@ -995,7 +995,7 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
     }
 
     [Fact]
-    public async Task ReviewedClassifications_SupersessionRejectsMismatchedDecisionSetWithoutChangingActiveReview()
+    public async Task ReviewedClassifications_HumanSupersessionCanCorrectGuidanceRole()
     {
         var path = Path.GetTempFileName();
 
@@ -1136,9 +1136,34 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
                 await literature.GetReviewedClassificationsAsync(
                     requirement.Id));
             Assert.Equal(original.CorrelationId, active.CorrelationId);
+
+            await literature.SupersedeReviewedClassificationAsync(
+                original.CorrelationId,
+                replacement);
+
+            active = Assert.Single(
+                await literature.GetReviewedClassificationsAsync(
+                    requirement.Id));
+            Assert.Equal(replacement.CorrelationId, active.CorrelationId);
             Assert.Equal(
-                original.Association.Description,
+                EvidenceGuidanceRoles.Corroborates,
+                active.Association.GuidanceRole);
+            Assert.Equal(
+                replacement.Association.Description,
                 active.Association.Description);
+
+            var allAssociations =
+                await literature.GetRequirementMedicalLiteratureAsync(
+                    requirement.Id);
+            Assert.Equal(2, allAssociations.Count);
+
+            var activeAssociations =
+                await literature.GetActiveRequirementMedicalLiteratureAsync(
+                    requirement.Id);
+            var activeAssociation = Assert.Single(activeAssociations);
+            Assert.Equal(
+                EvidenceGuidanceRoles.Corroborates,
+                activeAssociation.GuidanceRole);
         }
         finally
         {

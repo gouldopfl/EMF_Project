@@ -471,7 +471,7 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                 {
                     var literature =
                         await _medicalLiterature
-                            .GetRequirementMedicalLiteratureAsync(
+                            .GetActiveRequirementMedicalLiteratureAsync(
                                 requirement.Id,
                                 cancellationToken);
 

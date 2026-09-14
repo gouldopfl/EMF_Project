@@ -42,11 +42,19 @@ internal sealed class MedicalLiteratureClassificationService
         ArgumentNullException.ThrowIfNull(candidateRequirements);
         ArgumentNullException.ThrowIfNull(context);
 
+        var groundingSegments =
+            BuildGroundingSegments(text);
+
+        var segmentById =
+            groundingSegments.ToDictionary(
+                segment => segment.Id,
+                StringComparer.Ordinal);
+
         var result =
             await _executor.ExecuteAsync(
                 IntelligenceCapabilityIds.TextStructuredExtraction,
                 new TextStructuredExtractionRequest(
-                    text,
+                    BuildGroundedInput(groundingSegments),
                     BuildInstruction(source, candidateRequirements),
                     BuildJsonShape()),
                 context,
@@ -69,7 +77,7 @@ internal sealed class MedicalLiteratureClassificationService
                 "Structured literature classification returned no proposal.");
 
         var proposal =
-            Map(source, artifactId, extracted);
+            Map(source, artifactId, extracted, segmentById);
 
         _validator.ValidateAgainstSource(
             proposal,
@@ -88,7 +96,8 @@ internal sealed class MedicalLiteratureClassificationService
     private static MedicalLiteratureClassificationProposal Map(
         MedicalLiteratureSource source,
         ArtifactId artifactId,
-        ExtractedProposal extracted) =>
+        ExtractedProposal extracted,
+        IReadOnlyDictionary<string, GroundingSegment> segmentById) =>
         new()
         {
             MedicalLiteratureSourceId = source.Id,
@@ -102,17 +111,122 @@ internal sealed class MedicalLiteratureClassificationService
                             GuidanceRole = item.GuidanceRole,
                             Description = item.Description,
                             SourceExcerpts =
-                                item.SourceExcerpts.Select(
-                                    excerpt =>
-                                        new MedicalLiteratureSourceExcerpt
-                                        {
-                                            ArtifactId = artifactId,
-                                            Text = excerpt.Text,
-                                            StartOffset = excerpt.StartOffset,
-                                            Length = excerpt.Length
-                                        }).ToArray()
+                                item.SourceSegmentIds
+                                    .Select(
+                                        segmentId =>
+                                            MapSegment(
+                                                artifactId,
+                                                segmentId,
+                                                segmentById))
+                                    .ToArray()
                         }).ToArray()
         };
+
+    private static MedicalLiteratureSourceExcerpt MapSegment(
+        ArtifactId artifactId,
+        string segmentId,
+        IReadOnlyDictionary<string, GroundingSegment> segmentById)
+    {
+        if (string.IsNullOrWhiteSpace(segmentId) ||
+            !segmentById.TryGetValue(segmentId, out var segment))
+        {
+            throw new InvalidOperationException(
+                $"Medical literature source segment '{segmentId}' " +
+                "does not exist in the source document.");
+        }
+
+        return new MedicalLiteratureSourceExcerpt
+        {
+            ArtifactId = artifactId,
+            Text = segment.Text,
+            StartOffset = segment.StartOffset,
+            Length = segment.Length
+        };
+    }
+
+    private static IReadOnlyList<GroundingSegment>
+        BuildGroundingSegments(string sourceText)
+    {
+        var segments = new List<GroundingSegment>();
+        var lineStart = 0;
+
+        for (var index = 0; index <= sourceText.Length; index++)
+        {
+            var atEnd = index == sourceText.Length;
+            var isLineBreak =
+                !atEnd &&
+                (sourceText[index] == '\r' ||
+                 sourceText[index] == '\n');
+
+            if (!atEnd && !isLineBreak)
+                continue;
+
+            AddGroundingSegment(
+                sourceText,
+                lineStart,
+                index,
+                segments);
+
+            if (!atEnd &&
+                sourceText[index] == '\r' &&
+                index + 1 < sourceText.Length &&
+                sourceText[index + 1] == '\n')
+            {
+                index++;
+            }
+
+            lineStart = index + 1;
+        }
+
+        if (segments.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "Medical literature content contains no grounding segments.");
+        }
+
+        return segments;
+    }
+
+    private static void AddGroundingSegment(
+        string sourceText,
+        int start,
+        int endExclusive,
+        ICollection<GroundingSegment> segments)
+    {
+        while (start < endExclusive &&
+               char.IsWhiteSpace(sourceText[start]))
+        {
+            start++;
+        }
+
+        while (endExclusive > start &&
+               char.IsWhiteSpace(sourceText[endExclusive - 1]))
+        {
+            endExclusive--;
+        }
+
+        if (start >= endExclusive)
+            return;
+
+        var text =
+            sourceText.Substring(
+                start,
+                endExclusive - start);
+
+        segments.Add(
+            new GroundingSegment(
+                $"S{segments.Count + 1:D3}",
+                text,
+                start,
+                text.Length));
+    }
+
+    private static string BuildGroundedInput(
+        IReadOnlyList<GroundingSegment> groundingSegments) =>
+        string.Join(
+            '\n',
+            groundingSegments.Select(
+                segment => $"[{segment.Id}] {segment.Text}"));
 
     private static string BuildInstruction(
         MedicalLiteratureSource source,
@@ -129,8 +243,11 @@ internal sealed class MedicalLiteratureClassificationService
             "Return no classification when the article does not support " +
             "a candidate requirement.");
         builder.AppendLine(
-            "Every classification must include exact supporting excerpts " +
-            "with zero-based character offsets and lengths.");
+            "Every classification must identify at least one exact supporting " +
+            "source segment by its bracketed segment ID. " +
+            "Use only segment IDs present in the supplied article text. " +
+            "Do not quote or paraphrase excerpts and do not return offsets " +
+            "or lengths; EMF resolves segment IDs to exact source provenance.");
         builder.AppendLine();
         builder.AppendLine($"Title: {source.Title}");
         builder.AppendLine($"Authors: {source.Authors}");
@@ -157,11 +274,7 @@ internal sealed class MedicalLiteratureClassificationService
             "requirementId": "string",
             "guidanceRole": "SupportsRequirement|EstablishesElement|Corroborates|Clarifies",
             "description": "string",
-            "sourceExcerpts": [{
-              "text": "string",
-              "startOffset": 0,
-              "length": 0
-            }]
+            "sourceSegmentIds": ["S001"]
           }]
         }
         """;
@@ -178,14 +291,13 @@ internal sealed class MedicalLiteratureClassificationService
         public required string GuidanceRole { get; init; }
         public required string Description { get; init; }
 
-        public required IReadOnlyList<ExtractedExcerpt>
-            SourceExcerpts { get; init; }
+        public required IReadOnlyList<string>
+            SourceSegmentIds { get; init; }
     }
 
-    private sealed class ExtractedExcerpt
-    {
-        public required string Text { get; init; }
-        public int? StartOffset { get; init; }
-        public int? Length { get; init; }
-    }
+    private sealed record GroundingSegment(
+        string Id,
+        string Text,
+        int StartOffset,
+        int Length);
 }
