@@ -106,6 +106,100 @@ public sealed class VeteransBlueButtonCareSummaryParserTests
     }
 
     [Fact]
+    public void Parse_UsesAllergiesAsFollowingTopLevelSection()
+    {
+        var parser =
+            new VeteransBlueButtonCareSummaryParser();
+
+        var records =
+            parser.Parse(
+            [
+                Page(
+                    100,
+                    """
+                    Care summaries and notes
+                    SLEEP MED TELEPHONE NOTE
+                    Details
+                    Date entered: June 6, 2025
+                    LOCAL TITLE: SLEEP MED TELEPHONE NOTE
+                    ASV was discussed.
+                    Allergies and reactions
+                    Penicillin
+                    """)
+            ]);
+
+        var record = Assert.Single(records);
+        Assert.Equal(
+            "SLEEP MED TELEPHONE NOTE",
+            record.Title);
+        Assert.DoesNotContain(
+            "Allergies and reactions",
+            record.Text);
+    }
+
+    [Fact]
+    public void Parse_IgnoresIndentedSectionLikeTextInsideCareSummary()
+    {
+        var parser =
+            new VeteransBlueButtonCareSummaryParser();
+
+        var records =
+            parser.Parse(
+            [
+                Page(
+                    200,
+                    """
+                    Care summaries and notes
+                    SLEEP MED REMOTE PAP FOLLOW-UP NOTE
+                    Details
+                    Date entered: July 8, 2025
+                    LOCAL TITLE: SLEEP MED REMOTE PAP FOLLOW-UP NOTE
+                    Clinical content before nested heading.
+                        Medications
+                    Clinical content after nested heading.
+                    Allergies and reactions
+                    """)
+            ]);
+
+        var record = Assert.Single(records);
+        Assert.Contains(
+            "Medications",
+            record.Text);
+        Assert.Contains(
+            "Clinical content after nested heading.",
+            record.Text);
+    }
+
+    [Fact]
+    public void Parse_UsesMedicationsAsFollowingTopLevelSection()
+    {
+        var parser =
+            new VeteransBlueButtonCareSummaryParser();
+
+        var records =
+            parser.Parse(
+            [
+                Page(
+                    300,
+                    """
+                    Care summaries and notes
+                    SLEEP MED PAP SET-UP CONSULT RESULT
+                    Details
+                    Date entered: July 30, 2025
+                    LOCAL TITLE: SLEEP MED PAP SET-UP CONSULT RESULT
+                    Device: AirCurve 11 ASV
+                    Medications
+                    Active medications follow.
+                    """)
+            ]);
+
+        var record = Assert.Single(records);
+        Assert.DoesNotContain(
+            "Active medications follow.",
+            record.Text);
+    }
+
+    [Fact]
     public void Parse_RejectsMissingCareSummarySection()
     {
         var parser =

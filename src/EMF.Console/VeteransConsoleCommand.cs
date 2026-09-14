@@ -528,6 +528,40 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 6 &&
+            args[0] == "evidence" &&
+            args[1] == "clinical-note-record")
+        {
+            var clinicalNoteRecordDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(clinicalNoteRecordDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: " +
+                    $"{clinicalNoteRecordDatabasePath}");
+                return 2;
+            }
+
+            if (!DateOnly.TryParseExact(
+                    args[4],
+                    "yyyy-MM-dd",
+                    out var noteRecordDate))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Clinical note record date must use yyyy-MM-dd.");
+                return 2;
+            }
+
+            return await RunEvidenceClinicalNoteRecordAsync(
+                clinicalNoteRecordDatabasePath,
+                new ArtifactId(args[3]),
+                noteRecordDate,
+                args[5],
+                contentStoreFactory(),
+                global::System.Console.Out);
+        }
+
         if (args.Length == 8 &&
             args[0] == "evidence" &&
             args[1] == "clinical-note")
@@ -3595,6 +3629,123 @@ public static class VeteransConsoleCommand
         }
     }
 
+
+    internal static async Task<int> RunEvidenceClinicalNoteRecordAsync(
+        string databasePath,
+        ArtifactId parentArtifactId,
+        DateOnly noteDate,
+        string noteTitle,
+        IArtifactContentStore? contentStore,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (contentStore is null)
+        {
+            global::System.Console.Error.WriteLine(
+                "Artifact content store is not configured.");
+            return 2;
+        }
+
+        if (string.IsNullOrWhiteSpace(noteTitle))
+        {
+            global::System.Console.Error.WriteLine(
+                "Clinical note record title must not be empty.");
+            return 2;
+        }
+
+        var repository =
+            new SqliteEvidenceRepository(databasePath);
+
+        await repository.InitializeAsync();
+
+        try
+        {
+#pragma warning disable CA1416
+            var extractor =
+                new PdfArtifactTextExtractionProvider(
+                    contentStore,
+                    new PdfToImagePageRenderer(),
+                    new PaddleImageOcrService());
+#pragma warning restore CA1416
+
+            var pages =
+                await extractor.ExtractPagesAsync(
+                    parentArtifactId);
+
+            if (pages is null || pages.Count == 0)
+            {
+                global::System.Console.Error.WriteLine(
+                    "Blue Button artifact contains no extractable PDF pages.");
+                return 1;
+            }
+
+            var records =
+                new VeteransBlueButtonCareSummaryParser().Parse(pages);
+
+            var record =
+                new VeteransBlueButtonClinicalNoteSelectionService()
+                    .Select(
+                        records,
+                        noteDate,
+                        noteTitle);
+
+            var bytes =
+                global::System.Text.Encoding.UTF8.GetBytes(
+                    record.Text);
+
+            try
+            {
+                var service =
+                    new VeteransClinicalNoteDerivationService(
+                        repository,
+                        contentStore,
+                        new Sha256ContentFingerprintService(),
+                        new GuidArtifactIdGenerator(),
+                        new ArtifactFactory());
+
+                var result =
+                    await service.DeriveAsync(
+                        parentArtifactId,
+                        $"clinical-note-{noteDate:yyyy-MM-dd}-" +
+                            $"{record.SourceStartPage}-" +
+                            $"{record.SourceEndPage}.txt",
+                        record.SourceStartPage,
+                        record.SourceEndPage,
+                        noteDate,
+                        record.Title,
+                        bytes);
+
+                await output.WriteLineAsync(
+                    $"Parsed Records: {records.Count}");
+                await output.WriteLineAsync(
+                    $"Artifact ID   : {result.Artifact.Id.Value}");
+                await output.WriteLineAsync(
+                    $"Parent ID     : {parentArtifactId.Value}");
+                await output.WriteLineAsync(
+                    $"Source Pages  : {record.SourceStartPage}-" +
+                    $"{record.SourceEndPage}");
+                await output.WriteLineAsync(
+                    $"Note Date     : {noteDate:yyyy-MM-dd}");
+                await output.WriteLineAsync(
+                    $"Note Title    : {record.Title}");
+
+                return 0;
+            }
+            finally
+            {
+                global::System.Security.Cryptography
+                    .CryptographicOperations.ZeroMemory(bytes);
+            }
+        }
+        catch (Exception ex)
+            when (ex is not OperationCanceledException)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Clinical note record derivation failed: {ex.Message}");
+            return 1;
+        }
+    }
 
     internal static async Task<int> RunEvidenceMedicationBasisAsync(
         string databasePath,

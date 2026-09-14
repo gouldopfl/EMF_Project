@@ -7,8 +7,18 @@ public sealed class VeteransBlueButtonCareSummaryParser
     private const string CareSummariesHeading =
         "Care summaries and notes";
 
-    private const string FollowingSectionHeading =
-        "Vaccines";
+    private static readonly HashSet<string> FollowingSectionHeadings =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Lab and test results",
+            "Medical imaging results",
+            "Vaccines",
+            "Allergies and reactions",
+            "Health conditions",
+            "Vitals",
+            "Medications",
+            "My HealtheVet account summary"
+        };
 
     private const string DateEnteredPrefix =
         "Date entered:";
@@ -39,9 +49,8 @@ public sealed class VeteransBlueButtonCareSummaryParser
                 "Blue Button care summaries section was not found.");
 
         var sectionEnd =
-            FindLastExactLineAfter(
+            FindFollowingTopLevelSection(
                 lines,
-                FollowingSectionHeading,
                 sectionStart);
 
         if (sectionEnd < 0)
@@ -279,19 +288,24 @@ public sealed class VeteransBlueButtonCareSummaryParser
         return -1;
     }
 
-    private static int FindLastExactLineAfter(
+    private static int FindFollowingTopLevelSection(
         IReadOnlyList<PageLine> lines,
-        string expected,
-        int minimumIndex)
+        int sectionStart)
     {
-        for (var index = lines.Count - 1;
-             index > minimumIndex;
-             index--)
+        for (var index = sectionStart + 1;
+             index < lines.Count;
+             index++)
         {
-            if (string.Equals(
-                    Normalize(lines[index].Text),
-                    expected,
-                    StringComparison.OrdinalIgnoreCase))
+            var raw = lines[index].Text;
+
+            if (string.IsNullOrWhiteSpace(raw) ||
+                char.IsWhiteSpace(raw[0]))
+            {
+                continue;
+            }
+
+            if (FollowingSectionHeadings.Contains(
+                    Normalize(raw)))
             {
                 return index;
             }
