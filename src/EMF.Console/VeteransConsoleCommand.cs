@@ -743,6 +743,43 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if ((args.Length == 9 || args.Length == 10) &&
+            args[0] == "evidence" &&
+            args[1] == "medication" &&
+            args[2] == "reconcile")
+        {
+            var reconciliationDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(reconciliationDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: " +
+                    $"{reconciliationDatabasePath}");
+                return 2;
+            }
+
+            if (!DateOnly.TryParseExact(
+                    args[6],
+                    "yyyy-MM-dd",
+                    out var reconciliationDate))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Medication reconciliation date must use yyyy-MM-dd.");
+                return 2;
+            }
+
+            return await RunEvidenceMedicationReconciliationAsync(
+                reconciliationDatabasePath,
+                new VeteranId(args[4]),
+                new MedicationLedgerEntryId(args[5]),
+                reconciliationDate,
+                args[7],
+                args[8],
+                args.Length == 10 ? args[9] : null,
+                global::System.Console.Out);
+        }
+
         if (args.Length == 7 &&
             args[0] == "evidence" &&
             args[1] == "medication" &&
@@ -4022,6 +4059,177 @@ public static class VeteransConsoleCommand
     }
 
     internal static async Task<int>
+        RunEvidenceMedicationReconciliationAsync(
+            string databasePath,
+            VeteranId veteranId,
+            MedicationLedgerEntryId medicationLedgerEntryId,
+            DateOnly reconciliationDate,
+            string currentUseStatus,
+            string source,
+            string? note,
+            TextWriter output)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(currentUseStatus);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (!MedicationCurrentUseStatuses.IsSupported(currentUseStatus))
+        {
+            global::System.Console.Error.WriteLine(
+                $"Unsupported medication current-use status: {currentUseStatus}");
+            return 2;
+        }
+
+        var veterans = new SqliteVeteranRepository(databasePath);
+
+        if (await veterans.GetVeteranAsync(veteranId) is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Veteran not found: {veteranId.Value}");
+            return 2;
+        }
+
+        try
+        {
+            var repository = new SqliteMedicationRepository(databasePath);
+            await repository.InitializeAsync();
+
+            MedicationLedgerEntry? selectedEntry = null;
+
+            foreach (var ledger in
+                await repository.GetMedicationLedgersAsync(veteranId))
+            {
+                selectedEntry =
+                    (await repository.GetMedicationLedgerEntriesAsync(ledger.Id))
+                        .SingleOrDefault(
+                            entry => entry.Id == medicationLedgerEntryId);
+
+                if (selectedEntry is not null)
+                    break;
+            }
+
+            if (selectedEntry is null)
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Medication ledger entry not found for veteran: " +
+                    $"{medicationLedgerEntryId.Value}");
+                return 2;
+            }
+
+            var normalizedStatus =
+                MedicationCurrentUseStatuses.IsCurrentlyUsed(currentUseStatus)
+                    ? MedicationCurrentUseStatuses.CurrentlyUsed
+                    : MedicationCurrentUseStatuses.NotCurrentlyUsed;
+            var normalizedSource = source.Trim();
+            var normalizedNote =
+                string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+
+            var existing =
+                (await repository
+                    .GetMedicationCurrentUseReconciliationsAsync(veteranId))
+                .Where(item =>
+                    item.MedicationLedgerEntryId == medicationLedgerEntryId &&
+                    item.ReconciliationDate == reconciliationDate)
+                .ToArray();
+
+            if (existing.Length > 1)
+                throw new InvalidDataException(
+                    "Multiple medication reconciliations exist for the same " +
+                    "ledger entry and date.");
+
+            if (existing.Length == 1)
+            {
+                var item = existing[0];
+
+                if (!string.Equals(
+                        item.CurrentUseStatus,
+                        normalizedStatus,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(
+                        item.Source,
+                        normalizedSource,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(
+                        item.Note,
+                        normalizedNote,
+                        StringComparison.Ordinal))
+                {
+                    global::System.Console.Error.WriteLine(
+                        "A different medication reconciliation already exists " +
+                        "for this ledger entry and date.");
+                    return 1;
+                }
+
+                await WriteMedicationReconciliationAsync(
+                    output,
+                    item,
+                    selectedEntry,
+                    true);
+                return 0;
+            }
+
+            var reconciliation =
+                new MedicationCurrentUseReconciliation
+                {
+                    Id =
+                        new MedicationCurrentUseReconciliationId(
+                            Guid.NewGuid().ToString("N")),
+                    VeteranId = veteranId,
+                    MedicationLedgerEntryId = medicationLedgerEntryId,
+                    ReconciliationDate = reconciliationDate,
+                    CurrentUseStatus = normalizedStatus,
+                    Source = normalizedSource,
+                    Note = normalizedNote
+                };
+
+            await repository.AddMedicationCurrentUseReconciliationAsync(
+                reconciliation);
+
+            await WriteMedicationReconciliationAsync(
+                output,
+                reconciliation,
+                selectedEntry,
+                false);
+
+            return 0;
+        }
+        catch (Exception ex)
+            when (ex is not OperationCanceledException)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Medication reconciliation failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static async Task WriteMedicationReconciliationAsync(
+        TextWriter output,
+        MedicationCurrentUseReconciliation reconciliation,
+        MedicationLedgerEntry entry,
+        bool alreadyPersisted)
+    {
+        await output.WriteLineAsync(
+            $"Reconciliation ID : {reconciliation.Id.Value}");
+        await output.WriteLineAsync(
+            $"Ledger Entry ID   : {entry.Id.Value}");
+        await output.WriteLineAsync(
+            $"Medication        : {entry.MedicationName}");
+        await output.WriteLineAsync(
+            $"Prescription      : {entry.PrescriptionNumber ?? "-"}");
+        await output.WriteLineAsync(
+            $"Current Use       : {reconciliation.CurrentUseStatus}");
+        await output.WriteLineAsync(
+            $"Reconciled Date   : {reconciliation.ReconciliationDate:yyyy-MM-dd}");
+        await output.WriteLineAsync(
+            $"Source            : {reconciliation.Source}");
+        await output.WriteLineAsync(
+            $"Note              : {reconciliation.Note ?? "-"}");
+        await output.WriteLineAsync(
+            $"Already Persisted : {alreadyPersisted}");
+    }
+
+    internal static async Task<int>
         RunEvidenceCurrentMedicationLedgerAsync(
             string databasePath,
             VeteranId veteranId,
@@ -6030,7 +6238,9 @@ public static class VeteransConsoleCommand
             await new VeteransReviewerPackageCurrentMedicationService(
                     new SqliteClaimIssueRepository(fullDatabasePath),
                     new SqliteClaimRepository(fullDatabasePath),
-                    new CurrentMedicationLedgerService(
+                    new ReconciledCurrentMedicationLedgerService(
+                        new CurrentMedicationLedgerService(
+                            medicationRepository),
                         medicationRepository))
                 .GetAsync(details.PackageDetails.Package);
 
@@ -6555,6 +6765,12 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence medication ledger import " +
             "<database-path> <veteran-id> <source-artifact-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence medication reconcile " +
+            "<database-path> <veteran-id> <ledger-entry-id> " +
+            "<yyyy-MM-dd> <CurrentlyUsed|NotCurrentlyUsed> " +
+            "<source> [note]");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence clarification " +

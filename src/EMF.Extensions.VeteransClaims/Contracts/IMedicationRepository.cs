@@ -47,6 +47,17 @@ public interface IMedicationRepository
             CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
+    Task AddMedicationCurrentUseReconciliationAsync(
+        MedicationCurrentUseReconciliation reconciliation,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<MedicationCurrentUseReconciliation>>
+        GetMedicationCurrentUseReconciliationsAsync(
+            VeteranId veteranId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task AddMedicationClinicalContextAsync(
         MedicationClinicalContext clinicalContext,
         CancellationToken cancellationToken = default) =>

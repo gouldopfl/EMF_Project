@@ -9,12 +9,12 @@ public sealed class VeteransReviewerPackageCurrentMedicationService
 {
     private readonly IClaimIssueRepository _issues;
     private readonly IClaimRepository _claims;
-    private readonly CurrentMedicationLedgerService _currentMedications;
+    private readonly ReconciledCurrentMedicationLedgerService _currentMedications;
 
     public VeteransReviewerPackageCurrentMedicationService(
         IClaimIssueRepository issues,
         IClaimRepository claims,
-        CurrentMedicationLedgerService currentMedications)
+        ReconciledCurrentMedicationLedgerService currentMedications)
     {
         ArgumentNullException.ThrowIfNull(issues);
         ArgumentNullException.ThrowIfNull(claims);

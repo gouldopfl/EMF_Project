@@ -2539,6 +2539,37 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_ClinicalProgressionEvents (
                     SourceArtifactId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                83,
+                "AddMedicationCurrentUseReconciliations",
+                """
+                CREATE TABLE VeteransClaims_MedicationCurrentUseReconciliations (
+                    Id TEXT PRIMARY KEY,
+                    VeteranId TEXT NOT NULL,
+                    MedicationLedgerEntryId TEXT NOT NULL,
+                    ReconciliationDate TEXT NOT NULL,
+                    CurrentUseStatus TEXT NOT NULL
+                        CHECK (CurrentUseStatus IN (
+                            'CurrentlyUsed',
+                            'NotCurrentlyUsed'
+                        )),
+                    Source TEXT NOT NULL,
+                    Note TEXT NULL,
+                    FOREIGN KEY (VeteranId)
+                        REFERENCES VeteransClaims_Veterans (Id),
+                    FOREIGN KEY (MedicationLedgerEntryId)
+                        REFERENCES VeteransClaims_MedicationLedgerEntries (Id),
+                    UNIQUE (MedicationLedgerEntryId, ReconciliationDate)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicationCurrentUseReconciliations_VeteranEntryDate
+                ON VeteransClaims_MedicationCurrentUseReconciliations (
+                    VeteranId,
+                    MedicationLedgerEntryId,
+                    ReconciliationDate
+                );
                 """)
         };
 }

@@ -60,11 +60,25 @@ public sealed class VeteransReviewerPackageCurrentMedicationServiceTests
                     Entry(ledger, 3, "Legacy", "transferred")
                 ]);
 
+            await medications.AddMedicationCurrentUseReconciliationAsync(
+                new MedicationCurrentUseReconciliation
+                {
+                    Id = new MedicationCurrentUseReconciliationId("recon-1"),
+                    VeteranId = veteran.Id,
+                    MedicationLedgerEntryId = new MedicationLedgerEntryId("entry-2"),
+                    ReconciliationDate = new DateOnly(2026, 9, 15),
+                    CurrentUseStatus =
+                        MedicationCurrentUseStatuses.NotCurrentlyUsed,
+                    Source = "VeteranReported"
+                });
+
             var result =
                 await new VeteransReviewerPackageCurrentMedicationService(
                         new SqliteClaimIssueRepository(path),
                         new SqliteClaimRepository(path),
-                        new CurrentMedicationLedgerService(medications))
+                        new ReconciledCurrentMedicationLedgerService(
+                            new CurrentMedicationLedgerService(medications),
+                            medications))
                     .GetAsync(
                         new EvidencePackage
                         {
@@ -74,10 +88,8 @@ public sealed class VeteransReviewerPackageCurrentMedicationServiceTests
                             ReviewerRole = "MedicalProfessional"
                         });
 
-            Assert.Collection(
-                result,
-                entry => Assert.Equal("Isosorbide", entry.MedicationName),
-                entry => Assert.Equal("Trazodone", entry.MedicationName));
+            var entry = Assert.Single(result);
+            Assert.Equal("Trazodone", entry.MedicationName);
         }
         finally
         {

@@ -468,7 +468,7 @@ public static class VeteransReviewerPackageDocxRenderer
             AppendPackageGuideEntry(
                 body,
                 "Current Medication List",
-                "Provides the complete current prescription snapshot from the newest complete VA medication ledger.");
+                "Provides the newest complete VA medication ledger's current-prescription list after applying persisted current-use reconciliation when available.");
         }
 
         AppendPackageGuideEntry(
@@ -767,10 +767,12 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             ContentParagraph(
-                "This complete current prescription snapshot is drawn from the " +
-                "newest complete VA medication ledger supplied in the record. " +
-                "It is not limited to medications considered relevant to the " +
-                "claimed condition."));
+                "This medication list is drawn from current prescription statuses " +
+                "in the newest complete VA medication ledger supplied in the " +
+                "record. Persisted current-use reconciliation is applied when " +
+                "available; the VA source ledger remains unchanged. This list is " +
+                "not limited to medications considered relevant to the claimed " +
+                "condition."));
 
         foreach (var medication in medications)
         {

@@ -382,6 +382,135 @@ public sealed class SqliteMedicationRepository :
         return result;
     }
 
+    public async Task AddMedicationCurrentUseReconciliationAsync(
+        MedicationCurrentUseReconciliation reconciliation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(reconciliation);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            reconciliation.CurrentUseStatus);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            reconciliation.Source);
+
+        if (!MedicationCurrentUseStatuses.IsSupported(
+                reconciliation.CurrentUseStatus))
+        {
+            throw new ArgumentException(
+                $"Unsupported medication current-use status " +
+                $"'{reconciliation.CurrentUseStatus}'.",
+                nameof(reconciliation));
+        }
+
+        var normalizedStatus =
+            MedicationCurrentUseStatuses.IsCurrentlyUsed(
+                reconciliation.CurrentUseStatus)
+                ? MedicationCurrentUseStatuses.CurrentlyUsed
+                : MedicationCurrentUseStatuses.NotCurrentlyUsed;
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using (var ownershipCommand = connection.CreateCommand())
+        {
+            ownershipCommand.CommandText =
+                """
+                SELECT COUNT(*)
+                FROM VeteransClaims_MedicationLedgerEntries entry
+                JOIN VeteransClaims_MedicationLedgers ledger
+                  ON ledger.Id = entry.MedicationLedgerId
+                WHERE entry.Id = $entryId
+                  AND ledger.VeteranId = $veteranId;
+                """;
+            ownershipCommand.Parameters.AddWithValue(
+                "$entryId",
+                reconciliation.MedicationLedgerEntryId.Value);
+            ownershipCommand.Parameters.AddWithValue(
+                "$veteranId",
+                reconciliation.VeteranId.Value);
+
+            var owned =
+                Convert.ToInt32(
+                    await ownershipCommand.ExecuteScalarAsync(
+                        cancellationToken));
+
+            if (owned != 1)
+            {
+                throw new InvalidOperationException(
+                    "Medication reconciliation ledger entry does not belong " +
+                    "to the specified veteran.");
+            }
+        }
+
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_MedicationCurrentUseReconciliations (
+                Id, VeteranId, MedicationLedgerEntryId, ReconciliationDate,
+                CurrentUseStatus, Source, Note
+            )
+            VALUES (
+                $id, $veteranId, $medicationLedgerEntryId,
+                $reconciliationDate, $currentUseStatus, $source, $note
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$id", reconciliation.Id.Value);
+        command.Parameters.AddWithValue(
+            "$veteranId", reconciliation.VeteranId.Value);
+        command.Parameters.AddWithValue(
+            "$medicationLedgerEntryId",
+            reconciliation.MedicationLedgerEntryId.Value);
+        command.Parameters.AddWithValue(
+            "$reconciliationDate",
+            reconciliation.ReconciliationDate.ToString("yyyy-MM-dd"));
+        command.Parameters.AddWithValue(
+            "$currentUseStatus",
+            normalizedStatus);
+        command.Parameters.AddWithValue(
+            "$source",
+            reconciliation.Source.Trim());
+        command.Parameters.AddWithValue(
+            "$note",
+            (object?)reconciliation.Note?.Trim() ?? DBNull.Value);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MedicationCurrentUseReconciliation>>
+        GetMedicationCurrentUseReconciliationsAsync(
+            VeteranId veteranId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT Id, VeteranId, MedicationLedgerEntryId,
+                   ReconciliationDate, CurrentUseStatus, Source, Note
+            FROM VeteransClaims_MedicationCurrentUseReconciliations
+            WHERE VeteranId = $veteranId
+            ORDER BY ReconciliationDate, MedicationLedgerEntryId, Id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$veteranId", veteranId.Value);
+
+        var result =
+            new List<MedicationCurrentUseReconciliation>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            result.Add(ReadMedicationCurrentUseReconciliation(reader));
+
+        return result;
+    }
+
     public async Task AddMedicationClinicalContextAsync(
         MedicationClinicalContext clinicalContext,
         CancellationToken cancellationToken = default)
@@ -794,6 +923,23 @@ public sealed class SqliteMedicationRepository :
                 reader.IsDBNull(17) ? null : reader.GetString(17),
             Quantity =
                 reader.IsDBNull(18) ? null : reader.GetString(18)
+        };
+
+    private static MedicationCurrentUseReconciliation
+        ReadMedicationCurrentUseReconciliation(SqliteDataReader reader) =>
+        new()
+        {
+            Id =
+                new MedicationCurrentUseReconciliationId(
+                    reader.GetString(0)),
+            VeteranId = new VeteranId(reader.GetString(1)),
+            MedicationLedgerEntryId =
+                new MedicationLedgerEntryId(reader.GetString(2)),
+            ReconciliationDate =
+                DateOnly.Parse(reader.GetString(3)),
+            CurrentUseStatus = reader.GetString(4),
+            Source = reader.GetString(5),
+            Note = reader.IsDBNull(6) ? null : reader.GetString(6)
         };
 
     private static MedicationClinicalContext ReadMedicationClinicalContext(
