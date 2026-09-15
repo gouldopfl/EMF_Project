@@ -148,6 +148,180 @@ public sealed class VeteransReviewerPackageClinicalProgressionTests
         Assert.DoesNotContain("Source pages: 803", text);
     }
 
+    [Fact]
+    public void Render_PresentsPapAdherenceAndTitrationContextBeforeClinicalProgression()
+    {
+        var issueId = new ClaimIssueId("issue-osa");
+        var noteArtifactId = new ArtifactId("sleep-note-internal");
+        var oscarArtifactId = new ArtifactId("oscar-internal");
+        var noteContent = Content(noteArtifactId);
+        var oscarText =
+            """
+PAP Therapy Analysis
+
+Coverage: 07/30/2025 through 09/07/2026
+Sessions: 1162
+Treatment days: 404
+Total therapy hours: 3114.24
+Average hours per treatment day: 7.71
+Days >= 4 hours: 401
+Days >= 6 hours: 367
+Additional same-day sessions: 758
+
+Weighted AHI: 3.63
+Median daily AHI: 2.41
+Maximum daily AHI: 21.90
+
+Machine(s): AirCurve11ASV
+
+Derived deterministically from the retained OSCAR session export.
+Raw OSCAR session records are intentionally omitted from this physician report.
+""";
+        var oscarContent =
+            new VeteransReviewerArtifactContent
+            {
+                Artifact =
+                    new Artifact
+                    {
+                        Id = oscarArtifactId,
+                        Name = "OSCAR_session_export.csv",
+                        ArtifactType = "file"
+                    },
+                Text = oscarText,
+                PrintablePages =
+                [
+                    new PrintableArtifactPage
+                    {
+                        PageNumber = 1,
+                        ContentType = "text/plain",
+                        Content = Encoding.UTF8.GetBytes(oscarText)
+                    }
+                ],
+                Appendix = VeteransReviewerPackageAppendix.MedicalEvidence
+            };
+
+        var details =
+            Details(
+                issueId,
+                noteContent,
+                oscarContent);
+
+        details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails = details.PackageDetails,
+                Artifacts = details.Artifacts,
+                ArtifactContents = details.ArtifactContents,
+                ClinicalProgressionEvents =
+                [
+                    new VeteransReviewerClinicalProgressionEvent
+                    {
+                        ReviewerArtifactId = noteArtifactId,
+                        EventDate = new DateOnly(2021, 8, 16),
+                        EventType = ClinicalProgressionEventTypes.TreatmentAdjustment,
+                        SourceLocator =
+                            "VA Blue Button Report — Sleep Med Remote PAP Follow-Up Note — August 16, 2021",
+                        Summary =
+                            "PAP compliance was 95.3% with average use of 7 hours 27 minutes; residual AHI was 9.3 per hour."
+                    },
+                    new VeteransReviewerClinicalProgressionEvent
+                    {
+                        ReviewerArtifactId = noteArtifactId,
+                        EventDate = new DateOnly(2024, 1, 25),
+                        EventType = ClinicalProgressionEventTypes.TreatmentProblem,
+                        SourceLocator =
+                            "VA Blue Button Report — Sleep Medicine Specialist Initial Consultation Note — January 25, 2024",
+                        Summary =
+                            "The note documents 100% PAP compliance, average use of 8 hours 35 minutes, and residual AHI 3.2 per hour."
+                    },
+                    new VeteransReviewerClinicalProgressionEvent
+                    {
+                        ReviewerArtifactId = noteArtifactId,
+                        EventDate = new DateOnly(2025, 6, 3),
+                        EventType = ClinicalProgressionEventTypes.DiagnosticFinding,
+                        SourceLocator =
+                            "VA Blue Button Report — Sleep Med Telephone Note — June 6, 2025",
+                        Summary =
+                            "The June 6, 2025 VA Sleep Medicine telephone note documents results of a Community Care PAP titration performed June 3, 2025. CPAP was titrated from 9-12 cmH20, with significant improvement at CPAP 12 cmH20, AHI 0 per hour, and no hypoxemia."
+                    },
+                    new VeteransReviewerClinicalProgressionEvent
+                    {
+                        ReviewerArtifactId = noteArtifactId,
+                        EventDate = new DateOnly(2025, 6, 6),
+                        EventType = ClinicalProgressionEventTypes.TreatmentTransition,
+                        SourceLocator =
+                            "VA Blue Button Report — Sleep Med Telephone Note — June 6, 2025",
+                        Summary =
+                            "After discussion of continued CPAP monitoring versus empiric ASV, the Veteran preferred transition to ASV."
+                    },
+                    new VeteransReviewerClinicalProgressionEvent
+                    {
+                        ReviewerArtifactId = noteArtifactId,
+                        EventDate = new DateOnly(2025, 7, 8),
+                        EventType = ClinicalProgressionEventTypes.TreatmentProblem,
+                        SourceLocator =
+                            "VA Blue Button Report — Sleep Med Remote PAP Follow-Up Note — July 8, 2025",
+                        Summary =
+                            "PAP compliance was 90.1% with average use of 7 hours 52 minutes; residual AHI was 32.7 per hour."
+                    }
+                ]
+            };
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        using var stream = new MemoryStream(bytes);
+        using var document = WordprocessingDocument.Open(stream, false);
+        var body = document.MainDocumentPart!.Document!.Body!;
+        var text = body.InnerText;
+
+        Assert.Contains("PAP Adherence / Compliance Summary", text);
+        Assert.Contains(
+            "Documented clinic compliance: August 16, 2021 — 95.3%; January 25, 2024 — 100%; July 8, 2025 — 90.1%.",
+            text);
+        Assert.Contains(
+            "OSCAR session summary (07/30/2025 through 09/07/2026): 1162 sessions across 404 treatment days, 3114.24 total therapy hours, average 7.71 hours per treatment day, 401 days with at least 4 hours of use, and 367 days with at least 6 hours of use. Therapy metrics: weighted AHI 3.63, median daily AHI 2.41, and maximum daily AHI 21.90.",
+            text);
+        Assert.Contains(
+            "periods of elevated residual AHI during intervals that also show strong PAP adherence",
+            text);
+        Assert.Contains("Sleep Study / PAP Titration Results", text);
+        Assert.Contains(
+            "PAP titration findings are documented in subsequent provider notes",
+            text);
+        Assert.Contains("June 3, 2025 — PAP Titration Result", text);
+        Assert.Contains("AHI 0 per hour, and no hypoxemia", text);
+        Assert.Contains(
+            "corroborates that these documented titration findings were incorporated into treatment decisions",
+            text);
+
+        var headingOnes =
+            body.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Where(
+                    paragraph =>
+                        paragraph.ParagraphProperties?
+                            .ParagraphStyleId?
+                            .Val?
+                            .Value == "Heading1")
+                .Select(paragraph => paragraph.InnerText)
+                .ToArray();
+
+        var adherenceIndex =
+            Array.IndexOf(
+                headingOnes,
+                "PAP Adherence / Compliance Summary");
+        var titrationIndex =
+            Array.IndexOf(
+                headingOnes,
+                "Sleep Study / PAP Titration Results");
+        var progressionIndex =
+            Array.IndexOf(
+                headingOnes,
+                "Clinical Progression");
+
+        Assert.True(adherenceIndex >= 0);
+        Assert.True(titrationIndex > adherenceIndex);
+        Assert.True(progressionIndex > titrationIndex);
+    }
+
     private static ClinicalProgressionEvent Event(
         ClaimIssueId issueId,
         ArtifactId sourceArtifactId,

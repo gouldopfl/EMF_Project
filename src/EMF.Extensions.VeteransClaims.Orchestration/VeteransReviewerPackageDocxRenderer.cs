@@ -87,6 +87,14 @@ public static class VeteransReviewerPackageDocxRenderer
                 body,
                 details);
 
+            AppendPapAdherenceSummary(
+                body,
+                details);
+
+            AppendSleepStudyPapTitrationResults(
+                body,
+                details);
+
             AppendClinicalProgression(
                 body,
                 details);
@@ -458,7 +466,24 @@ public static class VeteransReviewerPackageDocxRenderer
             "Issues Presented for Medical Review",
             "Defines the review purpose, reviewer role, evidence scope, and limitations.");
 
-        if (details.ClinicalProgressionEvents.Count > 0)
+        if (HasPapAdherenceSummary(details))
+        {
+            AppendPackageGuideEntry(
+                body,
+                "PAP Adherence / Compliance Summary",
+                "Provides an up-front, source-grounded view of sustained PAP use so later residual-AHI and mask/leak findings are interpreted in adherence context.");
+        }
+
+        if (GetPapTitrationFindings(details).Count > 0)
+        {
+            AppendPackageGuideEntry(
+                body,
+                "Sleep Study / PAP Titration Results",
+                "Summarizes PAP titration findings documented in provider notes and relates them to subsequent treatment decisions without implying that an unavailable primary study report is present.");
+        }
+
+        if (details.ClinicalProgressionEvents.Any(
+                item => !IsPapTitrationFinding(item)))
         {
             AppendPackageGuideEntry(
                 body,
@@ -606,12 +631,317 @@ public static class VeteransReviewerPackageDocxRenderer
                 "It does not make a medical, legal, or adjudicative conclusion."));
     }
 
+    private static void AppendPapAdherenceSummary(
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        var clinicCompliance =
+            GetPapClinicComplianceObservations(details);
+
+        var sessionSummary =
+            GetPapSessionAdherenceSummary(details);
+
+        if (clinicCompliance.Count == 0 &&
+            sessionSummary is null)
+        {
+            return;
+        }
+
+        body.Append(
+            StyledParagraph(
+                "PAP Adherence / Compliance Summary",
+                "Heading1"));
+
+        body.Append(
+            ContentParagraph(
+                "The supplied records consistently document strong PAP adherence over " +
+                "multiple years. This summary is presented before the appointment-by-" +
+                "appointment chronology so residual AHI, mask leak, and treatment-change " +
+                "findings can be reviewed in the context of documented PAP use."));
+
+        if (clinicCompliance.Count > 0)
+        {
+            body.Append(
+                ContentParagraph(
+                    "Documented clinic compliance: " +
+                    string.Join("; ", clinicCompliance) +
+                    "."));
+        }
+
+        if (sessionSummary is not null)
+        {
+            body.Append(
+                ContentParagraph(
+                    $"{sessionSummary.SourceName} session summary " +
+                    $"({sessionSummary.Coverage}): " +
+                    $"{sessionSummary.SessionCount} sessions across " +
+                    $"{sessionSummary.TreatmentDays} treatment days, " +
+                    $"{sessionSummary.TotalTherapyHours} total therapy hours, " +
+                    $"average {sessionSummary.AverageHoursPerTreatmentDay} hours per treatment day, " +
+                    $"{sessionSummary.DaysAtLeastFourHours} days with at least 4 hours of use, " +
+                    $"and {sessionSummary.DaysAtLeastSixHours} days with at least 6 hours of use. " +
+                    $"Therapy metrics: weighted AHI {sessionSummary.WeightedAhi}, " +
+                    $"median daily AHI {sessionSummary.MedianDailyAhi}, and " +
+                    $"maximum daily AHI {sessionSummary.MaximumDailyAhi}."));
+        }
+
+        if (details.ClinicalProgressionEvents.Any(
+                item =>
+                    ContainsReviewerText(item.Summary, "residual AHI") &&
+                    TryExtractPapCompliancePercent(item.Summary) is not null))
+        {
+            body.Append(
+                ContentParagraph(
+                    "The supplied chronology documents periods of elevated residual AHI " +
+                    "during intervals that also show strong PAP adherence."));
+        }
+    }
+
+    private static bool HasPapAdherenceSummary(
+        VeteransReviewerPackageDetails details) =>
+        GetPapClinicComplianceObservations(details).Count > 0 ||
+        GetPapSessionAdherenceSummary(details) is not null;
+
+    private static IReadOnlyList<string> GetPapClinicComplianceObservations(
+        VeteransReviewerPackageDetails details)
+    {
+        var observations =
+            new List<(DateOnly Date, string Percent)>();
+
+        foreach (var item in details.ClinicalProgressionEvents)
+        {
+            var percent =
+                TryExtractPapCompliancePercent(item.Summary);
+
+            if (percent is null)
+                continue;
+
+            if (observations.Any(
+                    existing =>
+                        existing.Date == item.EventDate &&
+                        string.Equals(
+                            existing.Percent,
+                            percent,
+                            StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            observations.Add((item.EventDate, percent));
+        }
+
+        return observations
+            .OrderBy(item => item.Date)
+            .Select(
+                item =>
+                    $"{item.Date.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture)} — {item.Percent}%")
+            .ToArray();
+    }
+
+    private static string? TryExtractPapCompliancePercent(
+        string summary)
+    {
+        if (string.IsNullOrWhiteSpace(summary))
+            return null;
+
+        var forwardMatch =
+            Regex.Match(
+                summary,
+                @"\b(?:PAP\s+)?compliance\s+(?:was\s+)?(?<percent>\d+(?:\.\d+)?)\s*%",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        if (forwardMatch.Success)
+            return forwardMatch.Groups["percent"].Value;
+
+        var reverseMatch =
+            Regex.Match(
+                summary,
+                @"\b(?<percent>\d+(?:\.\d+)?)\s*%\s+(?:PAP\s+)?compliance\b",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        return reverseMatch.Success
+            ? reverseMatch.Groups["percent"].Value
+            : null;
+    }
+
+    private static PapSessionAdherenceSummary? GetPapSessionAdherenceSummary(
+        VeteransReviewerPackageDetails details)
+    {
+        foreach (var content in details.ArtifactContents)
+        {
+            if (!ContainsReviewerText(content.Text, "PAP Therapy Analysis"))
+                continue;
+
+            var coverage =
+                GetReviewerLabeledValue(content.Text, "Coverage");
+            var sessionCount =
+                GetReviewerLabeledValue(content.Text, "Sessions");
+            var treatmentDays =
+                GetReviewerLabeledValue(content.Text, "Treatment days");
+            var totalTherapyHours =
+                GetReviewerLabeledValue(content.Text, "Total therapy hours");
+            var averageHoursPerTreatmentDay =
+                GetReviewerLabeledValue(
+                    content.Text,
+                    "Average hours per treatment day");
+            var daysAtLeastFourHours =
+                GetReviewerLabeledValue(content.Text, "Days >= 4 hours");
+            var daysAtLeastSixHours =
+                GetReviewerLabeledValue(content.Text, "Days >= 6 hours");
+            var weightedAhi =
+                GetReviewerLabeledValue(content.Text, "Weighted AHI");
+            var medianDailyAhi =
+                GetReviewerLabeledValue(content.Text, "Median daily AHI");
+            var maximumDailyAhi =
+                GetReviewerLabeledValue(content.Text, "Maximum daily AHI");
+
+            if (string.IsNullOrWhiteSpace(coverage) ||
+                string.IsNullOrWhiteSpace(sessionCount) ||
+                string.IsNullOrWhiteSpace(treatmentDays) ||
+                string.IsNullOrWhiteSpace(totalTherapyHours) ||
+                string.IsNullOrWhiteSpace(averageHoursPerTreatmentDay) ||
+                string.IsNullOrWhiteSpace(daysAtLeastFourHours) ||
+                string.IsNullOrWhiteSpace(daysAtLeastSixHours) ||
+                string.IsNullOrWhiteSpace(weightedAhi) ||
+                string.IsNullOrWhiteSpace(medianDailyAhi) ||
+                string.IsNullOrWhiteSpace(maximumDailyAhi))
+            {
+                continue;
+            }
+
+            var sourceName =
+                ContainsReviewerText(
+                    content.Text,
+                    "retained SNORE session export")
+                    ? "SNORE"
+                    : ContainsReviewerText(
+                        content.Text,
+                        "retained OSCAR session export")
+                        ? "OSCAR"
+                        : "PAP";
+
+            return new PapSessionAdherenceSummary(
+                sourceName,
+                coverage,
+                sessionCount,
+                treatmentDays,
+                totalTherapyHours,
+                averageHoursPerTreatmentDay,
+                daysAtLeastFourHours,
+                daysAtLeastSixHours,
+                weightedAhi,
+                medianDailyAhi,
+                maximumDailyAhi);
+        }
+
+        return null;
+    }
+
+    private static string? GetReviewerLabeledValue(
+        string text,
+        string label)
+    {
+        var match =
+            Regex.Match(
+                text,
+                $@"(?im)^\s*{Regex.Escape(label)}\s*:\s*(?<value>[^\r\n]+?)\s*$",
+                RegexOptions.CultureInvariant);
+
+        return match.Success
+            ? match.Groups["value"].Value.Trim()
+            : null;
+    }
+
+    private static void AppendSleepStudyPapTitrationResults(
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        var findings =
+            GetPapTitrationFindings(details);
+
+        if (findings.Count == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                "Sleep Study / PAP Titration Results",
+                "Heading1"));
+
+        body.Append(
+            ContentParagraph(
+                "The following PAP titration findings are documented in subsequent " +
+                "provider notes in the supplied evidence. A primary titration report " +
+                "should be treated as included only when it appears separately in the " +
+                "evidence appendices."));
+
+        foreach (var item in findings)
+        {
+            body.Append(
+                StyledParagraph(
+                    $"{item.EventDate.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture)} — " +
+                    "PAP Titration Result",
+                    "Heading2"));
+
+            body.Append(
+                ContentParagraph(item.Summary));
+
+            body.Append(
+                ContentParagraph(
+                    $"Source: {item.SourceLocator}"));
+        }
+
+        if (details.ClinicalProgressionEvents.Any(
+                item =>
+                    item.EventDate >= findings[0].EventDate &&
+                    item.EventType == ClinicalProgressionEventTypes.TreatmentTransition &&
+                    ContainsReviewerText(item.Summary, "ASV")))
+        {
+            body.Append(
+                ContentParagraph(
+                    "The subsequent treatment chronology—including documented pressure " +
+                    "changes, ASV consultation or transition, and device setup when present " +
+                    "in the supplied records—corroborates that these documented titration " +
+                    "findings were incorporated into treatment decisions."));
+        }
+    }
+
+    private static IReadOnlyList<VeteransReviewerClinicalProgressionEvent>
+        GetPapTitrationFindings(
+            VeteransReviewerPackageDetails details) =>
+        details.ClinicalProgressionEvents
+            .Where(IsPapTitrationFinding)
+            .OrderBy(item => item.EventDate)
+            .ThenBy(item => item.SourceLocator, StringComparer.Ordinal)
+            .ToArray();
+
+    private static bool IsPapTitrationFinding(
+        VeteransReviewerClinicalProgressionEvent item) =>
+        string.Equals(
+            item.EventType,
+            ClinicalProgressionEventTypes.DiagnosticFinding,
+            StringComparison.Ordinal) &&
+        ContainsReviewerText(item.Summary, "PAP titration");
+
+    private sealed record PapSessionAdherenceSummary(
+        string SourceName,
+        string Coverage,
+        string SessionCount,
+        string TreatmentDays,
+        string TotalTherapyHours,
+        string AverageHoursPerTreatmentDay,
+        string DaysAtLeastFourHours,
+        string DaysAtLeastSixHours,
+        string WeightedAhi,
+        string MedianDailyAhi,
+        string MaximumDailyAhi);
+
     private static void AppendClinicalProgression(
         Body body,
         VeteransReviewerPackageDetails details)
     {
         var progression =
             details.ClinicalProgressionEvents
+                .Where(item => !IsPapTitrationFinding(item))
                 .OrderBy(item => item.EventDate)
                 .ThenBy(item => item.SourceLocator, StringComparer.Ordinal)
                 .ThenBy(item => item.EventType, StringComparer.Ordinal)
