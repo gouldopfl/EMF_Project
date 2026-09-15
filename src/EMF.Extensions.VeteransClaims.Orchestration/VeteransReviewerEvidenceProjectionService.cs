@@ -10,6 +10,15 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 public sealed class VeteransReviewerEvidenceProjectionService
 {
     private const int ContextLineRadius = 1;
+    private const int ClassificationFallbackMaximumCharacters = 24_000;
+
+    private static readonly HashSet<string>
+        ClassificationPreservingFallbacks =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            EvidenceClassifications.LayEvidence,
+            EvidenceClassifications.MedicalOpinion
+        };
 
     private readonly IEvidenceRecognitionTermRepository _recognitionTerms;
 
@@ -201,6 +210,12 @@ public sealed class VeteransReviewerEvidenceProjectionService
 
         if (matchingLineIndexes.Count == 0)
         {
+            if (source.Classifications.Any(
+                    ClassificationPreservingFallbacks.Contains))
+            {
+                return ProjectBoundedNonBlankLines(source, lines);
+            }
+
             return new VeteransReviewerEvidenceProjection
             {
                 ArtifactId = source.ArtifactId,
@@ -262,6 +277,60 @@ public sealed class VeteransReviewerEvidenceProjectionService
                         term => term,
                         StringComparer.Ordinal)
                     .ToArray()
+        };
+    }
+
+    private static VeteransReviewerEvidenceProjection ProjectBoundedNonBlankLines(
+        VeteransReviewerEvidenceSource source,
+        IReadOnlyList<string> lines)
+    {
+        var projectedLines = new List<string>();
+        var sourceLineNumbers = new List<int>();
+        var seenLines = new HashSet<string>(StringComparer.Ordinal);
+        var projectedLength = 0;
+
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var normalizedLine = NormalizeWhitespace(lines[i]);
+
+            if (normalizedLine.Length == 0 ||
+                !seenLines.Add(normalizedLine))
+            {
+                continue;
+            }
+
+            var separatorLength = projectedLines.Count == 0 ? 0 : 1;
+            var availableCharacters =
+                ClassificationFallbackMaximumCharacters -
+                projectedLength -
+                separatorLength;
+
+            if (availableCharacters <= 0)
+            {
+                break;
+            }
+
+            if (normalizedLine.Length > availableCharacters)
+            {
+                normalizedLine = normalizedLine[..availableCharacters];
+            }
+
+            projectedLines.Add(normalizedLine);
+            sourceLineNumbers.Add(i + 1);
+            projectedLength += separatorLength + normalizedLine.Length;
+
+            if (projectedLength >= ClassificationFallbackMaximumCharacters)
+            {
+                break;
+            }
+        }
+
+        return new VeteransReviewerEvidenceProjection
+        {
+            ArtifactId = source.ArtifactId,
+            Text = string.Join("\n", projectedLines),
+            SourceLineNumbers = sourceLineNumbers,
+            MatchedTerms = []
         };
     }
 

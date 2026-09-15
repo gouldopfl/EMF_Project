@@ -247,6 +247,83 @@ public sealed class VeteransReviewerEvidenceProjectionServiceTests
         Assert.Contains("Trazodone", projection.MatchedTerms);
     }
 
+    [Theory]
+    [InlineData(EvidenceClassifications.LayEvidence)]
+    [InlineData(EvidenceClassifications.MedicalOpinion)]
+    public async Task ProjectAsync_PreservesCriticalClassificationsWhenTermsDoNotMatch(
+        string classification)
+    {
+        var service =
+            new VeteransReviewerEvidenceProjectionService(
+                new InMemoryEvidenceRecognitionTermRepository());
+
+        var source =
+            new VeteransReviewerEvidenceSource
+            {
+                ArtifactId = new ArtifactId("artifact-critical-fallback"),
+                Classifications = [classification],
+                Text =
+                    "First factual line\n" +
+                    "Second factual line\n" +
+                    "Second   factual   line\n" +
+                    "Third factual line"
+            };
+
+        var projection =
+            Assert.Single(
+                await service.ProjectAsync(
+                    CreateDetails(),
+                    [source]));
+
+        Assert.Equal(
+            "First factual line\n" +
+            "Second factual line\n" +
+            "Third factual line",
+            projection.Text);
+        Assert.Equal([1, 2, 4], projection.SourceLineNumbers);
+        Assert.Empty(projection.MatchedTerms);
+    }
+
+    [Theory]
+    [InlineData(EvidenceClassifications.LayEvidence)]
+    [InlineData(EvidenceClassifications.MedicalOpinion)]
+    public async Task ProjectAsync_BoundsClassificationPreservingFallback(
+        string classification)
+    {
+        var service =
+            new VeteransReviewerEvidenceProjectionService(
+                new InMemoryEvidenceRecognitionTermRepository());
+
+        var sourceText =
+            string.Join(
+                "\n",
+                Enumerable.Range(0, 2_000)
+                    .Select(
+                        index =>
+                            $"Factual line {index:D4} " +
+                            new string('x', 40)));
+
+        var source =
+            new VeteransReviewerEvidenceSource
+            {
+                ArtifactId = new ArtifactId("artifact-bounded-fallback"),
+                Classifications = [classification],
+                Text = sourceText
+            };
+
+        var projection =
+            Assert.Single(
+                await service.ProjectAsync(
+                    CreateDetails(),
+                    [source]));
+
+        Assert.NotEmpty(projection.Text);
+        Assert.True(projection.Text.Length <= 24_000);
+        Assert.True(projection.Text.Length < sourceText.Length);
+        Assert.NotEmpty(projection.SourceLineNumbers);
+        Assert.Empty(projection.MatchedTerms);
+    }
+
     private static ClaimIssueAdjudicationDetails CreateDetails(
         bool includeRequirement = false,
         bool includeSecondaryContext = false)

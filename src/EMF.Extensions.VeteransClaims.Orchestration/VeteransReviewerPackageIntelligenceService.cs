@@ -18,7 +18,7 @@ public sealed class VeteransReviewerPackageIntelligenceService :
     private const int ProviderResponseHeadroomCharacters = 2_000;
     private const int MaximumReviewerCapabilityCalls = 64;
     private const string ReviewerReuseStrategyVersion =
-        "claim-aware-projection-v1";
+        "claim-aware-projection-v2";
 
     private readonly TextSummarizationAgent _agent;
     private readonly VeteransReviewerEvidenceProjectionService? _projection;
@@ -313,6 +313,8 @@ public sealed class VeteransReviewerPackageIntelligenceService :
         var finalSource =
             BuildFinalSynthesisSource(
                 details,
+                evidenceSources,
+                projections,
                 developmentDetails,
                 summaries);
 
@@ -368,6 +370,8 @@ public sealed class VeteransReviewerPackageIntelligenceService :
 
     private static string BuildFinalSynthesisSource(
         ClaimIssueAdjudicationDetails details,
+        IReadOnlyList<VeteransReviewerEvidenceSource> evidenceSources,
+        IReadOnlyList<VeteransReviewerEvidenceProjection> projections,
         IReadOnlyList<VeteransReviewerEvidenceDevelopmentDetails>
             developmentDetails,
         IReadOnlyList<(VeteransReviewerEvidenceSource Source, string Summary)>
@@ -379,6 +383,50 @@ public sealed class VeteransReviewerPackageIntelligenceService :
             VeteransReviewerPackageSourceFormatter.Format(
                 details,
                 developmentDetails: developmentDetails));
+
+        builder.AppendLine();
+        builder.AppendLine("Authoritative Evidence Inventory:");
+        builder.AppendLine(
+            "This inventory is authoritative for whether an evidence " +
+            "category is present. A source with no selected claim-aware " +
+            "excerpt is still evidence of record and must not be described " +
+            "as absent.");
+
+        for (var i = 0; i < evidenceSources.Count; i++)
+        {
+            var source = evidenceSources[i];
+            var projection = projections[i];
+            var displayName =
+                VeteransReviewerDisplayNameResolver.Resolve(
+                    "Evidence of Record",
+                    source.EvidenceTitle,
+                    source.SourceName,
+                    source.ArtifactName) ??
+                "Evidence of record";
+
+            var classifications =
+                source.Classifications.Count == 0
+                    ? "Unclassified"
+                    : string.Join(", ", source.Classifications);
+
+            var projectionStatus =
+                string.IsNullOrWhiteSpace(projection.Text)
+                    ? "No claim-aware excerpt selected; source remains present in the package."
+                    : projection.MatchedTerms.Count == 0
+                        ? "Summarized using classification-preserving fallback."
+                        : "Claim-aware excerpt selected and summarized.";
+
+            builder.AppendLine(
+                $"- {displayName} | Classification: {classifications} | " +
+                $"Projection: {projectionStatus}");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine(
+            "Presence/absence rule: Do not state that LayEvidence, " +
+            "MedicalOpinion, ServiceRecord, AdjudicativeRecord, or " +
+            "MedicalEvidence is absent when that classification appears " +
+            "in the Authoritative Evidence Inventory.");
 
         builder.AppendLine();
         builder.AppendLine(
@@ -867,6 +915,11 @@ public sealed class VeteransReviewerPackageIntelligenceService :
         builder.AppendLine(
             "Do not invent evidence, diagnoses, relationships, " +
             "requirements, or events.");
+
+        builder.AppendLine(
+            "When an Authoritative Evidence Inventory is supplied, use it " +
+            "to determine whether evidence categories are present or absent. " +
+            "Never equate an unselected excerpt with absent evidence.");
 
         builder.AppendLine(
             "Do not make medical, legal, or adjudicative conclusions.");

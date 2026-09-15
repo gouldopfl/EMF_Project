@@ -588,6 +588,86 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
     }
 
     [Fact]
+    public async Task SummarizeAsync_WithProjection_PreservesCriticalEvidenceAndInventoriesAllSources()
+    {
+        var layId = new ArtifactId("projected-lay-fallback");
+        var opinionId = new ArtifactId("projected-opinion-fallback");
+        var unrelatedId = new ArtifactId("projected-unrelated-medical");
+        var executor = new RecordingTextSummarizationExecutor();
+        var service =
+            new VeteransReviewerPackageIntelligenceService(
+                executor,
+                new VeteransReviewerEvidenceProjectionService(
+                    new InMemoryEvidenceRecognitionTermRepository()));
+
+        var context = new IntelligenceExecutionContext(
+            "reviewer-package-steward",
+            new IntelligenceCorrelationId("projection-inventory-test"),
+            new ProtectionClassificationId("confidential"),
+            [layId, opinionId, unrelatedId]);
+
+        var result =
+            await service.SummarizeAsync(
+                CreateProjectionDetails(),
+                [
+                    new VeteransReviewerEvidenceSource
+                    {
+                        ArtifactId = layId,
+                        EvidenceTitle = "Veteran Lay Statement",
+                        Classifications = [EvidenceClassifications.LayEvidence],
+                        Text = "LAY FACT WITHOUT CLAIM TERM"
+                    },
+                    new VeteransReviewerEvidenceSource
+                    {
+                        ArtifactId = opinionId,
+                        EvidenceTitle = "Medical Opinion",
+                        Classifications = [EvidenceClassifications.MedicalOpinion],
+                        Text = "OPINION FACT WITHOUT CLAIM TERM"
+                    },
+                    new VeteransReviewerEvidenceSource
+                    {
+                        ArtifactId = unrelatedId,
+                        EvidenceTitle = "Unrelated Medical Record",
+                        Classifications = [EvidenceClassifications.MedicalEvidence],
+                        Text = "PRIVATE IRRELEVANT MEDICAL CONTENT"
+                    }
+                ],
+                [],
+                context);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, executor.Requests.Count);
+
+        Assert.Contains(
+            "LAY FACT WITHOUT CLAIM TERM",
+            executor.Requests[0].Text);
+        Assert.Contains(
+            "OPINION FACT WITHOUT CLAIM TERM",
+            executor.Requests[1].Text);
+        Assert.All(
+            executor.Requests,
+            request =>
+                Assert.DoesNotContain(
+                    "PRIVATE IRRELEVANT MEDICAL CONTENT",
+                    request.Text));
+
+        var finalRequest = executor.Requests[^1].Text;
+        Assert.Contains("Authoritative Evidence Inventory:", finalRequest);
+        Assert.Contains("Veteran Lay Statement | Classification: LayEvidence", finalRequest);
+        Assert.Contains("Medical Opinion | Classification: MedicalOpinion", finalRequest);
+        Assert.Contains("Unrelated Medical Record | Classification: MedicalEvidence", finalRequest);
+        Assert.Contains(
+            "No claim-aware excerpt selected; source remains present in the package.",
+            finalRequest);
+        Assert.Contains(
+            "Summarized using classification-preserving fallback.",
+            finalRequest);
+        Assert.Contains(
+            "Never equate an unselected excerpt with absent evidence.",
+            finalRequest);
+    }
+
+    [Fact]
     public async Task SummarizeAsync_RejectsRecognitionArtifactOutsideEvidence()
     {
         var evidenceId = new ArtifactId("reviewer-evidence");
