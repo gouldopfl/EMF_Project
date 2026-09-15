@@ -20,5 +20,9 @@ public sealed class VeteransReviewerPackageDetails
     { get; init; } =
         Array.Empty<VeteransReviewerMedication>();
 
+    public IReadOnlyList<MedicationLedgerEntry> CurrentMedications
+    { get; init; } =
+        Array.Empty<MedicationLedgerEntry>();
+
     public string? MedicalOpinionRequested { get; init; }
 }

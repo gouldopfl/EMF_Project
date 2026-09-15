@@ -10,81 +10,55 @@ namespace EMF.Tests;
 public sealed class VeteransReviewerPackageMedicationRendererTests
 {
     [Fact]
-    public void Render_ShowsMedicationAndEarliestDocumentedRelease()
+    public void Render_ShowsCompleteCurrentMedicationEntry()
     {
-        var veteranId = new VeteranId("veteran-1");
-
-        var current = new MedicationRecord
-        {
-            Id = new MedicationRecordId("med-1"),
-            VeteranId = veteranId,
-            SourceArtifactId = new ArtifactId("blue-button-current"),
-            RecordDate = new DateOnly(2026, 8, 4),
-            SourcePage = 429,
-            MedicationName = "Trazodone HCl",
-            Strength = "100MG",
-            Directions = "THREE AT BEDTIME",
-            Indication = "FOR INSOMNIA",
-            Status = MedicationStatuses.Active
-        };
-
-        var release = new MedicationHistoryEvent
-        {
-            Id = new MedicationHistoryEventId("history-1"),
-            VeteranId = veteranId,
-            SourceArtifactId = new ArtifactId("blue-button-history"),
-            EventDate = new DateOnly(2022, 12, 29),
-            SourcePage = 2448,
-            MedicationName = "Trazodone HCl",
-            EventType = MedicationHistoryEventTypes.LastReleased,
-            PrescriptionNumber = "rx-private-123"
-        };
-
         var text = RenderText(
-            new VeteransReviewerMedication
+            new MedicationLedgerEntry
             {
-                CurrentMedication = current,
-                EarliestDocumentedRelease = release
+                Id = new MedicationLedgerEntryId("entry-1"),
+                MedicationLedgerId = new MedicationLedgerId("ledger-1"),
+                EntryOrdinal = 1,
+                SourceStartPage = 3922,
+                SourceEndPage = 3922,
+                MedicationName = "traZODone (traZODone 100 mg tablet)",
+                Strength = "100 mg",
+                Status = "active",
+                Directions = "TAKE THREE TABLETS ORALLY AT BEDTIME FOR INSOMNIA",
+                Indication = "None recorded"
             });
 
-        Assert.Contains("Trazodone HCl", text);
+        Assert.Contains("Current Medication List", text);
+        Assert.Contains("traZODone (traZODone 100 mg tablet)", text);
+        Assert.Contains("Strength: 100 mg", text);
+        Assert.Contains("TAKE THREE TABLETS ORALLY AT BEDTIME FOR INSOMNIA", text);
         Assert.Contains("Current status: Active", text);
-        Assert.Contains(
-            "Earliest documented VA release: December 29, 2022",
-            text);
-        Assert.DoesNotContain("rx-private-123", text);
-        Assert.DoesNotContain("blue-button-history", text);
-        Assert.DoesNotContain("blue-button-current", text);
+        Assert.DoesNotContain("Documented indication: None recorded", text);
+        Assert.DoesNotContain("Earliest documented VA release:", text);
     }
 
     [Fact]
-    public void Render_OmitsReleaseLineWhenHistoryIsAbsent()
+    public void Render_HumanizesRefillInProcessStatus()
     {
-        var current = new MedicationRecord
-        {
-            Id = new MedicationRecordId("med-2"),
-            VeteranId = new VeteranId("veteran-1"),
-            SourceArtifactId = new ArtifactId("blue-button"),
-            RecordDate = new DateOnly(2026, 8, 4),
-            SourcePage = 429,
-            MedicationName = "Sertraline HCl",
-            Status = MedicationStatuses.Active
-        };
-
         var text = RenderText(
-            new VeteransReviewerMedication
+            new MedicationLedgerEntry
             {
-                CurrentMedication = current
+                Id = new MedicationLedgerEntryId("entry-2"),
+                MedicationLedgerId = new MedicationLedgerId("ledger-1"),
+                EntryOrdinal = 2,
+                SourceStartPage = 3923,
+                SourceEndPage = 3923,
+                MedicationName = "isosorbide mononitrate",
+                Strength = "30 mg/24 hour",
+                Status = "refillinprocess",
+                Directions = "TAKE ONE TABLET ORALLY EVERY DAY WITH BREAKFAST FOR PREVENTING CHEST PAIN"
             });
 
-        Assert.Contains("Sertraline HCl", text);
-        Assert.DoesNotContain(
-            "Earliest documented VA release:",
-            text);
+        Assert.Contains("isosorbide mononitrate", text);
+        Assert.Contains("Current status: Refill in process", text);
     }
 
     private static string RenderText(
-        VeteransReviewerMedication medication)
+        MedicationLedgerEntry medication)
     {
         var details = new VeteransReviewerPackageDetails
         {
@@ -100,7 +74,7 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
                 Artifacts = []
             },
             Artifacts = [],
-            CurrentPrescribedMedications = [medication]
+            CurrentMedications = [medication]
         };
 
         var bytes =

@@ -383,12 +383,12 @@ public static class VeteransReviewerPackageDocxRenderer
             "Issues Presented for Medical Review",
             "Defines the review purpose, reviewer role, evidence scope, and limitations.");
 
-        if (details.CurrentPrescribedMedications.Count > 0)
+        if (details.CurrentMedications.Count > 0)
         {
             AppendPackageGuideEntry(
                 body,
-                "VA Prescribed Medications Relevant to Claimed Conditions",
-                "Summarizes current relevant VA prescriptions and documented medication history.");
+                "Current Medication List",
+                "Provides the complete current prescription snapshot from the newest complete VA medication ledger.");
         }
 
         AppendPackageGuideEntry(
@@ -520,10 +520,11 @@ public static class VeteransReviewerPackageDocxRenderer
         VeteransReviewerPackageDetails details)
     {
         var medications =
-            details.CurrentPrescribedMedications
+            details.CurrentMedications
                 .OrderBy(
-                    item => item.CurrentMedication.MedicationName,
+                    item => item.MedicationName,
                     StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => item.EntryOrdinal)
                 .ToArray();
 
         if (medications.Length == 0)
@@ -531,19 +532,18 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             StyledParagraph(
-                "VA Prescribed Medications Relevant to Claimed Conditions",
+                "Current Medication List",
                 "Heading1"));
 
         body.Append(
             ContentParagraph(
-                "Current prescription information below is drawn from VA " +
-                "medication records associated with this review. Historical " +
-                "release dates are shown only when explicitly documented."));
+                "This complete current prescription snapshot is drawn from the " +
+                "newest complete VA medication ledger supplied in the record. " +
+                "It is not limited to medications considered relevant to the " +
+                "claimed condition."));
 
-        foreach (var item in medications)
+        foreach (var medication in medications)
         {
-            var medication = item.CurrentMedication;
-
             body.Append(
                 StyledParagraph(
                     medication.MedicationName,
@@ -557,25 +557,29 @@ public static class VeteransReviewerPackageDocxRenderer
                 body.Append(ContentParagraph(
                     $"Directions: {medication.Directions.Trim()}"));
 
-            if (!string.IsNullOrWhiteSpace(medication.Indication))
+            if (!string.IsNullOrWhiteSpace(medication.Indication) &&
+                !string.Equals(
+                    medication.Indication.Trim(),
+                    "None recorded",
+                    StringComparison.OrdinalIgnoreCase))
+            {
                 body.Append(ContentParagraph(
                     $"Documented indication: {medication.Indication.Trim()}"));
+            }
 
             body.Append(
                 ContentParagraph(
-                    $"Current status: {medication.Status.Trim()}"));
-
-            if (item.EarliestDocumentedRelease is not null)
-            {
-                body.Append(
-                    ContentParagraph(
-                        "Earliest documented VA release: " +
-                        item.EarliestDocumentedRelease.EventDate.ToString(
-                            "MMMM d, yyyy",
-                            CultureInfo.InvariantCulture)));
-            }
+                    $"Current status: {MedicationLedgerStatusDisplayName(medication.Status)}"));
         }
     }
+
+    private static string MedicationLedgerStatusDisplayName(string status) =>
+        status.Trim().ToLowerInvariant() switch
+        {
+            "active" => "Active",
+            "refillinprocess" => "Refill in process",
+            _ => status.Trim()
+        };
 
 
     private static void AppendKeyEvidenceAndChronology(

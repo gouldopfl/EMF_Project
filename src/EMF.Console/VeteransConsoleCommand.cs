@@ -5425,14 +5425,11 @@ public static class VeteransConsoleCommand
         if (details is null)
             return 1;
 
-        var reviewerMedications =
-            await new VeteransReviewerPackageMedicationService(
+        var currentMedications =
+            await new VeteransReviewerPackageCurrentMedicationService(
                     new SqliteClaimIssueRepository(fullDatabasePath),
                     new SqliteClaimRepository(fullDatabasePath),
-                    new SqliteServiceConnectionRepository(fullDatabasePath),
-                    new CurrentMedicationService(
-                        new SqliteMedicationRepository(fullDatabasePath)),
-                    new MedicationHistorySummaryService(
+                    new CurrentMedicationLedgerService(
                         new SqliteMedicationRepository(fullDatabasePath)))
                 .GetAsync(details.PackageDetails.Package);
 
@@ -5448,7 +5445,7 @@ public static class VeteransConsoleCommand
                 PackageDetails = details.PackageDetails,
                 Artifacts = details.Artifacts,
                 ArtifactContents = details.ArtifactContents,
-                CurrentPrescribedMedications = reviewerMedications,
+                CurrentMedications = currentMedications,
                 MedicalOpinionRequested = medicalOpinionRequested
             };
 
