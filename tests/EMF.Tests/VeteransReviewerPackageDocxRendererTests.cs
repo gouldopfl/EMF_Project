@@ -2408,23 +2408,30 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
 
-        var secondHeading =
-            Assert.Single(
-                document.MainDocumentPart!
-                    .Document!
-                    .Body!
-                    .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
-                    .Where(paragraph =>
-                        paragraph.InnerText == "Second Evidence" &&
-                        paragraph.ParagraphProperties?
-                            .ParagraphStyleId?
-                            .Val?
-                            .Value == "Heading2" &&
-                        paragraph.ParagraphProperties?
-                            .PageBreakBefore is not null));
+        var paragraphs =
+            document.MainDocumentPart!
+                .Document!
+                .Body!
+                .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .ToArray();
 
-        Assert.NotNull(
-            secondHeading.ParagraphProperties?.PageBreakBefore);
+        var secondHeadingIndex =
+            Array.FindIndex(
+                paragraphs,
+                paragraph =>
+                    paragraph.InnerText == "Second Evidence" &&
+                    paragraph.ParagraphProperties?
+                        .ParagraphStyleId?
+                        .Val?
+                        .Value == "Heading2");
+
+        Assert.True(secondHeadingIndex > 0);
+        Assert.Contains(
+            paragraphs[secondHeadingIndex - 1]
+                .Descendants<DocumentFormat.OpenXml.Wordprocessing.Break>(),
+            pageBreak =>
+                pageBreak.Type?.Value ==
+                DocumentFormat.OpenXml.Wordprocessing.BreakValues.Page);
     }
 
     [Fact]
@@ -2955,8 +2962,10 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             index =>
             {
                 var heading = paragraphs[index];
+                var bodyParagraph = paragraphs[index + 1];
                 Assert.NotNull(heading.ParagraphProperties?.KeepNext);
                 Assert.NotNull(heading.ParagraphProperties?.KeepLines);
+                Assert.Null(bodyParagraph.ParagraphProperties?.KeepLines);
                 Assert.Contains(
                     heading.Descendants<DocumentFormat.OpenXml.Wordprocessing.Bold>(),
                     bold => bold.Val?.Value != false);
@@ -3517,6 +3526,103 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
 public sealed partial class VeteransReviewerPackageDocxRendererTests
 {
+    [Fact]
+    public void Render_HidesBlueButtonPhysicalPagesAndLabelsHistoricalMedicationList()
+    {
+        var packageId =
+            new EvidencePackageId("package-blue-button-history");
+
+        var artifact =
+            new Artifact
+            {
+                Id = new ArtifactId("artifact-blue-button-history"),
+                Name = "bounded-note",
+                ArtifactType = "veterans-clinical-note",
+                Metadata =
+                    new Dictionary<string, object>
+                    {
+                        [EMF.Extensions.VeteransClaims.Models
+                            .VeteransArtifactMetadataKeys.EvidenceTitle] =
+                            "SLEEP MED SLEEP SPECIALIST INITIAL CONSULTATION NOTE",
+                        [EMF.Extensions.VeteransClaims.Models
+                            .VeteransArtifactMetadataKeys.EvidenceDate] =
+                            "2024-01-25"
+                    }
+            };
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId =
+                                    new ClaimIssueId("issue-blue-button-history"),
+                                Purpose = "Physician reviewer package",
+                                ReviewerRole = "MedicalProfessional"
+                            },
+                        Artifacts =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = packageId,
+                                ArtifactId = artifact.Id,
+                                ContentRole =
+                                    EvidencePackageContentRoles.UnderlyingEvidence
+                            }
+                        ]
+                    },
+                Artifacts = [artifact],
+                ArtifactContents =
+                [
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = artifact,
+                        Appendix =
+                            VeteransReviewerPackageAppendix.MedicalEvidence,
+                        SourceName = "VA Blue Button Report",
+                        Text =
+                            "HPI:\n" +
+                            "Clinical history before header. Gould, Michael Allen Date of birth: April 12, 1956 " +
+                            "Report generated by My HealtheVet on VA.gov on September 9, 2026 " +
+                            "Page 2012 of 4024 Clinical history after header.\n\n" +
+                            "MEDICATIONS:\n" +
+                            "Active Outpatient Medications (including Supplies):\n" +
+                            "GABAPENTIN 400MG CAP TAKE ONE CAPSULE ORALLY EVERY 6 HOURS"
+                    }
+                ]
+            };
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var text =
+            document.MainDocumentPart!
+                .Document!
+                .Body!
+                .InnerText;
+
+        Assert.Contains("Clinical history before header.", text);
+        Assert.Contains("Clinical history after header.", text);
+        Assert.DoesNotContain("Page 2012 of 4024", text);
+        Assert.DoesNotContain("Report generated by My HealtheVet", text);
+        Assert.Contains(
+            "Historical Medication List — January 25, 2024 VA Sleep Medicine Note",
+            text);
+        Assert.Contains(
+            "Source-record medication list; not current medication status.",
+            text);
+        Assert.Contains("GABAPENTIN 400MG CAP", text);
+    }
+
     [Fact]
     public void Render_DerivesHumanReadableLegacyEvidenceLabels()
     {

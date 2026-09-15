@@ -104,6 +104,14 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
         Assert.Contains("June 2, 2025 — Discontinued — 60MG", text);
         Assert.Contains("Current Medication List", text);
         Assert.Contains("Current status: Refill in process", text);
+
+        Assert.True(
+            text.IndexOf(
+                "Current Medication List",
+                StringComparison.Ordinal) <
+            text.IndexOf(
+                "Relevant Medication Progression / History",
+                StringComparison.Ordinal));
         Assert.Contains(
             "does not infer a clinical reason for a change unless that reason is separately documented",
             text);

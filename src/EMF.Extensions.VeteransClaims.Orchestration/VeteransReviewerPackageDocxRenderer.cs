@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using DocumentFormat.OpenXml;
 using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
@@ -90,11 +91,11 @@ public static class VeteransReviewerPackageDocxRenderer
                 body,
                 details);
 
-            AppendMedicationProgressions(
+            AppendPrescribedMedications(
                 body,
                 details);
 
-            AppendPrescribedMedications(
+            AppendMedicationProgressions(
                 body,
                 details);
 
@@ -465,20 +466,20 @@ public static class VeteransReviewerPackageDocxRenderer
                 "Summarizes source-grounded treatment use, problems, adjustments, transitions, findings, and responses relevant to the medical review.");
         }
 
-        if (details.MedicationProgressions.Count > 0)
-        {
-            AppendPackageGuideEntry(
-                body,
-                "Relevant Medication Progression / History",
-                "Summarizes meaningful dose, direction, and prescription-status changes for medications relevant to the medical opinion request.");
-        }
-
         if (details.CurrentMedications.Count > 0)
         {
             AppendPackageGuideEntry(
                 body,
                 "Current Medication List",
                 "Provides the newest complete VA medication ledger's current-prescription list after applying persisted current-use reconciliation when available.");
+        }
+
+        if (details.MedicationProgressions.Count > 0)
+        {
+            AppendPackageGuideEntry(
+                body,
+                "Relevant Medication Progression / History",
+                "Summarizes meaningful dose, direction, and prescription-status changes for medications relevant to the medical opinion request.");
         }
 
         AppendPackageGuideEntry(
@@ -1100,12 +1101,14 @@ public static class VeteransReviewerPackageDocxRenderer
                         content => GetDisplayName(content),
                         StringComparer.OrdinalIgnoreCase))
             {
+                if (!firstArtifact)
+                    body.Append(PageBreakParagraph());
+
                 AppendSourceContent(
                     mainPart,
                     body,
                     details,
-                    content,
-                    pageBreakBefore: !firstArtifact);
+                    content);
 
                 firstArtifact = false;
             }
@@ -1138,12 +1141,14 @@ public static class VeteransReviewerPackageDocxRenderer
 
         foreach (var content in additionalEvidence)
         {
+            if (!firstAdditionalArtifact)
+                body.Append(PageBreakParagraph());
+
             AppendSourceContent(
                 mainPart,
                 body,
                 details,
-                content,
-                pageBreakBefore: !firstAdditionalArtifact);
+                content);
 
             firstAdditionalArtifact = false;
         }
@@ -1245,7 +1250,8 @@ public static class VeteransReviewerPackageDocxRenderer
                     body,
                     ApplyReviewerSourceCorrections(
                         content.Text,
-                        clarifications));
+                        clarifications),
+                    BuildHistoricalMedicationTitle(content));
             }
         }
     }
@@ -2089,14 +2095,41 @@ public static class VeteransReviewerPackageDocxRenderer
 
     private static void AppendReviewerText(
         Body body,
-        string text)
+        string text,
+        string? historicalMedicationTitle = null)
     {
+        var historicalMedicationTitleRendered = false;
+
         foreach (var line in NormalizeReviewerText(text))
         {
             if (line.Length == 0)
             {
                 body.Append(ContentParagraph(string.Empty));
                 continue;
+            }
+
+            if (!historicalMedicationTitleRendered &&
+                !string.IsNullOrWhiteSpace(historicalMedicationTitle) &&
+                IsHistoricalMedicationSectionHeading(line))
+            {
+                body.Append(
+                    StyledParagraph(
+                        historicalMedicationTitle,
+                        "Heading3"));
+
+                body.Append(
+                    ContentParagraph(
+                        "Source-record medication list; not current medication status.",
+                        keepWithNext: true));
+
+                historicalMedicationTitleRendered = true;
+
+                if (line.Equals(
+                        "MEDICATIONS:",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
             }
 
             var properties =
@@ -2158,10 +2191,11 @@ public static class VeteransReviewerPackageDocxRenderer
                         LineRule = LineSpacingRuleValues.Auto
                     });
 
-            properties.Append(new KeepLines());
-
             if (heading)
+            {
+                properties.Append(new KeepLines());
                 properties.Append(new KeepNext());
+            }
 
             var runProperties =
                 new RunProperties(
@@ -2275,11 +2309,71 @@ public static class VeteransReviewerPackageDocxRenderer
         return letterCount >= 2;
     }
 
+    private static string StripBlueButtonPageHeaders(
+        string text) =>
+        Regex.Replace(
+            text,
+            @"\b[\p{L}'-]+,\s*[\p{L} .'-]+\s+Date of birth:\s*[A-Za-z]+\s+\d{1,2},\s+\d{4}\s+Report generated by My HealtheVet on VA\.gov on\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}\s+Page\s+\d+\s+of\s+\d+\b",
+            string.Empty,
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+
+    private static bool IsHistoricalMedicationSectionHeading(
+        string line) =>
+        line.Equals(
+            "MEDICATIONS:",
+            StringComparison.OrdinalIgnoreCase) ||
+        line.StartsWith(
+            "Active Outpatient Medications",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static string? BuildHistoricalMedicationTitle(
+        VeteransReviewerArtifactContent content)
+    {
+        if (!string.Equals(
+                content.Artifact.ArtifactType,
+                "veterans-clinical-note",
+                StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(content.Text) ||
+            !NormalizeReviewerText(content.Text).Any(
+                IsHistoricalMedicationSectionHeading))
+        {
+            return null;
+        }
+
+        var date = GetEvidenceDate(content);
+        var formattedDate = date;
+
+        if (DateOnly.TryParseExact(
+                date,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsedDate))
+        {
+            formattedDate =
+                parsedDate.ToString(
+                    "MMMM d, yyyy",
+                    CultureInfo.InvariantCulture);
+        }
+
+        var displayName = GetDisplayName(content);
+        var sourceType =
+            ContainsReviewerText(displayName, "SLEEP")
+                ? "VA Sleep Medicine Note"
+                : "Source Record";
+
+        return string.IsNullOrWhiteSpace(formattedDate)
+            ? $"Historical Medication List — {sourceType}"
+            : $"Historical Medication List — {formattedDate} {sourceType}";
+    }
+
     private static IReadOnlyList<string> NormalizeReviewerText(
         string text)
     {
         var normalized =
-            text.Replace(
+            StripBlueButtonPageHeaders(text)
+                .Replace(
                     "\r\n",
                     "\n",
                     StringComparison.Ordinal)
