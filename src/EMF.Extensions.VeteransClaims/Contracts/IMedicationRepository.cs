@@ -23,6 +23,29 @@ public interface IMedicationRepository
             VeteranId veteranId,
             string medicationName,
             CancellationToken cancellationToken = default);
+
+    Task AddMedicationLedgerAsync(
+        MedicationLedger medicationLedger,
+        IReadOnlyCollection<MedicationLedgerEntry> entries,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<MedicationLedger?> GetMedicationLedgerAsync(
+        MedicationLedgerId medicationLedgerId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<MedicationLedger>>
+        GetMedicationLedgersAsync(
+            VeteranId veteranId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<MedicationLedgerEntry>>
+        GetMedicationLedgerEntriesAsync(
+            MedicationLedgerId medicationLedgerId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
     Task AddMedicationHistoryEventAsync(
         MedicationHistoryEvent historyEvent,
         CancellationToken cancellationToken = default) =>

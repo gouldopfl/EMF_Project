@@ -257,6 +257,231 @@ public sealed class VeteransClaimsSqliteMedicationRepositoryTests
         };
     }
     [Fact]
+    public async Task Repository_RoundTripsMedicationLedgerAndEntries()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository = await CreateAsync(path);
+            var ledger = CreateLedger(
+                "ledger-001",
+                new DateOnly(2026, 9, 9),
+                3900,
+                4024,
+                2,
+                true);
+
+            var entries = new[]
+            {
+                CreateLedgerEntry(
+                    "ledger-entry-001",
+                    ledger.Id,
+                    1,
+                    3910,
+                    "buPROPion (buPROPion XL 300 mg/24 hour tablet)",
+                    "active",
+                    prescriptionNumber: "3211-50183021",
+                    prescribedDate: new DateOnly(2026, 8, 21),
+                    lastFilledDate: new DateOnly(2026, 7, 2),
+                    lastFilledOnText: "July 2, 2026",
+                    expirationDate: new DateOnly(2027, 2, 28),
+                    refillsLeft: 2,
+                    directions: "TAKE ONE TABLET ORALLY EVERY MORNING",
+                    indication: "FOR MOOD",
+                    prescriber: "CLARK, DAVID G, MD",
+                    facility: "VA",
+                    quantity: "90"),
+                CreateLedgerEntry(
+                    "ledger-entry-002",
+                    ledger.Id,
+                    2,
+                    3920,
+                    "isosorbide mononitrate (isosorbide mononitrate ER 30 mg/24 hour tablet)",
+                    "refillinprocess",
+                    prescriptionNumber: "3211-50014120",
+                    prescribedDate: new DateOnly(2026, 8, 21),
+                    lastFilledOnText: "Not filled yet",
+                    directions: "TAKE ONE TABLET ORALLY EVERY DAY WITH BREAKFAST FOR PREVENTING CHEST PAIN")
+            };
+
+            await repository.AddMedicationLedgerAsync(ledger, entries);
+
+            var storedLedger =
+                await repository.GetMedicationLedgerAsync(ledger.Id);
+            var storedEntries =
+                await repository.GetMedicationLedgerEntriesAsync(ledger.Id);
+
+            Assert.NotNull(storedLedger);
+            Assert.Equal(ledger.Id, storedLedger!.Id);
+            Assert.Equal(ledger.VeteranId, storedLedger.VeteranId);
+            Assert.Equal(ledger.SourceArtifactId, storedLedger.SourceArtifactId);
+            Assert.Equal(ledger.ReportDate, storedLedger.ReportDate);
+            Assert.Equal(ledger.SourceStartPage, storedLedger.SourceStartPage);
+            Assert.Equal(ledger.SourceEndPage, storedLedger.SourceEndPage);
+            Assert.Equal(ledger.ReportedEntryCount, storedLedger.ReportedEntryCount);
+            Assert.Equal(ledger.ParsedEntryCount, storedLedger.ParsedEntryCount);
+            Assert.True(storedLedger.IsComplete);
+
+            Assert.Equal(2, storedEntries.Count);
+            Assert.Equal("active", storedEntries[0].Status);
+            Assert.Equal("3211-50183021", storedEntries[0].PrescriptionNumber);
+            Assert.Equal(new DateOnly(2026, 7, 2), storedEntries[0].LastFilledDate);
+            Assert.Equal("July 2, 2026", storedEntries[0].LastFilledOnText);
+            Assert.Equal(2, storedEntries[0].RefillsLeft);
+            Assert.Equal("refillinprocess", storedEntries[1].Status);
+            Assert.Null(storedEntries[1].LastFilledDate);
+            Assert.Equal("Not filled yet", storedEntries[1].LastFilledOnText);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Repository_ReturnsMedicationLedgersNewestFirst()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository = await CreateAsync(path);
+
+            await repository.AddMedicationLedgerAsync(
+                CreateLedger(
+                    "ledger-old",
+                    new DateOnly(2025, 9, 9),
+                    3800,
+                    3801,
+                    0,
+                    true),
+                []);
+
+            await repository.AddMedicationLedgerAsync(
+                CreateLedger(
+                    "ledger-new",
+                    new DateOnly(2026, 9, 9),
+                    3900,
+                    3901,
+                    0,
+                    true),
+                []);
+
+            var ledgers =
+                await repository.GetMedicationLedgersAsync(
+                    new VeteranId("veteran-001"));
+
+            Assert.Equal(2, ledgers.Count);
+            Assert.Equal("ledger-new", ledgers[0].Id.Value);
+            Assert.Equal("ledger-old", ledgers[1].Id.Value);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Repository_RejectsMedicationLedgerEntryCountMismatch()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository = await CreateAsync(path);
+            var ledger = CreateLedger(
+                "ledger-001",
+                new DateOnly(2026, 9, 9),
+                3900,
+                4024,
+                2,
+                true);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => repository.AddMedicationLedgerAsync(
+                    ledger,
+                    [
+                        CreateLedgerEntry(
+                            "ledger-entry-001",
+                            ledger.Id,
+                            1,
+                            3910,
+                            "Trazodone",
+                            "active")
+                    ]));
+
+            Assert.Null(
+                await repository.GetMedicationLedgerAsync(ledger.Id));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private static MedicationLedger CreateLedger(
+        string id,
+        DateOnly reportDate,
+        int startPage,
+        int endPage,
+        int parsedEntryCount,
+        bool isComplete) =>
+        new()
+        {
+            Id = new MedicationLedgerId(id),
+            VeteranId = new VeteranId("veteran-001"),
+            SourceArtifactId = new ArtifactId("blue-button-001"),
+            ReportDate = reportDate,
+            SourceStartPage = startPage,
+            SourceEndPage = endPage,
+            ReportedEntryCount = parsedEntryCount,
+            ParsedEntryCount = parsedEntryCount,
+            IsComplete = isComplete
+        };
+
+    private static MedicationLedgerEntry CreateLedgerEntry(
+        string id,
+        MedicationLedgerId ledgerId,
+        int ordinal,
+        int page,
+        string name,
+        string status,
+        string? prescriptionNumber = null,
+        DateOnly? prescribedDate = null,
+        DateOnly? lastFilledDate = null,
+        string? lastFilledOnText = null,
+        DateOnly? expirationDate = null,
+        int? refillsLeft = null,
+        string? directions = null,
+        string? indication = null,
+        string? prescriber = null,
+        string? facility = null,
+        string? quantity = null) =>
+        new()
+        {
+            Id = new MedicationLedgerEntryId(id),
+            MedicationLedgerId = ledgerId,
+            EntryOrdinal = ordinal,
+            SourceStartPage = page,
+            SourceEndPage = page,
+            MedicationName = name,
+            Strength = null,
+            Status = status,
+            PrescriptionNumber = prescriptionNumber,
+            PrescribedDate = prescribedDate,
+            LastFilledDate = lastFilledDate,
+            LastFilledOnText = lastFilledOnText,
+            ExpirationDate = expirationDate,
+            RefillsLeft = refillsLeft,
+            Directions = directions,
+            Indication = indication,
+            Prescriber = prescriber,
+            Facility = facility,
+            Quantity = quantity
+        };
+
+    [Fact]
     public async Task Repository_RoundTripsMedicationHistoryEvent()
     {
         var path = Path.GetTempFileName();
