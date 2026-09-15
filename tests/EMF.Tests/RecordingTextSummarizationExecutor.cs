@@ -20,6 +20,9 @@ internal sealed class RecordingTextSummarizationExecutor :
     public IntelligenceExecutionContext? Context
     { get; private set; }
 
+    public List<IntelligenceExecutionContext> Contexts
+    { get; } = [];
+
     public bool Success { get; set; } = true;
 
     public string? Output { get; set; } =
@@ -38,6 +41,7 @@ internal sealed class RecordingTextSummarizationExecutor :
         Request = request;
         Requests.Add(request);
         Context = context;
+        Contexts.Add(context);
 
         return Task.FromResult(
             new IntelligenceCapabilityResult<string>

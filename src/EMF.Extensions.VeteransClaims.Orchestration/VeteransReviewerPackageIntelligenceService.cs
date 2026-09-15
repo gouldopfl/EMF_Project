@@ -17,8 +17,11 @@ public sealed class VeteransReviewerPackageIntelligenceService :
     private const int MaximumReviewerSummaryCharacters = 2_000;
     private const int ProviderResponseHeadroomCharacters = 2_000;
     private const int MaximumReviewerCapabilityCalls = 64;
+    private const string ReviewerReuseStrategyVersion =
+        "claim-aware-projection-v1";
 
     private readonly TextSummarizationAgent _agent;
+    private readonly VeteransReviewerEvidenceProjectionService? _projection;
 
     public VeteransReviewerPackageIntelligenceService(
         IIntelligenceCapabilityExecutor<
@@ -31,6 +34,17 @@ public sealed class VeteransReviewerPackageIntelligenceService :
         _agent =
             new TextSummarizationAgent(
                 summarizationExecutor);
+    }
+
+    public VeteransReviewerPackageIntelligenceService(
+        IIntelligenceCapabilityExecutor<
+            TextSummarizationRequest,
+            string> summarizationExecutor,
+        VeteransReviewerEvidenceProjectionService projection)
+        : this(summarizationExecutor)
+    {
+        ArgumentNullException.ThrowIfNull(projection);
+        _projection = projection;
     }
 
     public static string CreateReuseKey(
@@ -49,7 +63,10 @@ public sealed class VeteransReviewerPackageIntelligenceService :
                 evidenceSources,
                 developmentDetails);
 
-        var input = BuildInput(source);
+        var input =
+            ReviewerReuseStrategyVersion +
+            "\n" +
+            BuildInput(source);
 
         return Convert.ToHexString(
                 SHA256.HashData(
@@ -174,6 +191,16 @@ public sealed class VeteransReviewerPackageIntelligenceService :
                 "Evidence recognition artifact is outside reviewer evidence lineage.");
         }
 
+        if (_projection is not null)
+        {
+            return SummarizeProjectedEvidenceAsync(
+                details,
+                evidenceSources,
+                developmentDetails,
+                context,
+                cancellationToken);
+        }
+
         var source =
             VeteransReviewerPackageSourceFormatter.Format(
                 details,
@@ -195,10 +222,284 @@ public sealed class VeteransReviewerPackageIntelligenceService :
     }
 
     private async Task<IntelligenceAgentResult<string>>
+        SummarizeProjectedEvidenceAsync(
+            ClaimIssueAdjudicationDetails details,
+            IReadOnlyList<VeteransReviewerEvidenceSource> evidenceSources,
+            IReadOnlyList<VeteransReviewerEvidenceDevelopmentDetails>
+                developmentDetails,
+            IntelligenceExecutionContext context,
+            CancellationToken cancellationToken)
+    {
+        var projections =
+            await _projection!.ProjectAsync(
+                details,
+                evidenceSources,
+                cancellationToken);
+
+        if (projections.Count != evidenceSources.Count)
+        {
+            throw new InvalidOperationException(
+                "Reviewer evidence projection count does not match evidence sources.");
+        }
+
+        var intermediateResults =
+            new List<IntelligenceAgentResult<string>>();
+        var summaries =
+            new List<(VeteransReviewerEvidenceSource Source, string Summary)>();
+
+        for (var i = 0; i < evidenceSources.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var evidenceSource = evidenceSources[i];
+            var projection = projections[i];
+
+            if (projection.ArtifactId != evidenceSource.ArtifactId)
+            {
+                throw new InvalidOperationException(
+                    "Reviewer evidence projection artifact lineage mismatch.");
+            }
+
+            if (string.IsNullOrWhiteSpace(projection.Text))
+                continue;
+
+            var projectedSource =
+                CopyWithText(
+                    evidenceSource,
+                    projection.Text);
+
+            var artifactSource =
+                VeteransReviewerPackageSourceFormatter.Format(
+                    details,
+                    [projectedSource]);
+
+            var artifactContext =
+                new IntelligenceExecutionContext(
+                    context.SubjectId,
+                    context.CorrelationId,
+                    context.ProtectionClassificationId,
+                    [evidenceSource.ArtifactId],
+                    _agent.Id);
+
+            var artifactRemainingCalls =
+                RemainingCapabilityCalls(intermediateResults);
+
+            if (artifactRemainingCalls == 0)
+            {
+                return CreateCallBudgetExceededResult(
+                    intermediateResults,
+                    context.InputArtifactIds);
+            }
+
+            var artifactResult =
+                await SummarizeSourceAsync(
+                    artifactSource,
+                    artifactContext,
+                    cancellationToken,
+                    artifactRemainingCalls);
+
+            intermediateResults.Add(artifactResult);
+
+            if (!artifactResult.Success ||
+                string.IsNullOrWhiteSpace(artifactResult.Output))
+            {
+                return CombineResults(intermediateResults);
+            }
+
+            summaries.Add(
+                (evidenceSource, artifactResult.Output));
+        }
+
+        var finalSource =
+            BuildFinalSynthesisSource(
+                details,
+                developmentDetails,
+                summaries);
+
+        var finalContext =
+            new IntelligenceExecutionContext(
+                context.SubjectId,
+                context.CorrelationId,
+                context.ProtectionClassificationId,
+                context.InputArtifactIds,
+                _agent.Id);
+
+        var remainingCalls =
+            RemainingCapabilityCalls(intermediateResults);
+
+        if (remainingCalls == 0)
+        {
+            return CreateCallBudgetExceededResult(
+                intermediateResults,
+                context.InputArtifactIds);
+        }
+
+        var finalResult =
+            await SummarizeSourceAsync(
+                finalSource,
+                finalContext,
+                cancellationToken,
+                remainingCalls);
+
+        intermediateResults.Add(finalResult);
+
+        return CombineResults(intermediateResults);
+    }
+
+    private static VeteransReviewerEvidenceSource CopyWithText(
+        VeteransReviewerEvidenceSource source,
+        string text) =>
+        new()
+        {
+            ArtifactId = source.ArtifactId,
+            ArtifactName = source.ArtifactName,
+            ArtifactType = source.ArtifactType,
+            ContentRole = source.ContentRole,
+            SourceName = source.SourceName,
+            SourceStartPage = source.SourceStartPage,
+            SourceEndPage = source.SourceEndPage,
+            EvidenceTitle = source.EvidenceTitle,
+            EvidenceDate = source.EvidenceDate,
+            Classifications = source.Classifications,
+            ReviewedMedicalLiteratureClassifications =
+                source.ReviewedMedicalLiteratureClassifications,
+            Text = text
+        };
+
+    private static string BuildFinalSynthesisSource(
+        ClaimIssueAdjudicationDetails details,
+        IReadOnlyList<VeteransReviewerEvidenceDevelopmentDetails>
+            developmentDetails,
+        IReadOnlyList<(VeteransReviewerEvidenceSource Source, string Summary)>
+            summaries)
+    {
+        var builder = new StringBuilder();
+
+        builder.Append(
+            VeteransReviewerPackageSourceFormatter.Format(
+                details,
+                developmentDetails: developmentDetails));
+
+        builder.AppendLine();
+        builder.AppendLine(
+            "Bounded Evidence Artifact Summaries:");
+        builder.AppendLine(
+            "The summaries below were generated from locally selected " +
+            "claim-relevant excerpts. Treat them as intermediate " +
+            "organizational material, not as independent evidence.");
+
+        if (summaries.Count == 0)
+        {
+            builder.AppendLine(
+                "- No claim-aware matching excerpts were selected from " +
+                "the supplied evidence artifacts.");
+
+            return builder.ToString();
+        }
+
+        foreach (var item in summaries)
+        {
+            var source = item.Source;
+            var displayName =
+                VeteransReviewerDisplayNameResolver.Resolve(
+                    "Evidence of Record",
+                    source.EvidenceTitle,
+                    source.SourceName,
+                    source.ArtifactName) ??
+                "Evidence of record";
+
+            builder.AppendLine();
+            builder.AppendLine(
+                $"- Evidence Source: {displayName}");
+
+            if (!string.IsNullOrWhiteSpace(source.EvidenceDate))
+            {
+                builder.AppendLine(
+                    $"  Date: {source.EvidenceDate}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(source.SourceStartPage))
+            {
+                var pageReference =
+                    string.IsNullOrWhiteSpace(source.SourceEndPage) ||
+                    string.Equals(
+                        source.SourceStartPage,
+                        source.SourceEndPage,
+                        StringComparison.Ordinal)
+                        ? source.SourceStartPage
+                        : $"{source.SourceStartPage}-{source.SourceEndPage}";
+
+                builder.AppendLine(
+                    $"  Original source page(s): {pageReference}");
+            }
+
+            builder.AppendLine("  Intermediate summary:");
+
+            foreach (var line in
+                item.Summary
+                    .Replace("\r\n", "\n", StringComparison.Ordinal)
+                    .Replace('\r', '\n')
+                    .Split('\n'))
+            {
+                builder.Append("  | ");
+                builder.AppendLine(line);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static int RemainingCapabilityCalls(
+        IReadOnlyList<IntelligenceAgentResult<string>> results) =>
+        Math.Max(
+            0,
+            MaximumReviewerCapabilityCalls -
+            results.Sum(result => result.CapabilityExecutions.Count));
+
+    private static IntelligenceAgentResult<string> CombineResults(
+        IReadOnlyList<IntelligenceAgentResult<string>> results)
+    {
+        if (results.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "Reviewer projected summarization produced no results.");
+        }
+
+        var finalResult = results[^1];
+
+        if (results.Count == 1)
+            return finalResult;
+
+        return new IntelligenceAgentResult<string>
+        {
+            Success = finalResult.Success,
+            Message = finalResult.Message,
+            Output = finalResult.Output,
+            AgentId = finalResult.AgentId,
+            CorrelationId = finalResult.CorrelationId,
+            StartedUtc = results[0].StartedUtc,
+            CompletedUtc = finalResult.CompletedUtc,
+            CapabilityExecutions =
+                results
+                    .SelectMany(result => result.CapabilityExecutions)
+                    .ToArray(),
+            SourceArtifactIds = finalResult.SourceArtifactIds,
+            Warnings =
+                results
+                    .SelectMany(result => result.Warnings)
+                    .Distinct()
+                    .ToArray(),
+            RequiresReview =
+                results.Any(result => result.RequiresReview)
+        };
+    }
+
+    private async Task<IntelligenceAgentResult<string>>
         SummarizeSourceAsync(
             string source,
             IntelligenceExecutionContext context,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            int maximumCapabilityCalls = MaximumReviewerCapabilityCalls)
     {
         var input = BuildInput(source);
 
@@ -231,7 +532,7 @@ public sealed class VeteransReviewerPackageIntelligenceService :
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (allResults.Count >= MaximumReviewerCapabilityCalls)
+                if (allResults.Count >= maximumCapabilityCalls)
                     return CreateCallBudgetExceededResult(allResults);
 
                 var segmentResult =
@@ -261,7 +562,7 @@ public sealed class VeteransReviewerPackageIntelligenceService :
             reductionSource = BuildReductionSource(summaries);
         }
 
-        if (allResults.Count >= MaximumReviewerCapabilityCalls)
+        if (allResults.Count >= maximumCapabilityCalls)
             return CreateCallBudgetExceededResult(allResults);
 
         var finalResult =
@@ -309,7 +610,9 @@ public sealed class VeteransReviewerPackageIntelligenceService :
 
     private static IntelligenceAgentResult<string>
         CreateCallBudgetExceededResult(
-            IReadOnlyList<IntelligenceAgentResult<string>> results)
+            IReadOnlyList<IntelligenceAgentResult<string>> results,
+            IReadOnlyList<EMF.Core.Models.Identities.ArtifactId>?
+                sourceArtifactIds = null)
     {
         if (results.Count == 0)
             throw new InvalidOperationException(
@@ -331,7 +634,8 @@ public sealed class VeteransReviewerPackageIntelligenceService :
             CompletedUtc = DateTimeOffset.UtcNow,
             CapabilityExecutions =
                 results.SelectMany(x => x.CapabilityExecutions).ToArray(),
-            SourceArtifactIds = last.SourceArtifactIds,
+            SourceArtifactIds =
+                sourceArtifactIds ?? last.SourceArtifactIds,
             Warnings =
                 results.SelectMany(x => x.Warnings)
                     .Append("Reviewer intelligence call budget was exhausted.")

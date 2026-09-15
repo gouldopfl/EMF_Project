@@ -1,11 +1,13 @@
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Claims;
+using EMF.Extensions.VeteransClaims.Models.Conditions;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Orchestration;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
 using EMF.Security.Models.Identities;
+using EMF.Tests.TestInfrastructure;
 
 namespace EMF.Tests;
 
@@ -433,6 +435,158 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
 
 
 
+
+    [Fact]
+    public async Task SummarizeAsync_WithProjection_SummarizesArtifactsSequentiallyThenSynthesizes()
+    {
+        var firstId = new ArtifactId("projected-evidence-1");
+        var secondId = new ArtifactId("projected-evidence-2");
+        var executor = new RecordingTextSummarizationExecutor();
+        var service =
+            new VeteransReviewerPackageIntelligenceService(
+                executor,
+                new VeteransReviewerEvidenceProjectionService(
+                    new InMemoryEvidenceRecognitionTermRepository()));
+
+        var context = new IntelligenceExecutionContext(
+            "reviewer-package-steward",
+            new IntelligenceCorrelationId("projected-evidence-test"),
+            new ProtectionClassificationId("confidential"),
+            [firstId, secondId]);
+
+        var result =
+            await service.SummarizeAsync(
+                CreateProjectionDetails(),
+                [
+                    new VeteransReviewerEvidenceSource
+                    {
+                        ArtifactId = firstId,
+                        EvidenceTitle = "First clinical source",
+                        Classifications =
+                            [EvidenceClassifications.MedicalEvidence],
+                        Text =
+                            "First unrelated line\n" +
+                            "sleep apnea alpha evidence\n" +
+                            "First context line"
+                    },
+                    new VeteransReviewerEvidenceSource
+                    {
+                        ArtifactId = secondId,
+                        EvidenceTitle = "Second clinical source",
+                        Classifications =
+                            [EvidenceClassifications.MedicalEvidence],
+                        Text =
+                            "Second unrelated line\n" +
+                            "OSA beta evidence\n" +
+                            "Second context line"
+                    }
+                ],
+                [],
+                context);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, executor.Requests.Count);
+
+        Assert.Contains(
+            "sleep apnea alpha evidence",
+            executor.Requests[0].Text);
+        Assert.DoesNotContain(
+            "OSA beta evidence",
+            executor.Requests[0].Text);
+
+        Assert.Contains(
+            "OSA beta evidence",
+            executor.Requests[1].Text);
+        Assert.DoesNotContain(
+            "sleep apnea alpha evidence",
+            executor.Requests[1].Text);
+
+        Assert.Contains(
+            "Bounded Evidence Artifact Summaries:",
+            executor.Requests[2].Text);
+        Assert.DoesNotContain(
+            "sleep apnea alpha evidence",
+            executor.Requests[2].Text);
+        Assert.DoesNotContain(
+            "OSA beta evidence",
+            executor.Requests[2].Text);
+
+        Assert.Equal(3, executor.Contexts.Count);
+        Assert.Equal(
+            firstId,
+            Assert.Single(executor.Contexts[0].InputArtifactIds));
+        Assert.Equal(
+            secondId,
+            Assert.Single(executor.Contexts[1].InputArtifactIds));
+        Assert.True(
+            executor.Contexts[2].InputArtifactIds
+                .ToHashSet()
+                .SetEquals([firstId, secondId]));
+
+        Assert.Equal(3, result.CapabilityExecutions.Count);
+        Assert.True(
+            result.SourceArtifactIds
+                .ToHashSet()
+                .SetEquals([firstId, secondId]));
+    }
+
+    [Fact]
+    public async Task SummarizeAsync_WithProjection_DoesNotSendNoMatchEvidenceToIntelligence()
+    {
+        var noMatchId = new ArtifactId("projected-no-match");
+        var matchingId = new ArtifactId("projected-match");
+        var executor = new RecordingTextSummarizationExecutor();
+        var service =
+            new VeteransReviewerPackageIntelligenceService(
+                executor,
+                new VeteransReviewerEvidenceProjectionService(
+                    new InMemoryEvidenceRecognitionTermRepository()));
+
+        var context = new IntelligenceExecutionContext(
+            "reviewer-package-steward",
+            new IntelligenceCorrelationId("projected-no-match-test"),
+            new ProtectionClassificationId("confidential"),
+            [noMatchId, matchingId]);
+
+        var result =
+            await service.SummarizeAsync(
+                CreateProjectionDetails(),
+                [
+                    new VeteransReviewerEvidenceSource
+                    {
+                        ArtifactId = noMatchId,
+                        Classifications =
+                            [EvidenceClassifications.MedicalEvidence],
+                        Text = "PRIVATE IRRELEVANT SOURCE CONTENT"
+                    },
+                    new VeteransReviewerEvidenceSource
+                    {
+                        ArtifactId = matchingId,
+                        Classifications =
+                            [EvidenceClassifications.MedicalEvidence],
+                        Text = "Context\nsleep apnea documented\nFollow-up"
+                    }
+                ],
+                [],
+                context);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, executor.Requests.Count);
+        Assert.All(
+            executor.Requests,
+            request =>
+                Assert.DoesNotContain(
+                    "PRIVATE IRRELEVANT SOURCE CONTENT",
+                    request.Text));
+        Assert.Equal(
+            matchingId,
+            Assert.Single(executor.Contexts[0].InputArtifactIds));
+        Assert.True(
+            executor.Contexts[1].InputArtifactIds
+                .ToHashSet()
+                .SetEquals([noMatchId, matchingId]));
+    }
+
     [Fact]
     public async Task SummarizeAsync_RejectsRecognitionArtifactOutsideEvidence()
     {
@@ -487,6 +641,49 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
                     }
                 }],
                 context));
+    }
+
+
+    private static ClaimIssueAdjudicationDetails CreateProjectionDetails()
+    {
+        var issue = new ClaimIssue
+        {
+            Id = new ClaimIssueId("issue-projected-intelligence"),
+            ClaimId = new ClaimId("claim-projected-intelligence"),
+            ClaimIssueType = "ServiceConnection"
+        };
+
+        return new ClaimIssueAdjudicationDetails
+        {
+            ClaimIssue = issue,
+            ClaimedConditions =
+            [
+                new ClaimedCondition
+                {
+                    Id = new ClaimedConditionId("condition-osa"),
+                    ClaimIssueId = issue.Id,
+                    Name = "Obstructive sleep apnea (OSA)"
+                }
+            ],
+            ServiceConnectionTheories = [],
+            ServiceConnectionBases = [],
+            ServiceConnectedConditions = [],
+            ServiceEvents = [],
+            Requirements = [],
+            Evidence =
+                new ClaimIssueEvidenceDetails
+                {
+                    ClaimIssue = issue,
+                    Checklist =
+                        new ClaimIssueEvidenceChecklist
+                        {
+                            ClaimIssueId = issue.Id,
+                            RequirementChecklists = []
+                        },
+                    DevelopmentPlans = []
+                },
+            Timeline = []
+        };
     }
 
 

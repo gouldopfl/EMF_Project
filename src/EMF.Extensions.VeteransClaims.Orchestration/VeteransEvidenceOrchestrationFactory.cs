@@ -58,6 +58,22 @@ public static class VeteransEvidenceOrchestrationFactory
             executor);
     }
 
+    public static IVeteransReviewerPackageIntelligenceService
+        CreateReviewerPackageIntelligenceService(
+            IIntelligenceCapabilityExecutor<
+                TextSummarizationRequest,
+                string> executor,
+            IEvidenceRecognitionTermRepository recognitionTerms)
+    {
+        ArgumentNullException.ThrowIfNull(executor);
+        ArgumentNullException.ThrowIfNull(recognitionTerms);
+
+        return new VeteransReviewerPackageIntelligenceService(
+            executor,
+            new VeteransReviewerEvidenceProjectionService(
+                recognitionTerms));
+    }
+
     public static IEvidenceDevelopmentWorkflowCoordinator
         CreateEvidenceDevelopmentWorkflowCoordinator(
             IWorkflowService workflowService,

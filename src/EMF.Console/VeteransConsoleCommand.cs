@@ -2354,10 +2354,17 @@ public static class VeteransConsoleCommand
         var runtime =
             await runtimeFactory();
 
+        var recognitionTermRepository =
+            new SqliteEvidenceRecognitionTermRepository(
+                databasePath);
+
+        await recognitionTermRepository.InitializeAsync();
+
         var intelligence =
             VeteransEvidenceOrchestrationFactory
                 .CreateReviewerPackageIntelligenceService(
-                    runtime.TextSummarizationCapabilityExecutor);
+                    runtime.TextSummarizationCapabilityExecutor,
+                    recognitionTermRepository);
 
         OperatorStatus(
             "AI",

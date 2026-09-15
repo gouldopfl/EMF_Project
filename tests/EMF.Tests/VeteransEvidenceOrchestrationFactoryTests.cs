@@ -82,4 +82,16 @@ public sealed class VeteransEvidenceOrchestrationFactoryTests
                         null!,
                         null!));
     }
+    [Fact]
+    public void CreateReviewerPackageIntelligenceService_RequiresProjectionRepository()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () =>
+                VeteransEvidenceOrchestrationFactory
+                    .CreateReviewerPackageIntelligenceService(
+                        new RecordingTextSummarizationExecutor(),
+                        null!));
+    }
+
+
 }
