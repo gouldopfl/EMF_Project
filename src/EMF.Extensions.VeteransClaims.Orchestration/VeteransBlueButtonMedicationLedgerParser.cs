@@ -412,11 +412,20 @@ public sealed partial class VeteransBlueButtonMedicationLedgerParser
 
         var start = index;
 
-        while (start - 1 > sectionStart &&
-               !string.IsNullOrWhiteSpace(lines[start - 1].Text) &&
-               !IsPageHeader(lines[start - 1].Text) &&
-               !IsSectionIntroduction(lines[start - 1].Text))
+        while (start - 1 > sectionStart)
         {
+            var previousRaw = lines[start - 1].Text;
+            var previous = Normalize(previousRaw);
+
+            if (string.IsNullOrWhiteSpace(previous) ||
+                IsPageHeader(previousRaw) ||
+                IsSectionIntroduction(previous) ||
+                IsMedicationEntryBoundary(previous) ||
+                IsFieldPrefix(previous))
+            {
+                break;
+            }
+
             start--;
         }
 
@@ -558,6 +567,16 @@ public sealed partial class VeteransBlueButtonMedicationLedgerParser
             value.StartsWith(
                 prefix,
                 StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsMedicationEntryBoundary(string value) =>
+        string.Equals(
+            value,
+            PrescriptionHeading,
+            StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(
+            value,
+            "About this medication or supply",
+            StringComparison.OrdinalIgnoreCase);
 
     private static bool IsPageHeader(string value)
     {
