@@ -608,6 +608,31 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 7 &&
+            args[0] == "evidence" &&
+            args[1] == "medication" &&
+            args[2] == "ledger" &&
+            args[3] == "import")
+        {
+            var medicationLedgerDatabasePath =
+                Path.GetFullPath(args[4]);
+
+            if (!File.Exists(medicationLedgerDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: " +
+                    $"{medicationLedgerDatabasePath}");
+                return 2;
+            }
+
+            return await RunEvidenceMedicationLedgerImportAsync(
+                medicationLedgerDatabasePath,
+                new VeteranId(args[5]),
+                new ArtifactId(args[6]),
+                contentStoreFactory(),
+                global::System.Console.Out);
+        }
+
         if (args.Length == 6 &&
             args[0] == "evidence" &&
             args[1] == "medication" &&
@@ -3804,6 +3829,117 @@ public static class VeteransConsoleCommand
         }
     }
 
+    internal static async Task<int>
+        RunEvidenceMedicationLedgerImportAsync(
+            string databasePath,
+            VeteranId veteranId,
+            ArtifactId sourceArtifactId,
+            IArtifactContentStore? contentStore,
+            TextWriter output)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (contentStore is null)
+        {
+            global::System.Console.Error.WriteLine(
+                "Artifact content store is not configured.");
+            return 2;
+        }
+
+        var veterans =
+            new SqliteVeteranRepository(databasePath);
+
+        if (await veterans.GetVeteranAsync(veteranId) is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Veteran not found: {veteranId.Value}");
+            return 2;
+        }
+
+        var evidence =
+            new SqliteEvidenceRepository(databasePath);
+
+        await evidence.InitializeAsync();
+
+        if (await evidence.GetArtifactAsync(sourceArtifactId) is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Source artifact not found: {sourceArtifactId.Value}");
+            return 2;
+        }
+
+        try
+        {
+#pragma warning disable CA1416
+            var extractor =
+                new PdfArtifactTextExtractionProvider(
+                    contentStore,
+                    new PdfToImagePageRenderer(),
+                    new PaddleImageOcrService());
+#pragma warning restore CA1416
+
+            var pages =
+                await extractor.ExtractPagesAsync(sourceArtifactId);
+
+            if (pages is null || pages.Count == 0)
+            {
+                global::System.Console.Error.WriteLine(
+                    "Blue Button artifact contains no extractable PDF pages.");
+                return 1;
+            }
+
+            var parsed =
+                new VeteransBlueButtonMedicationLedgerParser()
+                    .Parse(pages);
+
+            var repository =
+                new SqliteMedicationRepository(databasePath);
+
+            await repository.InitializeAsync();
+
+            var result =
+                await new VeteransBlueButtonMedicationLedgerImportService(
+                    repository,
+                    new GuidIdGenerator())
+                .ImportAsync(
+                    veteranId,
+                    sourceArtifactId,
+                    parsed);
+
+            await output.WriteLineAsync(
+                "Mode                 : OFFLINE BLUE BUTTON IMPORT");
+            await output.WriteLineAsync(
+                "Azure Intelligence   : NOT USED");
+            await output.WriteLineAsync(
+                $"Medication Ledger ID : {result.Ledger.Id.Value}");
+            await output.WriteLineAsync(
+                $"Report Date          : {result.Ledger.ReportDate:yyyy-MM-dd}");
+            await output.WriteLineAsync(
+                $"Source Pages         : {result.Ledger.SourceStartPage}-" +
+                $"{result.Ledger.SourceEndPage}");
+            await output.WriteLineAsync(
+                $"Reported Entries     : " +
+                $"{result.Ledger.ReportedEntryCount?.ToString() ?? "Unknown"}");
+            await output.WriteLineAsync(
+                $"Parsed Entries       : {result.Ledger.ParsedEntryCount}");
+            await output.WriteLineAsync(
+                $"Complete             : {result.Ledger.IsComplete}");
+            await output.WriteLineAsync(
+                $"Already Persisted    : {result.AlreadyPersisted}");
+
+            return 0;
+        }
+        catch (Exception ex)
+            when (ex is not OperationCanceledException)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Medication ledger import failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+
     internal static async Task<int> RunEvidenceMedicationBasisAsync(
         string databasePath,
         ServiceConnectionBasisId basisId,
@@ -5659,6 +5795,10 @@ public static class VeteransConsoleCommand
             "       emf veterans evidence literature link " +
             "<database-path> <requirement-id> <source-id> " +
             "<role> <description>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence medication ledger import " +
+            "<database-path> <veteran-id> <source-artifact-id>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence medication basis " +
