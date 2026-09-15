@@ -267,6 +267,33 @@ public static class VeteransReviewerPackageDocxRenderer
             }
         }
 
+        foreach (var clarification in details.SourceClarifications)
+        {
+            if (!details.ArtifactContents.Any(
+                    content =>
+                        content.Artifact.Id == clarification.ReviewerArtifactId &&
+                        packageArtifacts.Any(
+                            packageArtifact =>
+                                packageArtifact.ArtifactId == content.Artifact.Id &&
+                                string.Equals(
+                                    packageArtifact.ContentRole,
+                                    EvidencePackageContentRoles.UnderlyingEvidence,
+                                    StringComparison.Ordinal))))
+            {
+                throw new InvalidOperationException(
+                    "Reviewer source clarification is not associated with " +
+                    "underlying evidence in the package.");
+            }
+
+            if (string.IsNullOrWhiteSpace(clarification.SourceLocator) ||
+                string.IsNullOrWhiteSpace(clarification.OriginalText) ||
+                string.IsNullOrWhiteSpace(clarification.Clarification))
+            {
+                throw new InvalidOperationException(
+                    "Reviewer source clarification is incomplete.");
+            }
+        }
+
         foreach (var packageArtifact in packageArtifacts)
         {
             if (details.ArtifactContents.Any(
@@ -960,6 +987,7 @@ public static class VeteransReviewerPackageDocxRenderer
                 AppendSourceContent(
                     mainPart,
                     body,
+                    details,
                     content,
                     pageBreakBefore: !firstArtifact);
 
@@ -997,6 +1025,7 @@ public static class VeteransReviewerPackageDocxRenderer
             AppendSourceContent(
                 mainPart,
                 body,
+                details,
                 content,
                 pageBreakBefore: !firstAdditionalArtifact);
 
@@ -1007,6 +1036,7 @@ public static class VeteransReviewerPackageDocxRenderer
     private static void AppendSourceContent(
         MainDocumentPart mainPart,
         Body body,
+        VeteransReviewerPackageDetails details,
         VeteransReviewerArtifactContent content,
         bool pageBreakBefore = false)
     {
@@ -1044,6 +1074,25 @@ public static class VeteransReviewerPackageDocxRenderer
                     keepWithNext: true));
         }
 
+        var clarifications =
+            details.SourceClarifications
+                .Where(
+                    clarification =>
+                        clarification.ReviewerArtifactId == content.Artifact.Id)
+                .OrderBy(
+                    clarification =>
+                        clarification.SourceLocator,
+                    StringComparer.Ordinal)
+                .ThenBy(
+                    clarification =>
+                        clarification.OriginalText,
+                    StringComparer.Ordinal)
+                .ToArray();
+
+        AppendSourceClarifications(
+            body,
+            clarifications);
+
         if (content.PrintablePages.Count > 0)
         {
             AppendPrintablePages(
@@ -1073,6 +1122,38 @@ public static class VeteransReviewerPackageDocxRenderer
                     body,
                     content.Text);
             }
+        }
+    }
+
+    private static void AppendSourceClarifications(
+        Body body,
+        IReadOnlyList<VeteransReviewerSourceClarification> clarifications)
+    {
+        if (clarifications.Count == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                clarifications.Count == 1
+                    ? "Source Clarification"
+                    : "Source Clarifications",
+                "Heading3"));
+
+        foreach (var clarification in clarifications)
+        {
+            body.Append(
+                ContentParagraph(
+                    $"Record: {clarification.SourceLocator}",
+                    keepWithNext: true));
+
+            body.Append(
+                ContentParagraph(
+                    $"Source text: {clarification.OriginalText}",
+                    keepWithNext: true));
+
+            body.Append(
+                ContentParagraph(
+                    clarification.Clarification));
         }
     }
 
@@ -1347,6 +1428,17 @@ public static class VeteransReviewerPackageDocxRenderer
     private static string GetSourcePageReference(
         VeteransReviewerArtifactContent content)
     {
+        if (content.Relationships.Any(
+                relationship =>
+                    relationship.SourceArtifactId == content.Artifact.Id &&
+                    string.Equals(
+                        relationship.RelationshipType,
+                        EMF.Core.Models.RelationshipTypes.DerivedFrom,
+                        StringComparison.Ordinal)))
+        {
+            return string.Empty;
+        }
+
         var start =
             GetMetadataText(
                 content.Artifact.Metadata,

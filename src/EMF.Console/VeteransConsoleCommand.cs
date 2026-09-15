@@ -5856,6 +5856,16 @@ public static class VeteransConsoleCommand
                     details.PackageDetails.Package,
                     medicationProgressions);
 
+        var sourceClarificationRepository =
+            new SqliteSourceClarificationRepository(fullDatabasePath);
+
+        await sourceClarificationRepository.InitializeAsync();
+
+        var sourceClarifications =
+            await new VeteransReviewerPackageSourceClarificationService(
+                    sourceClarificationRepository)
+                .GetAsync(details);
+
         var medicalOpinionRequested =
             await new VeteransReviewerMedicalOpinionRequestService(
                     new SqliteServiceConnectionRepository(fullDatabasePath),
@@ -5870,6 +5880,7 @@ public static class VeteransConsoleCommand
                 ArtifactContents = details.ArtifactContents,
                 MedicationProgressions = medicationProgressions,
                 MedicationClinicalContexts = medicationClinicalContexts,
+                SourceClarifications = sourceClarifications,
                 CurrentMedications = currentMedications,
                 MedicalOpinionRequested = medicalOpinionRequested
             };

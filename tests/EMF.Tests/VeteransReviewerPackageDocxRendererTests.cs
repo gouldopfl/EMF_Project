@@ -257,7 +257,9 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
 
         Assert.Contains("Date: 2025-07-30", text);
-        Assert.Contains("Source pages: 1003-1005", text);
+        Assert.DoesNotContain("Source pages: 1003-1005", text);
+        Assert.DoesNotContain("1003", text);
+        Assert.DoesNotContain("1005", text);
 
         Assert.DoesNotContain("source-1", text);
         Assert.DoesNotContain("Artifact Type:", text);
