@@ -1286,6 +1286,50 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             footerFields,
             field => Assert.True(field.Dirty?.Value));
 
+        var pageCell =
+            Assert.Single(
+                footer
+                    .Descendants<
+                        DocumentFormat.OpenXml.Wordprocessing.TableCell>()
+                    .Where(cell =>
+                        cell
+                            .Descendants<
+                                DocumentFormat.OpenXml.Wordprocessing.SimpleField>()
+                            .Any()));
+
+        var pageCellProperties =
+            Assert.IsType<
+                DocumentFormat.OpenXml.Wordprocessing.TableCellProperties>(
+                    pageCell.TableCellProperties);
+
+        Assert.NotNull(
+            pageCellProperties.GetFirstChild<
+                DocumentFormat.OpenXml.Wordprocessing.NoWrap>());
+
+        Assert.Equal("Page 1 of 1", pageCell.InnerText);
+
+        var pageFieldResults =
+            pageCell
+                .Descendants<
+                    DocumentFormat.OpenXml.Wordprocessing.SimpleField>()
+                .Select(field =>
+                    Assert.Single(
+                        field.Descendants<
+                            DocumentFormat.OpenXml.Wordprocessing.Text>()))
+                .ToArray();
+
+        Assert.Equal(2, pageFieldResults.Length);
+
+        pageFieldResults[0].Text = "9999";
+        pageFieldResults[1].Text = "9999";
+
+        Assert.Equal(
+            "Page 9999 of 9999",
+            pageCell.InnerText);
+        Assert.NotNull(
+            pageCellProperties.GetFirstChild<
+                DocumentFormat.OpenXml.Wordprocessing.NoWrap>());
+
         var settingsPart =
             Assert.IsType<DocumentSettingsPart>(
                 mainPart.DocumentSettingsPart);

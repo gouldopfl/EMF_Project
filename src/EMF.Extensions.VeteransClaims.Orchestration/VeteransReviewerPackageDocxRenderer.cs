@@ -1414,31 +1414,71 @@ public static class VeteransReviewerPackageDocxRenderer
 
     private static Footer ReviewerFooter()
     {
-        var properties =
-            new ParagraphProperties(
-                new Justification
+        var table =
+            new Table(
+                new TableProperties(
+                    new TableWidth
+                    {
+                        Type = TableWidthUnitValues.Pct,
+                        Width = "5000"
+                    }),
+                new TableRow(
+                    FooterCell(
+                        4000,
+                        JustificationValues.Center,
+                        noWrap: false,
+                        FooterRun(
+                            "CONFIDENTIAL — VETERAN MEDICAL INFORMATION",
+                            bold: true),
+                        FooterRun(
+                            "  |  Veterans Evidence Reviewer Report")),
+                    FooterCell(
+                        1000,
+                        JustificationValues.Right,
+                        noWrap: true,
+                        FooterRun("Page "),
+                        FooterField("PAGE"),
+                        FooterRun(" of "),
+                        FooterField("NUMPAGES"))));
+
+        return new Footer(table);
+    }
+
+    private static TableCell FooterCell(
+        int widthPercentFiftieths,
+        JustificationValues justification,
+        bool noWrap,
+        params OpenXmlElement[] contents)
+    {
+        var cellProperties =
+            new TableCellProperties(
+                new TableCellWidth
                 {
-                    Val = JustificationValues.Center
-                },
-                new SpacingBetweenLines
-                {
-                    Before = "120"
+                    Type = TableWidthUnitValues.Pct,
+                    Width = widthPercentFiftieths.ToString(
+                        CultureInfo.InvariantCulture)
                 });
 
+        if (noWrap)
+            cellProperties.Append(new NoWrap());
+
         var paragraph =
-            new Paragraph(properties);
+            new Paragraph(
+                new ParagraphProperties(
+                    new Justification
+                    {
+                        Val = justification
+                    },
+                    new SpacingBetweenLines
+                    {
+                        Before = "120"
+                    }));
 
-        paragraph.Append(
-            FooterRun(
-                "CONFIDENTIAL — VETERAN MEDICAL INFORMATION",
-                bold: true),
-            FooterRun(
-                "  |  Veterans Evidence Reviewer Report  |  Page "),
-            FooterField("PAGE"),
-            FooterRun(" of "),
-            FooterField("NUMPAGES"));
+        paragraph.Append(contents);
 
-        return new Footer(paragraph);
+        return new TableCell(
+            cellProperties,
+            paragraph);
     }
 
     private static Run FooterRun(
