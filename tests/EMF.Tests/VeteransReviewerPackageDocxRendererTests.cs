@@ -2342,6 +2342,72 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 public sealed partial class VeteransReviewerPackageDocxRendererTests
 {
     [Fact]
+    public void Render_PlacesMedicalOpinionEvidenceInAppendixB()
+    {
+        var packageId = new EvidencePackageId("package-medical-opinion");
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId("artifact-medical-opinion"),
+            Name = "provider-opinion.pdf",
+            ArtifactType = "pdf",
+            Metadata =
+                new Dictionary<string, object>
+                {
+                    [EMF.Extensions.VeteransClaims.Models
+                        .VeteransArtifactMetadataKeys.EvidenceTitle] =
+                        "Psychiatric Nexus Letter — Treating Clinician",
+                    [EMF.Extensions.VeteransClaims.Models
+                        .VeteransArtifactMetadataKeys.EvidenceDate] =
+                        "2023-09-21"
+                }
+        };
+
+        var details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = new EvidencePackageDetails
+            {
+                Package = new EvidencePackage
+                {
+                    Id = packageId,
+                    ClaimIssueId = new ClaimIssueId("issue-medical-opinion"),
+                    Purpose = "Medical review",
+                    ReviewerRole = "MedicalProfessional"
+                },
+                Artifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = artifact.Id,
+                        ContentRole = EvidencePackageContentRoles.UnderlyingEvidence
+                    }
+                ]
+            },
+            Artifacts = [artifact],
+            ArtifactContents =
+            [
+                new VeteransReviewerArtifactContent
+                {
+                    Artifact = artifact,
+                    Text = "Independent medical opinion evidence.",
+                    Appendix = VeteransReviewerPackageAppendix.MedicalOpinionEvidence
+                }
+            ]
+        };
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document = WordprocessingDocument.Open(stream, false);
+
+        var text = document.MainDocumentPart!.Document!.Body!.InnerText;
+
+        Assert.Contains("Appendix B — Medical Opinion Evidence", text);
+        Assert.Contains("Psychiatric Nexus Letter — Treating Clinician", text);
+        Assert.DoesNotContain("Appendix A — Medical Evidence", text);
+    }
+
+    [Fact]
     public void Render_StartsEachArtifactAfterTheFirstOnANewPage()
     {
         var packageId = new EvidencePackageId("package-artifacts");
@@ -3033,7 +3099,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             WordprocessingDocument.Open(stream, false);
 
         Assert.Contains(
-            "Appendix E — Medical / Scientific Literature",
+            "Appendix F — Medical / Scientific Literature",
             document.MainDocumentPart!.Document!.InnerText);
     }
 }
@@ -3600,7 +3666,11 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                             "Page 2012 of 4024 Clinical history after header.\n\n" +
                             "MEDICATIONS:\n" +
                             "Active Outpatient Medications (including Supplies):\n" +
-                            "GABAPENTIN 400MG CAP TAKE ONE CAPSULE ORALLY EVERY 6 HOURS",
+                            "GABAPENTIN 400MG CAP TAKE ONE CAPSULE ORALLY EVERY 6 HOURS\n" +
+                            "Non-VA Medications Status\n" +
+                            "Non-VA BUPROPION HCL 150MG 24HR SA TAB 450MG ORALLY EVERY DAY\n" +
+                            "Columbia Suicide Severity Rating Scale (C-SSRS) screener\n" +
+                            "PHYSICAL EXAM:\nGeneral: well developed",
                         PrintablePages =
                         [
                             new PrintableArtifactPage
@@ -3614,7 +3684,11 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                                     "Page 2012 of 4024 Clinical history after header.\n\n" +
                                     "MEDICATIONS:\n" +
                                     "Active Outpatient Medications (including Supplies):\n" +
-                                    "GABAPENTIN 400MG CAP TAKE ONE CAPSULE ORALLY EVERY 6 HOURS")
+                                    "GABAPENTIN 400MG CAP TAKE ONE CAPSULE ORALLY EVERY 6 HOURS\n" +
+                                    "Non-VA Medications Status\n" +
+                                    "Non-VA BUPROPION HCL 150MG 24HR SA TAB 450MG ORALLY EVERY DAY\n" +
+                                    "Columbia Suicide Severity Rating Scale (C-SSRS) screener\n" +
+                                    "PHYSICAL EXAM:\nGeneral: well developed")
                             }
                         ]
                     }
@@ -3642,9 +3716,14 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "Historical Medication List — January 25, 2024 VA Sleep Medicine Note",
             text);
         Assert.Contains(
-            "Source-record medication list; not current medication status.",
+            "Historical medication table omitted from this reviewer copy",
             text);
-        Assert.Contains("GABAPENTIN 400MG CAP", text);
+        Assert.DoesNotContain("GABAPENTIN 400MG CAP", text);
+        Assert.DoesNotContain("Non-VA BUPROPION", text);
+        Assert.DoesNotContain("Non-VA Medications Status", text);
+        Assert.Contains("Columbia Suicide Severity Rating Scale", text);
+        Assert.Contains("PHYSICAL EXAM:", text);
+        Assert.Contains("General: well developed", text);
     }
 
     [Fact]

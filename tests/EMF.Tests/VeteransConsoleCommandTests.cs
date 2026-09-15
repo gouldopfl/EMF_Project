@@ -4369,7 +4369,7 @@ public sealed partial class VeteransConsoleCommandTests
 public sealed partial class VeteransConsoleCommandTests
 {
     [Fact]
-    public async Task EvidenceReviewer_UsesActiveReviewedLiteratureAfterSupersessionInAppendixE()
+    public async Task EvidenceReviewer_UsesActiveReviewedLiteratureAfterSupersessionInAppendixF()
     {
         var databasePath = Path.GetTempFileName();
         var outputPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.docx");
@@ -4622,7 +4622,7 @@ public sealed partial class VeteransConsoleCommandTests
                 DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(outputPath, false);
             var text = document.MainDocumentPart!.Document!.InnerText;
 
-            Assert.Contains("Appendix E — Medical / Scientific Literature", text);
+            Assert.Contains("Appendix F — Medical / Scientific Literature", text);
             Assert.Contains("Published medical literature source text.", text);
             Assert.DoesNotContain(
                 $"Requirement: {requirement.Id.Value}",

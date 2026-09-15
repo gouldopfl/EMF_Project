@@ -5,6 +5,7 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 public static class VeteransReviewerPackageAppendix
 {
     public const string MedicalEvidence = "MedicalEvidence";
+    public const string MedicalOpinionEvidence = "MedicalOpinionEvidence";
     public const string ServiceRecords = "ServiceRecords";
     public const string LayEvidence = "LayEvidence";
     public const string AdjudicativeRecords = "AdjudicativeRecords";
@@ -15,9 +16,11 @@ public static class VeteransReviewerPackageAppendix
         classification switch
         {
             EvidenceClassifications.MedicalEvidence or
-            EvidenceClassifications.Examination or
-            EvidenceClassifications.MedicalOpinion =>
+            EvidenceClassifications.Examination =>
                 MedicalEvidence,
+
+            EvidenceClassifications.MedicalOpinion =>
+                MedicalOpinionEvidence,
 
             EvidenceClassifications.ServiceTreatmentRecord or
             EvidenceClassifications.ServiceRecord =>

@@ -8,7 +8,7 @@ public sealed class VeteransReviewerPackageAppendixTests
     [Theory]
     [InlineData(EvidenceClassifications.MedicalEvidence, "MedicalEvidence")]
     [InlineData(EvidenceClassifications.Examination, "MedicalEvidence")]
-    [InlineData(EvidenceClassifications.MedicalOpinion, "MedicalEvidence")]
+    [InlineData(EvidenceClassifications.MedicalOpinion, "MedicalOpinionEvidence")]
     [InlineData(EvidenceClassifications.ServiceTreatmentRecord, "ServiceRecords")]
     [InlineData(EvidenceClassifications.ServiceRecord, "ServiceRecords")]
     [InlineData(EvidenceClassifications.LayEvidence, "LayEvidence")]

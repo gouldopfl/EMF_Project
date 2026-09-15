@@ -433,7 +433,7 @@ public static class VeteransReviewerPackageDocxRenderer
                 "Reviewing Physician first. Use the Key Evidence and Chronology for " +
                 "orientation to the principal medical evidence, then use the " +
                 "appendices to review the underlying source material. " +
-                "Medical/scientific literature is reproduced in Appendix E."));
+                "Medical/scientific literature is reproduced in Appendix F."));
 
         body.Append(
             StyledParagraph(
@@ -540,6 +540,8 @@ public static class VeteransReviewerPackageDocxRenderer
                 {
                     VeteransReviewerPackageAppendix.MedicalEvidence =>
                         "Contains clinical notes, diagnostic reports, treatment records, and related medical evidence.",
+                    VeteransReviewerPackageAppendix.MedicalOpinionEvidence =>
+                        "Contains medical opinion and nexus evidence supplied for review.",
                     VeteransReviewerPackageAppendix.ServiceRecords =>
                         "Contains relevant military service and service-treatment evidence.",
                     VeteransReviewerPackageAppendix.LayEvidence =>
@@ -1284,7 +1286,7 @@ public static class VeteransReviewerPackageDocxRenderer
         body.Append(
             ContentParagraph(
                 "The following literature is included for the reviewing physician. " +
-                "Complete source material is preserved in Appendix E."));
+                "Complete source material is preserved in Appendix F."));
 
         foreach (var content in contents)
         {
@@ -1931,6 +1933,8 @@ public static class VeteransReviewerPackageDocxRenderer
         {
             VeteransReviewerPackageAppendix.MedicalEvidence =>
                 "Medical Evidence",
+            VeteransReviewerPackageAppendix.MedicalOpinionEvidence =>
+                "Medical Opinion Evidence",
             VeteransReviewerPackageAppendix.ServiceRecords =>
                 "Service Record",
             VeteransReviewerPackageAppendix.LayEvidence =>
@@ -2041,10 +2045,11 @@ public static class VeteransReviewerPackageDocxRenderer
         appendix switch
         {
             VeteransReviewerPackageAppendix.MedicalEvidence => 0,
-            VeteransReviewerPackageAppendix.ServiceRecords => 1,
-            VeteransReviewerPackageAppendix.LayEvidence => 2,
-            VeteransReviewerPackageAppendix.AdjudicativeRecords => 3,
-            VeteransReviewerPackageAppendix.MedicalLiterature => 4,
+            VeteransReviewerPackageAppendix.MedicalOpinionEvidence => 1,
+            VeteransReviewerPackageAppendix.ServiceRecords => 2,
+            VeteransReviewerPackageAppendix.LayEvidence => 3,
+            VeteransReviewerPackageAppendix.AdjudicativeRecords => 4,
+            VeteransReviewerPackageAppendix.MedicalLiterature => 5,
             _ => int.MaxValue
         };
 
@@ -2053,14 +2058,16 @@ public static class VeteransReviewerPackageDocxRenderer
         {
             VeteransReviewerPackageAppendix.MedicalEvidence =>
                 "Appendix A — Medical Evidence",
+            VeteransReviewerPackageAppendix.MedicalOpinionEvidence =>
+                "Appendix B — Medical Opinion Evidence",
             VeteransReviewerPackageAppendix.ServiceRecords =>
-                "Appendix B — Service Records",
+                "Appendix C — Service Records",
             VeteransReviewerPackageAppendix.LayEvidence =>
-                "Appendix C — Lay Evidence",
+                "Appendix D — Lay Evidence",
             VeteransReviewerPackageAppendix.AdjudicativeRecords =>
-                "Appendix D — Adjudicative Records",
+                "Appendix E — Adjudicative Records",
             VeteransReviewerPackageAppendix.MedicalLiterature =>
-                "Appendix E — Medical / Scientific Literature",
+                "Appendix F — Medical / Scientific Literature",
             _ => appendix
         };
 
@@ -2433,12 +2440,17 @@ public static class VeteransReviewerPackageDocxRenderer
         string? historicalMedicationTitle = null)
     {
         var historicalMedicationTitleRendered = false;
+        var suppressHistoricalMedicationSection = false;
 
-        foreach (var line in NormalizeReviewerText(text))
+        foreach (var normalizedLine in NormalizeReviewerText(text))
         {
+            var line = normalizedLine;
+
             if (line.Length == 0)
             {
-                body.Append(ContentParagraph(string.Empty));
+                if (!suppressHistoricalMedicationSection)
+                    body.Append(ContentParagraph(string.Empty));
+
                 continue;
             }
 
@@ -2453,17 +2465,29 @@ public static class VeteransReviewerPackageDocxRenderer
 
                 body.Append(
                     ContentParagraph(
-                        "Source-record medication list; not current medication status.",
-                        keepWithNext: true));
+                        "Historical medication table omitted from this reviewer copy because " +
+                        "it reflects a point-in-time source-record list rather than verified " +
+                        "current medication use. The original source remains preserved. See " +
+                        "Current Medication List and Relevant Medication Progression / History."));
 
                 historicalMedicationTitleRendered = true;
+                suppressHistoricalMedicationSection = true;
+                continue;
+            }
 
-                if (line.Equals(
-                        "MEDICATIONS:",
-                        StringComparison.OrdinalIgnoreCase))
-                {
+            if (suppressHistoricalMedicationSection)
+            {
+                var remainder =
+                    GetTextAfterHistoricalMedicationSection(line);
+
+                if (remainder is null)
                     continue;
-                }
+
+                suppressHistoricalMedicationSection = false;
+                line = remainder;
+
+                if (line.Length == 0)
+                    continue;
             }
 
             var properties =
@@ -2501,6 +2525,44 @@ public static class VeteransReviewerPackageDocxRenderer
                                 SpaceProcessingModeValues.Preserve
                         })));
         }
+    }
+
+    private static string? GetTextAfterHistoricalMedicationSection(
+        string line)
+    {
+        var markers =
+            new[]
+            {
+                "Columbia Suicide Severity Rating Scale",
+                "C-SSRS",
+                "PHYSICAL EXAM:",
+                "ASSESSMENT/PLAN:",
+                "REVIEW OF SYSTEMS",
+                "ROS:",
+                "OBJECTIVE:",
+                "EXAM:",
+                "PLAN:"
+            };
+
+        var earliestIndex = -1;
+
+        foreach (var marker in markers)
+        {
+            var index =
+                line.IndexOf(
+                    marker,
+                    StringComparison.OrdinalIgnoreCase);
+
+            if (index >= 0 &&
+                (earliestIndex < 0 || index < earliestIndex))
+            {
+                earliestIndex = index;
+            }
+        }
+
+        return earliestIndex < 0
+            ? null
+            : line[earliestIndex..].Trim();
     }
 
     private static void AppendMedicalLiteratureText(
