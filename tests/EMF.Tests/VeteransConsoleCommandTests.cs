@@ -1499,7 +1499,7 @@ public sealed partial class VeteransConsoleCommandTests
     }
 
     [Fact]
-    public async Task EvidenceReviewer_PersistsSummaryPackageAndDocx()
+    public async Task EvidenceReviewer_CrossFunctionalPreservesCriticalEvidenceAndInventoriesNoMatchSource()
     {
         var databasePath = Path.GetTempFileName();
         var outputPath =
@@ -1638,6 +1638,22 @@ public sealed partial class VeteransConsoleCommandTests
                     new ArtifactId("artifact-reviewer-003")
                 };
 
+            var sourceNames =
+                new[]
+                {
+                    "Veteran Lay Statement",
+                    "Medical Opinion",
+                    "Unrelated Medical Record"
+                };
+
+            var sourceClassifications =
+                new[]
+                {
+                    EvidenceClassifications.LayEvidence,
+                    EvidenceClassifications.MedicalOpinion,
+                    EvidenceClassifications.MedicalEvidence
+                };
+
             var evidenceRepository =
                 new SqliteEvidenceRepository(databasePath);
 
@@ -1653,7 +1669,7 @@ public sealed partial class VeteransConsoleCommandTests
                     new Artifact
                     {
                         Id = sourceArtifactIds[i],
-                        Name = $"Reviewer Source {i + 1}",
+                        Name = sourceNames[i],
                         ArtifactType = "text-summary",
                         Metadata =
                             new Dictionary<string, object>
@@ -1674,7 +1690,7 @@ public sealed partial class VeteransConsoleCommandTests
                             ArtifactId = sourceArtifactIds[i],
                             ClaimIssueId = issue.Id,
                             Classification =
-                                EvidenceClassifications.MedicalEvidence
+                                sourceClassifications[i]
                         });
             }
 
@@ -1690,33 +1706,9 @@ public sealed partial class VeteransConsoleCommandTests
             var sourceTexts =
                 new[]
                 {
-                    """
-                    DO-NOT-PROJECT-A1
-                    unrelated line
-                    context before A1
-                    Obstructive sleep apnea documented in sleep clinic A1.
-                    context after A1
-                    unrelated tail
-                    DO-NOT-PROJECT-A1-END
-                    """,
-                    """
-                    DO-NOT-PROJECT-A2
-                    unrelated line
-                    context before A2
-                    Sleep apnea treatment documented A2.
-                    context after A2
-                    unrelated tail
-                    DO-NOT-PROJECT-A2-END
-                    """,
-                    """
-                    DO-NOT-PROJECT-A3
-                    unrelated line
-                    context before A3
-                    Apnea follow-up documented A3.
-                    context after A3
-                    unrelated tail
-                    DO-NOT-PROJECT-A3-END
-                    """
+                    "LAY-FALLBACK-CONTENT-ALPHA",
+                    "OPINION-FALLBACK-CONTENT-BETA",
+                    "PRIVATE-UNRELATED-MEDICAL-CONTENT-GAMMA"
                 };
 
             for (var i = 0; i < sourceArtifactIds.Length; i++)
@@ -1764,36 +1756,31 @@ public sealed partial class VeteransConsoleCommandTests
             Assert.True(File.Exists(outputPath));
             Assert.True(new FileInfo(outputPath).Length > 0);
 
-            Assert.Equal(4, summarizationExecutor.Requests.Count);
-            Assert.Equal(4, summarizationExecutor.Contexts.Count);
+            Assert.Equal(3, summarizationExecutor.Requests.Count);
+            Assert.Equal(3, summarizationExecutor.Contexts.Count);
+
+            Assert.Contains(
+                summarizationExecutor.Requests.Take(2),
+                request => request.Text.Contains(
+                    "LAY-FALLBACK-CONTENT-ALPHA",
+                    StringComparison.Ordinal));
+            Assert.Contains(
+                summarizationExecutor.Requests.Take(2),
+                request => request.Text.Contains(
+                    "OPINION-FALLBACK-CONTENT-BETA",
+                    StringComparison.Ordinal));
 
             Assert.All(
-                summarizationExecutor.Requests.Take(3),
+                summarizationExecutor.Requests,
                 request =>
                     Assert.DoesNotContain(
-                        "DO-NOT-PROJECT",
+                        "PRIVATE-UNRELATED-MEDICAL-CONTENT-GAMMA",
                         request.Text,
                         StringComparison.Ordinal));
 
-            Assert.Contains(
-                summarizationExecutor.Requests.Take(3),
-                request => request.Text.Contains(
-                    "documented in sleep clinic A1",
-                    StringComparison.Ordinal));
-            Assert.Contains(
-                summarizationExecutor.Requests.Take(3),
-                request => request.Text.Contains(
-                    "treatment documented A2",
-                    StringComparison.Ordinal));
-            Assert.Contains(
-                summarizationExecutor.Requests.Take(3),
-                request => request.Text.Contains(
-                    "follow-up documented A3",
-                    StringComparison.Ordinal));
-
             var artifactSummaryContextIds =
                 summarizationExecutor.Contexts
-                    .Take(3)
+                    .Take(2)
                     .Select(
                         context =>
                             Assert.Single(context.InputArtifactIds))
@@ -1801,8 +1788,34 @@ public sealed partial class VeteransConsoleCommandTests
 
             Assert.True(
                 sourceArtifactIds
+                    .Take(2)
                     .ToHashSet()
                     .SetEquals(artifactSummaryContextIds));
+
+            var finalRequest =
+                summarizationExecutor.Requests[^1].Text;
+
+            Assert.Contains(
+                "Authoritative Evidence Inventory:",
+                finalRequest);
+            Assert.Contains(
+                "Veteran Lay Statement | Classification: LayEvidence",
+                finalRequest);
+            Assert.Contains(
+                "Medical Opinion | Classification: MedicalOpinion",
+                finalRequest);
+            Assert.Contains(
+                "Unrelated Medical Record | Classification: MedicalEvidence",
+                finalRequest);
+            Assert.Contains(
+                "Summarized using classification-preserving fallback.",
+                finalRequest);
+            Assert.Contains(
+                "No claim-aware excerpt selected; source remains present in the package.",
+                finalRequest);
+            Assert.Contains(
+                "Never equate an unselected excerpt with absent evidence.",
+                finalRequest);
 
             Assert.True(
                 sourceArtifactIds
