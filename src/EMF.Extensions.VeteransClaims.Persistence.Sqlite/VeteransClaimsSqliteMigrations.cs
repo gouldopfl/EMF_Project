@@ -2305,6 +2305,110 @@ internal static class VeteransClaimsSqliteMigrations
                 """
                 ALTER TABLE VeteransClaims_ServiceConnectionBases
                 ADD COLUMN ReviewerLabel TEXT NULL;
+                """),
+            new VeteransClaimsSqliteMigration(
+                78,
+                "AddMedicationLedgers",
+                """
+                CREATE TABLE VeteransClaims_MedicationLedgers (
+                    Id TEXT PRIMARY KEY,
+                    VeteranId TEXT NOT NULL,
+                    SourceArtifactId TEXT NOT NULL,
+                    ReportDate TEXT NOT NULL,
+                    SourceStartPage INTEGER NOT NULL
+                        CHECK (SourceStartPage > 0),
+                    SourceEndPage INTEGER NOT NULL
+                        CHECK (SourceEndPage >= SourceStartPage),
+                    ReportedEntryCount INTEGER NULL
+                        CHECK (
+                            ReportedEntryCount IS NULL OR
+                            ReportedEntryCount >= 0
+                        ),
+                    ParsedEntryCount INTEGER NOT NULL
+                        CHECK (ParsedEntryCount >= 0),
+                    IsComplete INTEGER NOT NULL
+                        CHECK (IsComplete IN (0, 1)),
+                    FOREIGN KEY (VeteranId)
+                        REFERENCES VeteransClaims_Veterans (Id)
+                );
+
+                CREATE UNIQUE INDEX
+                    UX_VeteransClaims_MedicationLedgers_Source
+                ON VeteransClaims_MedicationLedgers (
+                    SourceArtifactId,
+                    SourceStartPage,
+                    SourceEndPage
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicationLedgers_Veteran
+                ON VeteransClaims_MedicationLedgers (
+                    VeteranId,
+                    ReportDate DESC
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicationLedgers_Artifact
+                ON VeteransClaims_MedicationLedgers (
+                    SourceArtifactId
+                );
+
+                CREATE TABLE VeteransClaims_MedicationLedgerEntries (
+                    Id TEXT PRIMARY KEY,
+                    MedicationLedgerId TEXT NOT NULL,
+                    EntryOrdinal INTEGER NOT NULL
+                        CHECK (EntryOrdinal > 0),
+                    SourceStartPage INTEGER NOT NULL
+                        CHECK (SourceStartPage > 0),
+                    SourceEndPage INTEGER NOT NULL
+                        CHECK (SourceEndPage >= SourceStartPage),
+                    MedicationName TEXT NOT NULL,
+                    Strength TEXT NULL,
+                    Status TEXT NOT NULL,
+                    PrescriptionNumber TEXT NULL,
+                    PrescribedDate TEXT NULL,
+                    LastFilledDate TEXT NULL,
+                    LastFilledOnText TEXT NULL,
+                    ExpirationDate TEXT NULL,
+                    RefillsLeft INTEGER NULL
+                        CHECK (
+                            RefillsLeft IS NULL OR
+                            RefillsLeft >= 0
+                        ),
+                    Directions TEXT NULL,
+                    Indication TEXT NULL,
+                    Prescriber TEXT NULL,
+                    Facility TEXT NULL,
+                    Quantity TEXT NULL,
+                    FOREIGN KEY (MedicationLedgerId)
+                        REFERENCES VeteransClaims_MedicationLedgers (Id)
+                );
+
+                CREATE UNIQUE INDEX
+                    UX_VeteransClaims_MedicationLedgerEntries_Ordinal
+                ON VeteransClaims_MedicationLedgerEntries (
+                    MedicationLedgerId,
+                    EntryOrdinal
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicationLedgerEntries_Ledger
+                ON VeteransClaims_MedicationLedgerEntries (
+                    MedicationLedgerId
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicationLedgerEntries_Prescription
+                ON VeteransClaims_MedicationLedgerEntries (
+                    PrescriptionNumber
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicationLedgerEntries_Status
+                ON VeteransClaims_MedicationLedgerEntries (
+                    MedicationLedgerId,
+                    Status
+                );
                 """)
         };
 }
