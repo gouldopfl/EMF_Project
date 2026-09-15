@@ -32,6 +32,65 @@ public sealed class ReconciledCurrentMedicationLedgerService
         if (snapshot is null)
             return null;
 
+        var latestByEntry =
+            await GetLatestReconciliationsAsync(
+                veteranId,
+                cancellationToken);
+
+        var entries =
+            snapshot.Entries
+                .Where(
+                    entry =>
+                        !latestByEntry.TryGetValue(entry.Id, out var reconciliation) ||
+                        MedicationCurrentUseStatuses.IsCurrentlyUsed(
+                            reconciliation.CurrentUseStatus))
+                .ToArray();
+
+        return new CurrentMedicationLedgerSnapshot
+        {
+            Ledger = snapshot.Ledger,
+            Entries = entries
+        };
+    }
+
+    public async Task<CurrentMedicationLedgerSnapshot?> GetVerifiedAsync(
+        VeteranId veteranId,
+        CancellationToken cancellationToken = default)
+    {
+        var snapshot =
+            await _currentMedications.GetAsync(
+                veteranId,
+                cancellationToken);
+
+        if (snapshot is null)
+            return null;
+
+        var latestByEntry =
+            await GetLatestReconciliationsAsync(
+                veteranId,
+                cancellationToken);
+
+        var entries =
+            snapshot.Entries
+                .Where(
+                    entry =>
+                        latestByEntry.TryGetValue(entry.Id, out var reconciliation) &&
+                        MedicationCurrentUseStatuses.IsCurrentlyUsed(
+                            reconciliation.CurrentUseStatus))
+                .ToArray();
+
+        return new CurrentMedicationLedgerSnapshot
+        {
+            Ledger = snapshot.Ledger,
+            Entries = entries
+        };
+    }
+
+    public async Task<IReadOnlyDictionary<MedicationLedgerEntryId, MedicationCurrentUseReconciliation>>
+        GetLatestReconciliationsAsync(
+            VeteranId veteranId,
+            CancellationToken cancellationToken = default)
+    {
         var reconciliations =
             await _repository.GetMedicationCurrentUseReconciliationsAsync(
                 veteranId,
@@ -63,20 +122,7 @@ public sealed class ReconciledCurrentMedicationLedgerService
             }
         }
 
-        var entries =
-            snapshot.Entries
-                .Where(
-                    entry =>
-                        !latestByEntry.TryGetValue(entry.Id, out var reconciliation) ||
-                        MedicationCurrentUseStatuses.IsCurrentlyUsed(
-                            reconciliation.CurrentUseStatus))
-                .ToArray();
-
-        return new CurrentMedicationLedgerSnapshot
-        {
-            Ledger = snapshot.Ledger,
-            Entries = entries
-        };
+        return latestByEntry;
     }
 
     private static void ValidateReconciliation(

@@ -72,6 +72,18 @@ public sealed class VeteransReviewerPackageCurrentMedicationServiceTests
                     Source = "VeteranReported"
                 });
 
+            await medications.AddMedicationCurrentUseReconciliationAsync(
+                new MedicationCurrentUseReconciliation
+                {
+                    Id = new MedicationCurrentUseReconciliationId("recon-2"),
+                    VeteranId = veteran.Id,
+                    MedicationLedgerEntryId = new MedicationLedgerEntryId("entry-1"),
+                    ReconciliationDate = new DateOnly(2026, 9, 15),
+                    CurrentUseStatus =
+                        MedicationCurrentUseStatuses.CurrentlyUsed,
+                    Source = "VeteranReported"
+                });
+
             var result =
                 await new VeteransReviewerPackageCurrentMedicationService(
                         new SqliteClaimIssueRepository(path),

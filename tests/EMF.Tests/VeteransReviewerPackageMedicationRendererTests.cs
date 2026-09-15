@@ -27,11 +27,14 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
                 Indication = "None recorded"
             });
 
-        Assert.Contains("Current Medication List", text);
+        Assert.Contains("Current Medication Use — Reconciled", text);
         Assert.Contains("traZODone (traZODone 100 mg tablet)", text);
         Assert.Contains("Strength: 100 mg", text);
         Assert.Contains("TAKE THREE TABLETS ORALLY AT BEDTIME FOR INSOMNIA", text);
-        Assert.Contains("Current status: Active", text);
+        Assert.Contains("VA prescription status: Active", text);
+        Assert.Contains(
+            "Current use: Confirmed during medication reconciliation",
+            text);
         Assert.DoesNotContain("Documented indication: None recorded", text);
         Assert.DoesNotContain("Earliest documented VA release:", text);
     }
@@ -54,7 +57,7 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
             });
 
         Assert.Contains("isosorbide mononitrate", text);
-        Assert.Contains("Current status: Refill in process", text);
+        Assert.Contains("VA prescription status: Refill in process", text);
     }
 
     [Fact]
@@ -102,12 +105,12 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
         Assert.Contains("Relevant Medication Progression / History", text);
         Assert.Contains("Isosorbide Mononitrate", text);
         Assert.Contains("June 2, 2025 — Discontinued — 60MG", text);
-        Assert.Contains("Current Medication List", text);
-        Assert.Contains("Current status: Refill in process", text);
+        Assert.Contains("Current Medication Use — Reconciled", text);
+        Assert.Contains("VA prescription status: Refill in process", text);
 
         Assert.True(
             text.IndexOf(
-                "Current Medication List",
+                "Current Medication Use — Reconciled",
                 StringComparison.Ordinal) <
             text.IndexOf(
                 "Relevant Medication Progression / History",

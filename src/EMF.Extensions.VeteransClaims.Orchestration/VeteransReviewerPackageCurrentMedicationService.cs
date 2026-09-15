@@ -54,7 +54,7 @@ public sealed class VeteransReviewerPackageCurrentMedicationService
                 "Reviewer package claim identity mismatch.");
 
         var snapshot =
-            await _currentMedications.GetAsync(
+            await _currentMedications.GetVerifiedAsync(
                 claim.VeteranId,
                 cancellationToken);
 

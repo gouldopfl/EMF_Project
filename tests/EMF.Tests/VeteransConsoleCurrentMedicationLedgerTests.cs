@@ -54,6 +54,18 @@ public sealed partial class VeteransConsoleCommandTests
                         "rx-old")
                 ]);
 
+            await repository.AddMedicationCurrentUseReconciliationAsync(
+                new MedicationCurrentUseReconciliation
+                {
+                    Id = new MedicationCurrentUseReconciliationId("recon-trazodone"),
+                    VeteranId = ledger.VeteranId,
+                    MedicationLedgerEntryId = new MedicationLedgerEntryId("entry-1"),
+                    ReconciliationDate = new DateOnly(2026, 9, 15),
+                    CurrentUseStatus = MedicationCurrentUseStatuses.CurrentlyUsed,
+                    Source = "VeteranReported",
+                    Note = "Veteran confirmed current use."
+                });
+
             using var output = new StringWriter();
 
             var exitCode =
@@ -69,10 +81,16 @@ public sealed partial class VeteransConsoleCommandTests
             Assert.Contains("Report Date          : 2026-09-09", rendered);
             Assert.Contains("Source Pages         : 3911-4023", rendered);
             Assert.Contains("Current Prescriptions: 2", rendered);
-            Assert.Contains("Medication   : Isosorbide", rendered);
-            Assert.Contains("Status       : refillinprocess", rendered);
-            Assert.Contains("Prescription : rx-isosorbide", rendered);
-            Assert.Contains("Medication   : Trazodone", rendered);
+            Assert.Contains("Ledger Entry ID : entry-2", rendered);
+            Assert.Contains("Medication      : Isosorbide", rendered);
+            Assert.Contains("VA Status       : refillinprocess", rendered);
+            Assert.Contains("Prescription    : rx-isosorbide", rendered);
+            Assert.Contains("Current Use     : Unreconciled", rendered);
+            Assert.Contains("Ledger Entry ID : entry-1", rendered);
+            Assert.Contains("Medication      : Trazodone", rendered);
+            Assert.Contains("Current Use     : CurrentlyUsed", rendered);
+            Assert.Contains("Reconciled Date : 2026-09-15", rendered);
+            Assert.Contains("Reconciled By   : VeteranReported", rendered);
             Assert.DoesNotContain("Legacy Trazodone", rendered);
         }
         finally

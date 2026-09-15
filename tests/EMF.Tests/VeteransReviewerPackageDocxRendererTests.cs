@@ -2403,8 +2403,41 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         var text = document.MainDocumentPart!.Document!.Body!.InnerText;
 
         Assert.Contains("Appendix B — Medical Opinion Evidence", text);
+        Assert.Contains(
+            "Contains medical opinion and nexus evidence supplied for review.",
+            text);
         Assert.Contains("Psychiatric Nexus Letter — Treating Clinician", text);
         Assert.DoesNotContain("Appendix A — Medical Evidence", text);
+
+        var paragraphs =
+            document.MainDocumentPart!.Document!.Body!
+                .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .ToArray();
+
+        var appendixHeading =
+            Assert.Single(
+                paragraphs.Where(
+                    paragraph =>
+                        paragraph.InnerText ==
+                            "Appendix B — Medical Opinion Evidence" &&
+                        paragraph.ParagraphProperties?
+                            .ParagraphStyleId?
+                            .Val?
+                            .Value == "Heading1"));
+
+        var evidenceHeading =
+            Assert.Single(
+                paragraphs.Where(
+                    paragraph =>
+                        paragraph.InnerText ==
+                            "Psychiatric Nexus Letter — Treating Clinician" &&
+                        paragraph.ParagraphProperties?
+                            .ParagraphStyleId?
+                            .Val?
+                            .Value == "Heading2"));
+
+        Assert.NotNull(appendixHeading.ParagraphProperties?.PageBreakBefore);
+        Assert.NotNull(evidenceHeading.ParagraphProperties?.PageBreakBefore);
     }
 
     [Fact]

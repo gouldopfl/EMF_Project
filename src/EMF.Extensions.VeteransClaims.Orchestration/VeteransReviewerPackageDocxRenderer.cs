@@ -495,8 +495,8 @@ public static class VeteransReviewerPackageDocxRenderer
         {
             AppendPackageGuideEntry(
                 body,
-                "Current Medication List",
-                "Provides the newest complete VA medication ledger's current-prescription list after applying persisted current-use reconciliation when available.");
+                "Current Medication Use — Reconciled",
+                "Lists only medications explicitly confirmed as currently used through medication reconciliation; VA prescription status alone is not treated as verified current use.");
         }
 
         if (details.MedicationProgressions.Count > 0)
@@ -535,24 +535,7 @@ public static class VeteransReviewerPackageDocxRenderer
 
         foreach (var appendix in appendices)
         {
-            var description =
-                appendix switch
-                {
-                    VeteransReviewerPackageAppendix.MedicalEvidence =>
-                        "Contains clinical notes, diagnostic reports, treatment records, and related medical evidence.",
-                    VeteransReviewerPackageAppendix.MedicalOpinionEvidence =>
-                        "Contains medical opinion and nexus evidence supplied for review.",
-                    VeteransReviewerPackageAppendix.ServiceRecords =>
-                        "Contains relevant military service and service-treatment evidence.",
-                    VeteransReviewerPackageAppendix.LayEvidence =>
-                        "Contains statements and observations from the veteran and other lay witnesses.",
-                    VeteransReviewerPackageAppendix.AdjudicativeRecords =>
-                        "Contains relevant VA decisions and adjudicative records.",
-                    VeteransReviewerPackageAppendix.MedicalLiterature =>
-                        "Contains the medical/scientific literature supplied for review.",
-                    _ =>
-                        "Contains supporting evidence supplied for review."
-                };
+            var description = AppendixDescription(appendix);
 
             AppendPackageGuideEntry(
                 body,
@@ -1106,17 +1089,15 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             StyledParagraph(
-                "Current Medication List",
+                "Current Medication Use — Reconciled",
                 "Heading1"));
 
         body.Append(
             ContentParagraph(
-                "This medication list is drawn from current prescription statuses " +
-                "in the newest complete VA medication ledger supplied in the " +
-                "record. Persisted current-use reconciliation is applied when " +
-                "available; the VA source ledger remains unchanged. This list is " +
-                "not limited to medications considered relevant to the claimed " +
-                "condition."));
+                "Only medications explicitly confirmed as currently used through " +
+                "medication reconciliation are listed here. VA prescription " +
+                "status alone is not treated as verified current use. The underlying " +
+                "VA medication ledger remains preserved unchanged."));
 
         foreach (var medication in medications)
         {
@@ -1145,7 +1126,11 @@ public static class VeteransReviewerPackageDocxRenderer
 
             body.Append(
                 ContentParagraph(
-                    $"Current status: {MedicationLedgerStatusDisplayName(medication.Status)}"));
+                    $"VA prescription status: {MedicationLedgerStatusDisplayName(medication.Status)}"));
+
+            body.Append(
+                ContentParagraph(
+                    "Current use: Confirmed during medication reconciliation"));
         }
     }
 
@@ -1420,7 +1405,9 @@ public static class VeteransReviewerPackageDocxRenderer
                     "Heading1",
                     pageBreakBefore: true));
 
-            var firstArtifact = true;
+            body.Append(
+                ContentParagraph(
+                    AppendixDescription(group.Key)));
 
             foreach (var content in
                 group
@@ -1439,9 +1426,7 @@ public static class VeteransReviewerPackageDocxRenderer
                     body,
                     details,
                     content,
-                    pageBreakBefore: !firstArtifact);
-
-                firstArtifact = false;
+                    pageBreakBefore: true);
             }
         }
 
@@ -2071,6 +2056,25 @@ public static class VeteransReviewerPackageDocxRenderer
             _ => appendix
         };
 
+    private static string AppendixDescription(string appendix) =>
+        appendix switch
+        {
+            VeteransReviewerPackageAppendix.MedicalEvidence =>
+                "Contains clinical notes, diagnostic reports, treatment records, and related medical evidence.",
+            VeteransReviewerPackageAppendix.MedicalOpinionEvidence =>
+                "Contains medical opinion and nexus evidence supplied for review.",
+            VeteransReviewerPackageAppendix.ServiceRecords =>
+                "Contains relevant military service and service-treatment evidence.",
+            VeteransReviewerPackageAppendix.LayEvidence =>
+                "Contains statements and observations from the veteran and other lay witnesses.",
+            VeteransReviewerPackageAppendix.AdjudicativeRecords =>
+                "Contains relevant VA decisions and adjudicative records.",
+            VeteransReviewerPackageAppendix.MedicalLiterature =>
+                "Contains the medical/scientific literature supplied for review.",
+            _ =>
+                "Contains supporting evidence supplied for review."
+        };
+
     private static Footer ReviewerFooter()
     {
         var table =
@@ -2468,7 +2472,7 @@ public static class VeteransReviewerPackageDocxRenderer
                         "Historical medication table omitted from this reviewer copy because " +
                         "it reflects a point-in-time source-record list rather than verified " +
                         "current medication use. The original source remains preserved. See " +
-                        "Current Medication List and Relevant Medication Progression / History."));
+                        "Current Medication Use — Reconciled and Relevant Medication Progression / History."));
 
                 historicalMedicationTitleRendered = true;
                 suppressHistoricalMedicationSection = true;

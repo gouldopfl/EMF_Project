@@ -4275,10 +4275,15 @@ public static class VeteransConsoleCommand
 
         try
         {
+            var medicationRepository =
+                new SqliteMedicationRepository(databasePath);
+
+            var currentMedicationService =
+                new CurrentMedicationLedgerService(
+                    medicationRepository);
+
             var snapshot =
-                await new CurrentMedicationLedgerService(
-                    new SqliteMedicationRepository(databasePath))
-                    .GetAsync(veteranId);
+                await currentMedicationService.GetAsync(veteranId);
 
             if (snapshot is null)
             {
@@ -4296,39 +4301,61 @@ public static class VeteransConsoleCommand
                 $"Source Pages         : " +
                 $"{snapshot.Ledger.SourceStartPage}-" +
                 $"{snapshot.Ledger.SourceEndPage}");
+            var latestReconciliations =
+                await new ReconciledCurrentMedicationLedgerService(
+                        currentMedicationService,
+                        medicationRepository)
+                    .GetLatestReconciliationsAsync(veteranId);
+
             await output.WriteLineAsync(
                 $"Current Prescriptions: {snapshot.Entries.Count}");
 
             foreach (var entry in snapshot.Entries)
             {
+                latestReconciliations.TryGetValue(
+                    entry.Id,
+                    out var reconciliation);
+
                 await output.WriteLineAsync();
                 await output.WriteLineAsync(
-                    $"Medication   : {entry.MedicationName}");
+                    $"Ledger Entry ID : {entry.Id.Value}");
                 await output.WriteLineAsync(
-                    $"Strength     : {entry.Strength ?? "-"}");
+                    $"Medication      : {entry.MedicationName}");
                 await output.WriteLineAsync(
-                    $"Status       : {entry.Status}");
+                    $"Strength        : {entry.Strength ?? "-"}");
                 await output.WriteLineAsync(
-                    $"Prescription : {entry.PrescriptionNumber ?? "-"}");
+                    $"VA Status       : {entry.Status}");
                 await output.WriteLineAsync(
-                    $"Prescribed   : " +
+                    $"Prescription    : {entry.PrescriptionNumber ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Prescribed      : " +
                     $"{entry.PrescribedDate?.ToString("yyyy-MM-dd") ?? "-"}");
                 await output.WriteLineAsync(
-                    $"Last Filled  : " +
+                    $"Last Filled     : " +
                     $"{entry.LastFilledDate?.ToString("yyyy-MM-dd") ?? entry.LastFilledOnText ?? "-"}");
                 await output.WriteLineAsync(
-                    $"Expires      : " +
+                    $"Expires         : " +
                     $"{entry.ExpirationDate?.ToString("yyyy-MM-dd") ?? "-"}");
                 await output.WriteLineAsync(
-                    $"Refills Left : " +
+                    $"Refills Left    : " +
                     $"{entry.RefillsLeft?.ToString() ?? "-"}");
                 await output.WriteLineAsync(
-                    $"Directions   : {entry.Directions ?? "-"}");
+                    $"Directions      : {entry.Directions ?? "-"}");
                 await output.WriteLineAsync(
-                    $"Indication   : {entry.Indication ?? "-"}");
+                    $"Indication      : {entry.Indication ?? "-"}");
                 await output.WriteLineAsync(
-                    $"Source Pages : {entry.SourceStartPage}-" +
+                    $"Source Pages    : {entry.SourceStartPage}-" +
                     $"{entry.SourceEndPage}");
+                await output.WriteLineAsync(
+                    $"Current Use     : " +
+                    $"{reconciliation?.CurrentUseStatus ?? "Unreconciled"}");
+                await output.WriteLineAsync(
+                    $"Reconciled Date : " +
+                    $"{reconciliation?.ReconciliationDate.ToString("yyyy-MM-dd") ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Reconciled By   : {reconciliation?.Source ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Reconcile Note  : {reconciliation?.Note ?? "-"}");
             }
 
             return 0;

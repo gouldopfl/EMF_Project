@@ -84,6 +84,76 @@ public sealed class ReconciledCurrentMedicationLedgerServiceTests
         }
     }
 
+
+    [Fact]
+    public async Task GetVerifiedAsync_RequiresExplicitCurrentUseConfirmation()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(path).InitializeAsync();
+
+            var veteran = new Veteran { Id = new VeteranId("veteran-verified") };
+            await new SqliteVeteranRepository(path).AddVeteranAsync(veteran);
+
+            var ledger = new MedicationLedger
+            {
+                Id = new MedicationLedgerId("ledger-verified"),
+                VeteranId = veteran.Id,
+                SourceArtifactId = new ArtifactId("blue-button"),
+                ReportDate = new DateOnly(2026, 9, 9),
+                SourceStartPage = 1,
+                SourceEndPage = 3,
+                ReportedEntryCount = 3,
+                ParsedEntryCount = 3,
+                IsComplete = true
+            };
+
+            var medications = new SqliteMedicationRepository(path);
+            await medications.AddMedicationLedgerAsync(
+                ledger,
+                [
+                    Entry(ledger, 1, "Bupropion"),
+                    Entry(ledger, 2, "Cyclosporine"),
+                    Entry(ledger, 3, "Trazodone")
+                ]);
+
+            await medications.AddMedicationCurrentUseReconciliationAsync(
+                Reconciliation(
+                    veteran.Id,
+                    "recon-current",
+                    "entry-1",
+                    new DateOnly(2026, 9, 15),
+                    MedicationCurrentUseStatuses.CurrentlyUsed));
+
+            await medications.AddMedicationCurrentUseReconciliationAsync(
+                Reconciliation(
+                    veteran.Id,
+                    "recon-not-current",
+                    "entry-2",
+                    new DateOnly(2026, 9, 15),
+                    MedicationCurrentUseStatuses.NotCurrentlyUsed));
+
+            var result =
+                await new ReconciledCurrentMedicationLedgerService(
+                        new CurrentMedicationLedgerService(medications),
+                        medications)
+                    .GetVerifiedAsync(veteran.Id);
+
+            Assert.NotNull(result);
+            var current = Assert.Single(result!.Entries);
+            Assert.Equal("Bupropion", current.MedicationName);
+            Assert.DoesNotContain(
+                result.Entries,
+                entry => entry.MedicationName == "Trazodone");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private static MedicationLedgerEntry Entry(
         MedicationLedger ledger,
         int ordinal,
