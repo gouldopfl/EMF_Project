@@ -608,6 +608,29 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 6 &&
+            args[0] == "evidence" &&
+            args[1] == "medication" &&
+            args[2] == "ledger" &&
+            args[3] == "current")
+        {
+            var currentMedicationLedgerDatabasePath =
+                Path.GetFullPath(args[4]);
+
+            if (!File.Exists(currentMedicationLedgerDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: " +
+                    $"{currentMedicationLedgerDatabasePath}");
+                return 2;
+            }
+
+            return await RunEvidenceCurrentMedicationLedgerAsync(
+                currentMedicationLedgerDatabasePath,
+                new VeteranId(args[5]),
+                global::System.Console.Out);
+        }
+
         if (args.Length == 7 &&
             args[0] == "evidence" &&
             args[1] == "medication" &&
@@ -3830,6 +3853,95 @@ public static class VeteransConsoleCommand
     }
 
     internal static async Task<int>
+        RunEvidenceCurrentMedicationLedgerAsync(
+            string databasePath,
+            VeteranId veteranId,
+            TextWriter output)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        ArgumentNullException.ThrowIfNull(output);
+
+        var veterans =
+            new SqliteVeteranRepository(databasePath);
+
+        if (await veterans.GetVeteranAsync(veteranId) is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Veteran not found: {veteranId.Value}");
+            return 2;
+        }
+
+        try
+        {
+            var snapshot =
+                await new CurrentMedicationLedgerService(
+                    new SqliteMedicationRepository(databasePath))
+                    .GetAsync(veteranId);
+
+            if (snapshot is null)
+            {
+                await output.WriteLineAsync(
+                    "Authoritative Medication Ledger : None");
+                return 0;
+            }
+
+            await output.WriteLineAsync(
+                $"Medication Ledger ID : {snapshot.Ledger.Id.Value}");
+            await output.WriteLineAsync(
+                $"Report Date          : " +
+                $"{snapshot.Ledger.ReportDate:yyyy-MM-dd}");
+            await output.WriteLineAsync(
+                $"Source Pages         : " +
+                $"{snapshot.Ledger.SourceStartPage}-" +
+                $"{snapshot.Ledger.SourceEndPage}");
+            await output.WriteLineAsync(
+                $"Current Prescriptions: {snapshot.Entries.Count}");
+
+            foreach (var entry in snapshot.Entries)
+            {
+                await output.WriteLineAsync();
+                await output.WriteLineAsync(
+                    $"Medication   : {entry.MedicationName}");
+                await output.WriteLineAsync(
+                    $"Strength     : {entry.Strength ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Status       : {entry.Status}");
+                await output.WriteLineAsync(
+                    $"Prescription : {entry.PrescriptionNumber ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Prescribed   : " +
+                    $"{entry.PrescribedDate?.ToString("yyyy-MM-dd") ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Last Filled  : " +
+                    $"{entry.LastFilledDate?.ToString("yyyy-MM-dd") ?? entry.LastFilledOnText ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Expires      : " +
+                    $"{entry.ExpirationDate?.ToString("yyyy-MM-dd") ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Refills Left : " +
+                    $"{entry.RefillsLeft?.ToString() ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Directions   : {entry.Directions ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Indication   : {entry.Indication ?? "-"}");
+                await output.WriteLineAsync(
+                    $"Source Pages : {entry.SourceStartPage}-" +
+                    $"{entry.SourceEndPage}");
+            }
+
+            return 0;
+        }
+        catch (Exception ex)
+            when (ex is not OperationCanceledException)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Current medication ledger resolution failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+
+    internal static async Task<int>
         RunEvidenceMedicationLedgerImportAsync(
             string databasePath,
             VeteranId veteranId,
@@ -5795,6 +5907,10 @@ public static class VeteransConsoleCommand
             "       emf veterans evidence literature link " +
             "<database-path> <requirement-id> <source-id> " +
             "<role> <description>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence medication ledger current " +
+            "<database-path> <veteran-id>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence medication ledger import " +
