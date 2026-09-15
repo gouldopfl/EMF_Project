@@ -31,6 +31,8 @@ internal sealed class RecordingTextSummarizationExecutor :
     public IReadOnlyList<ArtifactId>
         SourceArtifactIds { get; set; } = [];
 
+    public bool UseContextSourceArtifactIds { get; set; }
+
     public Task<IntelligenceCapabilityResult<string>>
         ExecuteAsync(
             IntelligenceCapabilityId capabilityId,
@@ -49,7 +51,9 @@ internal sealed class RecordingTextSummarizationExecutor :
                 Success = Success,
                 Output = Output,
                 SourceArtifactIds =
-                    SourceArtifactIds,
+                    UseContextSourceArtifactIds
+                        ? context.InputArtifactIds.ToArray()
+                        : SourceArtifactIds,
                 RequiresReview = true,
                 Metadata =
                     new IntelligenceExecutionMetadata

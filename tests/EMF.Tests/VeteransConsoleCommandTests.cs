@@ -1630,42 +1630,53 @@ public sealed partial class VeteransConsoleCommandTests
                         serviceConnectedCondition.Id
                 });
 
-            var sourceArtifactId =
-                new ArtifactId("artifact-reviewer-001");
+            var sourceArtifactIds =
+                new[]
+                {
+                    new ArtifactId("artifact-reviewer-001"),
+                    new ArtifactId("artifact-reviewer-002"),
+                    new ArtifactId("artifact-reviewer-003")
+                };
 
             var evidenceRepository =
                 new SqliteEvidenceRepository(databasePath);
 
             await evidenceRepository.InitializeAsync();
 
-            await evidenceRepository.AddArtifactAsync(
-                new Artifact
-                {
-                    Id = sourceArtifactId,
-                    Name = "Reviewer Source",
-                    ArtifactType = "text-summary",
-                    Metadata =
-                        new Dictionary<string, object>
-                        {
-                            ["summary"] =
-                                "Documented reviewer source evidence.",
-                            [ArtifactMetadataKeys.FileExtension] =
-                                ".txt"
-                        }
-                });
+            var classificationRepository =
+                new SqliteEvidenceClassificationRepository(
+                    databasePath);
 
-            await new SqliteEvidenceClassificationRepository(
-                    databasePath)
-                .AddEvidenceClassificationAsync(
-                    new EvidenceClassification
+            for (var i = 0; i < sourceArtifactIds.Length; i++)
+            {
+                await evidenceRepository.AddArtifactAsync(
+                    new Artifact
                     {
-                        Id = new EvidenceClassificationId(
-                            "classification-reviewer-001"),
-                        ArtifactId = sourceArtifactId,
-                        ClaimIssueId = issue.Id,
-                        Classification =
-                            EvidenceClassifications.MedicalEvidence
+                        Id = sourceArtifactIds[i],
+                        Name = $"Reviewer Source {i + 1}",
+                        ArtifactType = "text-summary",
+                        Metadata =
+                            new Dictionary<string, object>
+                            {
+                                ["summary"] =
+                                    $"Documented reviewer source evidence {i + 1}.",
+                                [ArtifactMetadataKeys.FileExtension] =
+                                    ".txt"
+                            }
                     });
+
+                await classificationRepository
+                    .AddEvidenceClassificationAsync(
+                        new EvidenceClassification
+                        {
+                            Id = new EvidenceClassificationId(
+                                $"classification-reviewer-{i + 1:000}"),
+                            ArtifactId = sourceArtifactIds[i],
+                            ClaimIssueId = issue.Id,
+                            Classification =
+                                EvidenceClassifications.MedicalEvidence
+                        });
+            }
 
             var contentPath =
                 Path.Combine(
@@ -1676,10 +1687,52 @@ public sealed partial class VeteransConsoleCommandTests
                 new EMF.Persistence.Storage
                     .FileSystemArtifactContentStore(contentPath);
 
-            await contentStore.WriteAsync(
-                new ArtifactId("artifact-reviewer-001"),
-                System.Text.Encoding.UTF8.GetBytes(
-                    "Reviewer medical evidence source text."));
+            var sourceTexts =
+                new[]
+                {
+                    """
+                    DO-NOT-PROJECT-A1
+                    unrelated line
+                    context before A1
+                    Obstructive sleep apnea documented in sleep clinic A1.
+                    context after A1
+                    unrelated tail
+                    DO-NOT-PROJECT-A1-END
+                    """,
+                    """
+                    DO-NOT-PROJECT-A2
+                    unrelated line
+                    context before A2
+                    Sleep apnea treatment documented A2.
+                    context after A2
+                    unrelated tail
+                    DO-NOT-PROJECT-A2-END
+                    """,
+                    """
+                    DO-NOT-PROJECT-A3
+                    unrelated line
+                    context before A3
+                    Apnea follow-up documented A3.
+                    context after A3
+                    unrelated tail
+                    DO-NOT-PROJECT-A3-END
+                    """
+                };
+
+            for (var i = 0; i < sourceArtifactIds.Length; i++)
+            {
+                await contentStore.WriteAsync(
+                    sourceArtifactIds[i],
+                    System.Text.Encoding.UTF8.GetBytes(
+                        sourceTexts[i]));
+            }
+
+            var summarizationExecutor =
+                new RecordingTextSummarizationExecutor
+                {
+                    Output = "Veterans evidence summary.",
+                    UseContextSourceArtifactIds = true
+                };
 
             var exitCode =
                 await VeteransConsoleCommand.RunAsync(
@@ -1696,7 +1749,7 @@ public sealed partial class VeteransConsoleCommandTests
                         new TextSummarizationConsoleRuntime
                         {
                             TextSummarizationCapabilityExecutor =
-                                new FakeSummarizationExecutor(),
+                                summarizationExecutor,
                             TextStructuredExtractionCapabilityExecutor =
                                 new FakeStructuredExtractionExecutor(),
                             SubjectId = "console-test",
@@ -1710,6 +1763,53 @@ public sealed partial class VeteransConsoleCommandTests
             Assert.Equal(0, exitCode);
             Assert.True(File.Exists(outputPath));
             Assert.True(new FileInfo(outputPath).Length > 0);
+
+            Assert.Equal(4, summarizationExecutor.Requests.Count);
+            Assert.Equal(4, summarizationExecutor.Contexts.Count);
+
+            Assert.All(
+                summarizationExecutor.Requests.Take(3),
+                request =>
+                    Assert.DoesNotContain(
+                        "DO-NOT-PROJECT",
+                        request.Text,
+                        StringComparison.Ordinal));
+
+            Assert.Contains(
+                summarizationExecutor.Requests.Take(3),
+                request => request.Text.Contains(
+                    "documented in sleep clinic A1",
+                    StringComparison.Ordinal));
+            Assert.Contains(
+                summarizationExecutor.Requests.Take(3),
+                request => request.Text.Contains(
+                    "treatment documented A2",
+                    StringComparison.Ordinal));
+            Assert.Contains(
+                summarizationExecutor.Requests.Take(3),
+                request => request.Text.Contains(
+                    "follow-up documented A3",
+                    StringComparison.Ordinal));
+
+            var artifactSummaryContextIds =
+                summarizationExecutor.Contexts
+                    .Take(3)
+                    .Select(
+                        context =>
+                            Assert.Single(context.InputArtifactIds))
+                    .ToHashSet();
+
+            Assert.True(
+                sourceArtifactIds
+                    .ToHashSet()
+                    .SetEquals(artifactSummaryContextIds));
+
+            Assert.True(
+                sourceArtifactIds
+                    .ToHashSet()
+                    .SetEquals(
+                        summarizationExecutor.Contexts[^1]
+                            .InputArtifactIds));
 
             var expectedArtifact =
                 new TextSummaryEvidenceArtifactFactory()
@@ -1729,15 +1829,19 @@ public sealed partial class VeteransConsoleCommandTests
                 issue.Id.Value,
                 stored.Metadata["claimIssueId"].ToString());
 
-            var relationship =
-                Assert.Single(
-                    await evidenceRepository
-                        .GetRelationshipsAsync(
-                            expectedArtifact.Id));
+            var relationships =
+                await evidenceRepository
+                    .GetRelationshipsAsync(
+                        expectedArtifact.Id);
 
-            Assert.Equal(
-                sourceArtifactId,
-                relationship.TargetArtifactId);
+            Assert.Equal(3, relationships.Count);
+            Assert.True(
+                sourceArtifactIds
+                    .ToHashSet()
+                    .SetEquals(
+                        relationships.Select(
+                            relationship =>
+                                relationship.TargetArtifactId)));
 
             var packageRepository =
                 new SqliteEvidencePackageRepository(databasePath);
@@ -1763,15 +1867,18 @@ public sealed partial class VeteransConsoleCommandTests
                 await packageRepository
                     .GetEvidencePackageArtifactsAsync(package.Id);
 
-            Assert.Equal(2, packageArtifacts.Count);
+            Assert.Equal(4, packageArtifacts.Count);
 
-            Assert.Contains(
-                packageArtifacts,
-                x =>
-                    x.ArtifactId == sourceArtifactId &&
-                    x.ContentRole ==
-                        EvidencePackageContentRoles
-                            .UnderlyingEvidence);
+            foreach (var sourceArtifactId in sourceArtifactIds)
+            {
+                Assert.Contains(
+                    packageArtifacts,
+                    x =>
+                        x.ArtifactId == sourceArtifactId &&
+                        x.ContentRole ==
+                            EvidencePackageContentRoles
+                                .UnderlyingEvidence);
+            }
 
             Assert.Contains(
                 packageArtifacts,
