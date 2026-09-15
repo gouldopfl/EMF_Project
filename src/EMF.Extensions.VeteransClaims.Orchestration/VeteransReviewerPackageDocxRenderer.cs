@@ -8,6 +8,7 @@ using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
+using EMF.Extensions.VeteransClaims.Models.Clinical;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
@@ -82,6 +83,10 @@ public static class VeteransReviewerPackageDocxRenderer
             body.Append(PageBreakParagraph());
 
             AppendReviewScope(
+                body,
+                details);
+
+            AppendClinicalProgression(
                 body,
                 details);
 
@@ -267,6 +272,34 @@ public static class VeteransReviewerPackageDocxRenderer
             }
         }
 
+        foreach (var progressionEvent in details.ClinicalProgressionEvents)
+        {
+            if (!details.ArtifactContents.Any(
+                    content =>
+                        content.Artifact.Id == progressionEvent.ReviewerArtifactId &&
+                        packageArtifacts.Any(
+                            packageArtifact =>
+                                packageArtifact.ArtifactId == content.Artifact.Id &&
+                                string.Equals(
+                                    packageArtifact.ContentRole,
+                                    EvidencePackageContentRoles.UnderlyingEvidence,
+                                    StringComparison.Ordinal))))
+            {
+                throw new InvalidOperationException(
+                    "Reviewer clinical progression event is not associated with " +
+                    "underlying evidence in the package.");
+            }
+
+            if (!ClinicalProgressionEventTypes.IsSupported(
+                    progressionEvent.EventType) ||
+                string.IsNullOrWhiteSpace(progressionEvent.SourceLocator) ||
+                string.IsNullOrWhiteSpace(progressionEvent.Summary))
+            {
+                throw new InvalidOperationException(
+                    "Reviewer clinical progression event is incomplete.");
+            }
+        }
+
         foreach (var clarification in details.SourceClarifications)
         {
             if (!details.ArtifactContents.Any(
@@ -414,6 +447,14 @@ public static class VeteransReviewerPackageDocxRenderer
             "Issues Presented for Medical Review",
             "Defines the review purpose, reviewer role, evidence scope, and limitations.");
 
+        if (details.ClinicalProgressionEvents.Count > 0)
+        {
+            AppendPackageGuideEntry(
+                body,
+                "Clinical Progression",
+                "Summarizes source-grounded treatment use, problems, adjustments, transitions, findings, and responses relevant to the medical review.");
+        }
+
         if (details.MedicationProgressions.Count > 0)
         {
             AppendPackageGuideEntry(
@@ -553,6 +594,69 @@ public static class VeteransReviewerPackageDocxRenderer
                 "This report organizes evidence for independent medical review. " +
                 "It does not make a medical, legal, or adjudicative conclusion."));
     }
+
+    private static void AppendClinicalProgression(
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        var progression =
+            details.ClinicalProgressionEvents
+                .OrderBy(item => item.EventDate)
+                .ThenBy(item => item.SourceLocator, StringComparer.Ordinal)
+                .ThenBy(item => item.EventType, StringComparer.Ordinal)
+                .ToArray();
+
+        if (progression.Length == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                "Clinical Progression",
+                "Heading1"));
+
+        body.Append(
+            ContentParagraph(
+                "This source-grounded progression highlights clinically meaningful " +
+                "treatment use, problems, adjustments, diagnostic findings, transitions, " +
+                "and responses documented in the supplied records. It does not infer " +
+                "causation or resolve conflicts that are not resolved in the source record."));
+
+        foreach (var item in progression)
+        {
+            body.Append(
+                StyledParagraph(
+                    $"{item.EventDate.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture)} — " +
+                    ClinicalProgressionEventTypeDisplayName(item.EventType),
+                    "Heading2"));
+
+            body.Append(
+                ContentParagraph(item.Summary));
+
+            body.Append(
+                ContentParagraph(
+                    $"Source: {item.SourceLocator}"));
+        }
+    }
+
+    private static string ClinicalProgressionEventTypeDisplayName(
+        string eventType) =>
+        eventType switch
+        {
+            ClinicalProgressionEventTypes.TreatmentUse =>
+                "Treatment Use",
+            ClinicalProgressionEventTypes.TreatmentProblem =>
+                "Treatment Problem",
+            ClinicalProgressionEventTypes.TreatmentAdjustment =>
+                "Treatment Adjustment",
+            ClinicalProgressionEventTypes.DiagnosticFinding =>
+                "Diagnostic Finding",
+            ClinicalProgressionEventTypes.TreatmentTransition =>
+                "Treatment Transition",
+            ClinicalProgressionEventTypes.TreatmentResponse =>
+                "Treatment Response",
+            _ => throw new InvalidOperationException(
+                "Unsupported reviewer clinical progression event type.")
+        };
 
     private static void AppendMedicationProgressions(
         Body body,
@@ -1428,6 +1532,14 @@ public static class VeteransReviewerPackageDocxRenderer
     private static string GetSourcePageReference(
         VeteransReviewerArtifactContent content)
     {
+        if (string.Equals(
+                content.Artifact.ArtifactType,
+                "veterans-clinical-note",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
         if (content.Relationships.Any(
                 relationship =>
                     relationship.SourceArtifactId == content.Artifact.Id &&

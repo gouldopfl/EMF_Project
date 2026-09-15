@@ -6062,6 +6062,16 @@ public static class VeteransConsoleCommand
                     sourceClarificationRepository)
                 .GetAsync(details);
 
+        var clinicalProgressionRepository =
+            new SqliteClinicalProgressionRepository(fullDatabasePath);
+
+        await clinicalProgressionRepository.InitializeAsync();
+
+        var clinicalProgressionEvents =
+            await new VeteransReviewerPackageClinicalProgressionService(
+                    clinicalProgressionRepository)
+                .GetAsync(details);
+
         var medicalOpinionRequested =
             await new VeteransReviewerMedicalOpinionRequestService(
                     new SqliteServiceConnectionRepository(fullDatabasePath),
@@ -6077,6 +6087,7 @@ public static class VeteransConsoleCommand
                 MedicationProgressions = medicationProgressions,
                 MedicationClinicalContexts = medicationClinicalContexts,
                 SourceClarifications = sourceClarifications,
+                ClinicalProgressionEvents = clinicalProgressionEvents,
                 CurrentMedications = currentMedications,
                 MedicalOpinionRequested = medicalOpinionRequested
             };
