@@ -24,4 +24,8 @@ public sealed class SourceClarification
     public required string OriginalText { get; init; }
 
     public required string Clarification { get; init; }
+
+    public string? ReviewerMatchText { get; init; }
+
+    public string? ReviewerReplacementText { get; init; }
 }

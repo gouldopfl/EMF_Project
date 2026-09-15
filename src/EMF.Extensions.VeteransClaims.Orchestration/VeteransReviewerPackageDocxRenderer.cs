@@ -325,6 +325,16 @@ public static class VeteransReviewerPackageDocxRenderer
                 throw new InvalidOperationException(
                     "Reviewer source clarification is incomplete.");
             }
+
+            var hasReviewerMatch =
+                !string.IsNullOrWhiteSpace(clarification.ReviewerMatchText);
+            var hasReviewerReplacement =
+                !string.IsNullOrWhiteSpace(
+                    clarification.ReviewerReplacementText);
+
+            if (hasReviewerMatch != hasReviewerReplacement)
+                throw new InvalidOperationException(
+                    "Reviewer source clarification correction is incomplete.");
         }
 
         foreach (var packageArtifact in packageArtifacts)
@@ -1195,6 +1205,10 @@ public static class VeteransReviewerPackageDocxRenderer
                     StringComparer.Ordinal)
                 .ToArray();
 
+        ValidateReviewerSourceCorrections(
+            content,
+            clarifications);
+
         AppendSourceClarifications(
             body,
             clarifications);
@@ -1206,6 +1220,7 @@ public static class VeteransReviewerPackageDocxRenderer
                 body,
                 content.PrintablePages,
                 displayName,
+                clarifications,
                 reviewerPageSelectionApplied:
                     content.ReviewerPageSelection is not null);
             return;
@@ -1220,13 +1235,17 @@ public static class VeteransReviewerPackageDocxRenderer
             {
                 AppendMedicalLiteratureText(
                     body,
-                    content.Text);
+                    ApplyReviewerSourceCorrections(
+                        content.Text,
+                        clarifications));
             }
             else
             {
                 AppendReviewerText(
                     body,
-                    content.Text);
+                    ApplyReviewerSourceCorrections(
+                        content.Text,
+                        clarifications));
             }
         }
     }
@@ -1252,6 +1271,22 @@ public static class VeteransReviewerPackageDocxRenderer
                     $"Record: {clarification.SourceLocator}",
                     keepWithNext: true));
 
+            if (!string.IsNullOrWhiteSpace(
+                    clarification.ReviewerReplacementText))
+            {
+                body.Append(
+                    ContentParagraph(
+                        $"Veteran-reported correction: " +
+                        $"{clarification.ReviewerReplacementText.Trim()}",
+                        keepWithNext: true));
+
+                body.Append(
+                    ContentParagraph(
+                        "The original source record is preserved unchanged; " +
+                        "this reviewer copy applies the persisted correction."));
+                continue;
+            }
+
             body.Append(
                 ContentParagraph(
                     $"Source text: {clarification.OriginalText}",
@@ -1261,6 +1296,77 @@ public static class VeteransReviewerPackageDocxRenderer
                 ContentParagraph(
                     clarification.Clarification));
         }
+    }
+
+    private static void ValidateReviewerSourceCorrections(
+        VeteransReviewerArtifactContent content,
+        IReadOnlyList<VeteransReviewerSourceClarification> clarifications)
+    {
+        var matchTexts =
+            clarifications
+                .Where(item =>
+                    !string.IsNullOrWhiteSpace(item.ReviewerMatchText))
+                .Select(item => item.ReviewerMatchText!.Trim())
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+        if (matchTexts.Length == 0)
+            return;
+
+        var reviewerText = new StringBuilder();
+
+        if (!string.IsNullOrWhiteSpace(content.Text))
+            reviewerText.Append(content.Text);
+
+        foreach (var page in content.PrintablePages)
+        {
+            if (!string.Equals(
+                    page.ContentType,
+                    "text/plain",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            reviewerText.AppendLine();
+            reviewerText.Append(DecodePrintableText(page.Content));
+        }
+
+        var text = reviewerText.ToString();
+
+        foreach (var matchText in matchTexts)
+        {
+            if (!text.Contains(matchText, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "Persisted reviewer source correction does not match " +
+                    "the reviewer text for its associated evidence item.");
+            }
+        }
+    }
+
+    private static string ApplyReviewerSourceCorrections(
+        string text,
+        IReadOnlyList<VeteransReviewerSourceClarification> clarifications)
+    {
+        var corrected = text;
+
+        foreach (var clarification in clarifications)
+        {
+            if (string.IsNullOrWhiteSpace(clarification.ReviewerMatchText) ||
+                string.IsNullOrWhiteSpace(
+                    clarification.ReviewerReplacementText))
+            {
+                continue;
+            }
+
+            corrected = corrected.Replace(
+                clarification.ReviewerMatchText.Trim(),
+                clarification.ReviewerReplacementText.Trim(),
+                StringComparison.Ordinal);
+        }
+
+        return corrected;
     }
 
     private static string BuildLiteratureCitation(
@@ -2278,6 +2384,7 @@ public static class VeteransReviewerPackageDocxRenderer
         Body body,
         IReadOnlyList<EMF.Core.Models.PrintableArtifactPage> pages,
         string displayName,
+        IReadOnlyList<VeteransReviewerSourceClarification> clarifications,
         bool reviewerPageSelectionApplied)
     {
         var previousPageNumber = 0;
@@ -2334,7 +2441,9 @@ public static class VeteransReviewerPackageDocxRenderer
 
                 AppendReviewerText(
                     body,
-                    DecodePrintableText(page.Content));
+                    ApplyReviewerSourceCorrections(
+                        DecodePrintableText(page.Content),
+                        clarifications));
                 previousPageNumber = page.PageNumber;
             renderedPageCount++;
                 continue;

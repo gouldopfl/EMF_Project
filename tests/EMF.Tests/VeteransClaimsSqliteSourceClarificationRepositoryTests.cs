@@ -34,7 +34,9 @@ public sealed class VeteransClaimsSqliteSourceClarificationRepositoryTests
                     1600,
                     SourceClarificationCategories.ImpossibleMagnitude,
                     "8200 pounds",
-                    "The source record states ‘8200 pounds.’ The Veteran reports the intended value is 82 pounds. Original source text is preserved."));
+                    "The source record states ‘8200 pounds.’ The Veteran reports the intended value is 82 pounds. Original source text is preserved.",
+                    reviewerMatchText: "8200 pounds",
+                    reviewerReplacementText: "82 pounds"));
 
             var stored =
                 await repository.GetAsync(
@@ -46,7 +48,46 @@ public sealed class VeteransClaimsSqliteSourceClarificationRepositoryTests
             Assert.Equal(
                 SourceClarificationCategories.ImpossibleMagnitude,
                 stored[0].Category);
+            Assert.Equal("8200 pounds", stored[0].ReviewerMatchText);
+            Assert.Equal("82 pounds", stored[0].ReviewerReplacementText);
             Assert.Equal("clarification-later", stored[1].Id.Value);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Repository_UpdatesReviewerCorrection()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository = await CreateAsync(path);
+            var clarification =
+                Clarification(
+                    "clarification-1",
+                    new DateOnly(2024, 1, 25),
+                    1600,
+                    SourceClarificationCategories.ImpossibleMagnitude,
+                    "After surgery he lost about 8200 pounds.",
+                    "Veteran reports the intended value is 82 pounds.");
+
+            await repository.AddAsync(clarification);
+            await repository.SetReviewerCorrectionAsync(
+                clarification.Id,
+                "8200 pounds",
+                "82 pounds");
+
+            var stored =
+                Assert.Single(
+                    await repository.GetAsync(
+                        new ClaimIssueId("issue-osa")));
+
+            Assert.Equal("8200 pounds", stored.ReviewerMatchText);
+            Assert.Equal("82 pounds", stored.ReviewerReplacementText);
         }
         finally
         {
@@ -122,7 +163,9 @@ public sealed class VeteransClaimsSqliteSourceClarificationRepositoryTests
         int sourcePage,
         string category,
         string originalText,
-        string clarification) =>
+        string clarification,
+        string? reviewerMatchText = null,
+        string? reviewerReplacementText = null) =>
         new()
         {
             Id = new SourceClarificationId(id),
@@ -134,6 +177,8 @@ public sealed class VeteransClaimsSqliteSourceClarificationRepositoryTests
             RecordTitle = "VA Sleep Medicine Note",
             Category = category,
             OriginalText = originalText,
-            Clarification = clarification
+            Clarification = clarification,
+            ReviewerMatchText = reviewerMatchText,
+            ReviewerReplacementText = reviewerReplacementText
         };
 }

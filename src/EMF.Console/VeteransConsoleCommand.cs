@@ -609,6 +609,31 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 8 &&
+            args[0] == "evidence" &&
+            args[1] == "clarification" &&
+            args[2] == "reviewer-correction")
+        {
+            var clarificationDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(clarificationDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: " +
+                    $"{clarificationDatabasePath}");
+                return 2;
+            }
+
+            return await RunEvidenceSourceClarificationReviewerCorrectionAsync(
+                clarificationDatabasePath,
+                new ClaimIssueId(args[4]),
+                new SourceClarificationId(args[5]),
+                args[6],
+                args[7],
+                global::System.Console.Out);
+        }
+
         if (args.Length == 12 &&
             args[0] == "evidence" &&
             args[1] == "clarification")
@@ -4487,6 +4512,57 @@ public static class VeteransConsoleCommand
     }
 
 
+    internal static async Task<int>
+        RunEvidenceSourceClarificationReviewerCorrectionAsync(
+            string databasePath,
+            ClaimIssueId claimIssueId,
+            SourceClarificationId sourceClarificationId,
+            string reviewerMatchText,
+            string reviewerReplacementText,
+            TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (string.IsNullOrWhiteSpace(reviewerMatchText) ||
+            string.IsNullOrWhiteSpace(reviewerReplacementText))
+        {
+            global::System.Console.Error.WriteLine(
+                "Reviewer correction match and replacement text must not be empty.");
+            return 2;
+        }
+
+        var repository =
+            new SqliteSourceClarificationRepository(databasePath);
+
+        await repository.InitializeAsync();
+
+        var clarification =
+            (await repository.GetAsync(claimIssueId))
+                .SingleOrDefault(item => item.Id == sourceClarificationId);
+
+        if (clarification is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Source clarification not found: {sourceClarificationId.Value}");
+            return 2;
+        }
+
+        await repository.SetReviewerCorrectionAsync(
+            sourceClarificationId,
+            reviewerMatchText.Trim(),
+            reviewerReplacementText.Trim());
+
+        await output.WriteLineAsync(
+            $"Clarification ID      : {sourceClarificationId.Value}");
+        await output.WriteLineAsync(
+            $"Reviewer Match        : {reviewerMatchText.Trim()}");
+        await output.WriteLineAsync(
+            $"Reviewer Replacement  : {reviewerReplacementText.Trim()}");
+
+        return 0;
+    }
+
+
     internal static async Task<int> RunEvidenceSourceClarificationAsync(
         string databasePath,
         ClaimIssueId claimIssueId,
@@ -6777,6 +6853,11 @@ public static class VeteransConsoleCommand
             "<database-path> <claim-issue-id> <source-artifact-id> " +
             "<yyyy-MM-dd> <internal-start-page> <internal-end-page> " +
             "<category> <record-title> <original-text> <clarification>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence clarification reviewer-correction " +
+            "<database-path> <claim-issue-id> <clarification-id> " +
+            "<match-text> <replacement-text>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence clinical progression " +

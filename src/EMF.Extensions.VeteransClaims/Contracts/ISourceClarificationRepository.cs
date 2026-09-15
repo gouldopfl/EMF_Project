@@ -12,4 +12,11 @@ public interface ISourceClarificationRepository
     Task<IReadOnlyList<SourceClarification>> GetAsync(
         ClaimIssueId claimIssueId,
         CancellationToken cancellationToken = default);
+
+    Task SetReviewerCorrectionAsync(
+        SourceClarificationId sourceClarificationId,
+        string reviewerMatchText,
+        string reviewerReplacementText,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }

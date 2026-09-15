@@ -2570,6 +2570,16 @@ internal static class VeteransClaimsSqliteMigrations
                     MedicationLedgerEntryId,
                     ReconciliationDate
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                84,
+                "AddSourceClarificationReviewerCorrections",
+                """
+                ALTER TABLE VeteransClaims_SourceClarifications
+                ADD COLUMN ReviewerMatchText TEXT NULL;
+
+                ALTER TABLE VeteransClaims_SourceClarifications
+                ADD COLUMN ReviewerReplacementText TEXT NULL;
                 """)
         };
 }

@@ -47,7 +47,9 @@ public sealed class VeteransReviewerPackageSourceClarificationTests
                     Clarification =
                         "Source clarification: The source record states \"8200 pounds.\" " +
                         "The Veteran reports the intended value is 82 pounds. " +
-                        "Original source text is preserved below."
+                        "Original source text is preserved below.",
+                    ReviewerMatchText = "8200 pounds",
+                    ReviewerReplacementText = "82 pounds"
                 });
 
         var projected =
@@ -62,6 +64,8 @@ public sealed class VeteransReviewerPackageSourceClarificationTests
             clarification.SourceLocator);
         Assert.Contains("8200 pounds", clarification.OriginalText);
         Assert.Contains("82 pounds", clarification.Clarification);
+        Assert.Equal("8200 pounds", clarification.ReviewerMatchText);
+        Assert.Equal("82 pounds", clarification.ReviewerReplacementText);
 
         var json = JsonSerializer.Serialize(clarification);
         Assert.DoesNotContain("sleep-note", json);
@@ -105,7 +109,8 @@ public sealed class VeteransReviewerPackageSourceClarificationTests
                 2010,
                 2017,
                 printableText:
-                    "After his bariatric surgery he lost about 8200 pounds.");
+                    "After his bariatric surgery he lost about 8200 pounds.\n" +
+                    "Weight loss of about 8200 pounds was documented.");
 
         var details =
             Details(
@@ -131,7 +136,9 @@ public sealed class VeteransReviewerPackageSourceClarificationTests
                         Clarification =
                             "Source clarification: The source record states \"8200 pounds.\" " +
                             "The Veteran reports the intended value is 82 pounds. " +
-                            "Original source text is preserved below."
+                            "Original source text is preserved below.",
+                        ReviewerMatchText = "8200 pounds",
+                        ReviewerReplacementText = "82 pounds"
                     }
                 ]
             };
@@ -148,8 +155,10 @@ public sealed class VeteransReviewerPackageSourceClarificationTests
 
         Assert.True(clarificationIndex >= 0);
         Assert.True(sourcePageIndex > clarificationIndex);
-        Assert.Contains("The Veteran reports the intended value is 82 pounds", text);
-        Assert.Contains("Source text: After his bariatric surgery he lost about 8200 pounds.", text);
+        Assert.Contains("Veteran-reported correction: 82 pounds", text);
+        Assert.Contains("After his bariatric surgery he lost about 82 pounds.", text);
+        Assert.Contains("Weight loss of about 82 pounds was documented.", text);
+        Assert.DoesNotContain("8200 pounds", text);
         Assert.DoesNotContain("2010", text);
         Assert.DoesNotContain("blue-button", text);
         Assert.DoesNotContain("clarification-1", text);

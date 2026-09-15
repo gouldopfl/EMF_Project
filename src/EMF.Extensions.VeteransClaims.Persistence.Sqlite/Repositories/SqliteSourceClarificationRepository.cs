@@ -41,12 +41,14 @@ public sealed class SqliteSourceClarificationRepository :
             INSERT INTO VeteransClaims_SourceClarifications (
                 Id, ClaimIssueId, SourceArtifactId, EvidenceDate,
                 SourceStartPage, SourceEndPage, RecordTitle, Category,
-                OriginalText, Clarification
+                OriginalText, Clarification, ReviewerMatchText,
+                ReviewerReplacementText
             )
             VALUES (
                 $id, $claimIssueId, $sourceArtifactId, $evidenceDate,
                 $sourceStartPage, $sourceEndPage, $recordTitle, $category,
-                $originalText, $clarification
+                $originalText, $clarification, $reviewerMatchText,
+                $reviewerReplacementText
             );
             """;
 
@@ -69,6 +71,12 @@ public sealed class SqliteSourceClarificationRepository :
             "$originalText", clarification.OriginalText.Trim());
         command.Parameters.AddWithValue(
             "$clarification", clarification.Clarification.Trim());
+        command.Parameters.AddWithValue(
+            "$reviewerMatchText",
+            (object?)clarification.ReviewerMatchText?.Trim() ?? DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$reviewerReplacementText",
+            (object?)clarification.ReviewerReplacementText?.Trim() ?? DBNull.Value);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
@@ -85,7 +93,8 @@ public sealed class SqliteSourceClarificationRepository :
             """
             SELECT Id, ClaimIssueId, SourceArtifactId, EvidenceDate,
                    SourceStartPage, SourceEndPage, RecordTitle, Category,
-                   OriginalText, Clarification
+                   OriginalText, Clarification, ReviewerMatchText,
+                   ReviewerReplacementText
             FROM VeteransClaims_SourceClarifications
             WHERE ClaimIssueId = $claimIssueId
             ORDER BY EvidenceDate, SourceStartPage, Id;
@@ -111,11 +120,50 @@ public sealed class SqliteSourceClarificationRepository :
                     RecordTitle = reader.GetString(6),
                     Category = reader.GetString(7),
                     OriginalText = reader.GetString(8),
-                    Clarification = reader.GetString(9)
+                    Clarification = reader.GetString(9),
+                    ReviewerMatchText =
+                        reader.IsDBNull(10) ? null : reader.GetString(10),
+                    ReviewerReplacementText =
+                        reader.IsDBNull(11) ? null : reader.GetString(11)
                 });
         }
 
         return result;
+    }
+
+    public async Task SetReviewerCorrectionAsync(
+        SourceClarificationId sourceClarificationId,
+        string reviewerMatchText,
+        string reviewerReplacementText,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reviewerMatchText);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reviewerReplacementText);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            UPDATE VeteransClaims_SourceClarifications
+            SET ReviewerMatchText = $reviewerMatchText,
+                ReviewerReplacementText = $reviewerReplacementText
+            WHERE Id = $id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$id", sourceClarificationId.Value);
+        command.Parameters.AddWithValue(
+            "$reviewerMatchText", reviewerMatchText.Trim());
+        command.Parameters.AddWithValue(
+            "$reviewerReplacementText", reviewerReplacementText.Trim());
+
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken);
+
+        if (affected != 1)
+            throw new InvalidOperationException(
+                "Source clarification reviewer correction target was not found.");
     }
 
     private static void Validate(SourceClarification clarification)
@@ -136,6 +184,15 @@ public sealed class SqliteSourceClarificationRepository :
         ArgumentException.ThrowIfNullOrWhiteSpace(clarification.Category);
         ArgumentException.ThrowIfNullOrWhiteSpace(clarification.OriginalText);
         ArgumentException.ThrowIfNullOrWhiteSpace(clarification.Clarification);
+
+        var hasReviewerMatch =
+            !string.IsNullOrWhiteSpace(clarification.ReviewerMatchText);
+        var hasReviewerReplacement =
+            !string.IsNullOrWhiteSpace(clarification.ReviewerReplacementText);
+
+        if (hasReviewerMatch != hasReviewerReplacement)
+            throw new ArgumentException(
+                "Reviewer source correction requires both match and replacement text.");
 
         if (!SourceClarificationCategories.IsSupported(
                 clarification.Category.Trim()))

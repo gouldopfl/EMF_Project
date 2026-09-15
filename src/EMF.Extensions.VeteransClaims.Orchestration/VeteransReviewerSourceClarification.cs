@@ -13,4 +13,10 @@ public sealed class VeteransReviewerSourceClarification
     public required string OriginalText { get; init; }
 
     public required string Clarification { get; init; }
+
+    [JsonIgnore]
+    public string? ReviewerMatchText { get; init; }
+
+    [JsonIgnore]
+    public string? ReviewerReplacementText { get; init; }
 }

@@ -121,7 +121,10 @@ public sealed class VeteransReviewerPackageSourceClarificationService
                             "MMMM d, yyyy",
                             CultureInfo.InvariantCulture),
                     OriginalText = clarification.OriginalText.Trim(),
-                    Clarification = clarification.Clarification.Trim()
+                    Clarification = clarification.Clarification.Trim(),
+                    ReviewerMatchText = clarification.ReviewerMatchText?.Trim(),
+                    ReviewerReplacementText =
+                        clarification.ReviewerReplacementText?.Trim()
                 });
         }
 

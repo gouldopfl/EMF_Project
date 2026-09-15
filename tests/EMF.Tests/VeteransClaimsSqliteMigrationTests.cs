@@ -965,7 +965,8 @@ public sealed class VeteransClaimsSqliteMigrationTests
                 (80, "AddMedicationClinicalContextRecordTitles"),
                 (81, "AddSourceClarifications"),
                 (82, "AddClinicalProgressionEvents"),
-                (83, "AddMedicationCurrentUseReconciliations")
+                (83, "AddMedicationCurrentUseReconciliations"),
+                (84, "AddSourceClarificationReviewerCorrections")
             };
 
             foreach (var expected in remainingMigrations)
