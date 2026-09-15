@@ -382,6 +382,105 @@ public sealed class SqliteMedicationRepository :
         return result;
     }
 
+    public async Task AddMedicationClinicalContextAsync(
+        MedicationClinicalContext clinicalContext,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(clinicalContext);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            clinicalContext.MedicationName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            clinicalContext.PrescriptionNumber);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            clinicalContext.ContextType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            clinicalContext.Summary);
+
+        if (clinicalContext.SourceStartPage <= 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(clinicalContext.SourceStartPage));
+
+        if (clinicalContext.SourceEndPage <
+            clinicalContext.SourceStartPage)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(clinicalContext.SourceEndPage));
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_MedicationClinicalContexts (
+                Id, VeteranId, SourceArtifactId, EventDate,
+                SourceStartPage, SourceEndPage, MedicationName,
+                PrescriptionNumber, ContextType, Summary
+            )
+            VALUES (
+                $id, $veteranId, $sourceArtifactId, $eventDate,
+                $sourceStartPage, $sourceEndPage, $medicationName,
+                $prescriptionNumber, $contextType, $summary
+            );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$id", clinicalContext.Id.Value);
+        command.Parameters.AddWithValue(
+            "$veteranId", clinicalContext.VeteranId.Value);
+        command.Parameters.AddWithValue(
+            "$sourceArtifactId", clinicalContext.SourceArtifactId.Value);
+        command.Parameters.AddWithValue(
+            "$eventDate", clinicalContext.EventDate.ToString("yyyy-MM-dd"));
+        command.Parameters.AddWithValue(
+            "$sourceStartPage", clinicalContext.SourceStartPage);
+        command.Parameters.AddWithValue(
+            "$sourceEndPage", clinicalContext.SourceEndPage);
+        command.Parameters.AddWithValue(
+            "$medicationName", clinicalContext.MedicationName);
+        command.Parameters.AddWithValue(
+            "$prescriptionNumber", clinicalContext.PrescriptionNumber);
+        command.Parameters.AddWithValue(
+            "$contextType", clinicalContext.ContextType);
+        command.Parameters.AddWithValue(
+            "$summary", clinicalContext.Summary);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MedicationClinicalContext>>
+        GetMedicationClinicalContextsAsync(
+            VeteranId veteranId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT Id, VeteranId, SourceArtifactId, EventDate,
+                   SourceStartPage, SourceEndPage, MedicationName,
+                   PrescriptionNumber, ContextType, Summary
+            FROM VeteransClaims_MedicationClinicalContexts
+            WHERE VeteranId = $veteranId
+            ORDER BY EventDate, SourceStartPage, Id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$veteranId", veteranId.Value);
+
+        var result = new List<MedicationClinicalContext>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+            result.Add(ReadMedicationClinicalContext(reader));
+
+        return result;
+    }
+
     private static async Task InsertMedicationLedgerAsync(
         SqliteConnection connection,
         SqliteTransaction transaction,
@@ -663,6 +762,22 @@ public sealed class SqliteMedicationRepository :
                 reader.IsDBNull(17) ? null : reader.GetString(17),
             Quantity =
                 reader.IsDBNull(18) ? null : reader.GetString(18)
+        };
+
+    private static MedicationClinicalContext ReadMedicationClinicalContext(
+        SqliteDataReader reader) =>
+        new()
+        {
+            Id = new MedicationClinicalContextId(reader.GetString(0)),
+            VeteranId = new VeteranId(reader.GetString(1)),
+            SourceArtifactId = new ArtifactId(reader.GetString(2)),
+            EventDate = DateOnly.Parse(reader.GetString(3)),
+            SourceStartPage = reader.GetInt32(4),
+            SourceEndPage = reader.GetInt32(5),
+            MedicationName = reader.GetString(6),
+            PrescriptionNumber = reader.GetString(7),
+            ContextType = reader.GetString(8),
+            Summary = reader.GetString(9)
         };
 
     private static MedicationHistoryEvent ReadMedicationHistoryEvent(

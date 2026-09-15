@@ -642,4 +642,142 @@ public sealed class VeteransClaimsSqliteMedicationRepositoryTests
             PrescriptionNumber = prescriptionNumber
         };
 
+
+    [Fact]
+    public async Task Repository_RoundTripsMedicationClinicalContext()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository = await CreateAsync(path);
+            var context = CreateClinicalContext(
+                "context-001",
+                new DateOnly(2025, 8, 5),
+                1140,
+                1141,
+                "Isosorbide Mononitrate",
+                "12620234",
+                MedicationClinicalContextTypes.ClinicalEffect,
+                "Clinical record documents dizziness and loss of balance after the dose increase.");
+
+            await repository.AddMedicationClinicalContextAsync(context);
+
+            var stored =
+                Assert.Single(
+                    await repository.GetMedicationClinicalContextsAsync(
+                        new VeteranId("veteran-001")));
+
+            Assert.Equal(context.Id, stored.Id);
+            Assert.Equal(context.VeteranId, stored.VeteranId);
+            Assert.Equal(context.SourceArtifactId, stored.SourceArtifactId);
+            Assert.Equal(context.EventDate, stored.EventDate);
+            Assert.Equal(context.SourceStartPage, stored.SourceStartPage);
+            Assert.Equal(context.SourceEndPage, stored.SourceEndPage);
+            Assert.Equal(context.MedicationName, stored.MedicationName);
+            Assert.Equal(context.PrescriptionNumber, stored.PrescriptionNumber);
+            Assert.Equal(context.ContextType, stored.ContextType);
+            Assert.Equal(context.Summary, stored.Summary);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Repository_ReturnsMedicationClinicalContextsChronologically()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository = await CreateAsync(path);
+
+            await repository.AddMedicationClinicalContextAsync(
+                CreateClinicalContext(
+                    "context-new",
+                    new DateOnly(2026, 1, 1),
+                    1200,
+                    1200,
+                    "Isosorbide Mononitrate",
+                    "12620234",
+                    MedicationClinicalContextTypes.ClinicalObservation,
+                    "Later observation."));
+
+            await repository.AddMedicationClinicalContextAsync(
+                CreateClinicalContext(
+                    "context-old",
+                    new DateOnly(2025, 8, 5),
+                    1140,
+                    1141,
+                    "Isosorbide Mononitrate",
+                    "12620234",
+                    MedicationClinicalContextTypes.ClinicalEffect,
+                    "Earlier observation."));
+
+            var stored =
+                await repository.GetMedicationClinicalContextsAsync(
+                    new VeteranId("veteran-001"));
+
+            Assert.Equal(2, stored.Count);
+            Assert.Equal("context-old", stored[0].Id.Value);
+            Assert.Equal("context-new", stored[1].Id.Value);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Repository_RejectsInvalidMedicationClinicalContextPageRange()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository = await CreateAsync(path);
+
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+                () => repository.AddMedicationClinicalContextAsync(
+                    CreateClinicalContext(
+                        "context-001",
+                        new DateOnly(2025, 8, 5),
+                        1141,
+                        1140,
+                        "Isosorbide Mononitrate",
+                        "12620234",
+                        MedicationClinicalContextTypes.ClinicalEffect,
+                        "Clinical effect.")));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private static MedicationClinicalContext CreateClinicalContext(
+        string id,
+        DateOnly date,
+        int startPage,
+        int endPage,
+        string medicationName,
+        string prescriptionNumber,
+        string contextType,
+        string summary) =>
+        new()
+        {
+            Id = new MedicationClinicalContextId(id),
+            VeteranId = new VeteranId("veteran-001"),
+            SourceArtifactId = new ArtifactId("blue-button-001"),
+            EventDate = date,
+            SourceStartPage = startPage,
+            SourceEndPage = endPage,
+            MedicationName = medicationName,
+            PrescriptionNumber = prescriptionNumber,
+            ContextType = contextType,
+            Summary = summary
+        };
+
 }

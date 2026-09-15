@@ -2409,6 +2409,41 @@ internal static class VeteransClaimsSqliteMigrations
                     MedicationLedgerId,
                     Status
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                79,
+                "AddMedicationClinicalContexts",
+                """
+                CREATE TABLE VeteransClaims_MedicationClinicalContexts (
+                    Id TEXT PRIMARY KEY,
+                    VeteranId TEXT NOT NULL,
+                    SourceArtifactId TEXT NOT NULL,
+                    EventDate TEXT NOT NULL,
+                    SourceStartPage INTEGER NOT NULL
+                        CHECK (SourceStartPage > 0),
+                    SourceEndPage INTEGER NOT NULL
+                        CHECK (SourceEndPage >= SourceStartPage),
+                    MedicationName TEXT NOT NULL,
+                    PrescriptionNumber TEXT NOT NULL,
+                    ContextType TEXT NOT NULL,
+                    Summary TEXT NOT NULL,
+                    FOREIGN KEY (VeteranId)
+                        REFERENCES VeteransClaims_Veterans (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicationClinicalContexts_VeteranRx
+                ON VeteransClaims_MedicationClinicalContexts (
+                    VeteranId,
+                    PrescriptionNumber,
+                    EventDate
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicationClinicalContexts_Artifact
+                ON VeteransClaims_MedicationClinicalContexts (
+                    SourceArtifactId
+                );
                 """)
         };
 }

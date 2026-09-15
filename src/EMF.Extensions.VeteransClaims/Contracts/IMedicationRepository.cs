@@ -46,6 +46,17 @@ public interface IMedicationRepository
             MedicationLedgerId medicationLedgerId,
             CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
+
+    Task AddMedicationClinicalContextAsync(
+        MedicationClinicalContext clinicalContext,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<MedicationClinicalContext>>
+        GetMedicationClinicalContextsAsync(
+            VeteranId veteranId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
     Task AddMedicationHistoryEventAsync(
         MedicationHistoryEvent historyEvent,
         CancellationToken cancellationToken = default) =>
