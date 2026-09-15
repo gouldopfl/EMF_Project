@@ -650,7 +650,8 @@ public static class VeteransReviewerPackageDocxRenderer
         body.Append(
             StyledParagraph(
                 "PAP Adherence / Compliance Summary",
-                "Heading1"));
+                "Heading1",
+                pageBreakBefore: true));
 
         body.Append(
             ContentParagraph(
@@ -1431,14 +1432,12 @@ public static class VeteransReviewerPackageDocxRenderer
                         content => GetDisplayName(content),
                         StringComparer.OrdinalIgnoreCase))
             {
-                if (!firstArtifact)
-                    body.Append(PageBreakParagraph());
-
                 AppendSourceContent(
                     mainPart,
                     body,
                     details,
-                    content);
+                    content,
+                    pageBreakBefore: !firstArtifact);
 
                 firstArtifact = false;
             }
@@ -1471,14 +1470,12 @@ public static class VeteransReviewerPackageDocxRenderer
 
         foreach (var content in additionalEvidence)
         {
-            if (!firstAdditionalArtifact)
-                body.Append(PageBreakParagraph());
-
             AppendSourceContent(
                 mainPart,
                 body,
                 details,
-                content);
+                content,
+                pageBreakBefore: !firstAdditionalArtifact);
 
             firstAdditionalArtifact = false;
         }
@@ -1557,7 +1554,14 @@ public static class VeteransReviewerPackageDocxRenderer
                 displayName,
                 clarifications,
                 reviewerPageSelectionApplied:
-                    content.ReviewerPageSelection is not null);
+                    content.ReviewerPageSelection is not null,
+                medicalLiterature:
+                    string.Equals(
+                        content.Appendix,
+                        VeteransReviewerPackageAppendix.MedicalLiterature,
+                        StringComparison.Ordinal),
+                historicalMedicationTitle:
+                    BuildHistoricalMedicationTitle(content));
             return;
         }
 
@@ -2843,7 +2847,9 @@ public static class VeteransReviewerPackageDocxRenderer
         IReadOnlyList<EMF.Core.Models.PrintableArtifactPage> pages,
         string displayName,
         IReadOnlyList<VeteransReviewerSourceClarification> clarifications,
-        bool reviewerPageSelectionApplied)
+        bool reviewerPageSelectionApplied,
+        bool medicalLiterature,
+        string? historicalMedicationTitle)
     {
         var previousPageNumber = 0;
         var renderedPageCount = 0;
@@ -2897,13 +2903,27 @@ public static class VeteransReviewerPackageDocxRenderer
                         $"Source Page {page.PageNumber}",
                         keepWithNext: true));
 
-                AppendReviewerText(
-                    body,
+                var reviewerText =
                     ApplyReviewerSourceCorrections(
                         DecodePrintableText(page.Content),
-                        clarifications));
+                        clarifications);
+
+                if (medicalLiterature)
+                {
+                    AppendMedicalLiteratureText(
+                        body,
+                        reviewerText);
+                }
+                else
+                {
+                    AppendReviewerText(
+                        body,
+                        reviewerText,
+                        historicalMedicationTitle);
+                }
+
                 previousPageNumber = page.PageNumber;
-            renderedPageCount++;
+                renderedPageCount++;
                 continue;
             }
 
