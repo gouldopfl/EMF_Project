@@ -2,6 +2,7 @@ using EMF.Common;
 using EMF.Core.Contracts.Storage;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
+using EMF.Extensions.VeteransClaims.Models.Clinical;
 using EMF.Extensions.VeteransClaims.Models.Conditions;
 using EMF.Extensions.VeteransClaims.Models.Service;
 using EMF.Extensions.VeteransClaims.Regulatory;
@@ -651,6 +652,68 @@ public static class VeteransConsoleCommand
                 clarificationStartPage,
                 clarificationEndPage,
                 args[8],
+                args[9],
+                args[10],
+                args[11],
+                global::System.Console.Out);
+        }
+
+        if (args.Length == 12 &&
+            args[0] == "evidence" &&
+            args[1] == "clinical" &&
+            args[2] == "progression")
+        {
+            var progressionDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(progressionDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: " +
+                    $"{progressionDatabasePath}");
+                return 2;
+            }
+
+            if (!DateOnly.TryParseExact(
+                    args[6],
+                    "yyyy-MM-dd",
+                    out var progressionDate))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Clinical progression date must use yyyy-MM-dd.");
+                return 2;
+            }
+
+            int? progressionStartPage = null;
+            int? progressionEndPage = null;
+
+            var noProgressionPages =
+                args[7] == "-" && args[8] == "-";
+
+            if (!noProgressionPages)
+            {
+                if (!int.TryParse(args[7], out var parsedStartPage) ||
+                    parsedStartPage <= 0 ||
+                    !int.TryParse(args[8], out var parsedEndPage) ||
+                    parsedEndPage < parsedStartPage)
+                {
+                    global::System.Console.Error.WriteLine(
+                        "Clinical progression internal page range is invalid. " +
+                        "Use '-' for both page arguments when the source is not paged.");
+                    return 2;
+                }
+
+                progressionStartPage = parsedStartPage;
+                progressionEndPage = parsedEndPage;
+            }
+
+            return await RunEvidenceClinicalProgressionAsync(
+                progressionDatabasePath,
+                new ClaimIssueId(args[4]),
+                new ArtifactId(args[5]),
+                progressionDate,
+                progressionStartPage,
+                progressionEndPage,
                 args[9],
                 args[10],
                 args[11],
@@ -4349,6 +4412,139 @@ public static class VeteransConsoleCommand
     }
 
 
+    internal static async Task<int> RunEvidenceClinicalProgressionAsync(
+        string databasePath,
+        ClaimIssueId claimIssueId,
+        ArtifactId sourceArtifactId,
+        DateOnly eventDate,
+        int? sourceStartPage,
+        int? sourceEndPage,
+        string eventType,
+        string recordTitle,
+        string summary,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (sourceStartPage.HasValue != sourceEndPage.HasValue ||
+            (sourceStartPage is int invalidStartPage && invalidStartPage <= 0) ||
+            (sourceStartPage is int startPage &&
+             sourceEndPage is int endPage &&
+             endPage < startPage))
+        {
+            global::System.Console.Error.WriteLine(
+                "Clinical progression internal page range is invalid.");
+            return 2;
+        }
+
+        if (string.IsNullOrWhiteSpace(eventType) ||
+            string.IsNullOrWhiteSpace(recordTitle) ||
+            string.IsNullOrWhiteSpace(summary))
+        {
+            global::System.Console.Error.WriteLine(
+                "Clinical progression fields must not be empty.");
+            return 2;
+        }
+
+        var normalizedEventType = eventType.Trim();
+
+        if (!ClinicalProgressionEventTypes.IsSupported(normalizedEventType))
+        {
+            global::System.Console.Error.WriteLine(
+                $"Unsupported clinical progression event type: {normalizedEventType}");
+            return 2;
+        }
+
+        var issues = new SqliteClaimIssueRepository(databasePath);
+
+        if (await issues.GetClaimIssueAsync(claimIssueId) is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Claim issue not found: {claimIssueId.Value}");
+            return 2;
+        }
+
+        var evidence = new SqliteEvidenceRepository(databasePath);
+        await evidence.InitializeAsync();
+
+        if (await evidence.GetArtifactAsync(sourceArtifactId) is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Source artifact not found: {sourceArtifactId.Value}");
+            return 2;
+        }
+
+        var repository =
+            new SqliteClinicalProgressionRepository(databasePath);
+
+        await repository.InitializeAsync();
+
+        var normalizedRecordTitle = recordTitle.Trim();
+        var normalizedSummary = summary.Trim();
+
+        var existing =
+            (await repository.GetAsync(claimIssueId))
+                .FirstOrDefault(item =>
+                    item.SourceArtifactId == sourceArtifactId &&
+                    item.EventDate == eventDate &&
+                    item.SourceStartPage == sourceStartPage &&
+                    item.SourceEndPage == sourceEndPage &&
+                    string.Equals(
+                        item.RecordTitle,
+                        normalizedRecordTitle,
+                        StringComparison.Ordinal) &&
+                    string.Equals(
+                        item.EventType,
+                        normalizedEventType,
+                        StringComparison.Ordinal) &&
+                    string.Equals(
+                        item.Summary,
+                        normalizedSummary,
+                        StringComparison.Ordinal));
+
+        var alreadyPersisted = existing is not null;
+
+        var progressionEvent =
+            existing ??
+            new ClinicalProgressionEvent
+            {
+                Id =
+                    new ClinicalProgressionEventId(
+                        Guid.NewGuid().ToString("N")),
+                ClaimIssueId = claimIssueId,
+                SourceArtifactId = sourceArtifactId,
+                EventDate = eventDate,
+                SourceStartPage = sourceStartPage,
+                SourceEndPage = sourceEndPage,
+                RecordTitle = normalizedRecordTitle,
+                EventType = normalizedEventType,
+                Summary = normalizedSummary
+            };
+
+        if (!alreadyPersisted)
+            await repository.AddAsync(progressionEvent);
+
+        await output.WriteLineAsync(
+            $"Progression Event ID  : {progressionEvent.Id.Value}");
+        await output.WriteLineAsync(
+            $"Event Type            : {progressionEvent.EventType}");
+        await output.WriteLineAsync(
+            $"Record Title          : {progressionEvent.RecordTitle}");
+        await output.WriteLineAsync(
+            $"Event Date            : {progressionEvent.EventDate:yyyy-MM-dd}");
+        await output.WriteLineAsync(
+            $"Internal Source Pages : " +
+            (progressionEvent.SourceStartPage is int persistedStart &&
+             progressionEvent.SourceEndPage is int persistedEnd
+                ? $"{persistedStart}-{persistedEnd}"
+                : "None"));
+        await output.WriteLineAsync(
+            $"Already Persisted     : {alreadyPersisted}");
+
+        return 0;
+    }
+
+
     internal static async Task<int> RunEvidenceCurrentMedicationsAsync(
         string databasePath,
         VeteranId veteranId,
@@ -6354,6 +6550,12 @@ public static class VeteransConsoleCommand
             "<database-path> <claim-issue-id> <source-artifact-id> " +
             "<yyyy-MM-dd> <internal-start-page> <internal-end-page> " +
             "<category> <record-title> <original-text> <clarification>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence clinical progression " +
+            "<database-path> <claim-issue-id> <source-artifact-id> " +
+            "<yyyy-MM-dd> <internal-start-page|-> <internal-end-page|-> " +
+            "<event-type> <record-title> <summary>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence medication basis " +

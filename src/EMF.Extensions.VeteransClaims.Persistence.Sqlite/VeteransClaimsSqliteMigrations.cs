@@ -2492,6 +2492,53 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_SourceClarifications (
                     SourceArtifactId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                82,
+                "AddClinicalProgressionEvents",
+                """
+                CREATE TABLE VeteransClaims_ClinicalProgressionEvents (
+                    Id TEXT PRIMARY KEY,
+                    ClaimIssueId TEXT NOT NULL,
+                    SourceArtifactId TEXT NOT NULL,
+                    EventDate TEXT NOT NULL,
+                    SourceStartPage INTEGER NULL
+                        CHECK (SourceStartPage IS NULL OR SourceStartPage > 0),
+                    SourceEndPage INTEGER NULL,
+                    RecordTitle TEXT NOT NULL,
+                    EventType TEXT NOT NULL
+                        CHECK (EventType IN (
+                            'TreatmentUse',
+                            'TreatmentProblem',
+                            'TreatmentAdjustment',
+                            'DiagnosticFinding',
+                            'TreatmentTransition',
+                            'TreatmentResponse'
+                        )),
+                    Summary TEXT NOT NULL,
+                    CHECK (
+                        (SourceStartPage IS NULL AND SourceEndPage IS NULL) OR
+                        (SourceStartPage IS NOT NULL AND
+                         SourceEndPage IS NOT NULL AND
+                         SourceEndPage >= SourceStartPage)
+                    ),
+                    FOREIGN KEY (ClaimIssueId)
+                        REFERENCES VeteransClaims_ClaimIssues (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ClinicalProgressionEvents_ClaimIssueDate
+                ON VeteransClaims_ClinicalProgressionEvents (
+                    ClaimIssueId,
+                    EventDate,
+                    SourceStartPage
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ClinicalProgressionEvents_Artifact
+                ON VeteransClaims_ClinicalProgressionEvents (
+                    SourceArtifactId
+                );
                 """)
         };
 }
