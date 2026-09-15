@@ -2238,7 +2238,41 @@ public static class VeteransReviewerPackageDocxRenderer
                    StringComparison.OrdinalIgnoreCase) ||
                heading.Equals(
                    "Keywords",
-                   StringComparison.OrdinalIgnoreCase);
+                   StringComparison.OrdinalIgnoreCase) ||
+               IsMedicalLiteratureAcronymHeading(heading);
+    }
+
+    private static bool IsMedicalLiteratureAcronymHeading(
+        string heading)
+    {
+        if (heading.Length is < 2 or > 12 ||
+            heading.Any(char.IsWhiteSpace))
+        {
+            return false;
+        }
+
+        var letterCount = 0;
+
+        foreach (var character in heading)
+        {
+            if (char.IsLetter(character))
+            {
+                letterCount++;
+
+                if (!char.IsUpper(character))
+                    return false;
+
+                continue;
+            }
+
+            if (!char.IsDigit(character) &&
+                character is not '-' and not '/' and not '&')
+            {
+                return false;
+            }
+        }
+
+        return letterCount >= 2;
     }
 
     private static IReadOnlyList<string> NormalizeReviewerText(

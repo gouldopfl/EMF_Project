@@ -2879,6 +2879,91 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 public sealed partial class VeteransReviewerPackageDocxRendererTests
 {
     [Fact]
+    public void Render_KeepsMedicalLiteratureAcronymHeadingWithFollowingContent()
+    {
+        var packageId = new EvidencePackageId("package-literature-heading");
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId("artifact-literature-heading"),
+            Name = "study.txt",
+            ArtifactType = "file"
+        };
+
+        var details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = new EvidencePackageDetails
+            {
+                Package = new EvidencePackage
+                {
+                    Id = packageId,
+                    ClaimIssueId = new ClaimIssueId("issue-1"),
+                    Purpose = "Medical review",
+                    ReviewerRole = "MedicalProfessional"
+                },
+                Artifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = artifact.Id,
+                        ContentRole =
+                            EvidencePackageContentRoles.UnderlyingEvidence
+                    }
+                ]
+            },
+            Artifacts = [artifact],
+            ArtifactContents =
+            [
+                new VeteransReviewerArtifactContent
+                {
+                    Artifact = artifact,
+                    Text =
+                        "PTSD\nParticipants with PTSD were evaluated for OSA.",
+                    Appendix =
+                        VeteransReviewerPackageAppendix.MedicalLiterature
+                }
+            ]
+        };
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var paragraphs =
+            document.MainDocumentPart!
+                .Document!
+                .Body!
+                .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .ToArray();
+
+        var headingIndexes =
+            Enumerable
+                .Range(0, paragraphs.Length - 1)
+                .Where(
+                    index =>
+                        paragraphs[index].InnerText == "PTSD" &&
+                        paragraphs[index + 1].InnerText.Contains(
+                            "Participants with PTSD were evaluated for OSA.",
+                            StringComparison.Ordinal))
+                .ToArray();
+
+        Assert.NotEmpty(headingIndexes);
+        Assert.All(
+            headingIndexes,
+            index =>
+            {
+                var heading = paragraphs[index];
+                Assert.NotNull(heading.ParagraphProperties?.KeepNext);
+                Assert.NotNull(heading.ParagraphProperties?.KeepLines);
+                Assert.Contains(
+                    heading.Descendants<DocumentFormat.OpenXml.Wordprocessing.Bold>(),
+                    bold => bold.Val?.Value != false);
+            });
+    }
+
+    [Fact]
     public void Render_LabelsMedicalLiteratureAppendix()
     {
         var packageId = new EvidencePackageId("package-literature");
