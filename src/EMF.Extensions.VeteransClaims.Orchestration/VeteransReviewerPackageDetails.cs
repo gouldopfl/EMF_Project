@@ -24,6 +24,10 @@ public sealed class VeteransReviewerPackageDetails
     { get; init; } =
         Array.Empty<VeteransReviewerMedicationProgression>();
 
+    public IReadOnlyList<VeteransReviewerMedicationClinicalContext> MedicationClinicalContexts
+    { get; init; } =
+        Array.Empty<VeteransReviewerMedicationClinicalContext>();
+
     public IReadOnlyList<MedicationLedgerEntry> CurrentMedications
     { get; init; } =
         Array.Empty<MedicationLedgerEntry>();

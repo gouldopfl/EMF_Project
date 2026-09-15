@@ -109,9 +109,95 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
             text);
     }
 
+
+    [Fact]
+    public void Render_AttachesClinicalContextOnlyToExplicitPrescriptionWithoutInternalPages()
+    {
+        var sixty =
+            new MedicationLedgerEntry
+            {
+                Id = new MedicationLedgerEntryId("entry-60"),
+                MedicationLedgerId = new MedicationLedgerId("ledger-1"),
+                EntryOrdinal = 1,
+                SourceStartPage = 3943,
+                SourceEndPage = 3943,
+                MedicationName = "ISOSORBIDE MONONITRATE 60MG SA TAB",
+                Strength = "60MG",
+                Status = "discontinued",
+                PrescriptionNumber = "12620234",
+                PrescribedDate = new DateOnly(2025, 6, 2),
+                Directions = "TAKE ONE TABLET ORALLY EVERY DAY"
+            };
+
+        var thirty =
+            new MedicationLedgerEntry
+            {
+                Id = new MedicationLedgerEntryId("entry-30"),
+                MedicationLedgerId = new MedicationLedgerId("ledger-1"),
+                EntryOrdinal = 2,
+                SourceStartPage = 3923,
+                SourceEndPage = 3923,
+                MedicationName = "isosorbide mononitrate",
+                Strength = "30 mg/24 hour",
+                Status = "refillinprocess",
+                PrescriptionNumber = "3211-50014120",
+                PrescribedDate = new DateOnly(2026, 8, 21),
+                Directions = "TAKE ONE TABLET ORALLY EVERY DAY"
+            };
+
+        var progression =
+            new VeteransReviewerMedicationProgression
+            {
+                MedicationName = "Isosorbide Mononitrate",
+                Entries = [sixty, thirty]
+            };
+
+        var context =
+            new VeteransReviewerMedicationClinicalContext
+            {
+                MedicationName = sixty.MedicationName,
+                ContextType = MedicationClinicalContextTypes.ClinicalEffect,
+                PrescriptionNumber = "12620234",
+                SourceLocator =
+                    "VA Blue Button Report — PC Nursing Outpatient Telephone Note — August 12, 2025",
+                Summary =
+                    "The Veteran reported dizziness after the 60 mg increase; the same note records that Cardiology did not agree that isosorbide caused the complaints."
+            };
+
+        var text =
+            RenderText(
+                thirty,
+                [progression],
+                [context]);
+
+        var sixtyIndex =
+            text.IndexOf(
+                "June 2, 2025 — Discontinued — 60MG",
+                StringComparison.Ordinal);
+        var contextIndex =
+            text.IndexOf(
+                "Documented clinical context:",
+                StringComparison.Ordinal);
+        var thirtyIndex =
+            text.IndexOf(
+                "August 21, 2026 — Refill in process — 30 mg/24 hour",
+                StringComparison.Ordinal);
+
+        Assert.True(sixtyIndex >= 0);
+        Assert.True(contextIndex > sixtyIndex);
+        Assert.True(thirtyIndex > contextIndex);
+        Assert.Contains(
+            "Source: VA Blue Button Report — PC Nursing Outpatient Telephone Note — August 12, 2025",
+            text);
+        Assert.DoesNotContain("948", text);
+        Assert.DoesNotContain("949", text);
+        Assert.DoesNotContain("12620234", text);
+    }
+
     private static string RenderText(
         MedicationLedgerEntry medication,
-        IReadOnlyList<VeteransReviewerMedicationProgression>? progressions = null)
+        IReadOnlyList<VeteransReviewerMedicationProgression>? progressions = null,
+        IReadOnlyList<VeteransReviewerMedicationClinicalContext>? clinicalContexts = null)
     {
         var details = new VeteransReviewerPackageDetails
         {
@@ -128,6 +214,7 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
             },
             Artifacts = [],
             MedicationProgressions = progressions ?? [],
+            MedicationClinicalContexts = clinicalContexts ?? [],
             CurrentMedications = [medication]
         };
 

@@ -50,6 +50,7 @@ public sealed class VeteransReviewerMedicationClinicalContextProjectionService
                 {
                     MedicationName = link.Medication.MedicationName,
                     ContextType = context.ContextType,
+                    PrescriptionNumber = link.Medication.PrescriptionNumber!,
                     SourceLocator =
                         $"{GetHumanSourceName(artifact)} — " +
                         $"{context.RecordTitle.Trim()} — " +

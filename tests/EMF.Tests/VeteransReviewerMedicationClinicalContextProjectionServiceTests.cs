@@ -75,6 +75,7 @@ public sealed class VeteransReviewerMedicationClinicalContextProjectionServiceTe
             Assert.Contains("VA Blue Button Report", reviewerPayload);
             Assert.Contains("PC Nursing Outpatient Telephone Note", reviewerPayload);
             Assert.Contains("August 12, 2025", reviewerPayload);
+            Assert.DoesNotContain("12620234", reviewerPayload);
             Assert.DoesNotContain("internal-blue-button-artifact", reviewerPayload);
             Assert.DoesNotContain("VA-Blue-Button-report-Michael-Gould-9-9-2026_0506pm.pdf", reviewerPayload);
             Assert.DoesNotContain("948", reviewerPayload);

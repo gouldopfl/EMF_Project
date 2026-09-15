@@ -551,7 +551,9 @@ public static class VeteransReviewerPackageDocxRenderer
                 "This section highlights meaningful prescription changes for medications " +
                 "identified as relevant to the medical opinion request. It preserves the " +
                 "VA medication-ledger history and does not infer a clinical reason for a " +
-                "change unless that reason is separately documented in the medical record."));
+                "change unless that reason is separately documented in the medical record. " +
+                "Documented clinical context is shown only when explicitly linked to the " +
+                "specific prescription record."));
 
         foreach (var progression in progressions)
         {
@@ -585,6 +587,28 @@ public static class VeteransReviewerPackageDocxRenderer
                     body.Append(
                         ContentParagraph(
                             $"Directions: {entry.Directions.Trim()}"));
+                }
+
+                if (!string.IsNullOrWhiteSpace(entry.PrescriptionNumber))
+                {
+                    var contexts =
+                        details.MedicationClinicalContexts
+                            .Where(context =>
+                                string.Equals(
+                                    context.PrescriptionNumber,
+                                    entry.PrescriptionNumber,
+                                    StringComparison.OrdinalIgnoreCase))
+                            .ToArray();
+
+                    foreach (var context in contexts)
+                    {
+                        body.Append(
+                            ContentParagraph(
+                                $"Documented clinical context: {context.Summary}"));
+                        body.Append(
+                            ContentParagraph(
+                                $"Source: {context.SourceLocator}"));
+                    }
                 }
             }
         }
