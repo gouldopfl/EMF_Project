@@ -417,9 +417,30 @@ public sealed partial class VeteransBlueButtonMedicationLedgerParser
             var previousRaw = lines[start - 1].Text;
             var previous = Normalize(previousRaw);
 
-            if (string.IsNullOrWhiteSpace(previous) ||
-                IsPageHeader(previousRaw) ||
-                IsSectionIntroduction(previous) ||
+            if (string.IsNullOrWhiteSpace(previous))
+            {
+                start--;
+                continue;
+            }
+
+            if (IsPageHeader(previousRaw))
+            {
+                var candidate =
+                    JoinMedicationName(
+                        lines,
+                        start,
+                        prescriptionHeading - 1);
+
+                if (HasUnmatchedClosingDelimiter(candidate))
+                {
+                    start--;
+                    continue;
+                }
+
+                break;
+            }
+
+            if (IsSectionIntroduction(previous) ||
                 IsMedicationEntryBoundary(previous) ||
                 IsFieldPrefix(previous))
             {
@@ -560,6 +581,38 @@ public sealed partial class VeteransBlueButtonMedicationLedgerParser
         }
 
         return start - 1;
+    }
+
+
+    private static bool HasUnmatchedClosingDelimiter(string value)
+    {
+        var parentheses = 0;
+        var brackets = 0;
+
+        foreach (var character in value)
+        {
+            switch (character)
+            {
+                case '(':
+                    parentheses++;
+                    break;
+                case ')':
+                    parentheses--;
+                    if (parentheses < 0)
+                        return true;
+                    break;
+                case '[':
+                    brackets++;
+                    break;
+                case ']':
+                    brackets--;
+                    if (brackets < 0)
+                        return true;
+                    break;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsFieldPrefix(string value) =>
