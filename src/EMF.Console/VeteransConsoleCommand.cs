@@ -679,6 +679,55 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 13 &&
+            args[0] == "evidence" &&
+            args[1] == "medication" &&
+            args[2] == "context")
+        {
+            var contextDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(contextDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {contextDatabasePath}");
+                return 2;
+            }
+
+            if (!DateOnly.TryParseExact(
+                    args[6],
+                    "yyyy-MM-dd",
+                    out var contextEventDate))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Medication clinical context date must use yyyy-MM-dd.");
+                return 2;
+            }
+
+            if (!int.TryParse(args[7], out var contextStartPage) ||
+                contextStartPage <= 0 ||
+                !int.TryParse(args[8], out var contextEndPage) ||
+                contextEndPage < contextStartPage)
+            {
+                global::System.Console.Error.WriteLine(
+                    "Medication clinical context page range is invalid.");
+                return 2;
+            }
+
+            return await RunEvidenceMedicationClinicalContextAsync(
+                contextDatabasePath,
+                new VeteranId(args[4]),
+                new ArtifactId(args[5]),
+                contextEventDate,
+                contextStartPage,
+                contextEndPage,
+                args[9],
+                args[10],
+                args[11],
+                args[12],
+                global::System.Console.Out);
+        }
+
         if ((args.Length == 13 || args.Length == 14) &&
             args[0] == "evidence" &&
             args[1] == "medication" &&
@@ -4168,6 +4217,147 @@ public static class VeteransConsoleCommand
         {
             global::System.Console.Error.WriteLine(
                 $"Current medication resolution failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+
+    internal static async Task<int> RunEvidenceMedicationClinicalContextAsync(
+        string databasePath,
+        VeteranId veteranId,
+        ArtifactId sourceArtifactId,
+        DateOnly eventDate,
+        int sourceStartPage,
+        int sourceEndPage,
+        string medicationName,
+        string prescriptionNumber,
+        string contextType,
+        string summary,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (string.IsNullOrWhiteSpace(medicationName) ||
+            string.IsNullOrWhiteSpace(prescriptionNumber) ||
+            string.IsNullOrWhiteSpace(contextType) ||
+            string.IsNullOrWhiteSpace(summary))
+        {
+            global::System.Console.Error.WriteLine(
+                "Medication clinical context fields must not be empty.");
+            return 2;
+        }
+
+        var normalizedContextType = contextType.Trim();
+
+        if (normalizedContextType != MedicationClinicalContextTypes.ClinicalEffect &&
+            normalizedContextType != MedicationClinicalContextTypes.ChangeReason &&
+            normalizedContextType != MedicationClinicalContextTypes.ClinicalObservation &&
+            normalizedContextType != MedicationClinicalContextTypes.TreatmentResponse)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Unsupported medication clinical context type: {normalizedContextType}");
+            return 2;
+        }
+
+        var veterans = new SqliteVeteranRepository(databasePath);
+
+        if (await veterans.GetVeteranAsync(veteranId) is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Veteran not found: {veteranId.Value}");
+            return 2;
+        }
+
+        var evidence = new SqliteEvidenceRepository(databasePath);
+        await evidence.InitializeAsync();
+
+        if (await evidence.GetArtifactAsync(sourceArtifactId) is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Source artifact not found: {sourceArtifactId.Value}");
+            return 2;
+        }
+
+        try
+        {
+            var repository = new SqliteMedicationRepository(databasePath);
+            await repository.InitializeAsync();
+
+            var normalizedMedicationName = medicationName.Trim();
+            var normalizedPrescriptionNumber = prescriptionNumber.Trim();
+            var normalizedSummary = summary.Trim();
+
+            var existing =
+                (await repository.GetMedicationClinicalContextsAsync(veteranId))
+                    .SingleOrDefault(context =>
+                        context.SourceArtifactId == sourceArtifactId &&
+                        context.EventDate == eventDate &&
+                        context.SourceStartPage == sourceStartPage &&
+                        context.SourceEndPage == sourceEndPage &&
+                        string.Equals(
+                            context.MedicationName,
+                            normalizedMedicationName,
+                            StringComparison.Ordinal) &&
+                        string.Equals(
+                            context.PrescriptionNumber,
+                            normalizedPrescriptionNumber,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(
+                            context.ContextType,
+                            normalizedContextType,
+                            StringComparison.Ordinal) &&
+                        string.Equals(
+                            context.Summary,
+                            normalizedSummary,
+                            StringComparison.Ordinal));
+
+            var alreadyPersisted = existing is not null;
+            var clinicalContext =
+                existing ??
+                new MedicationClinicalContext
+                {
+                    Id =
+                        new MedicationClinicalContextId(
+                            Guid.NewGuid().ToString("N")),
+                    VeteranId = veteranId,
+                    SourceArtifactId = sourceArtifactId,
+                    EventDate = eventDate,
+                    SourceStartPage = sourceStartPage,
+                    SourceEndPage = sourceEndPage,
+                    MedicationName = normalizedMedicationName,
+                    PrescriptionNumber = normalizedPrescriptionNumber,
+                    ContextType = normalizedContextType,
+                    Summary = normalizedSummary
+                };
+
+            if (!alreadyPersisted)
+            {
+                await repository.AddMedicationClinicalContextAsync(
+                    clinicalContext);
+            }
+
+            await output.WriteLineAsync(
+                $"Medication Context ID : {clinicalContext.Id.Value}");
+            await output.WriteLineAsync(
+                $"Medication            : {clinicalContext.MedicationName}");
+            await output.WriteLineAsync(
+                $"Prescription          : {clinicalContext.PrescriptionNumber}");
+            await output.WriteLineAsync(
+                $"Context Type          : {clinicalContext.ContextType}");
+            await output.WriteLineAsync(
+                $"Event Date            : {clinicalContext.EventDate:yyyy-MM-dd}");
+            await output.WriteLineAsync(
+                $"Source Pages          : {clinicalContext.SourceStartPage}-{clinicalContext.SourceEndPage}");
+            await output.WriteLineAsync(
+                $"Already Persisted     : {alreadyPersisted}");
+
+            return 0;
+        }
+        catch (Exception ex)
+            when (ex is not OperationCanceledException)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Medication clinical context persistence failed: {ex.Message}");
             return 1;
         }
     }
