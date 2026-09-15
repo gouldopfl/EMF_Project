@@ -677,6 +677,7 @@ public sealed class VeteransClaimsSqliteMedicationRepositoryTests
             Assert.Equal(context.MedicationName, stored.MedicationName);
             Assert.Equal(context.PrescriptionNumber, stored.PrescriptionNumber);
             Assert.Equal(context.ContextType, stored.ContextType);
+            Assert.Equal(context.RecordTitle, stored.RecordTitle);
             Assert.Equal(context.Summary, stored.Summary);
         }
         finally
@@ -731,6 +732,44 @@ public sealed class VeteransClaimsSqliteMedicationRepositoryTests
     }
 
     [Fact]
+    public async Task Repository_UpdatesMedicationClinicalContextRecordTitle()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository = await CreateAsync(path);
+            var context = CreateClinicalContext(
+                "context-title",
+                new DateOnly(2025, 8, 12),
+                948,
+                949,
+                "Isosorbide Mononitrate",
+                "12620234",
+                MedicationClinicalContextTypes.ClinicalEffect,
+                "Clinical effect.");
+
+            await repository.AddMedicationClinicalContextAsync(context);
+            await repository.UpdateMedicationClinicalContextRecordTitleAsync(
+                context.Id,
+                "PC Nursing Outpatient Telephone Note");
+
+            var stored =
+                Assert.Single(
+                    await repository.GetMedicationClinicalContextsAsync(
+                        new VeteranId("veteran-001")));
+
+            Assert.Equal(
+                "PC Nursing Outpatient Telephone Note",
+                stored.RecordTitle);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task Repository_RejectsInvalidMedicationClinicalContextPageRange()
     {
         var path = Path.GetTempFileName();
@@ -777,6 +816,7 @@ public sealed class VeteransClaimsSqliteMedicationRepositoryTests
             MedicationName = medicationName,
             PrescriptionNumber = prescriptionNumber,
             ContextType = contextType,
+            RecordTitle = "PC Nursing Outpatient Telephone Note",
             Summary = summary
         };
 

@@ -155,6 +155,7 @@ public sealed class MedicationClinicalContextLinkServiceTests
             MedicationName = medicationName,
             PrescriptionNumber = prescriptionNumber,
             ContextType = MedicationClinicalContextTypes.ClinicalEffect,
+            RecordTitle = "PC Nursing Outpatient Telephone Note",
             Summary = summary
         };
 

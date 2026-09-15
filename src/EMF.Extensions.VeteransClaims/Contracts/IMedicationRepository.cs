@@ -52,6 +52,12 @@ public interface IMedicationRepository
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
+    Task UpdateMedicationClinicalContextRecordTitleAsync(
+        MedicationClinicalContextId medicationClinicalContextId,
+        string recordTitle,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task<IReadOnlyList<MedicationClinicalContext>>
         GetMedicationClinicalContextsAsync(
             VeteranId veteranId,

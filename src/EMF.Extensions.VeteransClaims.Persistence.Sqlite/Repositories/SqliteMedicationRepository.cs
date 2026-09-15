@@ -394,6 +394,8 @@ public sealed class SqliteMedicationRepository :
         ArgumentException.ThrowIfNullOrWhiteSpace(
             clinicalContext.ContextType);
         ArgumentException.ThrowIfNullOrWhiteSpace(
+            clinicalContext.RecordTitle);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
             clinicalContext.Summary);
 
         if (clinicalContext.SourceStartPage <= 0)
@@ -416,12 +418,12 @@ public sealed class SqliteMedicationRepository :
             INSERT INTO VeteransClaims_MedicationClinicalContexts (
                 Id, VeteranId, SourceArtifactId, EventDate,
                 SourceStartPage, SourceEndPage, MedicationName,
-                PrescriptionNumber, ContextType, Summary
+                PrescriptionNumber, ContextType, RecordTitle, Summary
             )
             VALUES (
                 $id, $veteranId, $sourceArtifactId, $eventDate,
                 $sourceStartPage, $sourceEndPage, $medicationName,
-                $prescriptionNumber, $contextType, $summary
+                $prescriptionNumber, $contextType, $recordTitle, $summary
             );
             """;
 
@@ -444,9 +446,39 @@ public sealed class SqliteMedicationRepository :
         command.Parameters.AddWithValue(
             "$contextType", clinicalContext.ContextType);
         command.Parameters.AddWithValue(
+            "$recordTitle", clinicalContext.RecordTitle);
+        command.Parameters.AddWithValue(
             "$summary", clinicalContext.Summary);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task UpdateMedicationClinicalContextRecordTitleAsync(
+        MedicationClinicalContextId medicationClinicalContextId,
+        string recordTitle,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(recordTitle);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            UPDATE VeteransClaims_MedicationClinicalContexts
+            SET RecordTitle = $recordTitle
+            WHERE Id = $id;
+            """;
+
+        command.Parameters.AddWithValue("$recordTitle", recordTitle.Trim());
+        command.Parameters.AddWithValue("$id", medicationClinicalContextId.Value);
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException(
+                "Medication clinical context record-title update did not affect exactly one row.");
+        }
     }
 
     public async Task<IReadOnlyList<MedicationClinicalContext>>
@@ -462,7 +494,7 @@ public sealed class SqliteMedicationRepository :
             """
             SELECT Id, VeteranId, SourceArtifactId, EventDate,
                    SourceStartPage, SourceEndPage, MedicationName,
-                   PrescriptionNumber, ContextType, Summary
+                   PrescriptionNumber, ContextType, RecordTitle, Summary
             FROM VeteransClaims_MedicationClinicalContexts
             WHERE VeteranId = $veteranId
             ORDER BY EventDate, SourceStartPage, Id;
@@ -777,7 +809,8 @@ public sealed class SqliteMedicationRepository :
             MedicationName = reader.GetString(6),
             PrescriptionNumber = reader.GetString(7),
             ContextType = reader.GetString(8),
-            Summary = reader.GetString(9)
+            RecordTitle = reader.IsDBNull(9) ? null : reader.GetString(9),
+            Summary = reader.GetString(10)
         };
 
     private static MedicationHistoryEvent ReadMedicationHistoryEvent(

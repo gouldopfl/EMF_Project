@@ -679,11 +679,18 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
-        if (args.Length == 13 &&
+        if ((args.Length == 13 || args.Length == 14) &&
             args[0] == "evidence" &&
             args[1] == "medication" &&
             args[2] == "context")
         {
+            if (args.Length != 14)
+            {
+                global::System.Console.Error.WriteLine(
+                    "Medication clinical context requires a human-readable record title.");
+                return 2;
+            }
+
             var contextDatabasePath =
                 Path.GetFullPath(args[3]);
 
@@ -725,6 +732,7 @@ public static class VeteransConsoleCommand
                 args[10],
                 args[11],
                 args[12],
+                args[13],
                 global::System.Console.Out);
         }
 
@@ -4232,6 +4240,7 @@ public static class VeteransConsoleCommand
         string medicationName,
         string prescriptionNumber,
         string contextType,
+        string recordTitle,
         string summary,
         TextWriter output)
     {
@@ -4240,6 +4249,7 @@ public static class VeteransConsoleCommand
         if (string.IsNullOrWhiteSpace(medicationName) ||
             string.IsNullOrWhiteSpace(prescriptionNumber) ||
             string.IsNullOrWhiteSpace(contextType) ||
+            string.IsNullOrWhiteSpace(recordTitle) ||
             string.IsNullOrWhiteSpace(summary))
         {
             global::System.Console.Error.WriteLine(
@@ -4285,6 +4295,7 @@ public static class VeteransConsoleCommand
 
             var normalizedMedicationName = medicationName.Trim();
             var normalizedPrescriptionNumber = prescriptionNumber.Trim();
+            var normalizedRecordTitle = recordTitle.Trim();
             var normalizedSummary = summary.Trim();
 
             var existing =
@@ -4312,6 +4323,20 @@ public static class VeteransConsoleCommand
                             StringComparison.Ordinal));
 
             var alreadyPersisted = existing is not null;
+            var recordTitleUpdated =
+                existing is not null &&
+                !string.Equals(
+                    existing.RecordTitle,
+                    normalizedRecordTitle,
+                    StringComparison.Ordinal);
+
+            if (recordTitleUpdated)
+            {
+                await repository.UpdateMedicationClinicalContextRecordTitleAsync(
+                    existing!.Id,
+                    normalizedRecordTitle);
+            }
+
             var clinicalContext =
                 existing ??
                 new MedicationClinicalContext
@@ -4327,6 +4352,7 @@ public static class VeteransConsoleCommand
                     MedicationName = normalizedMedicationName,
                     PrescriptionNumber = normalizedPrescriptionNumber,
                     ContextType = normalizedContextType,
+                    RecordTitle = normalizedRecordTitle,
                     Summary = normalizedSummary
                 };
 
@@ -4347,9 +4373,13 @@ public static class VeteransConsoleCommand
             await output.WriteLineAsync(
                 $"Event Date            : {clinicalContext.EventDate:yyyy-MM-dd}");
             await output.WriteLineAsync(
-                $"Source Pages          : {clinicalContext.SourceStartPage}-{clinicalContext.SourceEndPage}");
+                $"Record Title          : {normalizedRecordTitle}");
+            await output.WriteLineAsync(
+                $"Internal PDF Pages    : {clinicalContext.SourceStartPage}-{clinicalContext.SourceEndPage}");
             await output.WriteLineAsync(
                 $"Already Persisted     : {alreadyPersisted}");
+            await output.WriteLineAsync(
+                $"Record Title Updated  : {recordTitleUpdated}");
 
             return 0;
         }
@@ -6118,6 +6148,13 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence medication basis " +
             "<database-path> <basis-id> <medication-name>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence medication context " +
+            "<database-path> <veteran-id> <source-artifact-id> " +
+            "<yyyy-MM-dd> <internal-start-page> <internal-end-page> " +
+            "<medication-name> <prescription-number> <context-type> " +
+            "<record-title> <summary>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence medication current " +

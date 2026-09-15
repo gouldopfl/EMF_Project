@@ -2444,6 +2444,13 @@ internal static class VeteransClaimsSqliteMigrations
                 ON VeteransClaims_MedicationClinicalContexts (
                     SourceArtifactId
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                80,
+                "AddMedicationClinicalContextRecordTitles",
+                """
+                ALTER TABLE VeteransClaims_MedicationClinicalContexts
+                ADD COLUMN RecordTitle TEXT NULL;
                 """)
         };
 }

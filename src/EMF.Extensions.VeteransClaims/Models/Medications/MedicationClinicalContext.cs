@@ -23,5 +23,7 @@ public sealed class MedicationClinicalContext
 
     public required string ContextType { get; init; }
 
+    public string? RecordTitle { get; init; }
+
     public required string Summary { get; init; }
 }
