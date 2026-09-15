@@ -608,6 +608,55 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 12 &&
+            args[0] == "evidence" &&
+            args[1] == "clarification")
+        {
+            var clarificationDatabasePath =
+                Path.GetFullPath(args[2]);
+
+            if (!File.Exists(clarificationDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: " +
+                    $"{clarificationDatabasePath}");
+                return 2;
+            }
+
+            if (!DateOnly.TryParseExact(
+                    args[5],
+                    "yyyy-MM-dd",
+                    out var clarificationDate))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Source clarification date must use yyyy-MM-dd.");
+                return 2;
+            }
+
+            if (!int.TryParse(args[6], out var clarificationStartPage) ||
+                clarificationStartPage <= 0 ||
+                !int.TryParse(args[7], out var clarificationEndPage) ||
+                clarificationEndPage < clarificationStartPage)
+            {
+                global::System.Console.Error.WriteLine(
+                    "Source clarification internal page range is invalid.");
+                return 2;
+            }
+
+            return await RunEvidenceSourceClarificationAsync(
+                clarificationDatabasePath,
+                new ClaimIssueId(args[3]),
+                new ArtifactId(args[4]),
+                clarificationDate,
+                clarificationStartPage,
+                clarificationEndPage,
+                args[8],
+                args[9],
+                args[10],
+                args[11],
+                global::System.Console.Out);
+        }
+
         if (args.Length == 6 &&
             args[0] == "evidence" &&
             args[1] == "medication" &&
@@ -4167,6 +4216,139 @@ public static class VeteransConsoleCommand
     }
 
 
+    internal static async Task<int> RunEvidenceSourceClarificationAsync(
+        string databasePath,
+        ClaimIssueId claimIssueId,
+        ArtifactId sourceArtifactId,
+        DateOnly evidenceDate,
+        int sourceStartPage,
+        int sourceEndPage,
+        string category,
+        string recordTitle,
+        string originalText,
+        string clarificationText,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (sourceStartPage <= 0 || sourceEndPage < sourceStartPage)
+        {
+            global::System.Console.Error.WriteLine(
+                "Source clarification internal page range is invalid.");
+            return 2;
+        }
+
+        if (string.IsNullOrWhiteSpace(category) ||
+            string.IsNullOrWhiteSpace(recordTitle) ||
+            string.IsNullOrWhiteSpace(originalText) ||
+            string.IsNullOrWhiteSpace(clarificationText))
+        {
+            global::System.Console.Error.WriteLine(
+                "Source clarification fields must not be empty.");
+            return 2;
+        }
+
+        var normalizedCategory = category.Trim();
+
+        if (!SourceClarificationCategories.IsSupported(normalizedCategory))
+        {
+            global::System.Console.Error.WriteLine(
+                $"Unsupported source clarification category: {normalizedCategory}");
+            return 2;
+        }
+
+        var issues = new SqliteClaimIssueRepository(databasePath);
+
+        if (await issues.GetClaimIssueAsync(claimIssueId) is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Claim issue not found: {claimIssueId.Value}");
+            return 2;
+        }
+
+        var evidence = new SqliteEvidenceRepository(databasePath);
+        await evidence.InitializeAsync();
+
+        if (await evidence.GetArtifactAsync(sourceArtifactId) is null)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Source artifact not found: {sourceArtifactId.Value}");
+            return 2;
+        }
+
+        var repository =
+            new SqliteSourceClarificationRepository(databasePath);
+
+        await repository.InitializeAsync();
+
+        var normalizedRecordTitle = recordTitle.Trim();
+        var normalizedOriginalText = originalText.Trim();
+        var normalizedClarification = clarificationText.Trim();
+
+        var existing =
+            (await repository.GetAsync(claimIssueId))
+                .FirstOrDefault(item =>
+                    item.SourceArtifactId == sourceArtifactId &&
+                    item.EvidenceDate == evidenceDate &&
+                    item.SourceStartPage == sourceStartPage &&
+                    item.SourceEndPage == sourceEndPage &&
+                    string.Equals(
+                        item.RecordTitle,
+                        normalizedRecordTitle,
+                        StringComparison.Ordinal) &&
+                    string.Equals(
+                        item.Category,
+                        normalizedCategory,
+                        StringComparison.Ordinal) &&
+                    string.Equals(
+                        item.OriginalText,
+                        normalizedOriginalText,
+                        StringComparison.Ordinal) &&
+                    string.Equals(
+                        item.Clarification,
+                        normalizedClarification,
+                        StringComparison.Ordinal));
+
+        var alreadyPersisted = existing is not null;
+
+        var clarification =
+            existing ??
+            new SourceClarification
+            {
+                Id =
+                    new SourceClarificationId(
+                        Guid.NewGuid().ToString("N")),
+                ClaimIssueId = claimIssueId,
+                SourceArtifactId = sourceArtifactId,
+                EvidenceDate = evidenceDate,
+                SourceStartPage = sourceStartPage,
+                SourceEndPage = sourceEndPage,
+                RecordTitle = normalizedRecordTitle,
+                Category = normalizedCategory,
+                OriginalText = normalizedOriginalText,
+                Clarification = normalizedClarification
+            };
+
+        if (!alreadyPersisted)
+            await repository.AddAsync(clarification);
+
+        await output.WriteLineAsync(
+            $"Clarification ID      : {clarification.Id.Value}");
+        await output.WriteLineAsync(
+            $"Category              : {clarification.Category}");
+        await output.WriteLineAsync(
+            $"Record Title          : {clarification.RecordTitle}");
+        await output.WriteLineAsync(
+            $"Evidence Date         : {clarification.EvidenceDate:yyyy-MM-dd}");
+        await output.WriteLineAsync(
+            $"Internal PDF Pages    : {clarification.SourceStartPage}-{clarification.SourceEndPage}");
+        await output.WriteLineAsync(
+            $"Already Persisted     : {alreadyPersisted}");
+
+        return 0;
+    }
+
+
     internal static async Task<int> RunEvidenceCurrentMedicationsAsync(
         string databasePath,
         VeteranId veteranId,
@@ -6155,6 +6337,12 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence medication ledger import " +
             "<database-path> <veteran-id> <source-artifact-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence clarification " +
+            "<database-path> <claim-issue-id> <source-artifact-id> " +
+            "<yyyy-MM-dd> <internal-start-page> <internal-end-page> " +
+            "<category> <record-title> <original-text> <clarification>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence medication basis " +

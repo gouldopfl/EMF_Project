@@ -2451,6 +2451,47 @@ internal static class VeteransClaimsSqliteMigrations
                 """
                 ALTER TABLE VeteransClaims_MedicationClinicalContexts
                 ADD COLUMN RecordTitle TEXT NULL;
+                """),
+            new VeteransClaimsSqliteMigration(
+                81,
+                "AddSourceClarifications",
+                """
+                CREATE TABLE VeteransClaims_SourceClarifications (
+                    Id TEXT PRIMARY KEY,
+                    ClaimIssueId TEXT NOT NULL,
+                    SourceArtifactId TEXT NOT NULL,
+                    EvidenceDate TEXT NOT NULL,
+                    SourceStartPage INTEGER NOT NULL
+                        CHECK (SourceStartPage > 0),
+                    SourceEndPage INTEGER NOT NULL
+                        CHECK (SourceEndPage >= SourceStartPage),
+                    RecordTitle TEXT NOT NULL,
+                    Category TEXT NOT NULL
+                        CHECK (Category IN (
+                            'ImpossibleMagnitude',
+                            'BlankTemplate',
+                            'MalformedValueOrUnit',
+                            'InternalConflict'
+                        )),
+                    OriginalText TEXT NOT NULL,
+                    Clarification TEXT NOT NULL,
+                    FOREIGN KEY (ClaimIssueId)
+                        REFERENCES VeteransClaims_ClaimIssues (Id)
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_SourceClarifications_ClaimIssueDate
+                ON VeteransClaims_SourceClarifications (
+                    ClaimIssueId,
+                    EvidenceDate,
+                    SourceStartPage
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_SourceClarifications_Artifact
+                ON VeteransClaims_SourceClarifications (
+                    SourceArtifactId
+                );
                 """)
         };
 }

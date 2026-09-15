@@ -86,12 +86,13 @@ public sealed class VeteransClaimsSqliteMigrationTests
                           'VeteransClaims_EvidenceDevelopmentPlanRequirements',
                           'VeteransClaims_EvidenceDevelopmentPlanArtifacts',
                           'VeteransClaims_EvidencePackages',
-                          'VeteransClaims_EvidencePackageArtifacts'
+                          'VeteransClaims_EvidencePackageArtifacts',
+                          'VeteransClaims_SourceClarifications'
                       );
                     """;
 
                 Assert.Equal(
-                    43,
+                    44,
                     Convert.ToInt32(
                         await tableCommand
                             .ExecuteScalarAsync()));
@@ -960,7 +961,8 @@ public sealed class VeteransClaimsSqliteMigrationTests
                 (77, "AddServiceConnectionBasisReviewerLabel"),
                 (78, "AddMedicationLedgers"),
                 (79, "AddMedicationClinicalContexts"),
-                (80, "AddMedicationClinicalContextRecordTitles")
+                (80, "AddMedicationClinicalContextRecordTitles"),
+                (81, "AddSourceClarifications")
             };
 
             foreach (var expected in remainingMigrations)
