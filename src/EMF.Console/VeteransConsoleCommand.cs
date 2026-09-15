@@ -6309,7 +6309,7 @@ public static class VeteransConsoleCommand
             suppliedContentStore ??
             contentStoreFactory();
 
-        var service =
+        var detailsService =
             contentStore is null
                 ? new VeteransReviewerPackageDetailsService(
                     packageService,
@@ -6328,82 +6328,61 @@ public static class VeteransConsoleCommand
                         contentStore),
                     medicalLiterature);
 
-        var details =
-            await service.GetAsync(evidencePackageId);
-
-        if (details is null)
-            return 1;
-
         var medicationRepository =
             new SqliteMedicationRepository(fullDatabasePath);
 
-        var currentMedications =
-            await new VeteransReviewerPackageCurrentMedicationService(
-                    new SqliteClaimIssueRepository(fullDatabasePath),
-                    new SqliteClaimRepository(fullDatabasePath),
-                    new ReconciledCurrentMedicationLedgerService(
-                        new CurrentMedicationLedgerService(
-                            medicationRepository),
-                        medicationRepository))
-                .GetAsync(details.PackageDetails.Package);
+        var claimIssueRepository =
+            new SqliteClaimIssueRepository(fullDatabasePath);
 
-        var medicationProgressions =
-            await new VeteransReviewerPackageMedicationProgressionService(
-                    new SqliteClaimIssueRepository(fullDatabasePath),
-                    new SqliteClaimRepository(fullDatabasePath),
-                    new SqliteServiceConnectionRepository(fullDatabasePath),
-                    medicationRepository)
-                .GetAsync(details.PackageDetails.Package);
+        var claimRepository =
+            new SqliteClaimRepository(fullDatabasePath);
 
-        var medicationClinicalContexts =
-            await new VeteransReviewerPackageMedicationClinicalContextService(
-                    new SqliteClaimIssueRepository(fullDatabasePath),
-                    new SqliteClaimRepository(fullDatabasePath),
-                    medicationRepository,
-                    evidenceRepository)
-                .GetAsync(
-                    details.PackageDetails.Package,
-                    medicationProgressions);
+        var serviceConnectionRepository =
+            new SqliteServiceConnectionRepository(fullDatabasePath);
 
         var sourceClarificationRepository =
             new SqliteSourceClarificationRepository(fullDatabasePath);
 
         await sourceClarificationRepository.InitializeAsync();
 
-        var sourceClarifications =
-            await new VeteransReviewerPackageSourceClarificationService(
-                    sourceClarificationRepository)
-                .GetAsync(details);
-
         var clinicalProgressionRepository =
             new SqliteClinicalProgressionRepository(fullDatabasePath);
 
         await clinicalProgressionRepository.InitializeAsync();
 
-        var clinicalProgressionEvents =
-            await new VeteransReviewerPackageClinicalProgressionService(
-                    clinicalProgressionRepository)
-                .GetAsync(details);
+        var assemblyService =
+            new VeteransReviewerPackageAssemblyService(
+                detailsService,
+                new VeteransReviewerPackageCurrentMedicationService(
+                    claimIssueRepository,
+                    claimRepository,
+                    new ReconciledCurrentMedicationLedgerService(
+                        new CurrentMedicationLedgerService(
+                            medicationRepository),
+                        medicationRepository)),
+                new VeteransReviewerPackageMedicationProgressionService(
+                    claimIssueRepository,
+                    claimRepository,
+                    serviceConnectionRepository,
+                    medicationRepository),
+                new VeteransReviewerPackageMedicationClinicalContextService(
+                    claimIssueRepository,
+                    claimRepository,
+                    medicationRepository,
+                    evidenceRepository),
+                new VeteransReviewerPackageSourceClarificationService(
+                    sourceClarificationRepository),
+                new VeteransReviewerPackageClinicalProgressionService(
+                    clinicalProgressionRepository),
+                new VeteransReviewerMedicalOpinionRequestService(
+                    serviceConnectionRepository,
+                    new SqliteConditionRepository(fullDatabasePath)));
 
-        var medicalOpinionRequested =
-            await new VeteransReviewerMedicalOpinionRequestService(
-                    new SqliteServiceConnectionRepository(fullDatabasePath),
-                    new SqliteConditionRepository(fullDatabasePath))
-                .GetAsync(details.PackageDetails.Package);
+        var details =
+            await assemblyService.AssembleAsync(evidencePackageId);
 
-        details =
-            new VeteransReviewerPackageDetails
-            {
-                PackageDetails = details.PackageDetails,
-                Artifacts = details.Artifacts,
-                ArtifactContents = details.ArtifactContents,
-                MedicationProgressions = medicationProgressions,
-                MedicationClinicalContexts = medicationClinicalContexts,
-                SourceClarifications = sourceClarifications,
-                ClinicalProgressionEvents = clinicalProgressionEvents,
-                CurrentMedications = currentMedications,
-                MedicalOpinionRequested = medicalOpinionRequested
-            };
+        if (details is null)
+            return 1;
 
         if (contentStore is null &&
             details.PackageDetails.Artifacts.Any(
