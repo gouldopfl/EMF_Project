@@ -567,8 +567,10 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
                 null,
                 Proxy<IMedicalLiteratureRepository>(
                     method =>
-                        method.Name ==
-                            "GetRequirementMedicalLiteratureAsync"
+                        (method.Name ==
+                             "GetRequirementMedicalLiteratureAsync" ||
+                         method.Name ==
+                             "GetActiveRequirementMedicalLiteratureAsync")
                             ? Task.FromResult<
                                 IReadOnlyList<
                                     RequirementMedicalLiterature>>(
