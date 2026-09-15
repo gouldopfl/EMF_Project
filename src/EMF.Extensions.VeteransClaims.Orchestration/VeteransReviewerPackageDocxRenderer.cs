@@ -85,6 +85,10 @@ public static class VeteransReviewerPackageDocxRenderer
                 body,
                 details);
 
+            AppendMedicationProgressions(
+                body,
+                details);
+
             AppendPrescribedMedications(
                 body,
                 details);
@@ -383,6 +387,14 @@ public static class VeteransReviewerPackageDocxRenderer
             "Issues Presented for Medical Review",
             "Defines the review purpose, reviewer role, evidence scope, and limitations.");
 
+        if (details.MedicationProgressions.Count > 0)
+        {
+            AppendPackageGuideEntry(
+                body,
+                "Relevant Medication Progression / History",
+                "Summarizes meaningful dose, direction, and prescription-status changes for medications relevant to the medical opinion request.");
+        }
+
         if (details.CurrentMedications.Count > 0)
         {
             AppendPackageGuideEntry(
@@ -515,6 +527,69 @@ public static class VeteransReviewerPackageDocxRenderer
                 "It does not make a medical, legal, or adjudicative conclusion."));
     }
 
+    private static void AppendMedicationProgressions(
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        var progressions =
+            details.MedicationProgressions
+                .OrderBy(
+                    item => item.MedicationName,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        if (progressions.Length == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                "Relevant Medication Progression / History",
+                "Heading1"));
+
+        body.Append(
+            ContentParagraph(
+                "This section highlights meaningful prescription changes for medications " +
+                "identified as relevant to the medical opinion request. It preserves the " +
+                "VA medication-ledger history and does not infer a clinical reason for a " +
+                "change unless that reason is separately documented in the medical record."));
+
+        foreach (var progression in progressions)
+        {
+            body.Append(
+                StyledParagraph(
+                    progression.MedicationName,
+                    "Heading2"));
+
+            foreach (var entry in progression.Entries)
+            {
+                var eventDate =
+                    entry.PrescribedDate ??
+                    entry.LastFilledDate;
+
+                var summary = new List<string>();
+
+                if (eventDate is not null)
+                    summary.Add(eventDate.Value.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture));
+
+                summary.Add(MedicationLedgerStatusDisplayName(entry.Status));
+
+                if (!string.IsNullOrWhiteSpace(entry.Strength))
+                    summary.Add(entry.Strength.Trim());
+
+                body.Append(
+                    ContentParagraph(
+                        string.Join(" — ", summary)));
+
+                if (!string.IsNullOrWhiteSpace(entry.Directions))
+                {
+                    body.Append(
+                        ContentParagraph(
+                            $"Directions: {entry.Directions.Trim()}"));
+                }
+            }
+        }
+    }
+
     private static void AppendPrescribedMedications(
         Body body,
         VeteransReviewerPackageDetails details)
@@ -578,6 +653,9 @@ public static class VeteransReviewerPackageDocxRenderer
         {
             "active" => "Active",
             "refillinprocess" => "Refill in process",
+            "transferred" => "Transferred",
+            "discontinued" => "Discontinued",
+            "expired" => "Expired",
             _ => status.Trim()
         };
 

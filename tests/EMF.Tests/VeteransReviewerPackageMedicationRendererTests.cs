@@ -57,8 +57,61 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
         Assert.Contains("Current status: Refill in process", text);
     }
 
+    [Fact]
+    public void Render_ShowsRelevantProgressionSeparatelyFromCurrentList()
+    {
+        var current =
+            new MedicationLedgerEntry
+            {
+                Id = new MedicationLedgerEntryId("entry-current"),
+                MedicationLedgerId = new MedicationLedgerId("ledger-1"),
+                EntryOrdinal = 3,
+                SourceStartPage = 3923,
+                SourceEndPage = 3923,
+                MedicationName = "isosorbide mononitrate (isosorbide mononitrate ER 30 mg/24 hour tablet)",
+                Strength = "30 mg/24 hour",
+                Status = "refillinprocess",
+                Directions = "TAKE ONE TABLET ORALLY EVERY DAY WITH BREAKFAST FOR PREVENTING CHEST PAIN"
+            };
+
+        var progression =
+            new VeteransReviewerMedicationProgression
+            {
+                MedicationName = "Isosorbide Mononitrate",
+                Entries =
+                [
+                    new MedicationLedgerEntry
+                    {
+                        Id = new MedicationLedgerEntryId("entry-history-1"),
+                        MedicationLedgerId = new MedicationLedgerId("ledger-1"),
+                        EntryOrdinal = 1,
+                        SourceStartPage = 3990,
+                        SourceEndPage = 3990,
+                        MedicationName = "ISOSORBIDE MONONITRATE 60MG SA TAB",
+                        Strength = "60MG",
+                        Status = "discontinued",
+                        PrescribedDate = new DateOnly(2025, 6, 2),
+                        Directions = "TAKE ONE TABLET ORALLY EVERY DAY"
+                    },
+                    current
+                ]
+            };
+
+        var text = RenderText(current, [progression]);
+
+        Assert.Contains("Relevant Medication Progression / History", text);
+        Assert.Contains("Isosorbide Mononitrate", text);
+        Assert.Contains("June 2, 2025 — Discontinued — 60MG", text);
+        Assert.Contains("Current Medication List", text);
+        Assert.Contains("Current status: Refill in process", text);
+        Assert.Contains(
+            "does not infer a clinical reason for a change unless that reason is separately documented",
+            text);
+    }
+
     private static string RenderText(
-        MedicationLedgerEntry medication)
+        MedicationLedgerEntry medication,
+        IReadOnlyList<VeteransReviewerMedicationProgression>? progressions = null)
     {
         var details = new VeteransReviewerPackageDetails
         {
@@ -74,6 +127,7 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
                 Artifacts = []
             },
             Artifacts = [],
+            MedicationProgressions = progressions ?? [],
             CurrentMedications = [medication]
         };
 

@@ -5425,12 +5425,23 @@ public static class VeteransConsoleCommand
         if (details is null)
             return 1;
 
+        var medicationRepository =
+            new SqliteMedicationRepository(fullDatabasePath);
+
         var currentMedications =
             await new VeteransReviewerPackageCurrentMedicationService(
                     new SqliteClaimIssueRepository(fullDatabasePath),
                     new SqliteClaimRepository(fullDatabasePath),
                     new CurrentMedicationLedgerService(
-                        new SqliteMedicationRepository(fullDatabasePath)))
+                        medicationRepository))
+                .GetAsync(details.PackageDetails.Package);
+
+        var medicationProgressions =
+            await new VeteransReviewerPackageMedicationProgressionService(
+                    new SqliteClaimIssueRepository(fullDatabasePath),
+                    new SqliteClaimRepository(fullDatabasePath),
+                    new SqliteServiceConnectionRepository(fullDatabasePath),
+                    medicationRepository)
                 .GetAsync(details.PackageDetails.Package);
 
         var medicalOpinionRequested =
@@ -5445,6 +5456,7 @@ public static class VeteransConsoleCommand
                 PackageDetails = details.PackageDetails,
                 Artifacts = details.Artifacts,
                 ArtifactContents = details.ArtifactContents,
+                MedicationProgressions = medicationProgressions,
                 CurrentMedications = currentMedications,
                 MedicalOpinionRequested = medicalOpinionRequested
             };
