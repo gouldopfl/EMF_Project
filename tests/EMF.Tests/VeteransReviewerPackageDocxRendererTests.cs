@@ -4,6 +4,7 @@ using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
+using EMF.Extensions.VeteransClaims.Models.Medications;
 using EMF.Extensions.VeteransClaims.Orchestration;
 
 namespace EMF.Tests;
@@ -902,17 +903,40 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "Exact accepted source excerpt.",
             text);
 
-        var paragraphs =
-            document.MainDocumentPart!
-                .Document!
-                .Body!
-                .Elements<
-                    DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
-                .Select(paragraph => paragraph.InnerText)
+        var body =
+            document.MainDocumentPart!.Document!.Body!;
+
+        var paragraphElements =
+            body.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                 .ToArray();
 
+        foreach (var headingText in new[]
+        {
+            "Key Evidence and Chronology",
+            "Medical / Scientific Literature Considered"
+        })
+        {
+            var headingIndex =
+                Array.FindIndex(
+                    paragraphElements,
+                    paragraph =>
+                        paragraph.InnerText == headingText &&
+                        paragraph.ParagraphProperties?
+                            .ParagraphStyleId?
+                            .Val?
+                            .Value == "Heading1");
+
+            Assert.True(headingIndex > 0);
+            Assert.NotNull(
+                paragraphElements[headingIndex - 1]
+                    .ParagraphProperties?
+                    .PageBreakBefore);
+        }
+
         var reviewerFacingParagraphs =
-            paragraphs;
+            paragraphElements
+                .Select(paragraph => paragraph.InnerText)
+                .ToArray();
 
         Assert.DoesNotContain(
             reviewerFacingParagraphs,
@@ -2233,15 +2257,31 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
 
-        var heading = document.MainDocumentPart!.Document!.Body!
-            .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
-            .Single(
-                x =>
-                    x.InnerText == "Additional Evidence" &&
-                    x.ParagraphProperties?.PageBreakBefore is not null);
+        var paragraphs =
+            document.MainDocumentPart!.Document!.Body!
+                .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .ToArray();
 
+        var headingIndex =
+            Array.FindIndex(
+                paragraphs,
+                paragraph =>
+                    paragraph.InnerText == "Additional Evidence" &&
+                    paragraph.ParagraphProperties?
+                        .ParagraphStyleId?
+                        .Val?
+                        .Value == "Heading1");
+
+        Assert.True(headingIndex > 0);
         Assert.NotNull(
-            heading.ParagraphProperties?.PageBreakBefore);
+            paragraphs[headingIndex - 1]
+                .ParagraphProperties?
+                .PageBreakBefore);
+
+        Assert.Null(
+            paragraphs[headingIndex]
+                .ParagraphProperties?
+                .PageBreakBefore);
     }
 
 }
@@ -2436,8 +2476,19 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                             .Val?
                             .Value == "Heading2"));
 
-        Assert.NotNull(appendixHeading.ParagraphProperties?.PageBreakBefore);
-        Assert.NotNull(evidenceHeading.ParagraphProperties?.PageBreakBefore);
+        var appendixHeadingIndex =
+            Array.IndexOf(
+                paragraphs,
+                appendixHeading);
+
+        Assert.True(appendixHeadingIndex > 0);
+        Assert.NotNull(
+            paragraphs[appendixHeadingIndex - 1]
+                .ParagraphProperties?
+                .PageBreakBefore);
+
+        Assert.Null(appendixHeading.ParagraphProperties?.PageBreakBefore);
+        Assert.Null(evidenceHeading.ParagraphProperties?.PageBreakBefore);
     }
 
     [Fact]
@@ -2526,6 +2577,10 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         Assert.True(secondHeadingIndex > 0);
         Assert.NotNull(
+            paragraphs[secondHeadingIndex - 1]
+                .ParagraphProperties?
+                .PageBreakBefore);
+        Assert.Null(
             paragraphs[secondHeadingIndex]
                 .ParagraphProperties?
                 .PageBreakBefore);
@@ -2709,21 +2764,13 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.True(firstPageIndex >= 0);
         Assert.True(secondPageIndex > firstPageIndex);
 
-        var interveningBreaks =
+        Assert.Contains(
             paragraphs
                 .Skip(firstPageIndex + 1)
-                .Take(secondPageIndex - firstPageIndex - 1)
-                .SelectMany(
-                    paragraph =>
-                        paragraph.Descendants<
-                            DocumentFormat.OpenXml.Wordprocessing.Break>())
-                .ToArray();
-
-        Assert.Contains(
-            interveningBreaks,
-            lineBreak =>
-                lineBreak.Type?.Value ==
-                    DocumentFormat.OpenXml.Wordprocessing.BreakValues.Page);
+                .Take(secondPageIndex - firstPageIndex - 1),
+            paragraph =>
+                paragraph.ParagraphProperties?
+                    .PageBreakBefore is not null);
     }
 }
 
@@ -3077,6 +3124,79 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     heading.Descendants<DocumentFormat.OpenXml.Wordprocessing.Bold>(),
                     bold => bold.Val?.Value != false);
             });
+    }
+
+    [Fact]
+    public void Render_DoesNotAdvertiseAbsentMedicalLiteratureSections()
+    {
+        var packageId =
+            new EvidencePackageId("package-no-literature");
+
+        var artifact =
+            new Artifact
+            {
+                Id = new ArtifactId("artifact-medical"),
+                Name = "medical-note",
+                ArtifactType = "medical-record"
+            };
+
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = packageId,
+                                ClaimIssueId = new ClaimIssueId("issue-no-literature"),
+                                Purpose = "Medical review",
+                                ReviewerRole = "MedicalProfessional"
+                            },
+                        Artifacts =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = packageId,
+                                ArtifactId = artifact.Id,
+                                ContentRole =
+                                    EvidencePackageContentRoles.UnderlyingEvidence
+                            }
+                        ]
+                    },
+                Artifacts = [artifact],
+                ArtifactContents =
+                [
+                    new VeteransReviewerArtifactContent
+                    {
+                        Artifact = artifact,
+                        Text = "Medical evidence.",
+                        Appendix =
+                            VeteransReviewerPackageAppendix.MedicalEvidence
+                    }
+                ]
+            };
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var text =
+            document.MainDocumentPart!.Document!.InnerText;
+
+        Assert.DoesNotContain(
+            "Medical / Scientific Literature Considered",
+            text);
+        Assert.DoesNotContain(
+            "Medical/scientific literature is reproduced in Appendix F.",
+            text);
+        Assert.DoesNotContain(
+            "Appendix F — Medical / Scientific Literature",
+            text);
     }
 
     [Fact]
@@ -3725,6 +3845,29 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                             }
                         ]
                     }
+                ],
+                MedicationProgressions =
+                [
+                    new VeteransReviewerMedicationProgression
+                    {
+                        MedicationName = "Bupropion HCl",
+                        Entries =
+                        [
+                            new MedicationLedgerEntry
+                            {
+                                Id = new MedicationLedgerEntryId("history-entry"),
+                                MedicationLedgerId = new MedicationLedgerId("ledger-history"),
+                                EntryOrdinal = 1,
+                                SourceStartPage = 1,
+                                SourceEndPage = 1,
+                                MedicationName = "BUPROPION HCL 150MG 24HR SA TAB",
+                                Strength = "150MG",
+                                Status = "discontinued",
+                                PrescribedDate = new DateOnly(2025, 9, 15),
+                                Directions = "TAKE THREE TABLETS ORALLY EVERY MORNING FOR MOOD"
+                            }
+                        ]
+                    }
                 ]
             };
 
@@ -3750,6 +3893,12 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             text);
         Assert.Contains(
             "Historical medication table omitted from this reviewer copy",
+            text);
+        Assert.DoesNotContain(
+            "See Current Medication Use — Reconciled",
+            text);
+        Assert.Contains(
+            "See Relevant Medication Progression / History.",
             text);
         Assert.DoesNotContain("GABAPENTIN 400MG CAP", text);
         Assert.DoesNotContain("Non-VA BUPROPION", text);
@@ -3914,7 +4063,24 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                                     .Val?
                                     .Value == "Heading2"));
 
+            var headingIndex =
+                Array.IndexOf(
+                    body.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                        .ToArray(),
+                    heading);
+
+            Assert.True(headingIndex > 0);
+
+            var paragraphs =
+                body.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                    .ToArray();
+
             Assert.NotNull(
+                paragraphs[headingIndex - 1]
+                    .ParagraphProperties?
+                    .PageBreakBefore);
+
+            Assert.Null(
                 heading.ParagraphProperties?.PageBreakBefore);
         }
 
@@ -3969,10 +4135,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             elements.Skip(titleIndex + 1).Take(executiveSummaryIndex - titleIndex - 1),
             element =>
                 element
-                    .Descendants<DocumentFormat.OpenXml.Wordprocessing.Break>()
-                    .Any(
-                        pageBreak =>
-                            pageBreak.Type?.Value ==
-                                DocumentFormat.OpenXml.Wordprocessing.BreakValues.Page));
+                    .Descendants<
+                        DocumentFormat.OpenXml.Wordprocessing.PageBreakBefore>()
+                    .Any());
     }
 }

@@ -15,6 +15,19 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 
 public static class VeteransReviewerPackageDocxRenderer
 {
+    private const string CurrentMedicationSectionTitle =
+        "Current Medication Use — Reconciled";
+
+    private const string MedicationProgressionSectionTitle =
+        "Relevant Medication Progression / History";
+
+    private const string MedicalLiteratureSectionTitle =
+        "Medical / Scientific Literature Considered";
+
+    private sealed record PackageGuideSection(
+        string Title,
+        string Description);
+
     public static byte[] Render(
         VeteransReviewerPackageDetails details)
     {
@@ -427,13 +440,23 @@ public static class VeteransReviewerPackageDocxRenderer
                 "How to Use This Package",
                 "Heading2"));
 
+        var howToUse =
+            "Review the Issues Presented for Medical Review and Questions for the " +
+            "Reviewing Physician first. Use the Key Evidence and Chronology for " +
+            "orientation to the principal medical evidence, then use the " +
+            "appendices to review the underlying source material.";
+
+        if (HasPackageGuideSection(
+                details,
+                MedicalLiteratureSectionTitle))
+        {
+            howToUse +=
+                " Medical/scientific literature is reproduced in Appendix F.";
+        }
+
         body.Append(
             ContentParagraph(
-                "Review the Issues Presented for Medical Review and Questions for the " +
-                "Reviewing Physician first. Use the Key Evidence and Chronology for " +
-                "orientation to the principal medical evidence, then use the " +
-                "appendices to review the underlying source material. " +
-                "Medical/scientific literature is reproduced in Appendix F."));
+                howToUse));
 
         body.Append(
             StyledParagraph(
@@ -461,67 +484,84 @@ public static class VeteransReviewerPackageDocxRenderer
                 "Package Guide",
                 "Heading1"));
 
-        AppendPackageGuideEntry(
-            body,
-            "Issues Presented for Medical Review",
-            "Defines the review purpose, reviewer role, evidence scope, and limitations.");
-
-        if (HasPapAdherenceSummary(details))
+        foreach (var section in GetPackageGuideSections(details))
         {
             AppendPackageGuideEntry(
                 body,
-                "PAP Adherence / Compliance Summary",
-                "Provides an up-front, source-grounded view of sustained PAP use so later residual-AHI and mask/leak findings are interpreted in adherence context.");
+                section.Title,
+                section.Description);
+        }
+    }
+
+    private static IReadOnlyList<PackageGuideSection> GetPackageGuideSections(
+        VeteransReviewerPackageDetails details)
+    {
+        var sections =
+            new List<PackageGuideSection>
+            {
+                new(
+                    "Issues Presented for Medical Review",
+                    "Defines the review purpose, reviewer role, evidence scope, and limitations.")
+            };
+
+        if (HasPapAdherenceSummary(details))
+        {
+            sections.Add(
+                new PackageGuideSection(
+                    "PAP Adherence / Compliance Summary",
+                    "Provides an up-front, source-grounded view of sustained PAP use so later residual-AHI and mask/leak findings are interpreted in adherence context."));
         }
 
         if (GetPapTitrationFindings(details).Count > 0)
         {
-            AppendPackageGuideEntry(
-                body,
-                "Sleep Study / PAP Titration Results",
-                "Summarizes PAP titration findings documented in provider notes and relates them to subsequent treatment decisions without implying that an unavailable primary study report is present.");
+            sections.Add(
+                new PackageGuideSection(
+                    "Sleep Study / PAP Titration Results",
+                    "Summarizes PAP titration findings documented in provider notes and relates them to subsequent treatment decisions without implying that an unavailable primary study report is present."));
         }
 
         if (details.ClinicalProgressionEvents.Any(
                 item => !IsPapTitrationFinding(item)))
         {
-            AppendPackageGuideEntry(
-                body,
-                "Clinical Progression",
-                "Summarizes source-grounded treatment use, problems, adjustments, transitions, findings, and responses relevant to the medical review.");
+            sections.Add(
+                new PackageGuideSection(
+                    "Clinical Progression",
+                    "Summarizes source-grounded treatment use, problems, adjustments, transitions, findings, and responses relevant to the medical review."));
         }
 
         if (details.CurrentMedications.Count > 0)
         {
-            AppendPackageGuideEntry(
-                body,
-                "Current Medication Use — Reconciled",
-                "Lists only medications explicitly confirmed as currently used through medication reconciliation; VA prescription status alone is not treated as verified current use.");
+            sections.Add(
+                new PackageGuideSection(
+                    CurrentMedicationSectionTitle,
+                    "Lists only medications explicitly confirmed as currently used through medication reconciliation; VA prescription status alone is not treated as verified current use."));
         }
 
         if (details.MedicationProgressions.Count > 0)
         {
-            AppendPackageGuideEntry(
-                body,
-                "Relevant Medication Progression / History",
-                "Summarizes meaningful dose, direction, and prescription-status changes for medications relevant to the medical opinion request.");
+            sections.Add(
+                new PackageGuideSection(
+                    MedicationProgressionSectionTitle,
+                    "Summarizes meaningful dose, direction, and prescription-status changes for medications relevant to the medical opinion request."));
         }
 
-        AppendPackageGuideEntry(
-            body,
-            "Key Evidence and Chronology",
-            "Provides chronological orientation to the principal medical evidence.");
+        sections.Add(
+            new PackageGuideSection(
+                "Key Evidence and Chronology",
+                "Provides chronological orientation to the principal medical evidence."));
 
-        AppendPackageGuideEntry(
-            body,
-            "Medical / Scientific Literature Considered",
-            "Identifies literature supplied for consideration during the medical review.");
+        if (HasMedicalLiterature(details))
+        {
+            sections.Add(
+                new PackageGuideSection(
+                    MedicalLiteratureSectionTitle,
+                    "Identifies literature supplied for consideration during the medical review."));
+        }
 
-        AppendPackageGuideEntry(
-            body,
-            "Questions for the Reviewing Physician",
-            "Lists the medical questions the reviewing physician is asked to address.");
-
+        sections.Add(
+            new PackageGuideSection(
+                "Questions for the Reviewing Physician",
+                "Lists the medical questions the reviewing physician is asked to address."));
 
         var appendices =
             GetRoleContents(
@@ -535,15 +575,67 @@ public static class VeteransReviewerPackageDocxRenderer
 
         foreach (var appendix in appendices)
         {
-            var description = AppendixDescription(appendix);
-
-            AppendPackageGuideEntry(
-                body,
-                AppendixHeading(appendix),
-                description);
+            sections.Add(
+                new PackageGuideSection(
+                    AppendixHeading(appendix),
+                    AppendixDescription(appendix)));
         }
 
+        return sections;
+    }
 
+    private static bool HasPackageGuideSection(
+        VeteransReviewerPackageDetails details,
+        string title) =>
+        GetPackageGuideSections(details)
+            .Any(
+                section =>
+                    string.Equals(
+                        section.Title,
+                        title,
+                        StringComparison.Ordinal));
+
+    private static bool HasMedicalLiterature(
+        VeteransReviewerPackageDetails details) =>
+        GetRoleContents(
+                details,
+                EvidencePackageContentRoles.UnderlyingEvidence)
+            .Any(
+                content =>
+                    string.Equals(
+                        content.Appendix,
+                        VeteransReviewerPackageAppendix.MedicalLiterature,
+                        StringComparison.Ordinal));
+
+    private static string BuildHistoricalMedicationOmissionMessage(
+        VeteransReviewerPackageDetails details)
+    {
+        var availableSections =
+            GetPackageGuideSections(details)
+                .Select(section => section.Title)
+                .ToHashSet(StringComparer.Ordinal);
+
+        var references =
+            new[]
+            {
+                CurrentMedicationSectionTitle,
+                MedicationProgressionSectionTitle
+            }
+            .Where(availableSections.Contains)
+            .ToArray();
+
+        var message =
+            "Historical medication table omitted from this reviewer copy because " +
+            "it reflects a point-in-time source-record list rather than verified " +
+            "current medication use. The original source remains preserved.";
+
+        return references.Length switch
+        {
+            0 => message,
+            1 => $"{message} See {references[0]}.",
+            _ =>
+                $"{message} See {string.Join(" and ", references)}."
+        };
     }
 
     private static void AppendPackageGuideEntry(
@@ -632,11 +724,12 @@ public static class VeteransReviewerPackageDocxRenderer
             return;
         }
 
+        body.Append(PageBreakParagraph());
+
         body.Append(
             StyledParagraph(
                 "PAP Adherence / Compliance Summary",
-                "Heading1",
-                pageBreakBefore: true));
+                "Heading1"));
 
         body.Append(
             ContentParagraph(
@@ -1001,7 +1094,7 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             StyledParagraph(
-                "Relevant Medication Progression / History",
+                MedicationProgressionSectionTitle,
                 "Heading1"));
 
         body.Append(
@@ -1089,7 +1182,7 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             StyledParagraph(
-                "Current Medication Use — Reconciled",
+                CurrentMedicationSectionTitle,
                 "Heading1"));
 
         body.Append(
@@ -1164,6 +1257,8 @@ public static class VeteransReviewerPackageDocxRenderer
 
         if (contents.Length == 0)
             return;
+
+        body.Append(PageBreakParagraph());
 
         body.Append(
             StyledParagraph(
@@ -1263,9 +1358,11 @@ public static class VeteransReviewerPackageDocxRenderer
         if (contents.Length == 0)
             return;
 
+        body.Append(PageBreakParagraph());
+
         body.Append(
             StyledParagraph(
-                "Medical / Scientific Literature Considered",
+                MedicalLiteratureSectionTitle,
                 "Heading1"));
 
         body.Append(
@@ -1399,15 +1496,18 @@ public static class VeteransReviewerPackageDocxRenderer
                 .GroupBy(content => content.Appendix!)
                 .OrderBy(group => AppendixOrder(group.Key)))
         {
+            body.Append(PageBreakParagraph());
+
             body.Append(
                 StyledParagraph(
                     AppendixHeading(group.Key),
-                    "Heading1",
-                    pageBreakBefore: true));
+                    "Heading1"));
 
             body.Append(
                 ContentParagraph(
                     AppendixDescription(group.Key)));
+
+            var firstArtifact = true;
 
             foreach (var content in
                 group
@@ -1421,12 +1521,16 @@ public static class VeteransReviewerPackageDocxRenderer
                         content => GetDisplayName(content),
                         StringComparer.OrdinalIgnoreCase))
             {
+                if (!firstArtifact)
+                    body.Append(PageBreakParagraph());
+
                 AppendSourceContent(
                     mainPart,
                     body,
                     details,
-                    content,
-                    pageBreakBefore: true);
+                    content);
+
+                firstArtifact = false;
             }
         }
 
@@ -1447,22 +1551,25 @@ public static class VeteransReviewerPackageDocxRenderer
         if (additionalEvidence.Length == 0)
             return;
 
+        body.Append(PageBreakParagraph());
+
         body.Append(
             StyledParagraph(
                 "Additional Evidence",
-                "Heading1",
-                pageBreakBefore: true));
+                "Heading1"));
 
         var firstAdditionalArtifact = true;
 
         foreach (var content in additionalEvidence)
         {
+            if (!firstAdditionalArtifact)
+                body.Append(PageBreakParagraph());
+
             AppendSourceContent(
                 mainPart,
                 body,
                 details,
-                content,
-                pageBreakBefore: !firstAdditionalArtifact);
+                content);
 
             firstAdditionalArtifact = false;
         }
@@ -1472,8 +1579,7 @@ public static class VeteransReviewerPackageDocxRenderer
         MainDocumentPart mainPart,
         Body body,
         VeteransReviewerPackageDetails details,
-        VeteransReviewerArtifactContent content,
-        bool pageBreakBefore = false)
+        VeteransReviewerArtifactContent content)
     {
         var displayName =
             GetDisplayName(content);
@@ -1481,8 +1587,7 @@ public static class VeteransReviewerPackageDocxRenderer
         body.Append(
             StyledParagraph(
                 displayName,
-                "Heading2",
-                pageBreakBefore: pageBreakBefore));
+                "Heading2"));
 
         var sourceReference =
             BuildSourceReference(content);
@@ -1532,6 +1637,14 @@ public static class VeteransReviewerPackageDocxRenderer
             body,
             clarifications);
 
+        var historicalMedicationTitle =
+            BuildHistoricalMedicationTitle(content);
+
+        var historicalMedicationOmissionMessage =
+            historicalMedicationTitle is null
+                ? null
+                : BuildHistoricalMedicationOmissionMessage(details);
+
         if (content.PrintablePages.Count > 0)
         {
             AppendPrintablePages(
@@ -1548,7 +1661,9 @@ public static class VeteransReviewerPackageDocxRenderer
                         VeteransReviewerPackageAppendix.MedicalLiterature,
                         StringComparison.Ordinal),
                 historicalMedicationTitle:
-                    BuildHistoricalMedicationTitle(content));
+                    historicalMedicationTitle,
+                historicalMedicationOmissionMessage:
+                    historicalMedicationOmissionMessage);
             return;
         }
 
@@ -1572,7 +1687,8 @@ public static class VeteransReviewerPackageDocxRenderer
                     ApplyReviewerSourceCorrections(
                         content.Text,
                         clarifications),
-                    BuildHistoricalMedicationTitle(content));
+                    historicalMedicationTitle,
+                    historicalMedicationOmissionMessage);
             }
         }
     }
@@ -2237,8 +2353,7 @@ public static class VeteransReviewerPackageDocxRenderer
 
     private static Paragraph StyledParagraph(
         string text,
-        string styleId,
-        bool pageBreakBefore = false)
+        string styleId)
     {
         var properties =
             new ParagraphProperties(
@@ -2247,35 +2362,47 @@ public static class VeteransReviewerPackageDocxRenderer
                     Val = styleId
                 });
 
-        if (pageBreakBefore)
-            properties.Append(new PageBreakBefore());
-
-        if (string.Equals(
+        var isTitle =
+            string.Equals(
                 styleId,
                 "Title",
-                StringComparison.Ordinal))
-        {
-            properties.Append(
-                new Justification
-                {
-                    Val = JustificationValues.Center
-                });
+                StringComparison.Ordinal);
+        var isHeading1 =
+            string.Equals(
+                styleId,
+                "Heading1",
+                StringComparison.Ordinal);
+        var isHeading2 =
+            string.Equals(
+                styleId,
+                "Heading2",
+                StringComparison.Ordinal);
+        var isSubtitle =
+            string.Equals(
+                styleId,
+                "Subtitle",
+                StringComparison.Ordinal);
 
+        if (isHeading1 || isHeading2)
+            properties.Append(new KeepNext());
+
+        if (isTitle)
+        {
             properties.Append(
                 new SpacingBetweenLines
                 {
                     Before = "720",
                     After = "360"
                 });
-        }
-        else if (string.Equals(
-                     styleId,
-                     "Heading1",
-                     StringComparison.Ordinal))
-        {
-            properties.Append(
-                new KeepNext());
 
+            properties.Append(
+                new Justification
+                {
+                    Val = JustificationValues.Center
+                });
+        }
+        else if (isHeading1)
+        {
             properties.Append(
                 new SpacingBetweenLines
                 {
@@ -2283,14 +2410,8 @@ public static class VeteransReviewerPackageDocxRenderer
                     After = "120"
                 });
         }
-        else if (string.Equals(
-                     styleId,
-                     "Heading2",
-                     StringComparison.Ordinal))
+        else if (isHeading2)
         {
-            properties.Append(
-                new KeepNext());
-
             properties.Append(
                 new SpacingBetweenLines
                 {
@@ -2298,21 +2419,18 @@ public static class VeteransReviewerPackageDocxRenderer
                     After = "60"
                 });
         }
-        else if (string.Equals(
-                     styleId,
-                     "Subtitle",
-                     StringComparison.Ordinal))
+        else if (isSubtitle)
         {
-            properties.Append(
-                new Justification
-                {
-                    Val = JustificationValues.Center
-                });
-
             properties.Append(
                 new SpacingBetweenLines
                 {
                     After = "60"
+                });
+
+            properties.Append(
+                new Justification
+                {
+                    Val = JustificationValues.Center
                 });
         }
 
@@ -2378,11 +2496,8 @@ public static class VeteransReviewerPackageDocxRenderer
 
     private static Paragraph PageBreakParagraph() =>
         new(
-            new Run(
-                new Break
-                {
-                    Type = BreakValues.Page
-                }));
+            new ParagraphProperties(
+                new PageBreakBefore()));
 
     private static void AppendMetadata(
         Body body,
@@ -2441,7 +2556,8 @@ public static class VeteransReviewerPackageDocxRenderer
     private static void AppendReviewerText(
         Body body,
         string text,
-        string? historicalMedicationTitle = null)
+        string? historicalMedicationTitle = null,
+        string? historicalMedicationOmissionMessage = null)
     {
         var historicalMedicationTitleRendered = false;
         var suppressHistoricalMedicationSection = false;
@@ -2469,10 +2585,10 @@ public static class VeteransReviewerPackageDocxRenderer
 
                 body.Append(
                     ContentParagraph(
+                        historicalMedicationOmissionMessage ??
                         "Historical medication table omitted from this reviewer copy because " +
                         "it reflects a point-in-time source-record list rather than verified " +
-                        "current medication use. The original source remains preserved. See " +
-                        "Current Medication Use — Reconciled and Relevant Medication Progression / History."));
+                        "current medication use. The original source remains preserved."));
 
                 historicalMedicationTitleRendered = true;
                 suppressHistoricalMedicationSection = true;
@@ -2915,7 +3031,8 @@ public static class VeteransReviewerPackageDocxRenderer
         IReadOnlyList<VeteransReviewerSourceClarification> clarifications,
         bool reviewerPageSelectionApplied,
         bool medicalLiterature,
-        string? historicalMedicationTitle)
+        string? historicalMedicationTitle,
+        string? historicalMedicationOmissionMessage)
     {
         var previousPageNumber = 0;
         var renderedPageCount = 0;
@@ -2985,7 +3102,8 @@ public static class VeteransReviewerPackageDocxRenderer
                     AppendReviewerText(
                         body,
                         reviewerText,
-                        historicalMedicationTitle);
+                        historicalMedicationTitle,
+                        historicalMedicationOmissionMessage);
                 }
 
                 previousPageNumber = page.PageNumber;

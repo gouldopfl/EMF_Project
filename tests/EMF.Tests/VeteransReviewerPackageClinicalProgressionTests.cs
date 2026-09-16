@@ -321,20 +321,30 @@ Raw OSCAR session records are intentionally omitted from this physician report.
         Assert.True(titrationIndex > adherenceIndex);
         Assert.True(progressionIndex > titrationIndex);
 
-        var adherenceHeading =
-            Assert.Single(
-                body.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
-                    .Where(
-                        paragraph =>
-                            paragraph.InnerText ==
-                                "PAP Adherence / Compliance Summary" &&
-                            paragraph.ParagraphProperties?
-                                .ParagraphStyleId?
-                                .Val?
-                                .Value == "Heading1"));
+        var paragraphs =
+            body.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .ToArray();
 
+        var adherenceHeadingIndex =
+            Array.FindIndex(
+                paragraphs,
+                paragraph =>
+                    paragraph.InnerText ==
+                        "PAP Adherence / Compliance Summary" &&
+                    paragraph.ParagraphProperties?
+                        .ParagraphStyleId?
+                        .Val?
+                        .Value == "Heading1");
+
+        Assert.True(adherenceHeadingIndex > 0);
         Assert.NotNull(
-            adherenceHeading.ParagraphProperties?.PageBreakBefore);
+            paragraphs[adherenceHeadingIndex - 1]
+                .ParagraphProperties?
+                .PageBreakBefore);
+        Assert.Null(
+            paragraphs[adherenceHeadingIndex]
+                .ParagraphProperties?
+                .PageBreakBefore);
     }
 
     private static ClinicalProgressionEvent Event(
