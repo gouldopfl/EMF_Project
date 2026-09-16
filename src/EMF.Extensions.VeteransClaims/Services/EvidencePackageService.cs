@@ -85,6 +85,15 @@ public sealed class EvidencePackageService :
                 "both underlying evidence and generated organizational material.");
         }
 
+        var reviewerPageSelections =
+            await GetReviewerPageSelectionsAsync(
+                claimIssueId,
+                purpose,
+                reviewerRole,
+                serviceConnectionBasisId,
+                underlyingEvidenceArtifactIds,
+                cancellationToken);
+
         var package =
             new EvidencePackage
             {
@@ -108,7 +117,13 @@ public sealed class EvidencePackageService :
                             ArtifactId = artifactId,
                             ContentRole =
                                 EvidencePackageContentRoles
-                                    .UnderlyingEvidence
+                                    .UnderlyingEvidence,
+                            ReviewerPageSelection =
+                                reviewerPageSelections.TryGetValue(
+                                    artifactId,
+                                    out var reviewerPageSelection)
+                                    ? reviewerPageSelection
+                                    : null
                         })
                 .Concat(
                     generatedOrganizationalMaterialArtifactIds
@@ -131,6 +146,94 @@ public sealed class EvidencePackageService :
             cancellationToken);
 
         return package;
+    }
+
+    private async Task<IReadOnlyDictionary<ArtifactId, string?>>
+        GetReviewerPageSelectionsAsync(
+            ClaimIssueId claimIssueId,
+            string purpose,
+            string reviewerRole,
+            ServiceConnectionBasisId? serviceConnectionBasisId,
+            IReadOnlyCollection<ArtifactId> underlyingEvidenceArtifactIds,
+            CancellationToken cancellationToken)
+    {
+        var remainingArtifactIds =
+            underlyingEvidenceArtifactIds
+                .Distinct()
+                .ToHashSet();
+
+        var selections =
+            new Dictionary<ArtifactId, string?>();
+
+        if (remainingArtifactIds.Count == 0)
+            return selections;
+
+        var existingPackages =
+            await _repository.GetEvidencePackagesAsync(
+                claimIssueId,
+                cancellationToken);
+
+        foreach (var existingPackage in existingPackages)
+        {
+            if (existingPackage.ClaimIssueId != claimIssueId)
+            {
+                throw new InvalidOperationException(
+                    $"Claim issue lookup for '{claimIssueId.Value}' returned " +
+                    $"evidence package '{existingPackage.Id.Value}' for claim issue " +
+                    $"'{existingPackage.ClaimIssueId.Value}'.");
+            }
+        }
+
+        var applicablePackages =
+            existingPackages
+                .Where(
+                    existingPackage =>
+                        string.Equals(
+                            existingPackage.Purpose,
+                            purpose,
+                            StringComparison.Ordinal) &&
+                        string.Equals(
+                            existingPackage.ReviewerRole,
+                            reviewerRole,
+                            StringComparison.Ordinal) &&
+                        existingPackage.ServiceConnectionBasisId ==
+                            serviceConnectionBasisId)
+                .ToArray();
+
+        for (var index = applicablePackages.Length - 1;
+             index >= 0 && remainingArtifactIds.Count != 0;
+             index--)
+        {
+            var existingPackage =
+                applicablePackages[index];
+
+            var existingArtifacts =
+                await _repository.GetEvidencePackageArtifactsAsync(
+                    existingPackage.Id,
+                    cancellationToken);
+
+            ValidateArtifacts(
+                existingPackage.Id,
+                existingArtifacts);
+
+            foreach (var existingArtifact in existingArtifacts)
+            {
+                if (!string.Equals(
+                        existingArtifact.ContentRole,
+                        EvidencePackageContentRoles.UnderlyingEvidence,
+                        StringComparison.Ordinal) ||
+                    !remainingArtifactIds.Remove(
+                        existingArtifact.ArtifactId))
+                {
+                    continue;
+                }
+
+                selections[existingArtifact.ArtifactId] =
+                    existingArtifact.ReviewerPageSelection;
+            }
+        }
+
+        return selections;
     }
 
     public async Task<EvidencePackageArtifact> AddArtifactAsync(

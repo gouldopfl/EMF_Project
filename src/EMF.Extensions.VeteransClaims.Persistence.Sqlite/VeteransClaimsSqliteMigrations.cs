@@ -2580,6 +2580,20 @@ internal static class VeteransClaimsSqliteMigrations
 
                 ALTER TABLE VeteransClaims_SourceClarifications
                 ADD COLUMN ReviewerReplacementText TEXT NULL;
+                """),
+            new VeteransClaimsSqliteMigration(
+                85,
+                "AddEvidencePackageCreationOrdinal",
+                """
+                ALTER TABLE VeteransClaims_EvidencePackages
+                ADD COLUMN CreationOrdinal INTEGER NOT NULL DEFAULT 0;
+
+                UPDATE VeteransClaims_EvidencePackages
+                SET CreationOrdinal = rowid;
+
+                CREATE UNIQUE INDEX
+                    UX_VeteransClaims_EvidencePackages_CreationOrdinal
+                ON VeteransClaims_EvidencePackages (CreationOrdinal);
                 """)
         };
 }

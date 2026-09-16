@@ -99,14 +99,20 @@ public sealed class SqliteEvidencePackageRepository :
                 ClaimIssueId,
                 Purpose,
                 ReviewerRole,
-                ServiceConnectionBasisId
+                ServiceConnectionBasisId,
+                CreationOrdinal
             )
             VALUES (
                 $id,
                 $claimIssueId,
                 $purpose,
                 $reviewerRole,
-                $serviceConnectionBasisId
+                $serviceConnectionBasisId,
+                (
+                    SELECT
+                        COALESCE(MAX(CreationOrdinal), 0) + 1
+                    FROM VeteransClaims_EvidencePackages
+                )
             );
             """;
 
@@ -359,7 +365,7 @@ public sealed class SqliteEvidencePackageRepository :
                 ServiceConnectionBasisId
             FROM VeteransClaims_EvidencePackages
             WHERE ClaimIssueId = $claimIssueId
-            ORDER BY Id;
+            ORDER BY CreationOrdinal, Id;
             """;
 
         command.Parameters.AddWithValue(

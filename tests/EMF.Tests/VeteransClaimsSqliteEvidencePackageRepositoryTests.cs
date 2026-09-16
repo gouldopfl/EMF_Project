@@ -280,3 +280,95 @@ public sealed partial class VeteransClaimsSqliteEvidencePackageRepositoryTests
         }
     }
 }
+
+public sealed partial class VeteransClaimsSqliteEvidencePackageRepositoryTests
+{
+    [Fact]
+    public async Task Repository_ListsEvidencePackagesInCreationOrder()
+    {
+        var databasePath = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran =
+                new Veteran
+                {
+                    Id = new VeteranId("veteran-order")
+                };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim =
+                new Claim
+                {
+                    Id = new ClaimId("claim-order"),
+                    VeteranId = veteran.Id
+                };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var claimIssue =
+                new ClaimIssue
+                {
+                    Id = new ClaimIssueId("claim-issue-order"),
+                    ClaimId = claim.Id,
+                    ClaimIssueType =
+                        ClaimIssueTypes.ServiceConnection
+                };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(claimIssue);
+
+            IEvidencePackageRepository repository =
+                new SqliteEvidencePackageRepository(
+                    databasePath);
+
+            var olderPackage =
+                new EvidencePackage
+                {
+                    Id = new EvidencePackageId("package-z-older"),
+                    ClaimIssueId = claimIssue.Id,
+                    Purpose = "Medical review",
+                    ReviewerRole = "MedicalProfessional"
+                };
+
+            var newerPackage =
+                new EvidencePackage
+                {
+                    Id = new EvidencePackageId("package-a-newer"),
+                    ClaimIssueId = claimIssue.Id,
+                    Purpose = "Medical review",
+                    ReviewerRole = "MedicalProfessional"
+                };
+
+            await repository.AddEvidencePackageAsync(
+                olderPackage);
+
+            await repository.AddEvidencePackageAsync(
+                newerPackage);
+
+            var packages =
+                await repository.GetEvidencePackagesAsync(
+                    claimIssue.Id);
+
+            Assert.Equal(
+                new[]
+                {
+                    olderPackage.Id,
+                    newerPackage.Id
+                },
+                packages
+                    .Select(package => package.Id)
+                    .ToArray());
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+}

@@ -96,6 +96,272 @@ public sealed partial class EvidencePackageServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_InheritsLatestApplicableReviewerPageSelection()
+    {
+        var claimIssueId =
+            new ClaimIssueId("issue-reviewer-pages");
+
+        var basisId =
+            new ServiceConnectionBasisId("basis-reviewer-pages");
+
+        var artifactId =
+            new ArtifactId("artifact-claim-letter");
+
+        var olderPackage =
+            new EvidencePackage
+            {
+                Id = new EvidencePackageId("package-older"),
+                ClaimIssueId = claimIssueId,
+                Purpose = "Physician reviewer package",
+                ReviewerRole = "MedicalProfessional",
+                ServiceConnectionBasisId = basisId
+            };
+
+        var newerPackage =
+            new EvidencePackage
+            {
+                Id = new EvidencePackageId("package-newer"),
+                ClaimIssueId = claimIssueId,
+                Purpose = "Physician reviewer package",
+                ReviewerRole = "MedicalProfessional",
+                ServiceConnectionBasisId = basisId
+            };
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingPackages =
+                [
+                    olderPackage,
+                    newerPackage
+                ],
+                ExistingArtifactsByPackageId =
+                    new Dictionary<
+                        EvidencePackageId,
+                        IReadOnlyList<EvidencePackageArtifact>>
+                    {
+                        [olderPackage.Id] =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = olderPackage.Id,
+                                ArtifactId = artifactId,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence,
+                                ReviewerPageSelection = "11,13-17"
+                            }
+                        ],
+                        [newerPackage.Id] =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = newerPackage.Id,
+                                ArtifactId = artifactId,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence,
+                                ReviewerPageSelection = "13-17"
+                            }
+                        ]
+                    }
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        await service.CreateAsync(
+            claimIssueId,
+            "Physician reviewer package",
+            "MedicalProfessional",
+            [artifactId],
+            [],
+            basisId);
+
+        var artifact =
+            Assert.Single(repository.InitialArtifacts);
+
+        Assert.Equal(
+            artifactId,
+            artifact.ArtifactId);
+
+        Assert.Equal(
+            "13-17",
+            artifact.ReviewerPageSelection);
+
+        Assert.Equal(
+            1,
+            repository.ArtifactQueryCount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_PreservesLatestClearedReviewerPageSelection()
+    {
+        var claimIssueId =
+            new ClaimIssueId("issue-cleared-pages");
+
+        var basisId =
+            new ServiceConnectionBasisId("basis-cleared-pages");
+
+        var artifactId =
+            new ArtifactId("artifact-claim-letter");
+
+        var olderPackage =
+            new EvidencePackage
+            {
+                Id = new EvidencePackageId("package-old-selection"),
+                ClaimIssueId = claimIssueId,
+                Purpose = "Physician reviewer package",
+                ReviewerRole = "MedicalProfessional",
+                ServiceConnectionBasisId = basisId
+            };
+
+        var newerPackage =
+            new EvidencePackage
+            {
+                Id = new EvidencePackageId("package-cleared-selection"),
+                ClaimIssueId = claimIssueId,
+                Purpose = "Physician reviewer package",
+                ReviewerRole = "MedicalProfessional",
+                ServiceConnectionBasisId = basisId
+            };
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingPackages =
+                [
+                    olderPackage,
+                    newerPackage
+                ],
+                ExistingArtifactsByPackageId =
+                    new Dictionary<
+                        EvidencePackageId,
+                        IReadOnlyList<EvidencePackageArtifact>>
+                    {
+                        [olderPackage.Id] =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = olderPackage.Id,
+                                ArtifactId = artifactId,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence,
+                                ReviewerPageSelection = "13-17"
+                            }
+                        ],
+                        [newerPackage.Id] =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = newerPackage.Id,
+                                ArtifactId = artifactId,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence,
+                                ReviewerPageSelection = null
+                            }
+                        ]
+                    }
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        await service.CreateAsync(
+            claimIssueId,
+            "Physician reviewer package",
+            "MedicalProfessional",
+            [artifactId],
+            [],
+            basisId);
+
+        var artifact =
+            Assert.Single(repository.InitialArtifacts);
+
+        Assert.Null(
+            artifact.ReviewerPageSelection);
+
+        Assert.Equal(
+            1,
+            repository.ArtifactQueryCount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_DoesNotInheritReviewerPageSelectionAcrossPackageScope()
+    {
+        var claimIssueId =
+            new ClaimIssueId("issue-scoped-pages");
+
+        var basisId =
+            new ServiceConnectionBasisId("basis-current");
+
+        var artifactId =
+            new ArtifactId("artifact-claim-letter");
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingPackages =
+                [
+                    new EvidencePackage
+                    {
+                        Id = new EvidencePackageId("package-other-purpose"),
+                        ClaimIssueId = claimIssueId,
+                        Purpose = "Other purpose",
+                        ReviewerRole = "MedicalProfessional",
+                        ServiceConnectionBasisId = basisId
+                    },
+                    new EvidencePackage
+                    {
+                        Id = new EvidencePackageId("package-other-role"),
+                        ClaimIssueId = claimIssueId,
+                        Purpose = "Physician reviewer package",
+                        ReviewerRole = "OtherReviewer",
+                        ServiceConnectionBasisId = basisId
+                    },
+                    new EvidencePackage
+                    {
+                        Id = new EvidencePackageId("package-other-basis"),
+                        ClaimIssueId = claimIssueId,
+                        Purpose = "Physician reviewer package",
+                        ReviewerRole = "MedicalProfessional",
+                        ServiceConnectionBasisId =
+                            new ServiceConnectionBasisId("basis-other")
+                    }
+                ]
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        await service.CreateAsync(
+            claimIssueId,
+            "Physician reviewer package",
+            "MedicalProfessional",
+            [artifactId],
+            [],
+            basisId);
+
+        var artifact =
+            Assert.Single(repository.InitialArtifacts);
+
+        Assert.Null(
+            artifact.ReviewerPageSelection);
+
+        Assert.Equal(
+            0,
+            repository.ArtifactQueryCount);
+    }
+
+    [Fact]
     public async Task CreateAsync_RejectsConflictingArtifactRoles()
     {
         var repository = new RecordingRepository();
@@ -142,6 +408,14 @@ public sealed partial class EvidencePackageServiceTests
 
         public IReadOnlyList<EvidencePackageArtifact>
             ExistingArtifacts { get; set; } = [];
+
+        public IReadOnlyDictionary<
+            EvidencePackageId,
+            IReadOnlyList<EvidencePackageArtifact>>
+            ExistingArtifactsByPackageId { get; set; } =
+                new Dictionary<
+                    EvidencePackageId,
+                    IReadOnlyList<EvidencePackageArtifact>>();
 
         public int ArtifactQueryCount { get; private set; }
 
@@ -207,6 +481,14 @@ public sealed partial class EvidencePackageServiceTests
                 CancellationToken cancellationToken = default)
         {
             ArtifactQueryCount++;
+
+            if (ExistingArtifactsByPackageId.TryGetValue(
+                    evidencePackageId,
+                    out var artifacts))
+            {
+                return Task.FromResult(
+                    artifacts);
+            }
 
             return Task.FromResult(
                 ExistingArtifacts);
