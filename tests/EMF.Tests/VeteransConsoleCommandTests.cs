@@ -1391,13 +1391,18 @@ public sealed partial class VeteransConsoleCommandTests
     }
 
     [Fact]
-    public async Task EvidenceReviewer_RequiresReviewer()
+    public async Task EvidenceReviewer_NewSummaryRequiresReviewerAfterReuseCheck()
     {
         var previous =
             Environment.GetEnvironmentVariable(
                 "EMF_REVIEWED_BY");
 
         var databasePath = Path.GetTempFileName();
+        var contentPath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-reviewer-requires-review-{Guid.NewGuid():N}");
+        var runtimeCreated = false;
 
         try
         {
@@ -1405,16 +1410,99 @@ public sealed partial class VeteransConsoleCommandTests
                 "EMF_REVIEWED_BY",
                 null);
 
+            await new VeteransClaimsSqliteSchema(databasePath)
+                .InitializeAsync();
+
+            var veteran = new Veteran
+            {
+                Id = new VeteranId("veteran-requires-review")
+            };
+
+            await new SqliteVeteranRepository(databasePath)
+                .AddVeteranAsync(veteran);
+
+            var claim = new Claim
+            {
+                Id = new ClaimId("claim-requires-review"),
+                VeteranId = veteran.Id
+            };
+
+            await new SqliteClaimRepository(databasePath)
+                .AddClaimAsync(claim);
+
+            var issue = new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-requires-review"),
+                ClaimId = claim.Id,
+                ClaimIssueType = ClaimIssueTypes.ServiceConnection
+            };
+
+            await new SqliteClaimIssueRepository(databasePath)
+                .AddClaimIssueAsync(issue);
+
+            var artifactId =
+                new ArtifactId("artifact-requires-review");
+            var evidenceRepository =
+                new SqliteEvidenceRepository(databasePath);
+
+            await evidenceRepository.InitializeAsync();
+            await evidenceRepository.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = artifactId,
+                    Name = "requires-review.txt",
+                    ArtifactType = "text-summary",
+                    Metadata =
+                        new Dictionary<string, object>
+                        {
+                            ["summary"] =
+                                "Evidence requiring a new reviewer summary.",
+                            [ArtifactMetadataKeys.FileExtension] = ".txt"
+                        }
+                });
+
+            var classificationRepository =
+                new SqliteEvidenceClassificationRepository(
+                    databasePath);
+
+            await classificationRepository
+                .AddEvidenceClassificationAsync(
+                    new EvidenceClassification
+                    {
+                        Id = new EvidenceClassificationId(
+                            "classification-requires-review"),
+                        ArtifactId = artifactId,
+                        ClaimIssueId = issue.Id,
+                        Classification = "MedicalEvidence"
+                    });
+
+            var contentStore =
+                new EMF.Persistence.Storage
+                    .FileSystemArtifactContentStore(contentPath);
+
+            await contentStore.WriteAsync(
+                artifactId,
+                System.Text.Encoding.UTF8.GetBytes(
+                    "Evidence requiring a new reviewer summary."));
+
             var exitCode =
                 await VeteransConsoleCommand.RunAsync(
                     [
                         "evidence",
                         "reviewer",
                         databasePath,
-                        "issue-1"
-                    ]);
+                        issue.Id.Value
+                    ],
+                    () =>
+                    {
+                        runtimeCreated = true;
+                        throw new InvalidOperationException(
+                            "Missing review identity should stop before paid runtime creation.");
+                    },
+                    () => contentStore);
 
             Assert.Equal(1, exitCode);
+            Assert.False(runtimeCreated);
         }
         finally
         {
@@ -1423,6 +1511,9 @@ public sealed partial class VeteransConsoleCommandTests
                 previous);
 
             File.Delete(databasePath);
+
+            if (Directory.Exists(contentPath))
+                Directory.Delete(contentPath, true);
         }
     }
 
@@ -1900,6 +1991,10 @@ public sealed partial class VeteransConsoleCommandTests
                     x.ContentRole ==
                         EvidencePackageContentRoles
                             .GeneratedOrganizationalMaterial);
+
+            Environment.SetEnvironmentVariable(
+                "EMF_REVIEWED_BY",
+                null);
 
             var runtimeCreated = false;
 

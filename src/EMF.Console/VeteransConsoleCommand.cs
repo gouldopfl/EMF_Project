@@ -1505,17 +1505,6 @@ public static class VeteransConsoleCommand
                 return 2;
             }
 
-            if (string.IsNullOrWhiteSpace(
-                Environment.GetEnvironmentVariable(
-                    "EMF_REVIEWED_BY")))
-            {
-                global::System.Console.Error.WriteLine(
-                    "Evidence promotion requires review. " +
-                    "Set EMF_REVIEWED_BY to the reviewer identity.");
-
-                return 1;
-            }
-
             var reviewerBasisId =
                 args.Length is 6 or 7
                     ? args[5]
@@ -2343,6 +2332,19 @@ public static class VeteransConsoleCommand
             return 0;
         }
 
+        var reviewedBy =
+            Environment.GetEnvironmentVariable(
+                "EMF_REVIEWED_BY");
+
+        if (string.IsNullOrWhiteSpace(reviewedBy))
+        {
+            global::System.Console.Error.WriteLine(
+                "Creating and promoting a new reviewer summary requires review. " +
+                "Set EMF_REVIEWED_BY to the reviewer identity.");
+
+            return 1;
+        }
+
         global::System.Console.WriteLine();
         global::System.Console.WriteLine(
             "===== USES AZURE OPENAI — PAID =====");
@@ -2412,8 +2414,7 @@ public static class VeteransConsoleCommand
                 "MedicalProfessional",
                 $"Claim issue {claimIssueId.Value} reviewer summary",
                 runtime.SubjectId,
-                Environment.GetEnvironmentVariable(
-                    "EMF_REVIEWED_BY")!,
+                reviewedBy,
                 DateTimeOffset.UtcNow,
                 result,
                 requestedBasisId);
