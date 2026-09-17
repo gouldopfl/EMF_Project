@@ -1161,13 +1161,32 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 .ToArray();
 
         Assert.Contains(
+            "Reviewer Instructions",
+            paragraphs);
+
+        Assert.True(
+            Array.IndexOf(paragraphs, "Reviewer Instructions") <
+            Array.IndexOf(paragraphs, "Medical Opinion Requested"));
+
+        Assert.True(
+            Array.IndexOf(paragraphs, "Medical Opinion Requested") <
+            Array.IndexOf(paragraphs, "Executive Summary"));
+
+        Assert.Contains(
             "Medical Opinion Requested",
             paragraphs);
 
-        Assert.Contains(
+        const string regulationCitation =
             "Applicable VA Regulation: 38 C.F.R. § 3.310(a); " +
-            "38 C.F.R. § 3.310(b)",
+            "38 C.F.R. § 3.310(b)";
+
+        Assert.Contains(
+            regulationCitation,
             paragraphs);
+
+        Assert.True(
+            Array.IndexOf(paragraphs, regulationCitation) >
+            Array.IndexOf(paragraphs, "Executive Summary"));
 
         Assert.Contains(
             "Determine whether the Veteran's Obstructive Sleep Apnea " +
@@ -1207,6 +1226,138 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.NotNull(heading.ParagraphProperties?.KeepNext);
         Assert.NotNull(regulation.ParagraphProperties?.KeepNext);
         Assert.NotNull(opinion.ParagraphProperties?.KeepLines);
+    }
+
+    [Fact]
+    public void Render_ApplicableRegulations_StartOnNewPageAfterReviewerInstructions()
+    {
+        var details =
+            new VeteransReviewerPackageDetails
+            {
+                PackageDetails =
+                    new EvidencePackageDetails
+                    {
+                        Package =
+                            new EvidencePackage
+                            {
+                                Id = new EvidencePackageId("package-regulation"),
+                                ClaimIssueId = new ClaimIssueId("issue-regulation"),
+                                Purpose = "Medical review",
+                                ReviewerRole = "MedicalProfessional"
+                            },
+                        Artifacts = []
+                    },
+                Artifacts = [],
+                MedicalOpinionRequested =
+                    new VeteransReviewerMedicalOpinionRequest
+                    {
+                        OpinionText = "Provide the requested medical opinion.",
+                        ApplicableRegulatoryCitations =
+                        [
+                            "38 C.F.R. § 3.310(a)"
+                        ]
+                    }
+            };
+
+        IReadOnlyList<VeteransReviewerApplicableRegulation> regulations =
+        [
+            new VeteransReviewerApplicableRegulation
+            {
+                Citation = "38 C.F.R. § 3.310(a)",
+                Text = "(a) Current eCFR text.",
+                SourceUri =
+                    "https://www.ecfr.gov/api/versioner/v1/full/" +
+                    "2026-09-15/title-38.xml?part=3&section=3.310",
+                UpToDateAsOf = new DateOnly(2026, 9, 15),
+                RetrievedUtc =
+                    new DateTimeOffset(
+                        2026, 9, 17, 11, 0, 0, TimeSpan.Zero),
+                SourceSha256 = new string('a', 64)
+            }
+        ];
+
+        var content =
+            VeteransReviewerPackageDocxRenderer.Render(
+                details,
+                regulations);
+
+        using var stream = new MemoryStream(content);
+        using var document = WordprocessingDocument.Open(stream, false);
+
+        var paragraphs =
+            document.MainDocumentPart!
+                .Document!
+                .Body!
+                .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .ToArray();
+
+        var reviewerInstructionsIndex =
+            Array.FindIndex(
+                paragraphs,
+                paragraph => paragraph.InnerText == "Reviewer Instructions");
+
+        var headingIndex =
+            Array.FindIndex(
+                paragraphs,
+                paragraph => paragraph.InnerText == "Applicable VA Regulation");
+
+        var executiveSummaryIndex =
+            Array.FindIndex(
+                paragraphs,
+                paragraph => paragraph.InnerText == "Executive Summary");
+
+        Assert.True(reviewerInstructionsIndex > 0);
+        Assert.True(headingIndex > reviewerInstructionsIndex);
+        Assert.True(executiveSummaryIndex > headingIndex);
+
+        var executiveCitationIndex =
+            Array.FindIndex(
+                paragraphs,
+                paragraph =>
+                    paragraph.InnerText ==
+                    "Applicable VA Regulation: 38 C.F.R. § 3.310(a)");
+
+        Assert.True(executiveCitationIndex > executiveSummaryIndex);
+        Assert.DoesNotContain(
+            paragraphs
+                .Skip(reviewerInstructionsIndex + 1)
+                .Take(headingIndex - reviewerInstructionsIndex - 1),
+            paragraph =>
+                paragraph.InnerText.StartsWith(
+                    "Applicable VA Regulation:",
+                    StringComparison.Ordinal));
+
+        var regulationPageBreak = paragraphs[headingIndex - 1];
+
+        Assert.NotNull(
+            regulationPageBreak
+                .ParagraphProperties?
+                .PageBreakBefore);
+
+        var executiveSummaryPageBreak = paragraphs[executiveSummaryIndex - 1];
+
+        Assert.NotNull(
+            executiveSummaryPageBreak
+                .ParagraphProperties?
+                .PageBreakBefore);
+
+        Assert.DoesNotContain(
+            paragraphs
+                .Skip(reviewerInstructionsIndex + 1)
+                .Take(headingIndex - reviewerInstructionsIndex - 1),
+            paragraph => paragraph.InnerText == "Executive Summary");
+
+        Assert.Contains(
+            paragraphs,
+            paragraph => paragraph.InnerText == "38 C.F.R. § 3.310(a)");
+        Assert.Contains(
+            paragraphs,
+            paragraph => paragraph.InnerText == "(a) Current eCFR text.");
+        Assert.Contains(
+            paragraphs,
+            paragraph => paragraph.InnerText.Contains(
+                "current through September 15, 2026",
+                StringComparison.Ordinal));
     }
 
     [Fact]

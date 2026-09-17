@@ -29,9 +29,14 @@ public static class VeteransReviewerPackageDocxRenderer
         string Description);
 
     public static byte[] Render(
-        VeteransReviewerPackageDetails details)
+        VeteransReviewerPackageDetails details,
+        IReadOnlyList<VeteransReviewerApplicableRegulation>? applicableRegulations = null)
     {
         ArgumentNullException.ThrowIfNull(details);
+
+        var regulations =
+            applicableRegulations ??
+            Array.Empty<VeteransReviewerApplicableRegulation>();
 
         var package =
             details.PackageDetails.Package;
@@ -101,6 +106,21 @@ public static class VeteransReviewerPackageDocxRenderer
                 StyledParagraph(
                     "Prepared Using: EMF Veterans Evidence System",
                     "Subtitle"));
+
+            body.Append(PageBreakParagraph());
+
+            AppendReviewerInstructions(
+                body,
+                details);
+
+            if (regulations.Count > 0)
+            {
+                body.Append(PageBreakParagraph());
+
+                AppendApplicableRegulations(
+                    body,
+                    regulations);
+            }
 
             body.Append(PageBreakParagraph());
 
@@ -411,36 +431,14 @@ public static class VeteransReviewerPackageDocxRenderer
                                 StringComparison.Ordinal)))
             .ToArray();
 
-    private static void AppendExecutiveSummary(
+    private static void AppendReviewerInstructions(
         Body body,
         VeteransReviewerPackageDetails details)
     {
-        var package =
-            details.PackageDetails.Package;
-
-        var sourceCount =
-            GetRoleContents(
-                details,
-                EvidencePackageContentRoles.UnderlyingEvidence).Count;
-
         body.Append(
             StyledParagraph(
-                "Executive Summary",
+                "Reviewer Instructions",
                 "Heading1"));
-
-        body.Append(
-            StyledParagraph(
-                "Purpose of This Document",
-                "Heading2"));
-
-        body.Append(
-            ContentParagraph(
-                $"Purpose: {package.Purpose}. This package organizes the evidence " +
-                "supplied for independent medical review and is intended to help the " +
-                "reviewing medical professional locate and evaluate the relevant " +
-                "medical, lay, adjudicative, treatment-device, and medical/scientific " +
-                "evidence efficiently. It does not make a medical, legal, or " +
-                "adjudicative conclusion."));
 
         if (details.MedicalOpinionRequested is not null)
         {
@@ -456,19 +454,6 @@ public static class VeteransReviewerPackageDocxRenderer
                     "Medical Opinion Requested",
                     "Heading2"));
 
-            if (details.MedicalOpinionRequested
-                    .ApplicableRegulatoryCitations.Count > 0)
-            {
-                body.Append(
-                    ContentParagraph(
-                        "Applicable VA Regulation: " +
-                        string.Join(
-                            "; ",
-                            details.MedicalOpinionRequested
-                                .ApplicableRegulatoryCitations),
-                        keepWithNext: true));
-            }
-
             body.Append(
                 ContentParagraph(
                     details.MedicalOpinionRequested.OpinionText));
@@ -479,11 +464,23 @@ public static class VeteransReviewerPackageDocxRenderer
                 "How to Use This Package",
                 "Heading2"));
 
+        var hasApplicableRegulations =
+            details.MedicalOpinionRequested?
+                .ApplicableRegulatoryCitations.Count > 0;
+
         var howToUse =
-            "Review the Issues Presented for Medical Review and Questions for the " +
-            "Reviewing Physician first. Use the Key Evidence and Chronology for " +
-            "orientation to the principal medical evidence, then use the " +
-            "appendices to review the underlying source material.";
+            hasApplicableRegulations
+                ? "Read the Medical Opinion Requested and the Applicable VA " +
+                  "Regulation section first. Then review the Issues Presented for " +
+                  "Medical Review and Questions for the Reviewing Physician. Use " +
+                  "the Key Evidence and Chronology for orientation to the principal " +
+                  "medical evidence, then use the appendices to review the " +
+                  "underlying source material."
+                : "Review the Medical Opinion Requested, Issues Presented for Medical " +
+                  "Review, and Questions for the Reviewing Physician first. Use the " +
+                  "Key Evidence and Chronology for orientation to the principal " +
+                  "medical evidence, then use the appendices to review the " +
+                  "underlying source material.";
 
         if (HasPackageGuideSection(
                 details,
@@ -508,6 +505,52 @@ public static class VeteransReviewerPackageDocxRenderer
                 "records and medical/scientific literature relied upon, address " +
                 "medically applicable causation and aggravation questions separately, " +
                 "and explain the medical rationale for each opinion."));
+    }
+
+    private static void AppendExecutiveSummary(
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        var package =
+            details.PackageDetails.Package;
+
+        var sourceCount =
+            GetRoleContents(
+                details,
+                EvidencePackageContentRoles.UnderlyingEvidence).Count;
+
+        body.Append(
+            StyledParagraph(
+                "Executive Summary",
+                "Heading1"));
+
+        if (details.MedicalOpinionRequested is not null &&
+            details.MedicalOpinionRequested
+                .ApplicableRegulatoryCitations.Count > 0)
+        {
+            body.Append(
+                ContentParagraph(
+                    "Applicable VA Regulation: " +
+                    string.Join(
+                        "; ",
+                        details.MedicalOpinionRequested
+                            .ApplicableRegulatoryCitations),
+                    keepWithNext: true));
+        }
+
+        body.Append(
+            StyledParagraph(
+                "Purpose of This Document",
+                "Heading2"));
+
+        body.Append(
+            ContentParagraph(
+                $"Purpose: {package.Purpose}. This package organizes the evidence " +
+                "supplied for independent medical review and is intended to help the " +
+                "reviewing medical professional locate and evaluate the relevant " +
+                "medical, lay, adjudicative, treatment-device, and medical/scientific " +
+                "evidence efficiently. It does not make a medical, legal, or " +
+                "adjudicative conclusion."));
 
         body.Append(
             ContentParagraph(
@@ -1663,6 +1706,51 @@ public static class VeteransReviewerPackageDocxRenderer
                 "4. Identify the specific records and medical or scientific literature " +
                 "relied upon, explain the medical rationale, and discuss material " +
                 "evidence that weighs against the opinion."));
+    }
+
+    private static void AppendApplicableRegulations(
+        Body body,
+        IReadOnlyList<VeteransReviewerApplicableRegulation> regulations)
+    {
+        body.Append(
+            StyledParagraph(
+                "Applicable VA Regulation",
+                "Heading1"));
+
+        foreach (var regulation in regulations)
+        {
+            if (string.IsNullOrWhiteSpace(regulation.Citation) ||
+                string.IsNullOrWhiteSpace(regulation.Text))
+            {
+                throw new InvalidOperationException(
+                    "Applicable reviewer regulation is incomplete.");
+            }
+
+            body.Append(
+                StyledParagraph(
+                    regulation.Citation.Trim(),
+                    "Heading2"));
+
+            var paragraphs =
+                regulation.Text
+                    .Replace("\r\n", "\n", StringComparison.Ordinal)
+                    .Split(
+                        "\n\n",
+                        StringSplitOptions.RemoveEmptyEntries |
+                        StringSplitOptions.TrimEntries);
+
+            foreach (var paragraph in paragraphs)
+            {
+                body.Append(
+                    ContentParagraph(paragraph));
+            }
+
+            body.Append(
+                ContentParagraph(
+                    "Source: Electronic Code of Federal Regulations (eCFR), " +
+                    $"current through {regulation.UpToDateAsOf:MMMM d, yyyy}; " +
+                    $"retrieved {regulation.RetrievedUtc:MMMM d, yyyy} UTC."));
+        }
     }
 
     private static void AppendEvidenceAppendices(

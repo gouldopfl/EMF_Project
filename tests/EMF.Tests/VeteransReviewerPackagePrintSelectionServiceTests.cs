@@ -91,7 +91,9 @@ public sealed class VeteransReviewerPackagePrintSelectionServiceTests
                     [
                         VeteransReviewerPackageSectionCatalog.EvidenceAppendices,
                         VeteransReviewerPackageSectionCatalog.ExecutiveSummary,
+                        VeteransReviewerPackageSectionCatalog.ApplicableRegulations,
                         VeteransReviewerPackageSectionCatalog.ClinicalProgression,
+                        VeteransReviewerPackageSectionCatalog.ReviewerInstructions,
                         VeteransReviewerPackageSectionCatalog.ExecutiveSummary
                     ]
                 });
@@ -99,6 +101,8 @@ public sealed class VeteransReviewerPackagePrintSelectionServiceTests
         Assert.False(result.RequiresFixedLayoutPagination);
         Assert.Equal(
             [
+                VeteransReviewerPackageSectionCatalog.ReviewerInstructions,
+                VeteransReviewerPackageSectionCatalog.ApplicableRegulations,
                 VeteransReviewerPackageSectionCatalog.ExecutiveSummary,
                 VeteransReviewerPackageSectionCatalog.ClinicalProgression,
                 VeteransReviewerPackageSectionCatalog.EvidenceAppendices

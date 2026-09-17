@@ -6,6 +6,8 @@ public sealed record VeteransReviewerPackageSection(
 
 public static class VeteransReviewerPackageSectionCatalog
 {
+    public const string ReviewerInstructions = "reviewer-instructions";
+    public const string ApplicableRegulations = "applicable-regulations";
     public const string ExecutiveSummary = "executive-summary";
     public const string PackageGuide = "package-guide";
     public const string MedicalReviewScope = "medical-review-scope";
@@ -22,6 +24,12 @@ public static class VeteransReviewerPackageSectionCatalog
     public static IReadOnlyList<VeteransReviewerPackageSection> All { get; } =
         new[]
         {
+            new VeteransReviewerPackageSection(
+                ReviewerInstructions,
+                "Reviewer Instructions"),
+            new VeteransReviewerPackageSection(
+                ApplicableRegulations,
+                "Applicable VA Regulation"),
             new VeteransReviewerPackageSection(
                 ExecutiveSummary,
                 "Executive Summary"),

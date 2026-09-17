@@ -6391,6 +6391,7 @@ public static class VeteransConsoleCommand
         IArtifactContentStore? suppliedContentStore = null,
         Func<IArtifactContentStore?>? contentStoreFactory = null,
         IVeteransReviewerPackageDocumentConverter? suppliedConverter = null,
+        IVeteransReviewerRegulatoryTextProvider? suppliedRegulatoryTextProvider = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(outputRequest);
@@ -6556,7 +6557,9 @@ public static class VeteransConsoleCommand
         {
             content =
                 await new VeteransReviewerPackageDocumentOutputService(
-                        converter)
+                        converter,
+                        suppliedRegulatoryTextProvider ??
+                            new EcfrVeteransReviewerRegulatoryTextProvider())
                     .RenderAsync(
                         details,
                         outputRequest.Format,
@@ -6565,6 +6568,7 @@ public static class VeteransConsoleCommand
         catch (Exception ex) when (ex is
             InvalidOperationException or
             InvalidDataException or
+            HttpRequestException or
             TimeoutException)
         {
             global::System.Console.Error.WriteLine(
