@@ -1390,7 +1390,8 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
-        if (args.Length == 5 &&
+        if ((args.Length == 5 ||
+             (args.Length == 7 && args[4] == "--format")) &&
             args[0] == "evidence" &&
             args[1] == "package")
         {
@@ -1405,10 +1406,26 @@ public static class VeteransConsoleCommand
                 return 2;
             }
 
-            return await RunEvidencePackageDocxAsync(
+            VeteransReviewerPackageOutputRequest packageOutput;
+
+            try
+            {
+                packageOutput =
+                    VeteransReviewerPackageOutputRequestResolver.Resolve(
+                        args.Length == 5 ? args[4] : args[6],
+                        args.Length == 7 ? args[5] : null);
+            }
+            catch (InvalidOperationException ex)
+            {
+                global::System.Console.Error.WriteLine(
+                    ConsoleTextSanitizer.Sanitize(ex.Message));
+                return 2;
+            }
+
+            return await RunEvidencePackageDocumentAsync(
                 packageDatabasePath,
                 new EvidencePackageId(args[3]),
-                ResolveGeneratedDocumentPath(args[4]));
+                packageOutput);
         }
 
         if (args.Length == 4 &&
@@ -1489,8 +1506,7 @@ public static class VeteransConsoleCommand
             return RunPapAnalysis(papSourcePath);
         }
 
-        if ((args.Length is 4 or 5 ||
-             (args.Length is 6 or 7 && args[4] == "--basis")) &&
+        if (args.Length >= 4 &&
             args[0] == "evidence" &&
             args[1] == "reviewer")
         {
@@ -1505,25 +1521,26 @@ public static class VeteransConsoleCommand
                 return 2;
             }
 
-            var reviewerBasisId =
-                args.Length is 6 or 7
-                    ? args[5]
-                    : null;
+            if (!VeteransReviewerPackageCommandOptionsParser.TryParse(
+                    args,
+                    out var reviewerOptions,
+                    out var reviewerOptionsError))
+            {
+                global::System.Console.Error.WriteLine(
+                    ConsoleTextSanitizer.Sanitize(
+                        reviewerOptionsError ??
+                        "Reviewer command options are invalid."));
 
-            var reviewerOutputPath =
-                args.Length == 5
-                    ? ResolveGeneratedDocumentPath(args[4])
-                    : args.Length == 7
-                        ? ResolveGeneratedDocumentPath(args[6])
-                        : null;
+                return 2;
+            }
 
             return await RunReviewerPackageAsync(
                 reviewerDatabasePath,
                 new ClaimIssueId(args[3]),
                 runtimeFactory,
                 contentStoreFactory,
-                reviewerOutputPath,
-                reviewerBasisId);
+                reviewerOptions!.Output,
+                reviewerOptions.BasisId);
         }
 
         var summarize =
@@ -1957,7 +1974,7 @@ public static class VeteransConsoleCommand
         ClaimIssueId claimIssueId,
         Func<Task<TextSummarizationConsoleRuntime>> runtimeFactory,
         Func<IArtifactContentStore?> contentStoreFactory,
-        string? outputPath,
+        VeteransReviewerPackageOutputRequest? outputRequest,
         string? basisId = null)
     {
         static void OperatorStatus(
@@ -2299,7 +2316,7 @@ public static class VeteransConsoleCommand
                 Array.Empty<IntelligenceExecutionMetadata>(),
                 reusedPackage: true);
 
-            if (outputPath is null)
+            if (outputRequest is null)
             {
                 OperatorStatus(
                     "COMPLETE",
@@ -2309,25 +2326,24 @@ public static class VeteransConsoleCommand
             }
 
             OperatorStatus(
-                "DOCX",
-                "Creating reviewer document from reviewed package");
+                "EXPORT",
+                $"Creating reviewer document output ({outputRequest.Format}) from reviewed package");
 
             var reusedExportExitCode =
-                await RunEvidencePackageDocxAsync(
+                await RunEvidencePackageDocumentAsync(
                     databasePath,
                     reusablePackageId.Value,
-                    outputPath,
+                    outputRequest,
                     contentStore);
 
             if (reusedExportExitCode != 0)
                 return reusedExportExitCode;
 
-            global::System.Console.WriteLine(
-                $"Package DOCX        : {outputPath}");
+            WriteReviewerOutputPaths(outputRequest);
 
             OperatorStatus(
                 "COMPLETE",
-                $"Reviewer document created: {outputPath}");
+                "Reviewer document output created");
 
             return 0;
         }
@@ -2440,7 +2456,7 @@ public static class VeteransConsoleCommand
             "PACKAGE",
             "Reviewer package persisted");
 
-        if (outputPath is null)
+        if (outputRequest is null)
         {
             OperatorStatus(
                 "COMPLETE",
@@ -2450,25 +2466,24 @@ public static class VeteransConsoleCommand
         }
 
         OperatorStatus(
-            "DOCX",
-            "Creating reviewer document");
+            "EXPORT",
+            $"Creating reviewer document output ({outputRequest.Format})");
 
         var exportExitCode =
-            await RunEvidencePackageDocxAsync(
+            await RunEvidencePackageDocumentAsync(
                 databasePath,
                 prepared.Package.Id,
-                outputPath,
+                outputRequest,
                 contentStore);
 
         if (exportExitCode != 0)
             return exportExitCode;
 
-        global::System.Console.WriteLine(
-            $"Package DOCX        : {outputPath}");
+        WriteReviewerOutputPaths(outputRequest);
 
         OperatorStatus(
             "COMPLETE",
-            $"Reviewer document created: {outputPath}");
+            "Reviewer document output created");
 
         return 0;
     }
@@ -6258,6 +6273,25 @@ public static class VeteransConsoleCommand
     }
 
 
+    private static void WriteReviewerOutputPaths(
+        VeteransReviewerPackageOutputRequest outputRequest)
+    {
+        ArgumentNullException.ThrowIfNull(outputRequest);
+
+        if (outputRequest.DocxPath is not null)
+        {
+            global::System.Console.WriteLine(
+                $"Package DOCX        : {outputRequest.DocxPath}");
+        }
+
+        if (outputRequest.PdfPath is not null)
+        {
+            global::System.Console.WriteLine(
+                $"Package PDF         : {outputRequest.PdfPath}");
+        }
+    }
+
+
     internal static string ResolveGeneratedDocumentPath(
         string outputPath)
     {
@@ -6327,7 +6361,7 @@ public static class VeteransConsoleCommand
     }
 
 
-    internal static async Task<int> RunEvidencePackageDocxAsync(
+    internal static Task<int> RunEvidencePackageDocxAsync(
         string databasePath,
         EvidencePackageId evidencePackageId,
         string outputPath,
@@ -6336,27 +6370,54 @@ public static class VeteransConsoleCommand
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
+        var request =
+            new VeteransReviewerPackageOutputRequest(
+                VeteransReviewerPackageOutputFormat.Docx,
+                Path.GetFullPath(outputPath),
+                null);
+
+        return RunEvidencePackageDocumentAsync(
+            databasePath,
+            evidencePackageId,
+            request,
+            suppliedContentStore,
+            contentStoreFactory);
+    }
+
+    internal static async Task<int> RunEvidencePackageDocumentAsync(
+        string databasePath,
+        EvidencePackageId evidencePackageId,
+        VeteransReviewerPackageOutputRequest outputRequest,
+        IArtifactContentStore? suppliedContentStore = null,
+        Func<IArtifactContentStore?>? contentStoreFactory = null,
+        IVeteransReviewerPackageDocumentConverter? suppliedConverter = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(outputRequest);
+
         var fullDatabasePath =
             Path.GetFullPath(databasePath);
-
-        var fullOutputPath =
-            Path.GetFullPath(outputPath);
 
         var pathComparison =
             OperatingSystem.IsWindows()
                 ? StringComparison.OrdinalIgnoreCase
                 : StringComparison.Ordinal;
 
-        if (string.Equals(
-            fullDatabasePath,
-            fullOutputPath,
-            pathComparison))
+        foreach (var outputPath in outputRequest.OutputPaths)
         {
-            global::System.Console.Error.WriteLine(
-                "Reviewer package output cannot overwrite " +
-                "the Veterans Claims database.");
+            var fullOutputPath = Path.GetFullPath(outputPath);
 
-            return 2;
+            if (string.Equals(
+                fullDatabasePath,
+                fullOutputPath,
+                pathComparison))
+            {
+                global::System.Console.Error.WriteLine(
+                    "Reviewer package output cannot overwrite " +
+                    "the Veterans Claims database.");
+
+                return 2;
+            }
         }
 
         var packageService =
@@ -6480,13 +6541,58 @@ public static class VeteransConsoleCommand
             return 2;
         }
 
-        var content =
-            VeteransReviewerPackageDocxRenderer.Render(
-                details);
+        IVeteransReviewerPackageDocumentConverter? converter =
+            suppliedConverter;
 
-        await WriteFileAtomicallyAsync(
-            fullOutputPath,
-            content);
+        if (outputRequest.RequiresPdf && converter is null)
+        {
+            converter =
+                new LibreOfficeVeteransReviewerPackageDocumentConverter();
+        }
+
+        VeteransReviewerPackageDocumentOutput content;
+
+        try
+        {
+            content =
+                await new VeteransReviewerPackageDocumentOutputService(
+                        converter)
+                    .RenderAsync(
+                        details,
+                        outputRequest.Format,
+                        cancellationToken);
+        }
+        catch (Exception ex) when (ex is
+            InvalidOperationException or
+            InvalidDataException or
+            TimeoutException)
+        {
+            global::System.Console.Error.WriteLine(
+                ConsoleTextSanitizer.Sanitize(ex.Message));
+            return 2;
+        }
+
+        if (outputRequest.DocxPath is not null)
+        {
+            if (content.Docx is null)
+                throw new InvalidOperationException(
+                    "DOCX reviewer-package output was requested but not rendered.");
+
+            await WriteFileAtomicallyAsync(
+                outputRequest.DocxPath,
+                content.Docx);
+        }
+
+        if (outputRequest.PdfPath is not null)
+        {
+            if (content.Pdf is null)
+                throw new InvalidOperationException(
+                    "PDF reviewer-package output was requested but not rendered.");
+
+            await WriteFileAtomicallyAsync(
+                outputRequest.PdfPath,
+                content.Pdf);
+        }
 
         return 0;
     }
@@ -6878,7 +6984,12 @@ public static class VeteransConsoleCommand
 
         global::System.Console.WriteLine(
             "       emf veterans evidence reviewer " +
-            "<database-path> <claim-issue-id> <output.docx>");
+            "<database-path> <claim-issue-id> <output.docx|output.pdf>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence reviewer " +
+            "<database-path> <claim-issue-id> --format <docx|pdf|both> " +
+            "<output-path>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence reviewer " +
@@ -6886,7 +6997,8 @@ public static class VeteransConsoleCommand
 
         global::System.Console.WriteLine(
             "       emf veterans evidence reviewer " +
-            "<database-path> <claim-issue-id> --basis <basis-id> <output.docx>");
+            "<database-path> <claim-issue-id> --basis <basis-id> " +
+            "[--format <docx|pdf|both>] <output-path>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence classify " +
@@ -6988,7 +7100,12 @@ public static class VeteransConsoleCommand
 
         global::System.Console.WriteLine(
             "       emf veterans evidence package " +
-            "<database-path> <package-id> <output.docx>");
+            "<database-path> <package-id> <output.docx|output.pdf>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence package " +
+            "<database-path> <package-id> --format <docx|pdf|both> " +
+            "<output-path>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence prepare " +

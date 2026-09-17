@@ -8,6 +8,7 @@ using EMF.Extensions.VeteransClaims.Models.Claims;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
+using EMF.Extensions.VeteransClaims.Orchestration;
 
 namespace EMF.Tests;
 
@@ -583,6 +584,97 @@ public sealed partial class VeteransEvidencePackageConsoleTests
         finally
         {
             File.Delete(databasePath);
+        }
+    }
+}
+
+
+public sealed partial class VeteransEvidencePackageConsoleTests
+{
+    [Fact]
+    public async Task EvidencePackage_WritesDocxAndPdfFromSingleCanonicalRender()
+    {
+        var databasePath =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-package-output-{Guid.NewGuid():N}.db");
+
+        var docxPath = Path.ChangeExtension(databasePath, ".docx");
+        var pdfPath = Path.ChangeExtension(databasePath, ".pdf");
+
+        try
+        {
+            var issueId =
+                await SeedClaimIssueAsync(databasePath);
+
+            var packages =
+                new SqliteEvidencePackageRepository(databasePath);
+
+            var package =
+                new EvidencePackage
+                {
+                    Id = new EvidencePackageId("package-output-1"),
+                    ClaimIssueId = issueId,
+                    Purpose = "Medical review",
+                    ReviewerRole = "MedicalProfessional"
+                };
+
+            await packages.AddEvidencePackageAsync(package, []);
+
+            var converter = new EvidencePackageRecordingConverter();
+
+            var exitCode =
+                await VeteransConsoleCommand.RunEvidencePackageDocumentAsync(
+                    databasePath,
+                    package.Id,
+                    new VeteransReviewerPackageOutputRequest(
+                        VeteransReviewerPackageOutputFormat.Both,
+                        docxPath,
+                        pdfPath),
+                    contentStoreFactory: () => null,
+                    suppliedConverter: converter);
+
+            Assert.Equal(0, exitCode);
+            Assert.True(File.Exists(docxPath));
+            Assert.True(File.Exists(pdfPath));
+            Assert.Equal(
+                await File.ReadAllBytesAsync(docxPath),
+                converter.Docx);
+            Assert.Equal(
+                "%PDF-",
+                System.Text.Encoding.ASCII.GetString(
+                    await File.ReadAllBytesAsync(pdfPath),
+                    0,
+                    5));
+        }
+        finally
+        {
+            if (File.Exists(docxPath))
+                File.Delete(docxPath);
+
+            if (File.Exists(pdfPath))
+                File.Delete(pdfPath);
+
+            if (File.Exists(databasePath))
+                File.Delete(databasePath);
+        }
+    }
+
+    private sealed class EvidencePackageRecordingConverter :
+        IVeteransReviewerPackageDocumentConverter
+    {
+        public byte[]? Docx { get; private set; }
+
+        public Task<byte[]> ConvertDocxToPdfAsync(
+            ReadOnlyMemory<byte> docx,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Docx = docx.ToArray();
+
+            return Task.FromResult(
+                System.Text.Encoding.ASCII.GetBytes(
+                    "%PDF-1.7\n%%EOF\n"));
         }
     }
 }
