@@ -41,4 +41,6 @@ public sealed class VeteransReviewerPackageDetails
         Array.Empty<MedicationLedgerEntry>();
 
     public string? MedicalOpinionRequested { get; init; }
+
+    public string? PackagePreparedBy { get; init; }
 }

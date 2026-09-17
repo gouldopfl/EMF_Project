@@ -36,7 +36,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                             },
                         Artifacts = []
                     },
-                Artifacts = []
+                Artifacts = [],
+                PackagePreparedBy = "Michael Gould"
             };
 
         var content =
@@ -68,6 +69,14 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         Assert.Contains(
             "Medical Professional",
+            text);
+
+        Assert.Contains(
+            "Package Prepared By: Michael Gould",
+            text);
+
+        Assert.Contains(
+            "Prepared Using: EMF Veterans Evidence System",
             text);
 
         var paragraphs =
@@ -658,7 +667,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             paragraphs,
             paragraph =>
                 paragraph.InnerText ==
-                    "Veterans Evidence Reviewer Report");
+                    "Veterans Evidence Package for Medical Review");
 
         Assert.Contains(
             paragraphs,
@@ -952,13 +961,19 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     EvidenceGuidanceRoles.SupportsRequirement,
                     StringComparison.Ordinal));
 
-        Assert.Contains(
-            "Reviewed by: reviewer@example.test",
-            reviewerFacingParagraphs);
+        Assert.DoesNotContain(
+            reviewerFacingParagraphs,
+            paragraph =>
+                paragraph.Contains(
+                    "Reviewed by:",
+                    StringComparison.OrdinalIgnoreCase));
 
-        Assert.Contains(
-            "Reviewed UTC: 2026-09-12 12:00:00 UTC",
-            reviewerFacingParagraphs);
+        Assert.DoesNotContain(
+            reviewerFacingParagraphs,
+            paragraph =>
+                paragraph.Contains(
+                    "Reviewed UTC:",
+                    StringComparison.OrdinalIgnoreCase));
 
         Assert.DoesNotContain("requirement-reviewed-lit", text);
         Assert.DoesNotContain("study-reviewed-lit", text);
@@ -966,8 +981,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             EvidenceGuidanceRoles.SupportsRequirement,
             text);
         Assert.DoesNotContain("promotion-test", text);
-        Assert.Contains("Reviewed by: reviewer@example.test", text);
-        Assert.Contains("Reviewed UTC: 2026-09-12 12:00:00 UTC", text);
+        Assert.DoesNotContain("Reviewed by:", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Reviewed UTC:", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(
             "2026-09-12T12:00:00.0000000+00:00",
             text);
@@ -1066,7 +1081,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 paragraphs.Where(
                     paragraph =>
                         paragraph.InnerText ==
-                            "Veterans Evidence Reviewer Report"));
+                            "Veterans Evidence Package for Medical Review"));
 
         var sectionHeading =
             Assert.Single(
@@ -1288,7 +1303,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             footer.InnerText);
 
         Assert.Contains(
-            "Veterans Evidence Reviewer Report",
+            "Veterans Evidence Package for Medical Review",
             footer.InnerText);
 
         var fieldInstructions =
@@ -1476,7 +1491,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 paragraphs.Where(
                     paragraph =>
                         paragraph.InnerText ==
-                            "Veterans Evidence Reviewer Report"));
+                            "Veterans Evidence Package for Medical Review"));
 
         var sectionHeading =
             Assert.Single(
@@ -1586,7 +1601,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 document.MainDocumentPart
                     .Document!
                     .Body!
-                    .Elements<
+                    .Descendants<
                         DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
 
                     .Where(
@@ -1687,7 +1702,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 document.MainDocumentPart
                     .Document!
                     .Body!
-                    .Elements<
+                    .Descendants<
                         DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
 
                     .Where(
@@ -1866,7 +1881,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 .ToArray();
 
         Assert.Equal(
-            2,
+            3,
             metadata.Length);
 
         Assert.All(
@@ -1959,7 +1974,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 document.MainDocumentPart
                     .Document!
                     .Body!
-                    .Elements<
+                    .Descendants<
                         DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                     .Where(
                         paragraph =>
@@ -2013,7 +2028,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 .Body!;
 
         var paragraphs =
-            body.Elements<
+            body.Descendants<
                     DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                 .ToArray();
 
@@ -2069,7 +2084,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             document.MainDocumentPart!
                 .Document!
                 .Body!
-                .Elements<
+                .Descendants<
                     DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                 .ToArray();
 
@@ -2451,7 +2466,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         var paragraphs =
             document.MainDocumentPart!.Document!.Body!
-                .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                 .ToArray();
 
         var appendixHeading =
@@ -2562,7 +2577,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             document.MainDocumentPart!
                 .Document!
                 .Body!
-                .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                 .ToArray();
 
         var secondHeadingIndex =
@@ -2604,7 +2619,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 document.MainDocumentPart!
                     .Document!
                     .Body!
-                    .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                    .Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                     .Where(item =>
                         item.InnerText ==
                             "This is a reviewer paragraph that should stay together."));
@@ -3015,6 +3030,161 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         };
     }
 
+    [Fact]
+    public void Render_DefinesEveryReferencedParagraphStyle()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 1,
+                    ContentType = "text/plain",
+                    Content =
+                        System.Text.Encoding.UTF8.GetBytes(
+                            "Reviewer text content.")
+                }
+            ],
+            "");
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var mainPart =
+            document.MainDocumentPart!;
+
+        var styles =
+            mainPart.StyleDefinitionsPart?.Styles;
+
+        Assert.NotNull(styles);
+
+        var definedStyleIds =
+            styles!
+                .Elements<DocumentFormat.OpenXml.Wordprocessing.Style>()
+                .Select(style => style.StyleId?.Value)
+                .Where(styleId => !string.IsNullOrWhiteSpace(styleId))
+                .ToHashSet(StringComparer.Ordinal);
+
+        var referencedStyleIds =
+            mainPart.Document!
+                .Descendants<
+                    DocumentFormat.OpenXml.Wordprocessing.ParagraphStyleId>()
+                .Select(style => style.Val?.Value)
+                .Where(styleId => !string.IsNullOrWhiteSpace(styleId))
+                .ToArray();
+
+        Assert.Contains("Normal", definedStyleIds);
+        Assert.Contains("Title", definedStyleIds);
+        Assert.Contains("Subtitle", definedStyleIds);
+        Assert.Contains("Heading1", definedStyleIds);
+        Assert.Contains("Heading2", definedStyleIds);
+        Assert.Contains("Heading3", definedStyleIds);
+
+        Assert.All(
+            referencedStyleIds,
+            styleId => Assert.Contains(styleId!, definedStyleIds));
+
+        var normalStyle =
+            Assert.Single(
+                styles.Elements<
+                    DocumentFormat.OpenXml.Wordprocessing.Style>()
+                    .Where(
+                        style =>
+                            string.Equals(
+                                style.StyleId?.Value,
+                                "Normal",
+                                StringComparison.Ordinal)));
+
+        Assert.True(normalStyle.Default?.Value);
+    }
+
+    [Fact]
+    public void Render_RepeatsTextEvidenceTitleAsTableHeader()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 1,
+                    ContentType = "text/plain",
+                    Content =
+                        System.Text.Encoding.UTF8.GetBytes(
+                            "First reviewer text block that may flow across physical pages.\n" +
+                            "Second reviewer text block that may flow across physical pages.")
+                }
+            ],
+            "");
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var table =
+            Assert.Single(
+                document.MainDocumentPart!
+                    .Document!
+                    .Body!
+                    .Elements<
+                        DocumentFormat.OpenXml.Wordprocessing.Table>());
+
+        var rows =
+            table.Elements<
+                    DocumentFormat.OpenXml.Wordprocessing.TableRow>()
+                .ToArray();
+
+        var headerRow =
+            Assert.Single(
+                rows
+                    .Where(
+                        row =>
+                            row.TableRowProperties?
+                                .GetFirstChild<
+                                    DocumentFormat.OpenXml.Wordprocessing.TableHeader>()
+                                is not null));
+
+        Assert.Equal(
+            "Source Evidence",
+            headerRow.InnerText);
+
+        Assert.True(rows.Length >= 3);
+
+        Assert.All(
+            rows.Skip(1),
+            row =>
+            {
+                Assert.NotNull(
+                    row.TableRowProperties?
+                        .GetFirstChild<
+                            DocumentFormat.OpenXml.Wordprocessing.CantSplit>());
+
+                var cell =
+                    Assert.Single(
+                        row.Elements<
+                            DocumentFormat.OpenXml.Wordprocessing.TableCell>());
+
+                Assert.Single(
+                    cell.ChildElements.Where(
+                        element =>
+                            element is DocumentFormat.OpenXml.Wordprocessing.Paragraph or
+                                DocumentFormat.OpenXml.Wordprocessing.Table));
+            });
+
+        Assert.Contains(
+            "First reviewer text block that may flow across physical pages.",
+            table.InnerText);
+        Assert.Contains(
+            "Second reviewer text block that may flow across physical pages.",
+            table.InnerText);
+    }
+
     private static byte[] TinyPng() =>
         Convert.FromBase64String(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC" +
@@ -3096,7 +3266,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             document.MainDocumentPart!
                 .Document!
                 .Body!
-                .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                 .ToArray();
 
         var headingIndexes =
@@ -4054,7 +4224,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         {
             var heading =
                 Assert.Single(
-                    body.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                    body.Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                         .Where(
                             paragraph =>
                                 paragraph.InnerText == title &&
@@ -4065,14 +4235,14 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
             var headingIndex =
                 Array.IndexOf(
-                    body.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                    body.Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                         .ToArray(),
                     heading);
 
             Assert.True(headingIndex > 0);
 
             var paragraphs =
-                body.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                body.Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                     .ToArray();
 
             Assert.NotNull(
@@ -4123,7 +4293,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             Array.FindIndex(
                 elements,
                 element =>
-                    element.InnerText == "Veterans Evidence Reviewer Report");
+                    element.InnerText == "Veterans Evidence Package for Medical Review");
         var executiveSummaryIndex =
             Array.FindIndex(
                 elements,

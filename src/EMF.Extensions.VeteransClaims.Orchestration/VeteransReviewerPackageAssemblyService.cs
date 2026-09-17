@@ -38,8 +38,17 @@ public sealed class VeteransReviewerPackageAssemblyService
         _medicalOpinionRequest = medicalOpinionRequest;
     }
 
+    public Task<VeteransReviewerPackageDetails?> AssembleAsync(
+        EvidencePackageId packageId,
+        CancellationToken cancellationToken = default) =>
+        AssembleAsync(
+            packageId,
+            packagePreparedBy: null,
+            cancellationToken);
+
     public async Task<VeteransReviewerPackageDetails?> AssembleAsync(
         EvidencePackageId packageId,
+        string? packagePreparedBy,
         CancellationToken cancellationToken = default)
     {
         var details = await _details.GetAsync(packageId, cancellationToken);
@@ -80,7 +89,11 @@ public sealed class VeteransReviewerPackageAssemblyService
             SourceClarifications = sourceClarifications,
             ClinicalProgressionEvents = clinicalProgressionEvents,
             CurrentMedications = currentMedications,
-            MedicalOpinionRequested = medicalOpinionRequested
+            MedicalOpinionRequested = medicalOpinionRequested,
+            PackagePreparedBy =
+                string.IsNullOrWhiteSpace(packagePreparedBy)
+                    ? null
+                    : packagePreparedBy.Trim()
         };
     }
 }

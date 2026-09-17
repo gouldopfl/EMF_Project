@@ -1408,7 +1408,7 @@ public static class VeteransConsoleCommand
             return await RunEvidencePackageDocxAsync(
                 packageDatabasePath,
                 new EvidencePackageId(args[3]),
-                args[4]);
+                ResolveGeneratedDocumentPath(args[4]));
         }
 
         if (args.Length == 4 &&
@@ -1512,9 +1512,9 @@ public static class VeteransConsoleCommand
 
             var reviewerOutputPath =
                 args.Length == 5
-                    ? Path.GetFullPath(args[4])
+                    ? ResolveGeneratedDocumentPath(args[4])
                     : args.Length == 7
-                        ? Path.GetFullPath(args[6])
+                        ? ResolveGeneratedDocumentPath(args[6])
                         : null;
 
             return await RunReviewerPackageAsync(
@@ -6258,6 +6258,75 @@ public static class VeteransConsoleCommand
     }
 
 
+    internal static string ResolveGeneratedDocumentPath(
+        string outputPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        if (Path.IsPathRooted(outputPath))
+        {
+            var absolutePath = Path.GetFullPath(outputPath);
+            var absoluteDirectory = Path.GetDirectoryName(absolutePath);
+
+            if (string.IsNullOrWhiteSpace(absoluteDirectory))
+                throw new InvalidOperationException(
+                    "Generated document output directory could not be resolved.");
+
+            Directory.CreateDirectory(absoluteDirectory);
+            return absolutePath;
+        }
+
+        var configuredRoot =
+            Environment.GetEnvironmentVariable("EMF_OUTPUT_PATH");
+
+        var outputRoot =
+            string.IsNullOrWhiteSpace(configuredRoot)
+                ? Path.Combine(
+                    Environment.GetFolderPath(
+                        Environment.SpecialFolder.UserProfile),
+                    "EMF_Output")
+                : configuredRoot.Trim();
+
+        if (string.IsNullOrWhiteSpace(outputRoot))
+            throw new InvalidOperationException(
+                "Generated document output root could not be resolved.");
+
+        var fullRoot = Path.GetFullPath(outputRoot);
+        var fullOutputPath =
+            Path.GetFullPath(
+                Path.Combine(fullRoot, outputPath));
+
+        var comparison =
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+
+        var rootWithSeparator =
+            fullRoot.TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar) +
+            Path.DirectorySeparatorChar;
+
+        if (!fullOutputPath.StartsWith(
+                rootWithSeparator,
+                comparison))
+        {
+            throw new InvalidOperationException(
+                "Relative generated document output must remain within " +
+                "the configured EMF output directory.");
+        }
+
+        var directory = Path.GetDirectoryName(fullOutputPath);
+
+        if (string.IsNullOrWhiteSpace(directory))
+            throw new InvalidOperationException(
+                "Generated document output directory could not be resolved.");
+
+        Directory.CreateDirectory(directory);
+        return fullOutputPath;
+    }
+
+
     internal static async Task<int> RunEvidencePackageDocxAsync(
         string databasePath,
         EvidencePackageId evidencePackageId,
@@ -6387,7 +6456,10 @@ public static class VeteransConsoleCommand
                     new SqliteConditionRepository(fullDatabasePath)));
 
         var details =
-            await assemblyService.AssembleAsync(evidencePackageId);
+            await assemblyService.AssembleAsync(
+                evidencePackageId,
+                Environment.GetEnvironmentVariable(
+                    "EMF_PACKAGE_PREPARED_BY"));
 
         if (details is null)
             return 1;

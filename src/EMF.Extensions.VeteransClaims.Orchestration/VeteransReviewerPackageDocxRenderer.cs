@@ -51,6 +51,12 @@ public static class VeteransReviewerPackageDocxRenderer
             var mainPart =
                 document.AddMainDocumentPart();
 
+            var stylesPart =
+                mainPart.AddNewPart<StyleDefinitionsPart>();
+
+            stylesPart.Styles =
+                ReviewerStyles();
+
             var footerPart =
                 mainPart.AddNewPart<FooterPart>();
 
@@ -74,15 +80,29 @@ public static class VeteransReviewerPackageDocxRenderer
                 new Body(
                     ConfidentialParagraph(),
                     StyledParagraph(
-                        "Veterans Evidence Reviewer Report",
+                        "Veterans Evidence Package for Medical Review",
                         "Title"),
                     StyledParagraph(
                         $"Purpose: {package.Purpose}",
                         "Subtitle"),
                     StyledParagraph(
                         $"Reviewer Role: {ReviewerRoleDisplayName(package.ReviewerRole)}",
-                        "Subtitle"),
-                    PageBreakParagraph());
+                        "Subtitle"));
+
+            if (!string.IsNullOrWhiteSpace(details.PackagePreparedBy))
+            {
+                body.Append(
+                    StyledParagraph(
+                        $"Package Prepared By: {details.PackagePreparedBy}",
+                        "Subtitle"));
+            }
+
+            body.Append(
+                StyledParagraph(
+                    "Prepared Using: EMF Veterans Evidence System",
+                    "Subtitle"));
+
+            body.Append(PageBreakParagraph());
 
             AppendExecutiveSummary(
                 body,
@@ -512,12 +532,12 @@ public static class VeteransReviewerPackageDocxRenderer
                     "Provides an up-front, source-grounded view of sustained PAP use so later residual-AHI and mask/leak findings are interpreted in adherence context."));
         }
 
-        if (GetPapTitrationFindings(details).Count > 0)
+        if (GetPapTitrationSummaryItems(details).Count > 0)
         {
             sections.Add(
                 new PackageGuideSection(
                     "Sleep Study / PAP Titration Results",
-                    "Summarizes PAP titration findings documented in provider notes and relates them to subsequent treatment decisions without implying that an unavailable primary study report is present."));
+                    "Summarizes primary PAP titration studies supplied as evidence together with titration findings documented in provider notes, preserving longitudinal treatment context."));
         }
 
         if (details.ClinicalProgressionEvents.Any(
@@ -704,7 +724,7 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             ContentParagraph(
-                "This report organizes evidence for independent medical review. " +
+                "This package organizes evidence for independent medical review. " +
                 "It does not make a medical, legal, or adjudicative conclusion."));
     }
 
@@ -935,10 +955,10 @@ public static class VeteransReviewerPackageDocxRenderer
         Body body,
         VeteransReviewerPackageDetails details)
     {
-        var findings =
-            GetPapTitrationFindings(details);
+        var items =
+            GetPapTitrationSummaryItems(details);
 
-        if (findings.Count == 0)
+        if (items.Count == 0)
             return;
 
         body.Append(
@@ -948,17 +968,16 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             ContentParagraph(
-                "The following PAP titration findings are documented in subsequent " +
-                "provider notes in the supplied evidence. A primary titration report " +
-                "should be treated as included only when it appears separately in the " +
-                "evidence appendices."));
+                "The following PAP titration evidence includes primary study material " +
+                "supplied in the medical-evidence appendix and titration findings " +
+                "documented in provider notes. Historical studies are included to " +
+                "preserve longitudinal PAP treatment context."));
 
-        foreach (var item in findings)
+        foreach (var item in items)
         {
             body.Append(
                 StyledParagraph(
-                    $"{item.EventDate.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture)} — " +
-                    "PAP Titration Result",
+                    item.Heading,
                     "Heading2"));
 
             body.Append(
@@ -969,7 +988,11 @@ public static class VeteransReviewerPackageDocxRenderer
                     $"Source: {item.SourceLocator}"));
         }
 
-        if (details.ClinicalProgressionEvents.Any(
+        var findings =
+            GetPapTitrationFindings(details);
+
+        if (findings.Count > 0 &&
+            details.ClinicalProgressionEvents.Any(
                 item =>
                     item.EventDate >= findings[0].EventDate &&
                     item.EventType == ClinicalProgressionEventTypes.TreatmentTransition &&
@@ -984,6 +1007,54 @@ public static class VeteransReviewerPackageDocxRenderer
         }
     }
 
+    private static IReadOnlyList<PapTitrationSummaryItem>
+        GetPapTitrationSummaryItems(
+            VeteransReviewerPackageDetails details)
+    {
+        var items =
+            new List<PapTitrationSummaryItem>();
+
+        foreach (var content in
+            details.ArtifactContents
+                .Where(IsPrimaryPapTitrationEvidence))
+        {
+            var year =
+                GetPapTitrationEvidenceYear(content);
+            var sortDate =
+                GetPapTitrationEvidenceSortDate(content);
+            var heading =
+                year is null
+                    ? "Primary PAP Titration Study"
+                    : $"{year.Value.ToString(CultureInfo.InvariantCulture)} — Primary PAP Titration Study";
+
+            items.Add(
+                new PapTitrationSummaryItem(
+                    sortDate,
+                    0,
+                    heading,
+                    "A primary PAP titration study is included in the medical-evidence appendix as historical treatment evidence. It is summarized here to preserve longitudinal PAP titration context alongside later documented findings.",
+                    GetDisplayName(content)));
+        }
+
+        foreach (var finding in GetPapTitrationFindings(details))
+        {
+            items.Add(
+                new PapTitrationSummaryItem(
+                    finding.EventDate,
+                    1,
+                    $"{finding.EventDate.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture)} — PAP Titration Result",
+                    finding.Summary,
+                    finding.SourceLocator));
+        }
+
+        return items
+            .OrderBy(item => item.SortDate is null ? 1 : 0)
+            .ThenBy(item => item.SortDate)
+            .ThenBy(item => item.SourceOrder)
+            .ThenBy(item => item.SourceLocator, StringComparer.Ordinal)
+            .ToArray();
+    }
+
     private static IReadOnlyList<VeteransReviewerClinicalProgressionEvent>
         GetPapTitrationFindings(
             VeteransReviewerPackageDetails details) =>
@@ -992,6 +1063,112 @@ public static class VeteransReviewerPackageDocxRenderer
             .OrderBy(item => item.EventDate)
             .ThenBy(item => item.SourceLocator, StringComparer.Ordinal)
             .ToArray();
+
+    private static bool IsPrimaryPapTitrationEvidence(
+        VeteransReviewerArtifactContent content)
+    {
+        if (!string.Equals(
+                content.Appendix,
+                VeteransReviewerPackageAppendix.MedicalEvidence,
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var displayName =
+            GetDisplayName(content);
+
+        if (!ContainsReviewerText(displayName, "titration"))
+            return false;
+
+        return ContainsReviewerText(displayName, "PAP") ||
+               ContainsReviewerText(displayName, "CPAP") ||
+               ContainsReviewerText(displayName, "BiPAP") ||
+               ContainsReviewerText(displayName, "ASV") ||
+               ContainsReviewerText(displayName, "sleep");
+    }
+
+    private static DateOnly? GetPapTitrationEvidenceSortDate(
+        VeteransReviewerArtifactContent content)
+    {
+        var evidenceDate =
+            GetEvidenceDate(content);
+
+        if (DateOnly.TryParseExact(
+                evidenceDate,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsedDate))
+        {
+            return parsedDate;
+        }
+
+        var filenameDate =
+            Regex.Match(
+                content.Artifact.Name,
+                @"(?<!\d)(?<year>(?:19|20)\d{2})[-_.](?<month>0[1-9]|1[0-2])[-_.](?<day>0[1-9]|[12]\d|3[01])(?!\d)",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1));
+
+        if (filenameDate.Success &&
+            DateOnly.TryParseExact(
+                $"{filenameDate.Groups["year"].Value}-{filenameDate.Groups["month"].Value}-{filenameDate.Groups["day"].Value}",
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out parsedDate))
+        {
+            return parsedDate;
+        }
+
+        var year =
+            GetPapTitrationEvidenceYear(content);
+
+        return year is null
+            ? null
+            : new DateOnly(year.Value, 1, 1);
+    }
+
+    private static int? GetPapTitrationEvidenceYear(
+        VeteransReviewerArtifactContent content)
+    {
+        var evidenceDate =
+            GetEvidenceDate(content);
+
+        if (DateOnly.TryParseExact(
+                evidenceDate,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsedDate))
+        {
+            return parsedDate.Year;
+        }
+
+        var match =
+            Regex.Match(
+                content.Artifact.Name,
+                @"(?<!\d)(?<year>(?:19|20)\d{2})(?!\d)",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1));
+
+        return match.Success &&
+               int.TryParse(
+                   match.Groups["year"].Value,
+                   NumberStyles.None,
+                   CultureInfo.InvariantCulture,
+                   out var year)
+            ? year
+            : null;
+    }
+
+    private sealed record PapTitrationSummaryItem(
+        DateOnly? SortDate,
+        int SourceOrder,
+        string Heading,
+        string Summary,
+        string SourceLocator);
 
     private static bool IsPapTitrationFinding(
         VeteransReviewerClinicalProgressionEvent item) =>
@@ -1419,14 +1596,6 @@ public static class VeteransReviewerPackageDocxRenderer
                     ContentParagraph(
                         $"Relevance: {reviewed.Association.Description}"));
 
-                body.Append(
-                    ContentParagraph(
-                        $"Reviewed by: {reviewed.ReviewedBy}"));
-
-                body.Append(
-                    ContentParagraph(
-                        $"Reviewed UTC: {reviewed.ReviewedUtc:yyyy-MM-dd HH:mm:ss} UTC"));
-
                 foreach (var excerpt in reviewed.SourceExcerpts)
                 {
                     body.Append(
@@ -1584,35 +1753,10 @@ public static class VeteransReviewerPackageDocxRenderer
         var displayName =
             GetDisplayName(content);
 
-        body.Append(
-            StyledParagraph(
-                displayName,
-                "Heading2"));
-
         var sourceReference =
             BuildSourceReference(content);
 
-        if (!string.IsNullOrWhiteSpace(sourceReference))
-        {
-            body.Append(
-                ContentParagraph(
-                    sourceReference,
-                    keepWithNext: true));
-        }
-
         var sourceName = GetSourceName(content);
-
-        if (!string.IsNullOrWhiteSpace(sourceName) &&
-            !string.Equals(
-                displayName,
-                sourceName,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            body.Append(
-                ContentParagraph(
-                    $"Source: {sourceName}",
-                    keepWithNext: true));
-        }
 
         var clarifications =
             details.SourceClarifications
@@ -1633,10 +1777,6 @@ public static class VeteransReviewerPackageDocxRenderer
             content,
             clarifications);
 
-        AppendSourceClarifications(
-            body,
-            clarifications);
-
         var historicalMedicationTitle =
             BuildHistoricalMedicationTitle(content);
 
@@ -1644,6 +1784,80 @@ public static class VeteransReviewerPackageDocxRenderer
             historicalMedicationTitle is null
                 ? null
                 : BuildHistoricalMedicationOmissionMessage(details);
+
+        if (UsesRunningEvidenceHeader(content))
+        {
+            var contentBody = new Body();
+
+            AppendSourcePreamble(
+                contentBody,
+                displayName,
+                sourceReference,
+                sourceName,
+                clarifications,
+                includeDisplayHeading: false);
+
+            if (content.PrintablePages.Count > 0)
+            {
+                AppendPrintablePages(
+                    mainPart,
+                    contentBody,
+                    content.PrintablePages,
+                    displayName,
+                    clarifications,
+                    reviewerPageSelectionApplied:
+                        content.ReviewerPageSelection is not null,
+                    medicalLiterature:
+                        string.Equals(
+                            content.Appendix,
+                            VeteransReviewerPackageAppendix.MedicalLiterature,
+                            StringComparison.Ordinal),
+                    historicalMedicationTitle:
+                        historicalMedicationTitle,
+                    historicalMedicationOmissionMessage:
+                        historicalMedicationOmissionMessage,
+                    includeReviewerContinuationMarkers: false);
+            }
+            else if (!string.IsNullOrWhiteSpace(content.Text))
+            {
+                if (string.Equals(
+                        content.Appendix,
+                        VeteransReviewerPackageAppendix.MedicalLiterature,
+                        StringComparison.Ordinal))
+                {
+                    AppendMedicalLiteratureText(
+                        contentBody,
+                        ApplyReviewerSourceCorrections(
+                            content.Text,
+                            clarifications));
+                }
+                else
+                {
+                    AppendReviewerText(
+                        contentBody,
+                        ApplyReviewerSourceCorrections(
+                            content.Text,
+                            clarifications),
+                        historicalMedicationTitle,
+                        historicalMedicationOmissionMessage);
+                }
+            }
+
+            body.Append(
+                RunningEvidenceTable(
+                    displayName,
+                    contentBody));
+
+            return;
+        }
+
+        AppendSourcePreamble(
+            body,
+            displayName,
+            sourceReference,
+            sourceName,
+            clarifications,
+            includeDisplayHeading: true);
 
         if (content.PrintablePages.Count > 0)
         {
@@ -1691,6 +1905,130 @@ public static class VeteransReviewerPackageDocxRenderer
                     historicalMedicationOmissionMessage);
             }
         }
+    }
+
+    private static bool UsesRunningEvidenceHeader(
+        VeteransReviewerArtifactContent content) =>
+        content.PrintablePages.Count == 0
+            ? !string.IsNullOrWhiteSpace(content.Text)
+            : content.PrintablePages.All(
+                page =>
+                    string.Equals(
+                        page.ContentType,
+                        "text/plain",
+                        StringComparison.OrdinalIgnoreCase));
+
+    private static void AppendSourcePreamble(
+        Body body,
+        string displayName,
+        string? sourceReference,
+        string? sourceName,
+        IReadOnlyList<VeteransReviewerSourceClarification> clarifications,
+        bool includeDisplayHeading)
+    {
+        if (includeDisplayHeading)
+        {
+            body.Append(
+                StyledParagraph(
+                    displayName,
+                    "Heading2"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(sourceReference))
+        {
+            body.Append(
+                ContentParagraph(
+                    sourceReference,
+                    keepWithNext: true));
+        }
+
+        if (!string.IsNullOrWhiteSpace(sourceName) &&
+            !string.Equals(
+                displayName,
+                sourceName,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            body.Append(
+                ContentParagraph(
+                    $"Source: {sourceName}",
+                    keepWithNext: true));
+        }
+
+        AppendSourceClarifications(
+            body,
+            clarifications);
+    }
+
+    private static Table RunningEvidenceTable(
+        string displayName,
+        Body contentBody)
+    {
+        var table =
+            new Table(
+                new TableProperties(
+                    new TableWidth
+                    {
+                        Type = TableWidthUnitValues.Pct,
+                        Width = "5000"
+                    },
+                    new TableBorders(
+                        new TopBorder { Val = BorderValues.Nil },
+                        new LeftBorder { Val = BorderValues.Nil },
+                        new BottomBorder { Val = BorderValues.Nil },
+                        new RightBorder { Val = BorderValues.Nil },
+                        new InsideHorizontalBorder { Val = BorderValues.Nil },
+                        new InsideVerticalBorder { Val = BorderValues.Nil })));
+
+        table.Append(
+            new TableRow(
+                new TableRowProperties(
+                    new TableHeader()),
+                RunningEvidenceCell(
+                    StyledParagraph(
+                        displayName,
+                        "Heading2"))));
+
+        var contentElements =
+            contentBody.ChildElements.ToArray();
+
+        if (contentElements.Length == 0)
+            contentElements = [new Paragraph()];
+
+        foreach (var element in contentElements)
+        {
+            element.Remove();
+
+            table.Append(
+                new TableRow(
+                    new TableRowProperties(
+                        new CantSplit()),
+                    RunningEvidenceCell(element)));
+        }
+
+        return table;
+    }
+
+    private static TableCell RunningEvidenceCell(
+        OpenXmlElement element)
+    {
+        var cell =
+            new TableCell(
+                new TableCellProperties(
+                    new TableCellWidth
+                    {
+                        Type = TableWidthUnitValues.Pct,
+                        Width = "5000"
+                    }));
+
+        cell.Append(element);
+
+        // A WordprocessingML table cell that ends in a nested table must
+        // also end with a paragraph. Reviewer content is normally paragraph
+        // based, but preserve this invariant for any future nested table.
+        if (element is Table)
+            cell.Append(new Paragraph());
+
+        return cell;
     }
 
     private static void AppendSourceClarifications(
@@ -2210,7 +2548,7 @@ public static class VeteransReviewerPackageDocxRenderer
                             "CONFIDENTIAL — VETERAN MEDICAL INFORMATION",
                             bold: true),
                         FooterRun(
-                            "  |  Veterans Evidence Reviewer Report")),
+                            "  |  Veterans Evidence Package for Medical Review")),
                     FooterCell(
                         1000,
                         JustificationValues.Right,
@@ -2349,6 +2687,61 @@ public static class VeteransReviewerPackageDocxRenderer
                     }),
                 new Text(
                     "CONFIDENTIAL — VETERAN MEDICAL INFORMATION")));
+    }
+
+    private static Styles ReviewerStyles() =>
+        new(
+            ReviewerParagraphStyle(
+                "Normal",
+                "Normal",
+                isDefault: true),
+            ReviewerParagraphStyle(
+                "Title",
+                "Title"),
+            ReviewerParagraphStyle(
+                "Subtitle",
+                "Subtitle"),
+            ReviewerParagraphStyle(
+                "Heading1",
+                "heading 1"),
+            ReviewerParagraphStyle(
+                "Heading2",
+                "heading 2"),
+            ReviewerParagraphStyle(
+                "Heading3",
+                "heading 3"));
+
+    private static Style ReviewerParagraphStyle(
+        string styleId,
+        string name,
+        bool isDefault = false)
+    {
+        var style =
+            new Style
+            {
+                Type = StyleValues.Paragraph,
+                StyleId = styleId
+            };
+
+        if (isDefault)
+            style.Default = true;
+
+        style.Append(
+            new StyleName
+            {
+                Val = name
+            });
+
+        if (!isDefault)
+        {
+            style.Append(
+                new BasedOn
+                {
+                    Val = "Normal"
+                });
+        }
+
+        return style;
     }
 
     private static Paragraph StyledParagraph(
@@ -3032,7 +3425,8 @@ public static class VeteransReviewerPackageDocxRenderer
         bool reviewerPageSelectionApplied,
         bool medicalLiterature,
         string? historicalMedicationTitle,
-        string? historicalMedicationOmissionMessage)
+        string? historicalMedicationOmissionMessage,
+        bool includeReviewerContinuationMarkers = true)
     {
         var previousPageNumber = 0;
         var renderedPageCount = 0;
@@ -3050,7 +3444,8 @@ public static class VeteransReviewerPackageDocxRenderer
             if (renderedPageCount > 0)
                 body.Append(PageBreakParagraph());
 
-            if (reviewerPageCount > 1)
+            if (includeReviewerContinuationMarkers &&
+                reviewerPageCount > 1)
             {
                 body.Append(
                     ReviewerContinuationParagraph(

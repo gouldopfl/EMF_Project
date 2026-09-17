@@ -132,9 +132,13 @@ public sealed class VeteransReviewerPackageAssemblyServiceTests
                 clarificationRepository,
                 progressionRepository);
 
-            var result = await service.AssembleAsync(packageId);
+            var result =
+                await service.AssembleAsync(
+                    packageId,
+                    "Michael Gould");
 
             Assert.NotNull(result);
+            Assert.Equal("Michael Gould", result.PackagePreparedBy);
             Assert.Same(packageDetails, result.PackageDetails);
             Assert.Empty(result.Artifacts);
             Assert.Empty(result.ArtifactContents);

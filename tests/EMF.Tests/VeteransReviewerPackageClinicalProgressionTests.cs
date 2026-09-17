@@ -154,6 +154,7 @@ public sealed class VeteransReviewerPackageClinicalProgressionTests
         var issueId = new ClaimIssueId("issue-osa");
         var noteArtifactId = new ArtifactId("sleep-note-internal");
         var oscarArtifactId = new ArtifactId("oscar-internal");
+        var titrationArtifactId = new ArtifactId("titration-2013-internal");
         var noteContent = Content(noteArtifactId);
         var oscarText =
             """
@@ -200,10 +201,38 @@ Raw OSCAR session records are intentionally omitted from this physician report.
                 Appendix = VeteransReviewerPackageAppendix.MedicalEvidence
             };
 
+        var titrationContent =
+            new VeteransReviewerArtifactContent
+            {
+                Artifact =
+                    new Artifact
+                    {
+                        Id = titrationArtifactId,
+                        Name =
+                            "Jupiter-Medical-Center-CPAP-Titration-2013-11-07-page-1-of-6.pdf",
+                        ArtifactType = "file"
+                    },
+                Text =
+                    "Jupiter Medical Center nocturnal polysomnogram with CPAP titration.",
+                PrintablePages =
+                [
+                    new PrintableArtifactPage
+                    {
+                        PageNumber = 1,
+                        ContentType = "text/plain",
+                        Content =
+                            Encoding.UTF8.GetBytes(
+                                "Jupiter Medical Center nocturnal polysomnogram with CPAP titration.")
+                    }
+                ],
+                Appendix = VeteransReviewerPackageAppendix.MedicalEvidence
+            };
+
         var details =
             Details(
                 issueId,
                 noteContent,
+                titrationContent,
                 oscarContent);
 
         details =
@@ -285,10 +314,27 @@ Raw OSCAR session records are intentionally omitted from this physician report.
             text);
         Assert.Contains("Sleep Study / PAP Titration Results", text);
         Assert.Contains(
-            "PAP titration findings are documented in subsequent provider notes",
+            "primary study material supplied in the medical-evidence appendix",
+            text);
+        Assert.Contains("2013 — Primary PAP Titration Study", text);
+        Assert.Contains(
+            "historical treatment evidence",
+            text);
+        Assert.Contains(
+            "Source: CPAP Titration Study — Jupiter Medical Center",
             text);
         Assert.Contains("June 3, 2025 — PAP Titration Result", text);
         Assert.Contains("AHI 0 per hour, and no hypoxemia", text);
+        Assert.True(
+            text.IndexOf(
+                "2013 — Primary PAP Titration Study",
+                StringComparison.Ordinal) <
+            text.IndexOf(
+                "June 3, 2025 — PAP Titration Result",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            "Jupiter-Medical-Center-CPAP-Titration-2013-11-07-page-1-of-6.pdf",
+            text);
         Assert.Contains(
             "corroborates that these documented titration findings were incorporated into treatment decisions",
             text);

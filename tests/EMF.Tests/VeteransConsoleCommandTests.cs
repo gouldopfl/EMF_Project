@@ -4872,3 +4872,63 @@ public sealed partial class VeteransConsoleCommandTests
         }
     }
 }
+
+
+public sealed partial class VeteransConsoleCommandTests
+{
+    [Fact]
+    public void ResolveGeneratedDocumentPath_UsesConfiguredOutputDirectoryForRelativeName()
+    {
+        var previous = Environment.GetEnvironmentVariable("EMF_OUTPUT_PATH");
+        var root =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-output-{Guid.NewGuid():N}");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("EMF_OUTPUT_PATH", root);
+
+            var resolved =
+                VeteransConsoleCommand.ResolveGeneratedDocumentPath(
+                    "reviewer.docx");
+
+            Assert.Equal(
+                Path.Combine(root, "reviewer.docx"),
+                resolved);
+            Assert.True(Directory.Exists(root));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("EMF_OUTPUT_PATH", previous);
+
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void ResolveGeneratedDocumentPath_PreservesAbsolutePath()
+    {
+        var root =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"emf-output-absolute-{Guid.NewGuid():N}");
+        var absolute = Path.Combine(root, "reviewer.docx");
+
+        try
+        {
+            var resolved =
+                VeteransConsoleCommand.ResolveGeneratedDocumentPath(
+                    absolute);
+
+            Assert.Equal(Path.GetFullPath(absolute), resolved);
+            Assert.True(Directory.Exists(root));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, true);
+        }
+    }
+}
