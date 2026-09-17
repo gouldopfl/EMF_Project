@@ -853,6 +853,30 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 8 &&
+            args[0] == "evidence" &&
+            args[1] == "medication" &&
+            args[2] == "context" &&
+            args[3] == "supersede")
+        {
+            var contextSupersedeDatabasePath =
+                Path.GetFullPath(args[4]);
+
+            if (!File.Exists(contextSupersedeDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {contextSupersedeDatabasePath}");
+                return 2;
+            }
+
+            return await RunEvidenceMedicationClinicalContextSupersedeAsync(
+                contextSupersedeDatabasePath,
+                new MedicationClinicalContextId(args[5]),
+                new MedicationClinicalContextId(args[6]),
+                args[7],
+                global::System.Console.Out);
+        }
+
         if ((args.Length == 13 || args.Length == 14) &&
             args[0] == "evidence" &&
             args[1] == "medication" &&
@@ -4942,6 +4966,52 @@ public static class VeteransConsoleCommand
     }
 
 
+    internal static async Task<int> RunEvidenceMedicationClinicalContextSupersedeAsync(
+        string databasePath,
+        MedicationClinicalContextId supersededMedicationClinicalContextId,
+        MedicationClinicalContextId replacementMedicationClinicalContextId,
+        string reason,
+        TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            global::System.Console.Error.WriteLine(
+                "Medication clinical context supersession reason must not be empty.");
+            return 2;
+        }
+
+        try
+        {
+            var repository = new SqliteMedicationRepository(databasePath);
+            await repository.InitializeAsync();
+
+            await repository.SupersedeMedicationClinicalContextAsync(
+                supersededMedicationClinicalContextId,
+                replacementMedicationClinicalContextId,
+                reason.Trim(),
+                DateTimeOffset.UtcNow);
+
+            await output.WriteLineAsync(
+                $"Superseded Context   : {supersededMedicationClinicalContextId.Value}");
+            await output.WriteLineAsync(
+                $"Replacement Context  : {replacementMedicationClinicalContextId.Value}");
+            await output.WriteLineAsync(
+                $"Reason               : {reason.Trim()}");
+
+            return 0;
+        }
+        catch (Exception ex)
+            when (ex is not OperationCanceledException)
+        {
+            global::System.Console.Error.WriteLine(
+                $"Medication clinical context supersession failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+
     internal static async Task<int> RunEvidenceMedicationClinicalContextAsync(
         string databasePath,
         VeteranId veteranId,
@@ -7078,6 +7148,10 @@ public static class VeteransConsoleCommand
             "<yyyy-MM-dd> <internal-start-page> <internal-end-page> " +
             "<medication-name> <prescription-number> <context-type> " +
             "<record-title> <summary>");
+        global::System.Console.WriteLine(
+            "       emf veterans evidence medication context supersede " +
+            "<database-path> <superseded-context-id> " +
+            "<replacement-context-id> <reason>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence medication current " +
