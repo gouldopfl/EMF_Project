@@ -442,17 +442,36 @@ public static class VeteransReviewerPackageDocxRenderer
                 "evidence efficiently. It does not make a medical, legal, or " +
                 "adjudicative conclusion."));
 
-        if (!string.IsNullOrWhiteSpace(
-                details.MedicalOpinionRequested))
+        if (details.MedicalOpinionRequested is not null)
         {
+            if (string.IsNullOrWhiteSpace(
+                    details.MedicalOpinionRequested.OpinionText))
+            {
+                throw new InvalidOperationException(
+                    "Reviewer medical opinion request text is empty.");
+            }
+
             body.Append(
                 StyledParagraph(
                     "Medical Opinion Requested",
                     "Heading2"));
 
+            if (details.MedicalOpinionRequested
+                    .ApplicableRegulatoryCitations.Count > 0)
+            {
+                body.Append(
+                    ContentParagraph(
+                        "Applicable VA Regulation: " +
+                        string.Join(
+                            "; ",
+                            details.MedicalOpinionRequested
+                                .ApplicableRegulatoryCitations),
+                        keepWithNext: true));
+            }
+
             body.Append(
                 ContentParagraph(
-                    details.MedicalOpinionRequested));
+                    details.MedicalOpinionRequested.OpinionText));
         }
 
         body.Append(

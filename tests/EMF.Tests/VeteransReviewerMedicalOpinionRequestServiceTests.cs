@@ -7,6 +7,7 @@ using EMF.Extensions.VeteransClaims.Models.Service;
 using EMF.Extensions.VeteransClaims.Orchestration;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
+using EMF.Extensions.VeteransClaims.Regulatory;
 
 namespace EMF.Tests;
 
@@ -38,17 +39,17 @@ public sealed class VeteransReviewerMedicalOpinionRequestServiceTests
                 "Obstructive Sleep Apnea is at least as likely as not " +
                 "(50 percent or greater probability) proximately due to " +
                 "or the result of the Veteran's service-connected PTSD",
-                result);
+                result.OpinionText);
             Assert.Contains(
                 "If causation is not established",
-                result);
+                result.OpinionText);
             Assert.Contains(
                 "Obstructive Sleep Apnea is at least as likely as not " +
                 "aggravated by the service-connected PTSD",
-                result);
+                result.OpinionText);
             Assert.Contains(
                 "supporting medical rationale",
-                result);
+                result.OpinionText);
         }
         finally
         {
@@ -78,12 +79,12 @@ public sealed class VeteransReviewerMedicalOpinionRequestServiceTests
                     Package(seeded.IssueId, seeded.BasisId));
 
             Assert.NotNull(result);
-            Assert.Contains("Anxiety", result);
-            Assert.Contains("Major Depressive Disorder", result);
-            Assert.Contains("PTSD", result);
+            Assert.Contains("Anxiety", result.OpinionText);
+            Assert.Contains("Major Depressive Disorder", result.OpinionText);
+            Assert.Contains("PTSD", result.OpinionText);
             Assert.Contains(
                 "service-connected Anxiety, Major Depressive Disorder, and PTSD",
-                result);
+                result.OpinionText);
         }
         finally
         {
@@ -135,8 +136,92 @@ public sealed class VeteransReviewerMedicalOpinionRequestServiceTests
             Assert.NotNull(result);
             Assert.Contains(
                 "service-connected psychiatric disability, including PTSD, anxiety, and major depressive disorder",
-                result);
-            Assert.DoesNotContain("coronary", result, StringComparison.OrdinalIgnoreCase);
+                result.OpinionText);
+            Assert.DoesNotContain(
+                "coronary",
+                result.OpinionText,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task GetAsync_SecondaryIncludesPersistedRegulatoryCitations()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(path).InitializeAsync();
+
+            var seeded =
+                await SeedAsync(
+                    path,
+                    "regulatory",
+                    ServiceConnectionTheoryTypes.Secondary,
+                    "GERD",
+                    ["Coronary artery disease"]);
+
+            var regulatory = new SqliteRegulatoryRepository(path);
+            var connections = new SqliteServiceConnectionRepository(path);
+            var authorityId = new RegulatoryAuthorityId("authority-38-cfr");
+
+            await regulatory.AddRegulatoryAuthorityAsync(
+                new RegulatoryAuthority
+                {
+                    Id = authorityId,
+                    AuthorityType = "FederalRegulation",
+                    Citation = "38 C.F.R.",
+                    Title = "Pensions, Bonuses, and Veterans' Relief"
+                });
+
+            foreach (var item in new[]
+            {
+                (Suffix: "a", Citation: "38 C.F.R. § 3.310(a)"),
+                (Suffix: "b", Citation: "38 C.F.R. § 3.310(b)")
+            })
+            {
+                var provisionId =
+                    new RegulatoryProvisionId($"provision-3-310-{item.Suffix}");
+                var requirementId =
+                    new RequirementId($"requirement-3-310-{item.Suffix}");
+
+                await regulatory.AddRegulatoryProvisionAsync(
+                    new RegulatoryProvision
+                    {
+                        Id = provisionId,
+                        RegulatoryAuthorityId = authorityId,
+                        ProvisionType = RegulatoryProvisionTypes.Requirement,
+                        Citation = item.Citation
+                    });
+
+                await regulatory.AddRequirementAsync(
+                    new Requirement
+                    {
+                        Id = requirementId,
+                        RegulatoryProvisionId = provisionId,
+                        Description = "Secondary service connection requirement."
+                    });
+
+                await connections.AddBasisRequirementAsync(
+                    new ServiceConnectionBasisRequirement
+                    {
+                        ServiceConnectionBasisId = seeded.BasisId,
+                        RequirementId = requirementId
+                    });
+            }
+
+            var result =
+                await CreateService(path).GetAsync(
+                    Package(seeded.IssueId, seeded.BasisId));
+
+            Assert.NotNull(result);
+            Assert.Equal(
+                ["38 C.F.R. § 3.310(a)", "38 C.F.R. § 3.310(b)"],
+                result.ApplicableRegulatoryCitations);
         }
         finally
         {
@@ -217,7 +302,8 @@ public sealed class VeteransReviewerMedicalOpinionRequestServiceTests
         string path) =>
         new(
             new SqliteServiceConnectionRepository(path),
-            new SqliteConditionRepository(path));
+            new SqliteConditionRepository(path),
+            new SqliteRegulatoryRepository(path));
 
     private static EvidencePackage Package(
         ClaimIssueId issueId,

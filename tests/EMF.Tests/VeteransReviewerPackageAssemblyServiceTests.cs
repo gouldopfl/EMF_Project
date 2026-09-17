@@ -242,7 +242,8 @@ public sealed class VeteransReviewerPackageAssemblyServiceTests
                 progressionRepository),
             new VeteransReviewerMedicalOpinionRequestService(
                 new SqliteServiceConnectionRepository(path),
-                new SqliteConditionRepository(path)));
+                new SqliteConditionRepository(path),
+                new SqliteRegulatoryRepository(path)));
 
     public class EvidencePackageServiceProxy : DispatchProxy
     {

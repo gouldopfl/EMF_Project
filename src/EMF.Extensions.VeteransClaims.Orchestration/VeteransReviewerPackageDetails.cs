@@ -40,7 +40,8 @@ public sealed class VeteransReviewerPackageDetails
     { get; init; } =
         Array.Empty<MedicationLedgerEntry>();
 
-    public string? MedicalOpinionRequested { get; init; }
+    public VeteransReviewerMedicalOpinionRequest? MedicalOpinionRequested
+    { get; init; }
 
     public string? PackagePreparedBy { get; init; }
 }

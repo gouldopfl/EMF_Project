@@ -6453,7 +6453,8 @@ public static class VeteransConsoleCommand
                     clinicalProgressionRepository),
                 new VeteransReviewerMedicalOpinionRequestService(
                     serviceConnectionRepository,
-                    new SqliteConditionRepository(fullDatabasePath)));
+                    new SqliteConditionRepository(fullDatabasePath),
+                    new SqliteRegulatoryRepository(fullDatabasePath)));
 
         var details =
             await assemblyService.AssembleAsync(

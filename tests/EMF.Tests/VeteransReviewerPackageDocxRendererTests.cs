@@ -1127,8 +1127,17 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     },
                 Artifacts = [],
                 MedicalOpinionRequested =
-                    "Determine whether the Veteran's Obstructive Sleep Apnea " +
-                    "is at least as likely as not caused or aggravated by PTSD."
+                    new VeteransReviewerMedicalOpinionRequest
+                    {
+                        OpinionText =
+                            "Determine whether the Veteran's Obstructive Sleep Apnea " +
+                            "is at least as likely as not caused or aggravated by PTSD.",
+                        ApplicableRegulatoryCitations =
+                            [
+                                "38 C.F.R. § 3.310(a)",
+                                "38 C.F.R. § 3.310(b)"
+                            ]
+                    }
             };
 
         var content =
@@ -1156,9 +1165,48 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             paragraphs);
 
         Assert.Contains(
+            "Applicable VA Regulation: 38 C.F.R. § 3.310(a); " +
+            "38 C.F.R. § 3.310(b)",
+            paragraphs);
+
+        Assert.Contains(
             "Determine whether the Veteran's Obstructive Sleep Apnea " +
             "is at least as likely as not caused or aggravated by PTSD.",
             paragraphs);
+
+        var paragraphElements =
+            document.MainDocumentPart!
+                .Document!
+                .Body!
+                .Elements<
+                    DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .ToArray();
+
+        var heading =
+            Assert.Single(
+                paragraphElements.Where(
+                    paragraph =>
+                        paragraph.InnerText == "Medical Opinion Requested"));
+
+        var regulation =
+            Assert.Single(
+                paragraphElements.Where(
+                    paragraph =>
+                        paragraph.InnerText.StartsWith(
+                            "Applicable VA Regulation:",
+                            StringComparison.Ordinal)));
+
+        var opinion =
+            Assert.Single(
+                paragraphElements.Where(
+                    paragraph =>
+                        paragraph.InnerText.StartsWith(
+                            "Determine whether the Veteran's Obstructive Sleep Apnea",
+                            StringComparison.Ordinal)));
+
+        Assert.NotNull(heading.ParagraphProperties?.KeepNext);
+        Assert.NotNull(regulation.ParagraphProperties?.KeepNext);
+        Assert.NotNull(opinion.ParagraphProperties?.KeepLines);
     }
 
     [Fact]
