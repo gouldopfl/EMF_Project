@@ -69,6 +69,14 @@ public interface IMedicationRepository
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
+    Task SupersedeMedicationClinicalContextAsync(
+        MedicationClinicalContextId supersededMedicationClinicalContextId,
+        MedicationClinicalContextId replacementMedicationClinicalContextId,
+        string reason,
+        DateTimeOffset supersededUtc,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task<IReadOnlyList<MedicationClinicalContext>>
         GetMedicationClinicalContextsAsync(
             VeteranId veteranId,

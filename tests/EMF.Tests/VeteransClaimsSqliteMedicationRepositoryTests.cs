@@ -732,6 +732,95 @@ public sealed class VeteransClaimsSqliteMedicationRepositoryTests
     }
 
     [Fact]
+    public async Task Repository_SupersedesMedicationClinicalContext()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository = await CreateAsync(path);
+            var original = CreateClinicalContext(
+                "context-original",
+                new DateOnly(2025, 8, 12),
+                948,
+                949,
+                "ISOSORBIDE MONONITRATE 60MG SA TAB",
+                "12620234",
+                MedicationClinicalContextTypes.ClinicalEffect,
+                "Original clinical context.");
+            var replacement = CreateClinicalContext(
+                "context-replacement",
+                new DateOnly(2025, 8, 12),
+                947,
+                948,
+                "Isosorbide Mononitrate",
+                "12620234",
+                MedicationClinicalContextTypes.ClinicalEffect,
+                "Corrected clinical context.");
+
+            await repository.AddMedicationClinicalContextAsync(original);
+            await repository.AddMedicationClinicalContextAsync(replacement);
+
+            await repository.SupersedeMedicationClinicalContextAsync(
+                original.Id,
+                replacement.Id,
+                "Corrected source page range and canonical medication identity.",
+                new DateTimeOffset(
+                    2026,
+                    9,
+                    17,
+                    15,
+                    0,
+                    0,
+                    TimeSpan.Zero));
+
+            var active =
+                await repository.GetMedicationClinicalContextsAsync(
+                    new VeteranId("veteran-001"));
+
+            var stored = Assert.Single(active);
+            Assert.Equal(replacement.Id, stored.Id);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Repository_RejectsMedicationClinicalContextSelfSupersession()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository = await CreateAsync(path);
+            var context = CreateClinicalContext(
+                "context-self",
+                new DateOnly(2025, 8, 12),
+                947,
+                948,
+                "Isosorbide Mononitrate",
+                "12620234",
+                MedicationClinicalContextTypes.ClinicalEffect,
+                "Clinical context.");
+
+            await repository.AddMedicationClinicalContextAsync(context);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => repository.SupersedeMedicationClinicalContextAsync(
+                    context.Id,
+                    context.Id,
+                    "Invalid self-supersession.",
+                    DateTimeOffset.UtcNow));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task Repository_UpdatesMedicationClinicalContextRecordTitle()
     {
         var path = Path.GetTempFileName();

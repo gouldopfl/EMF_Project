@@ -597,7 +597,8 @@ public sealed class SqliteMedicationRepository :
             """
             UPDATE VeteransClaims_MedicationClinicalContexts
             SET RecordTitle = $recordTitle
-            WHERE Id = $id;
+            WHERE Id = $id
+              AND SupersededUtc IS NULL;
             """;
 
         command.Parameters.AddWithValue("$recordTitle", recordTitle.Trim());
@@ -607,6 +608,63 @@ public sealed class SqliteMedicationRepository :
         {
             throw new InvalidOperationException(
                 "Medication clinical context record-title update did not affect exactly one row.");
+        }
+    }
+
+    public async Task SupersedeMedicationClinicalContextAsync(
+        MedicationClinicalContextId supersededMedicationClinicalContextId,
+        MedicationClinicalContextId replacementMedicationClinicalContextId,
+        string reason,
+        DateTimeOffset supersededUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+
+        if (supersededMedicationClinicalContextId ==
+            replacementMedicationClinicalContextId)
+        {
+            throw new InvalidOperationException(
+                "A medication clinical context cannot supersede itself.");
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            UPDATE VeteransClaims_MedicationClinicalContexts
+            SET SupersededByMedicationClinicalContextId = $replacementId,
+                SupersededUtc = $supersededUtc,
+                SupersessionReason = $reason
+            WHERE Id = $supersededId
+              AND SupersededUtc IS NULL
+              AND EXISTS (
+                  SELECT 1
+                  FROM VeteransClaims_MedicationClinicalContexts replacement
+                  WHERE replacement.Id = $replacementId
+                    AND replacement.VeteranId =
+                        VeteransClaims_MedicationClinicalContexts.VeteranId
+                    AND replacement.SupersededUtc IS NULL
+              );
+            """;
+
+        command.Parameters.AddWithValue(
+            "$supersededId",
+            supersededMedicationClinicalContextId.Value);
+        command.Parameters.AddWithValue(
+            "$replacementId",
+            replacementMedicationClinicalContextId.Value);
+        command.Parameters.AddWithValue(
+            "$supersededUtc",
+            supersededUtc.ToString("O"));
+        command.Parameters.AddWithValue("$reason", reason.Trim());
+
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException(
+                "Medication clinical context supersession requires an active " +
+                "source and active replacement belonging to the same veteran.");
         }
     }
 
@@ -623,9 +681,13 @@ public sealed class SqliteMedicationRepository :
             """
             SELECT Id, VeteranId, SourceArtifactId, EventDate,
                    SourceStartPage, SourceEndPage, MedicationName,
-                   PrescriptionNumber, ContextType, RecordTitle, Summary
+                   PrescriptionNumber, ContextType, RecordTitle, Summary,
+                   SupersededByMedicationClinicalContextId,
+                   SupersededUtc,
+                   SupersessionReason
             FROM VeteransClaims_MedicationClinicalContexts
             WHERE VeteranId = $veteranId
+              AND SupersededUtc IS NULL
             ORDER BY EventDate, SourceStartPage, Id;
             """;
 
@@ -956,7 +1018,16 @@ public sealed class SqliteMedicationRepository :
             PrescriptionNumber = reader.GetString(7),
             ContextType = reader.GetString(8),
             RecordTitle = reader.IsDBNull(9) ? null : reader.GetString(9),
-            Summary = reader.GetString(10)
+            Summary = reader.GetString(10),
+            SupersededByMedicationClinicalContextId =
+                reader.IsDBNull(11)
+                    ? null
+                    : new MedicationClinicalContextId(reader.GetString(11)),
+            SupersededUtc =
+                reader.IsDBNull(12)
+                    ? null
+                    : DateTimeOffset.Parse(reader.GetString(12)),
+            SupersessionReason = reader.IsDBNull(13) ? null : reader.GetString(13)
         };
 
     private static MedicationHistoryEvent ReadMedicationHistoryEvent(

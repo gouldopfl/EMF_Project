@@ -26,4 +26,10 @@ public sealed class MedicationClinicalContext
     public string? RecordTitle { get; init; }
 
     public required string Summary { get; init; }
+
+    public MedicationClinicalContextId? SupersededByMedicationClinicalContextId { get; init; }
+
+    public DateTimeOffset? SupersededUtc { get; init; }
+
+    public string? SupersessionReason { get; init; }
 }

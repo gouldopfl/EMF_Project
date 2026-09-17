@@ -2594,6 +2594,26 @@ internal static class VeteransClaimsSqliteMigrations
                 CREATE UNIQUE INDEX
                     UX_VeteransClaims_EvidencePackages_CreationOrdinal
                 ON VeteransClaims_EvidencePackages (CreationOrdinal);
+                """),
+            new VeteransClaimsSqliteMigration(
+                86,
+                "AddMedicationClinicalContextSupersession",
+                """
+                ALTER TABLE VeteransClaims_MedicationClinicalContexts
+                ADD COLUMN SupersededByMedicationClinicalContextId TEXT NULL;
+
+                ALTER TABLE VeteransClaims_MedicationClinicalContexts
+                ADD COLUMN SupersededUtc TEXT NULL;
+
+                ALTER TABLE VeteransClaims_MedicationClinicalContexts
+                ADD COLUMN SupersessionReason TEXT NULL;
+
+                CREATE INDEX
+                    IX_VeteransClaims_MedicationClinicalContexts_Active
+                ON VeteransClaims_MedicationClinicalContexts (
+                    VeteranId,
+                    SupersededUtc
+                );
                 """)
         };
 }
