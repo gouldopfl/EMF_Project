@@ -2178,6 +2178,19 @@ public static class VeteransConsoleCommand
                 ? null
                 : new ServiceConnectionBasisId(basisId);
 
+        if (!requestedBasisId.HasValue && hasRequirementLiterature)
+        {
+            if (details.ServiceConnectionBases.Count != 1)
+            {
+                global::System.Console.Error.WriteLine(
+                    "Reviewer medical literature requires an explicit --basis selection " +
+                    "when the claim issue does not have exactly one service-connection basis.");
+                return 1;
+            }
+
+            requestedBasisId = details.ServiceConnectionBases.Single().Id;
+        }
+
         if (requestedBasisId.HasValue)
         {
             try

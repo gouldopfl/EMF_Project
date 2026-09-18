@@ -5,6 +5,7 @@ using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Claims;
+using EMF.Extensions.VeteransClaims.Models.Conditions;
 using EMF.Extensions.VeteransClaims.Models.Service;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite;
@@ -3854,6 +3855,13 @@ public sealed partial class VeteransConsoleCommandTests
                 Description = "Secondary nexus requirement."
             };
             await regulatory.AddRequirementAsync(requirement);
+            var (_, basis) = await SeedServiceConnectedBasisAsync(databasePath, "lit-console");
+            await new SqliteServiceConnectionRepository(databasePath)
+                .AddBasisRequirementAsync(new ServiceConnectionBasisRequirement
+                {
+                    ServiceConnectionBasisId = basis.Id,
+                    RequirementId = requirement.Id
+                });
 
             await File.WriteAllTextAsync(
                 sourcePath,
@@ -3909,6 +3917,7 @@ public sealed partial class VeteransConsoleCommandTests
                     requirement.Id);
 
             var link = Assert.Single(links);
+            Assert.Equal(basis.Id, link.ServiceConnectionBasisId);
             Assert.Equal(
                 EvidenceGuidanceRoles.SupportsRequirement,
                 link.GuidanceRole);
@@ -4583,8 +4592,12 @@ public sealed partial class VeteransConsoleCommandTests
 
 public sealed partial class VeteransConsoleCommandTests
 {
-    [Fact]
-    public async Task EvidenceReviewer_UsesActiveReviewedLiteratureAfterSupersessionInAppendixF()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task EvidenceReviewer_UsesActiveReviewedLiteratureAfterSupersessionInAppendixF(
+        bool multipleBases, bool explicitBasis)
     {
         var databasePath = Path.GetTempFileName();
         var outputPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.docx");
@@ -4631,6 +4644,36 @@ public sealed partial class VeteransConsoleCommandTests
                 ServiceConnectionTheoryId = theory.Id
             };
             await connections.AddServiceConnectionBasisAsync(basis);
+
+            var conditions = new SqliteConditionRepository(databasePath);
+            var claimedCondition = new ClaimedCondition
+            {
+                Id = new ClaimedConditionId("claimed-reviewer-literature"),
+                ClaimIssueId = issue.Id,
+                Name = "Sleep apnea"
+            };
+            await conditions.AddClaimedConditionAsync(claimedCondition);
+            await connections.AddBasisClaimedConditionAsync(new ServiceConnectionBasisClaimedCondition
+            {
+                ServiceConnectionBasisId = basis.Id,
+                ClaimedConditionId = claimedCondition.Id
+            });
+            var serviceConnectedCondition = new MedicalCondition
+            {
+                Id = new MedicalConditionId("connected-reviewer-literature"),
+                Name = "PTSD"
+            };
+            await conditions.AddMedicalConditionAsync(serviceConnectedCondition);
+            await conditions.AddVeteranMedicalConditionAsync(new VeteranMedicalCondition
+            {
+                VeteranId = veteran.Id,
+                MedicalConditionId = serviceConnectedCondition.Id
+            });
+            await connections.AddBasisServiceConnectedConditionAsync(new ServiceConnectionBasisServiceConnectedCondition
+            {
+                ServiceConnectionBasisId = basis.Id,
+                ServiceConnectedConditionId = serviceConnectedCondition.Id
+            });
 
             var regulatory = new SqliteRegulatoryRepository(databasePath);
             await regulatory.InitializeAsync();
@@ -4808,8 +4851,34 @@ public sealed partial class VeteransConsoleCommandTests
                 artifactId,
                 System.Text.Encoding.UTF8.GetBytes("Published medical literature source text."));
 
+            if (multipleBases)
+            {
+                await connections.AddServiceConnectionBasisAsync(new ServiceConnectionBasis
+                {
+                    Id = new ServiceConnectionBasisId("basis-reviewer-literature-other"),
+                    ClaimIssueId = issue.Id,
+                    ServiceConnectionTheoryId = theory.Id
+                });
+            }
+
+            string[] reviewerArgs = explicitBasis
+                ? ["evidence", "reviewer", databasePath, issue.Id.Value, outputPath, "--basis", basis.Id.Value]
+                : ["evidence", "reviewer", databasePath, issue.Id.Value, outputPath];
+
+            if (multipleBases && !explicitBasis)
+            {
+                Assert.Equal(1, await VeteransConsoleCommand.RunAsync(
+                    reviewerArgs,
+                    () => throw new InvalidOperationException("Ambiguous selection must fail before AI execution."),
+                    () => contentStore));
+                Assert.Empty(await new SqliteEvidencePackageRepository(databasePath)
+                    .GetEvidencePackagesAsync(issue.Id));
+                Assert.False(File.Exists(outputPath));
+                return;
+            }
+
             var exitCode = await VeteransConsoleCommand.RunAsync(
-                ["evidence", "reviewer", databasePath, issue.Id.Value, outputPath],
+                reviewerArgs,
                 () => Task.FromResult(
                     new TextSummarizationConsoleRuntime
                     {
@@ -4826,6 +4895,7 @@ public sealed partial class VeteransConsoleCommandTests
 
             var packageRepository = new SqliteEvidencePackageRepository(databasePath);
             var package = Assert.Single(await packageRepository.GetEvidencePackagesAsync(issue.Id));
+            Assert.Equal(basis.Id, package.ServiceConnectionBasisId);
             var packageArtifacts = await packageRepository.GetEvidencePackageArtifactsAsync(package.Id);
 
             Assert.Contains(
