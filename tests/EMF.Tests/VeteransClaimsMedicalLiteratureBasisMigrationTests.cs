@@ -133,6 +133,70 @@ public sealed class VeteransClaimsMedicalLiteratureBasisMigrationTests
         }
     }
 
+    [Theory]
+    [InlineData("basis-a")]
+    [InlineData("basis-b")]
+    public async Task Repository_ReadsOnlyRequestedBasisAndItsExcerpts(string basisValue)
+    {
+        var databasePath = CreateDatabasePath();
+        try
+        {
+            await InitializeThrough86Async(databasePath);
+            await SeedLegacyLiteratureAsync(databasePath, true);
+            var repository = new EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories
+                .SqliteMedicalLiteratureRepository(databasePath);
+            await repository.InitializeAsync();
+            var basis = new EMF.Extensions.VeteransClaims.Models.Identities.ServiceConnectionBasisId(basisValue);
+            var requirement = new EMF.Extensions.VeteransClaims.Models.Identities.RequirementId("requirement-1");
+
+            await using var connection = CreateConnection(databasePath);
+            await connection.OpenAsync();
+            await using var update = connection.CreateCommand();
+            update.CommandText = """
+                UPDATE VeteransClaims_ReviewedMedicalLiteratureExcerpts
+                SET Text = ServiceConnectionBasisId;
+                """;
+            await update.ExecuteNonQueryAsync();
+
+            Assert.Equal(2, (await repository.GetRequirementMedicalLiteratureAsync(requirement)).Count);
+            Assert.Equal(basis, Assert.Single(await repository.GetRequirementMedicalLiteratureAsync(basis, requirement)).ServiceConnectionBasisId);
+            Assert.Equal(basis, Assert.Single(await repository.GetActiveRequirementMedicalLiteratureAsync(basis, requirement)).ServiceConnectionBasisId);
+            var reviewed = Assert.Single(await repository.GetReviewedClassificationsAsync(basis, requirement));
+            Assert.Equal(basis, reviewed.Association.ServiceConnectionBasisId);
+            Assert.Equal(basisValue, Assert.Single(reviewed.SourceExcerpts).Text);
+            Assert.Equal(basis, Assert.Single(await repository.GetReviewedClassificationsAsync(basis,
+                new EMF.Core.Models.Identities.ArtifactId("artifact-1"))).Association.ServiceConnectionBasisId);
+        }
+        finally { File.Delete(databasePath); }
+    }
+
+    [Fact]
+    public async Task Repository_ReadsSingleBasisWithoutReturningOtherBasisReview()
+    {
+        var databasePath = CreateDatabasePath();
+        try
+        {
+            await InitializeThrough86Async(databasePath);
+            await SeedLegacyLiteratureAsync(databasePath, true);
+            await using var connection = CreateConnection(databasePath);
+            await connection.OpenAsync();
+            await using var delete = connection.CreateCommand();
+            delete.CommandText = "DELETE FROM VeteransClaims_BasisRequirements WHERE ServiceConnectionBasisId = 'basis-b';";
+            await delete.ExecuteNonQueryAsync();
+            var repository = new EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories
+                .SqliteMedicalLiteratureRepository(databasePath);
+            await repository.InitializeAsync();
+            var a = new EMF.Extensions.VeteransClaims.Models.Identities.ServiceConnectionBasisId("basis-a");
+            var b = new EMF.Extensions.VeteransClaims.Models.Identities.ServiceConnectionBasisId("basis-b");
+            var requirement = new EMF.Extensions.VeteransClaims.Models.Identities.RequirementId("requirement-1");
+            Assert.Single(await repository.GetRequirementMedicalLiteratureAsync(a, requirement));
+            Assert.Empty(await repository.GetRequirementMedicalLiteratureAsync(b, requirement));
+            Assert.Empty(await repository.GetActiveRequirementMedicalLiteratureAsync(b, requirement));
+            Assert.Empty(await repository.GetReviewedClassificationsAsync(b, requirement));
+        }
+        finally { File.Delete(databasePath); }
+    }
+
     private static string CreateDatabasePath() =>
         Path.Combine(
             Path.GetTempPath(),

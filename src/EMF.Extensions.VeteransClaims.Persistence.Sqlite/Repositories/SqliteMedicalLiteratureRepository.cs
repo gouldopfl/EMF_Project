@@ -154,10 +154,24 @@ public sealed class SqliteMedicalLiteratureRepository :
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<RequirementMedicalLiterature>>
+    public Task<IReadOnlyList<RequirementMedicalLiterature>>
         GetRequirementMedicalLiteratureAsync(
             RequirementId requirementId,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default) =>
+        GetRequirementMedicalLiteratureAsync(requirementId, null, cancellationToken);
+
+    public Task<IReadOnlyList<RequirementMedicalLiterature>>
+        GetRequirementMedicalLiteratureAsync(
+            ServiceConnectionBasisId serviceConnectionBasisId,
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default) =>
+        GetRequirementMedicalLiteratureAsync(requirementId, serviceConnectionBasisId, cancellationToken);
+
+    private async Task<IReadOnlyList<RequirementMedicalLiterature>>
+        GetRequirementMedicalLiteratureAsync(
+            RequirementId requirementId,
+            ServiceConnectionBasisId? serviceConnectionBasisId,
+            CancellationToken cancellationToken)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
@@ -165,15 +179,19 @@ public sealed class SqliteMedicalLiteratureRepository :
 
         command.CommandText = """
             SELECT RequirementId, MedicalLiteratureSourceId,
-                   GuidanceRole, Description
+                   GuidanceRole, Description, ServiceConnectionBasisId
             FROM VeteransClaims_RequirementMedicalLiterature
             WHERE RequirementId = $requirement
+              AND ($basis IS NULL OR ServiceConnectionBasisId = $basis)
             ORDER BY MedicalLiteratureSourceId, GuidanceRole;
             """;
 
         command.Parameters.AddWithValue(
             "$requirement",
             requirementId.Value);
+
+        command.Parameters.AddWithValue(
+            "$basis", (object?)serviceConnectionBasisId?.Value ?? DBNull.Value);
 
         var results =
             new List<RequirementMedicalLiterature>();
@@ -192,17 +210,33 @@ public sealed class SqliteMedicalLiteratureRepository :
                         new MedicalLiteratureSourceId(
                             reader.GetString(1)),
                     GuidanceRole = reader.GetString(2),
-                    Description = reader.GetString(3)
+                    Description = reader.GetString(3),
+                    ServiceConnectionBasisId =
+                        new ServiceConnectionBasisId(reader.GetString(4))
                 });
         }
 
         return results;
     }
 
-    public async Task<IReadOnlyList<RequirementMedicalLiterature>>
+    public Task<IReadOnlyList<RequirementMedicalLiterature>>
         GetActiveRequirementMedicalLiteratureAsync(
             RequirementId requirementId,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default) =>
+        GetActiveRequirementMedicalLiteratureAsync(requirementId, null, cancellationToken);
+
+    public Task<IReadOnlyList<RequirementMedicalLiterature>>
+        GetActiveRequirementMedicalLiteratureAsync(
+            ServiceConnectionBasisId serviceConnectionBasisId,
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default) =>
+        GetActiveRequirementMedicalLiteratureAsync(requirementId, serviceConnectionBasisId, cancellationToken);
+
+    private async Task<IReadOnlyList<RequirementMedicalLiterature>>
+        GetActiveRequirementMedicalLiteratureAsync(
+            RequirementId requirementId,
+            ServiceConnectionBasisId? serviceConnectionBasisId,
+            CancellationToken cancellationToken)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
@@ -212,15 +246,19 @@ public sealed class SqliteMedicalLiteratureRepository :
             SELECT association.RequirementId,
                    association.MedicalLiteratureSourceId,
                    association.GuidanceRole,
-                   association.Description
+                   association.Description,
+                   association.ServiceConnectionBasisId
             FROM VeteransClaims_RequirementMedicalLiterature AS association
             WHERE association.RequirementId = $requirement
+              AND ($basis IS NULL OR association.ServiceConnectionBasisId = $basis)
               AND (
                     NOT EXISTS (
                         SELECT 1
                         FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
                              AS reviewed
-                        WHERE reviewed.RequirementId =
+                        WHERE reviewed.ServiceConnectionBasisId =
+                                  association.ServiceConnectionBasisId
+                          AND reviewed.RequirementId =
                                   association.RequirementId
                           AND reviewed.MedicalLiteratureSourceId =
                                   association.MedicalLiteratureSourceId
@@ -231,7 +269,9 @@ public sealed class SqliteMedicalLiteratureRepository :
                         SELECT 1
                         FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
                              AS reviewed
-                        WHERE reviewed.RequirementId =
+                        WHERE reviewed.ServiceConnectionBasisId =
+                                  association.ServiceConnectionBasisId
+                          AND reviewed.RequirementId =
                                   association.RequirementId
                           AND reviewed.MedicalLiteratureSourceId =
                                   association.MedicalLiteratureSourceId
@@ -248,6 +288,9 @@ public sealed class SqliteMedicalLiteratureRepository :
             "$requirement",
             requirementId.Value);
 
+        command.Parameters.AddWithValue(
+            "$basis", (object?)serviceConnectionBasisId?.Value ?? DBNull.Value);
+
         var results = new List<RequirementMedicalLiterature>();
         await using var reader =
             await command.ExecuteReaderAsync(cancellationToken);
@@ -263,7 +306,9 @@ public sealed class SqliteMedicalLiteratureRepository :
                         new MedicalLiteratureSourceId(
                             reader.GetString(1)),
                     GuidanceRole = reader.GetString(2),
-                    Description = reader.GetString(3)
+                    Description = reader.GetString(3),
+                    ServiceConnectionBasisId =
+                        new ServiceConnectionBasisId(reader.GetString(4))
                 });
         }
 
@@ -1141,11 +1186,28 @@ public sealed class SqliteMedicalLiteratureRepository :
             artifactId: artifactId,
             cancellationToken: cancellationToken);
 
+    public Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+        GetReviewedClassificationsAsync(
+            ServiceConnectionBasisId serviceConnectionBasisId,
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default) =>
+        GetReviewedClassificationsAsync(requirementId, null, cancellationToken,
+            serviceConnectionBasisId);
+
+    public Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+        GetReviewedClassificationsAsync(
+            ServiceConnectionBasisId serviceConnectionBasisId,
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+        GetReviewedClassificationsAsync(null, artifactId, cancellationToken,
+            serviceConnectionBasisId);
+
     private async Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
         GetReviewedClassificationsAsync(
             RequirementId? requirementId,
             ArtifactId? artifactId,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            ServiceConnectionBasisId? serviceConnectionBasisId = null)
     {
         if ((requirementId is null) == (artifactId is null))
             throw new ArgumentException(
@@ -1167,9 +1229,10 @@ public sealed class SqliteMedicalLiteratureRepository :
                            IntelligenceOutput, CapabilityId, ProviderId,
                            CorrelationId, EngineName, EngineVersion,
                            ProviderOperationId, StartedUtc, CompletedUtc,
-                           RequiresReview, WarningsJson
+                           RequiresReview, WarningsJson, ServiceConnectionBasisId
                     FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
                     WHERE RequirementId = $filter
+                      AND ($basis IS NULL OR ServiceConnectionBasisId = $basis)
                       AND SupersededUtc IS NULL
                     ORDER BY MedicalLiteratureSourceId, GuidanceRole,
                              ArtifactId, CorrelationId;
@@ -1187,9 +1250,10 @@ public sealed class SqliteMedicalLiteratureRepository :
                            IntelligenceOutput, CapabilityId, ProviderId,
                            CorrelationId, EngineName, EngineVersion,
                            ProviderOperationId, StartedUtc, CompletedUtc,
-                           RequiresReview, WarningsJson
+                           RequiresReview, WarningsJson, ServiceConnectionBasisId
                     FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
                     WHERE ArtifactId = $filter
+                      AND ($basis IS NULL OR ServiceConnectionBasisId = $basis)
                       AND SupersededUtc IS NULL
                     ORDER BY RequirementId, MedicalLiteratureSourceId,
                              GuidanceRole, CorrelationId;
@@ -1198,6 +1262,9 @@ public sealed class SqliteMedicalLiteratureRepository :
                     "$filter",
                     artifactId!.Value.Value);
             }
+
+            command.Parameters.AddWithValue(
+                "$basis", (object?)serviceConnectionBasisId?.Value ?? DBNull.Value);
 
             await using var reader =
                 await command.ExecuteReaderAsync(cancellationToken);
@@ -1219,13 +1286,15 @@ public sealed class SqliteMedicalLiteratureRepository :
             command.CommandText = """
                 SELECT ArtifactId, Text, StartOffset, Length
                 FROM VeteransClaims_ReviewedMedicalLiteratureExcerpts
-                WHERE RequirementId = $requirement
+                WHERE ServiceConnectionBasisId = $basis
+                  AND RequirementId = $requirement
                   AND MedicalLiteratureSourceId = $source
                   AND GuidanceRole = $role
                   AND ArtifactId = $artifact
                   AND CorrelationId = $correlation
                 ORDER BY ExcerptOrdinal;
                 """;
+            command.Parameters.AddWithValue("$basis", row.ServiceConnectionBasisId.Value);
             command.Parameters.AddWithValue(
                 "$requirement",
                 row.RequirementId.Value);
@@ -1270,6 +1339,7 @@ public sealed class SqliteMedicalLiteratureRepository :
                     Association =
                         new RequirementMedicalLiterature
                         {
+                            ServiceConnectionBasisId = row.ServiceConnectionBasisId,
                             RequirementId = row.RequirementId,
                             MedicalLiteratureSourceId =
                                 row.MedicalLiteratureSourceId,
@@ -1303,6 +1373,7 @@ public sealed class SqliteMedicalLiteratureRepository :
         ReadReviewedClassificationRow(SqliteDataReader reader) =>
         new()
         {
+            ServiceConnectionBasisId = new ServiceConnectionBasisId(reader.GetString(20)),
             RequirementId = new RequirementId(reader.GetString(0)),
             MedicalLiteratureSourceId =
                 new MedicalLiteratureSourceId(reader.GetString(1)),
@@ -1333,6 +1404,8 @@ public sealed class SqliteMedicalLiteratureRepository :
 
     private sealed class ReviewedClassificationRow
     {
+        public required ServiceConnectionBasisId ServiceConnectionBasisId { get; init; }
+
         public required RequirementId RequirementId { get; init; }
 
         public required MedicalLiteratureSourceId
