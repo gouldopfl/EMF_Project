@@ -12,6 +12,8 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 
 internal sealed class MedicalLiteratureClassificationService
 {
+    private const int MaxGroundingSegmentLength = 2000;
+
     private readonly IIntelligenceCapabilityExecutor<
         TextStructuredExtractionRequest,
         string> _executor;
@@ -208,17 +210,54 @@ internal sealed class MedicalLiteratureClassificationService
         if (start >= endExclusive)
             return;
 
-        var text =
-            sourceText.Substring(
-                start,
-                endExclusive - start);
+        while (start < endExclusive)
+        {
+            var segmentEnd = Math.Min(
+                start + MaxGroundingSegmentLength,
+                endExclusive);
 
-        segments.Add(
-            new GroundingSegment(
-                $"S{segments.Count + 1:D3}",
-                text,
+            if (segmentEnd < endExclusive)
+            {
+                var preferredBreak = segmentEnd;
+                while (preferredBreak > start &&
+                       !char.IsWhiteSpace(sourceText[preferredBreak - 1]))
+                {
+                    preferredBreak--;
+                }
+
+                if (preferredBreak > start)
+                    segmentEnd = preferredBreak;
+            }
+
+            while (segmentEnd > start &&
+                   char.IsWhiteSpace(sourceText[segmentEnd - 1]))
+            {
+                segmentEnd--;
+            }
+
+            if (segmentEnd <= start)
+                segmentEnd = Math.Min(
+                    start + MaxGroundingSegmentLength,
+                    endExclusive);
+
+            var text = sourceText.Substring(
                 start,
-                text.Length));
+                segmentEnd - start);
+
+            segments.Add(
+                new GroundingSegment(
+                    $"S{segments.Count + 1:D3}",
+                    text,
+                    start,
+                    text.Length));
+
+            start = segmentEnd;
+            while (start < endExclusive &&
+                   char.IsWhiteSpace(sourceText[start]))
+            {
+                start++;
+            }
+        }
     }
 
     private static string BuildGroundedInput(

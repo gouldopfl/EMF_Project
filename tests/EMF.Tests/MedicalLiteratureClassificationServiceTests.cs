@@ -175,6 +175,35 @@ public sealed class MedicalLiteratureClassificationServiceTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_SplitsLongSingleLineContentIntoBoundedSegments()
+    {
+        var executor = new FakeExecutor(
+            ClassificationResult("S002"));
+        var service =
+            new MedicalLiteratureClassificationService(executor);
+        var text = new string('A', 2000) + " " + new string('B', 500);
+
+        var actual = await service.ClassifyAsync(
+            Source(),
+            new ArtifactId("artifact-a"),
+            text,
+            [Requirement()],
+            Context());
+
+        var proposal = Assert.IsType<
+            MedicalLiteratureClassificationProposal>(
+                actual.Proposal);
+        var excerpt = Assert.Single(
+            Assert.Single(proposal.Classifications).SourceExcerpts);
+
+        Assert.Equal(new string('B', 500), excerpt.Text);
+        Assert.Equal(2001, excerpt.StartOffset);
+        Assert.Equal(500, excerpt.Length);
+        Assert.Contains("[S001] " + new string('A', 2000), executor.Request!.Text);
+        Assert.Contains("[S002] " + new string('B', 500), executor.Request.Text);
+    }
+
+    [Fact]
     public async Task ClassifyAsync_RejectsUnknownGroundingSegment()
     {
         var service =

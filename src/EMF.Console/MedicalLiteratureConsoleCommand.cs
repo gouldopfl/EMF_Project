@@ -499,6 +499,17 @@ internal static class MedicalLiteratureConsoleCommand
 
                 foreach (var classification in result.Proposal.Classifications)
                 {
+                    var existingAssociation =
+                        (await literature.GetRequirementMedicalLiteratureAsync(
+                            basisId!.Value,
+                            classification.RequirementId))
+                        .SingleOrDefault(association =>
+                            association.MedicalLiteratureSourceId == sourceId &&
+                            string.Equals(
+                                association.GuidanceRole,
+                                classification.GuidanceRole,
+                                StringComparison.Ordinal));
+
                     reviewedClassifications.Add(
                         new ReviewedMedicalLiteratureClassification
                         {
@@ -508,7 +519,8 @@ internal static class MedicalLiteratureConsoleCommand
                                 RequirementId = classification.RequirementId,
                                 MedicalLiteratureSourceId = sourceId,
                                 GuidanceRole = classification.GuidanceRole,
-                                Description = classification.Description
+                                Description = existingAssociation?.Description
+                                    ?? classification.Description
                             },
                             ArtifactId = artifactId,
                             PromotedBy = runtime.SubjectId,

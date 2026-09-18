@@ -283,6 +283,137 @@ public sealed class MedicalLiteratureConsoleCommandTests
     }
 
     [Fact]
+    public async Task RunClassifyAsync_PromotionPreservesExistingAssociationDescription()
+    {
+        var databasePath = Path.GetTempFileName();
+        var contentPath = Path.Combine(
+            Path.GetTempPath(),
+            $"emf-literature-description-{Guid.NewGuid():N}");
+
+        try
+        {
+            var sourceId = new MedicalLiteratureSourceId("source-clarifies");
+            var artifactId = new ArtifactId("artifact-clarifies");
+            var requirementId = new RequirementId("requirement-clarifies");
+            var basisId = new ServiceConnectionBasisId("basis-literature-tests");
+
+            var literature = new SqliteMedicalLiteratureRepository(databasePath);
+            await literature.InitializeAsync();
+            await literature.AddMedicalLiteratureSourceAsync(
+                new MedicalLiteratureSource
+                {
+                    Id = sourceId,
+                    Title = "Balancing article",
+                    Authors = "Test Author",
+                    Publication = "Test Journal",
+                    PeerReviewed = true
+                });
+
+            var evidence = new SqliteEvidenceRepository(databasePath);
+            await evidence.InitializeAsync();
+            await evidence.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = artifactId,
+                    Name = "balancing-study.txt",
+                    ArtifactType = "file",
+                    Metadata = new Dictionary<string, object>
+                    {
+                        [ArtifactMetadataKeys.FileExtension] = ".txt"
+                    }
+                });
+            await literature.AddMedicalLiteratureSourceArtifactAsync(
+                new MedicalLiteratureSourceArtifact
+                {
+                    MedicalLiteratureSourceId = sourceId,
+                    ArtifactId = artifactId
+                });
+
+            var regulatory = new SqliteRegulatoryRepository(databasePath);
+            var authority = new RegulatoryAuthority
+            {
+                Id = new("authority-clarifies"),
+                AuthorityType = "Regulation",
+                Citation = "38 CFR",
+                Title = "Test authority"
+            };
+            await regulatory.AddRegulatoryAuthorityAsync(authority);
+            var provision = new RegulatoryProvision
+            {
+                Id = new("provision-clarifies"),
+                RegulatoryAuthorityId = authority.Id,
+                ProvisionType = RegulatoryProvisionTypes.Requirement,
+                Citation = "38 CFR 3.310"
+            };
+            await regulatory.AddRegulatoryProvisionAsync(provision);
+            await regulatory.AddRequirementAsync(
+                new Requirement
+                {
+                    Id = requirementId,
+                    RegulatoryProvisionId = provision.Id,
+                    Description = "Candidate requirement."
+                });
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(
+                databasePath, requirementId);
+
+            const string acceptedDescription =
+                "Human-authored balancing context.";
+            await literature.AddRequirementMedicalLiteratureAsync(
+                new RequirementMedicalLiterature
+                {
+                    ServiceConnectionBasisId = basisId,
+                    RequirementId = requirementId,
+                    MedicalLiteratureSourceId = sourceId,
+                    GuidanceRole = EvidenceGuidanceRoles.Clarifies,
+                    Description = acceptedDescription
+                });
+
+            var contentStore = new EMF.Persistence.Storage
+                .FileSystemArtifactContentStore(contentPath);
+            await contentStore.WriteAsync(
+                artifactId,
+                System.Text.Encoding.UTF8.GetBytes(
+                    "The study found no statistically significant association."));
+
+            var runtime = new TextSummarizationConsoleRuntime
+            {
+                TextSummarizationCapabilityExecutor = new FakeSummarizationExecutor(),
+                TextStructuredExtractionCapabilityExecutor =
+                    new FakeClarifiesStructuredExtractionExecutor(requirementId),
+                SubjectId = "console-test",
+                ClassificationId = new ProtectionClassificationId("confidential"),
+                AuditDatabasePath = "test-audit.db"
+            };
+
+            using var output = new StringWriter();
+            var exitCode = await MedicalLiteratureConsoleCommand.RunClassifyAsync(
+                databasePath,
+                sourceId,
+                artifactId,
+                [requirementId],
+                () => Task.FromResult(runtime),
+                contentStore,
+                output,
+                promote: true,
+                reviewedBy: "reviewer@example.test",
+                serviceConnectionBasisId: basisId);
+
+            Assert.Equal(0, exitCode);
+            var reviewed = Assert.Single(
+                await literature.GetReviewedClassificationsAsync(
+                    basisId, requirementId));
+            Assert.Equal(EvidenceGuidanceRoles.Clarifies, reviewed.Association.GuidanceRole);
+            Assert.Equal(acceptedDescription, reviewed.Association.Description);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+            if (Directory.Exists(contentPath))
+                Directory.Delete(contentPath, true);
+        }
+    }
+
+    [Fact]
     public async Task RunClassifyAsync_PromotionRollsBackWhenLaterReviewConflicts()
     {
         var databasePath = Path.GetTempFileName();
@@ -753,6 +884,34 @@ public sealed class MedicalLiteratureConsoleCommandTests
                         "requirementId": "{{requirementId.Value}}",
                         "guidanceRole": "SupportsRequirement",
                         "description": "Supports the candidate requirement.",
+                        "sourceSegmentIds": ["S001"]
+                      }]
+                    }
+                    """,
+                RequiresReview = true,
+                Metadata = Metadata(capabilityId, context),
+                SourceArtifactIds = context.InputArtifactIds.ToArray()
+            });
+    }
+
+    private sealed class FakeClarifiesStructuredExtractionExecutor(
+        RequirementId requirementId) :
+        IIntelligenceCapabilityExecutor<TextStructuredExtractionRequest, string>
+    {
+        public Task<IntelligenceCapabilityResult<string>> ExecuteAsync(
+            IntelligenceCapabilityId capabilityId,
+            TextStructuredExtractionRequest request,
+            IntelligenceExecutionContext context,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new IntelligenceCapabilityResult<string>
+            {
+                Success = true,
+                Output = $$"""
+                    {
+                      "classifications": [{
+                        "requirementId": "{{requirementId.Value}}",
+                        "guidanceRole": "Clarifies",
+                        "description": "AI-generated balancing description.",
                         "sourceSegmentIds": ["S001"]
                       }]
                     }
