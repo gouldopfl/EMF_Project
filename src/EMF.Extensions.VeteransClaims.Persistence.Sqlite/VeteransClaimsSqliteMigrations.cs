@@ -2614,6 +2614,297 @@ internal static class VeteransClaimsSqliteMigrations
                     VeteranId,
                     SupersededUtc
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                87,
+                "ScopeMedicalLiteratureToServiceConnectionBasis",
+                """
+                CREATE TABLE VeteransClaims_M87LiteratureMigrationGuard (
+                    OrphanCount INTEGER NOT NULL
+                        CHECK (OrphanCount = 0)
+                );
+
+                INSERT INTO VeteransClaims_M87LiteratureMigrationGuard (
+                    OrphanCount
+                )
+                SELECT COUNT(*)
+                FROM VeteransClaims_RequirementMedicalLiterature AS literature
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM VeteransClaims_BasisRequirements AS basisRequirement
+                    WHERE basisRequirement.RequirementId =
+                          literature.RequirementId
+                );
+
+                CREATE TABLE VeteransClaims_M87RequirementMedicalLiterature AS
+                SELECT basisRequirement.ServiceConnectionBasisId,
+                       literature.RequirementId,
+                       literature.MedicalLiteratureSourceId,
+                       literature.GuidanceRole,
+                       literature.Description
+                FROM VeteransClaims_RequirementMedicalLiterature AS literature
+                INNER JOIN VeteransClaims_BasisRequirements AS basisRequirement
+                    ON basisRequirement.RequirementId = literature.RequirementId;
+
+                CREATE TABLE VeteransClaims_M87ReviewedMedicalLiterature AS
+                SELECT basisRequirement.ServiceConnectionBasisId,
+                       reviewed.RequirementId,
+                       reviewed.MedicalLiteratureSourceId,
+                       reviewed.GuidanceRole,
+                       reviewed.ArtifactId,
+                       reviewed.Description,
+                       reviewed.PromotedBy,
+                       reviewed.PromotedUtc,
+                       reviewed.ReviewedBy,
+                       reviewed.ReviewedUtc,
+                       reviewed.IntelligenceOutput,
+                       reviewed.CapabilityId,
+                       reviewed.ProviderId,
+                       reviewed.CorrelationId,
+                       reviewed.EngineName,
+                       reviewed.EngineVersion,
+                       reviewed.ProviderOperationId,
+                       reviewed.StartedUtc,
+                       reviewed.CompletedUtc,
+                       reviewed.RequiresReview,
+                       reviewed.WarningsJson,
+                       reviewed.SupersededByCorrelationId,
+                       reviewed.SupersededUtc
+                FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
+                     AS reviewed
+                INNER JOIN VeteransClaims_BasisRequirements AS basisRequirement
+                    ON basisRequirement.RequirementId = reviewed.RequirementId;
+
+                CREATE TABLE VeteransClaims_M87ReviewedMedicalLiteratureExcerpts AS
+                SELECT basisRequirement.ServiceConnectionBasisId,
+                       excerpt.RequirementId,
+                       excerpt.MedicalLiteratureSourceId,
+                       excerpt.GuidanceRole,
+                       excerpt.ArtifactId,
+                       excerpt.CorrelationId,
+                       excerpt.ExcerptOrdinal,
+                       excerpt.Text,
+                       excerpt.StartOffset,
+                       excerpt.Length
+                FROM VeteransClaims_ReviewedMedicalLiteratureExcerpts AS excerpt
+                INNER JOIN VeteransClaims_BasisRequirements AS basisRequirement
+                    ON basisRequirement.RequirementId = excerpt.RequirementId;
+
+                DROP TABLE VeteransClaims_ReviewedMedicalLiteratureExcerpts;
+                DROP TABLE VeteransClaims_ReviewedMedicalLiteratureClassifications;
+                DROP TABLE VeteransClaims_RequirementMedicalLiterature;
+
+                CREATE TABLE VeteransClaims_RequirementMedicalLiterature (
+                    ServiceConnectionBasisId TEXT NOT NULL,
+                    RequirementId TEXT NOT NULL,
+                    MedicalLiteratureSourceId TEXT NOT NULL,
+                    GuidanceRole TEXT NOT NULL,
+                    Description TEXT NOT NULL,
+                    PRIMARY KEY (
+                        ServiceConnectionBasisId,
+                        RequirementId,
+                        MedicalLiteratureSourceId,
+                        GuidanceRole
+                    ),
+                    FOREIGN KEY (
+                        ServiceConnectionBasisId,
+                        RequirementId
+                    )
+                        REFERENCES VeteransClaims_BasisRequirements (
+                            ServiceConnectionBasisId,
+                            RequirementId
+                        ),
+                    FOREIGN KEY (MedicalLiteratureSourceId)
+                        REFERENCES VeteransClaims_MedicalLiteratureSources (Id)
+                );
+
+                CREATE TABLE
+                    VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    ServiceConnectionBasisId TEXT NOT NULL,
+                    RequirementId TEXT NOT NULL,
+                    MedicalLiteratureSourceId TEXT NOT NULL,
+                    GuidanceRole TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    Description TEXT NOT NULL,
+                    PromotedBy TEXT NOT NULL,
+                    PromotedUtc TEXT NOT NULL,
+                    ReviewedBy TEXT NOT NULL,
+                    ReviewedUtc TEXT NOT NULL,
+                    IntelligenceOutput TEXT NOT NULL,
+                    CapabilityId TEXT NOT NULL,
+                    ProviderId TEXT NOT NULL,
+                    CorrelationId TEXT NOT NULL,
+                    EngineName TEXT NOT NULL,
+                    EngineVersion TEXT NULL,
+                    ProviderOperationId TEXT NULL,
+                    StartedUtc TEXT NOT NULL,
+                    CompletedUtc TEXT NOT NULL,
+                    RequiresReview INTEGER NOT NULL,
+                    WarningsJson TEXT NOT NULL,
+                    SupersededByCorrelationId TEXT NULL,
+                    SupersededUtc TEXT NULL,
+                    PRIMARY KEY (
+                        ServiceConnectionBasisId,
+                        RequirementId,
+                        MedicalLiteratureSourceId,
+                        GuidanceRole,
+                        ArtifactId,
+                        CorrelationId
+                    ),
+                    FOREIGN KEY (
+                        ServiceConnectionBasisId,
+                        RequirementId,
+                        MedicalLiteratureSourceId,
+                        GuidanceRole
+                    )
+                        REFERENCES VeteransClaims_RequirementMedicalLiterature (
+                            ServiceConnectionBasisId,
+                            RequirementId,
+                            MedicalLiteratureSourceId,
+                            GuidanceRole
+                        ),
+                    FOREIGN KEY (
+                        MedicalLiteratureSourceId,
+                        ArtifactId
+                    )
+                        REFERENCES VeteransClaims_MedicalLiteratureSourceArtifacts (
+                            MedicalLiteratureSourceId,
+                            ArtifactId
+                        )
+                );
+
+                CREATE TABLE
+                    VeteransClaims_ReviewedMedicalLiteratureExcerpts (
+                    ServiceConnectionBasisId TEXT NOT NULL,
+                    RequirementId TEXT NOT NULL,
+                    MedicalLiteratureSourceId TEXT NOT NULL,
+                    GuidanceRole TEXT NOT NULL,
+                    ArtifactId TEXT NOT NULL,
+                    CorrelationId TEXT NOT NULL,
+                    ExcerptOrdinal INTEGER NOT NULL,
+                    Text TEXT NOT NULL,
+                    StartOffset INTEGER NULL,
+                    Length INTEGER NULL,
+                    PRIMARY KEY (
+                        ServiceConnectionBasisId,
+                        RequirementId,
+                        MedicalLiteratureSourceId,
+                        GuidanceRole,
+                        ArtifactId,
+                        CorrelationId,
+                        ExcerptOrdinal
+                    ),
+                    FOREIGN KEY (
+                        ServiceConnectionBasisId,
+                        RequirementId,
+                        MedicalLiteratureSourceId,
+                        GuidanceRole,
+                        ArtifactId,
+                        CorrelationId
+                    )
+                        REFERENCES
+                            VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                            ServiceConnectionBasisId,
+                            RequirementId,
+                            MedicalLiteratureSourceId,
+                            GuidanceRole,
+                            ArtifactId,
+                            CorrelationId
+                        )
+                );
+
+                INSERT INTO VeteransClaims_RequirementMedicalLiterature (
+                    ServiceConnectionBasisId, RequirementId,
+                    MedicalLiteratureSourceId, GuidanceRole, Description
+                )
+                SELECT ServiceConnectionBasisId, RequirementId,
+                       MedicalLiteratureSourceId, GuidanceRole, Description
+                FROM VeteransClaims_M87RequirementMedicalLiterature;
+
+                INSERT INTO
+                    VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    ServiceConnectionBasisId, RequirementId,
+                    MedicalLiteratureSourceId, GuidanceRole, ArtifactId,
+                    Description, PromotedBy, PromotedUtc, ReviewedBy,
+                    ReviewedUtc, IntelligenceOutput, CapabilityId, ProviderId,
+                    CorrelationId, EngineName, EngineVersion,
+                    ProviderOperationId, StartedUtc, CompletedUtc,
+                    RequiresReview, WarningsJson, SupersededByCorrelationId,
+                    SupersededUtc
+                )
+                SELECT ServiceConnectionBasisId, RequirementId,
+                       MedicalLiteratureSourceId, GuidanceRole, ArtifactId,
+                       Description, PromotedBy, PromotedUtc, ReviewedBy,
+                       ReviewedUtc, IntelligenceOutput, CapabilityId, ProviderId,
+                       CorrelationId, EngineName, EngineVersion,
+                       ProviderOperationId, StartedUtc, CompletedUtc,
+                       RequiresReview, WarningsJson, SupersededByCorrelationId,
+                       SupersededUtc
+                FROM VeteransClaims_M87ReviewedMedicalLiterature;
+
+                INSERT INTO VeteransClaims_ReviewedMedicalLiteratureExcerpts (
+                    ServiceConnectionBasisId, RequirementId,
+                    MedicalLiteratureSourceId, GuidanceRole, ArtifactId,
+                    CorrelationId, ExcerptOrdinal, Text, StartOffset, Length
+                )
+                SELECT ServiceConnectionBasisId, RequirementId,
+                       MedicalLiteratureSourceId, GuidanceRole, ArtifactId,
+                       CorrelationId, ExcerptOrdinal, Text, StartOffset, Length
+                FROM VeteransClaims_M87ReviewedMedicalLiteratureExcerpts;
+
+                DROP TABLE VeteransClaims_M87ReviewedMedicalLiteratureExcerpts;
+                DROP TABLE VeteransClaims_M87ReviewedMedicalLiterature;
+                DROP TABLE VeteransClaims_M87RequirementMedicalLiterature;
+                DROP TABLE VeteransClaims_M87LiteratureMigrationGuard;
+
+                CREATE INDEX
+                    IX_VeteransClaims_RequirementMedicalLiterature_Source
+                ON VeteransClaims_RequirementMedicalLiterature (
+                    MedicalLiteratureSourceId
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_RequirementMedicalLiterature_BasisRequirement
+                ON VeteransClaims_RequirementMedicalLiterature (
+                    ServiceConnectionBasisId,
+                    RequirementId
+                );
+
+                CREATE UNIQUE INDEX
+                    UX_VeteransClaims_ReviewedMedicalLiterature_LogicalDecision
+                ON VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    ServiceConnectionBasisId,
+                    RequirementId,
+                    MedicalLiteratureSourceId,
+                    GuidanceRole,
+                    ArtifactId
+                )
+                WHERE SupersededUtc IS NULL;
+
+                CREATE INDEX
+                    IX_VeteransClaims_ReviewedMedicalLiterature_Artifact
+                ON VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    ArtifactId
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ReviewedMedicalLiterature_Correlation
+                ON VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    CorrelationId
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ReviewedMedicalLiterature_SupersededBy
+                ON VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    SupersededByCorrelationId
+                );
+
+                CREATE INDEX
+                    IX_VeteransClaims_ReviewedMedicalLiterature_BasisRequirement
+                ON VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                    ServiceConnectionBasisId,
+                    RequirementId
+                );
                 """)
         };
 }

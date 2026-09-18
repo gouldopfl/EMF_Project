@@ -968,7 +968,8 @@ public sealed class VeteransClaimsSqliteMigrationTests
                 (83, "AddMedicationCurrentUseReconciliations"),
                 (84, "AddSourceClarificationReviewerCorrections"),
                 (85, "AddEvidencePackageCreationOrdinal"),
-                (86, "AddMedicationClinicalContextSupersession")
+                (86, "AddMedicationClinicalContextSupersession"),
+                (87, "ScopeMedicalLiteratureToServiceConnectionBasis")
             };
 
             foreach (var expected in remainingMigrations)
@@ -1051,6 +1052,7 @@ public sealed class VeteransClaimsSqliteMigrationTests
             Assert.Equal(
                 new[]
                 {
+                    "ServiceConnectionBasisId",
                     "RequirementId",
                     "MedicalLiteratureSourceId",
                     "GuidanceRole",

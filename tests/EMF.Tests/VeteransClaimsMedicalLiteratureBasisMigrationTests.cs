@@ -1,0 +1,309 @@
+using EMF.Extensions.VeteransClaims.Persistence.Sqlite;
+using Microsoft.Data.Sqlite;
+
+namespace EMF.Tests;
+
+public sealed class VeteransClaimsMedicalLiteratureBasisMigrationTests
+{
+    [Fact]
+    public async Task Migrate87_FansOutLegacyLiteratureAcrossLinkedBases()
+    {
+        var databasePath = CreateDatabasePath();
+
+        try
+        {
+            await InitializeThrough86Async(databasePath);
+            await SeedLegacyLiteratureAsync(
+                databasePath,
+                includeBasisRequirements: true);
+
+            await new VeteransClaimsSqliteMigrator(
+                databasePath,
+                VeteransClaimsSqliteMigrations.All)
+                .MigrateAsync();
+
+            await using var connection = CreateConnection(databasePath);
+            await connection.OpenAsync();
+
+            var associationBases =
+                await ReadBasisIdsAsync(
+                    connection,
+                    "VeteransClaims_RequirementMedicalLiterature");
+
+            Assert.Equal(
+                new[] { "basis-a", "basis-b" },
+                associationBases);
+
+            var reviewedBases =
+                await ReadBasisIdsAsync(
+                    connection,
+                    "VeteransClaims_ReviewedMedicalLiteratureClassifications");
+
+            Assert.Equal(
+                new[] { "basis-a", "basis-b" },
+                reviewedBases);
+
+            var excerptBases =
+                await ReadBasisIdsAsync(
+                    connection,
+                    "VeteransClaims_ReviewedMedicalLiteratureExcerpts");
+
+            Assert.Equal(
+                new[] { "basis-a", "basis-b" },
+                excerptBases);
+
+            await using var migrationCommand =
+                connection.CreateCommand();
+
+            migrationCommand.CommandText =
+                """
+                SELECT Name
+                FROM VeteransClaims_SchemaMigrations
+                WHERE Version = 87;
+                """;
+
+            Assert.Equal(
+                "ScopeMedicalLiteratureToServiceConnectionBasis",
+                Assert.IsType<string>(
+                    await migrationCommand.ExecuteScalarAsync()));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task Migrate87_RejectsLegacyLiteratureWithoutLinkedBasis()
+    {
+        var databasePath = CreateDatabasePath();
+
+        try
+        {
+            await InitializeThrough86Async(databasePath);
+            await SeedLegacyLiteratureAsync(
+                databasePath,
+                includeBasisRequirements: false);
+
+            var migrator =
+                new VeteransClaimsSqliteMigrator(
+                    databasePath,
+                    VeteransClaimsSqliteMigrations.All);
+
+            await Assert.ThrowsAsync<SqliteException>(
+                () => migrator.MigrateAsync());
+
+            await using var connection = CreateConnection(databasePath);
+            await connection.OpenAsync();
+
+            await using (var migrationCommand =
+                connection.CreateCommand())
+            {
+                migrationCommand.CommandText =
+                    """
+                    SELECT MAX(Version)
+                    FROM VeteransClaims_SchemaMigrations;
+                    """;
+
+                Assert.Equal(
+                    86L,
+                    Convert.ToInt64(
+                        await migrationCommand.ExecuteScalarAsync()));
+            }
+
+            await using var columnCommand =
+                connection.CreateCommand();
+
+            columnCommand.CommandText =
+                """
+                SELECT COUNT(*)
+                FROM pragma_table_info(
+                    'VeteransClaims_RequirementMedicalLiterature')
+                WHERE name = 'ServiceConnectionBasisId';
+                """;
+
+            Assert.Equal(
+                0,
+                Convert.ToInt32(
+                    await columnCommand.ExecuteScalarAsync()));
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    private static string CreateDatabasePath() =>
+        Path.Combine(
+            Path.GetTempPath(),
+            $"{Guid.NewGuid():N}.db");
+
+    private static async Task InitializeThrough86Async(
+        string databasePath)
+    {
+        var migrations =
+            VeteransClaimsSqliteMigrations.All
+                .Where(migration => migration.Version <= 86)
+                .ToArray();
+
+        await new VeteransClaimsSqliteMigrator(
+            databasePath,
+            migrations)
+            .MigrateAsync();
+    }
+
+    private static SqliteConnection CreateConnection(
+        string databasePath)
+    {
+        var builder =
+            new SqliteConnectionStringBuilder
+            {
+                DataSource = databasePath,
+                ForeignKeys = true
+            };
+
+        return new SqliteConnection(builder.ToString());
+    }
+
+    private static async Task<IReadOnlyList<string>>
+        ReadBasisIdsAsync(
+            SqliteConnection connection,
+            string tableName)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            $"""
+            SELECT ServiceConnectionBasisId
+            FROM {tableName}
+            ORDER BY ServiceConnectionBasisId;
+            """;
+
+        var basisIds = new List<string>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+            basisIds.Add(reader.GetString(0));
+
+        return basisIds;
+    }
+
+    private static async Task SeedLegacyLiteratureAsync(
+        string databasePath,
+        bool includeBasisRequirements)
+    {
+        await using var connection = CreateConnection(databasePath);
+        await connection.OpenAsync();
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO VeteransClaims_Veterans (Id)
+            VALUES ('veteran-1');
+
+            INSERT INTO VeteransClaims_Claims (Id, VeteranId)
+            VALUES ('claim-1', 'veteran-1');
+
+            INSERT INTO VeteransClaims_ClaimIssues (
+                Id, ClaimId, ClaimIssueType
+            )
+            VALUES ('issue-1', 'claim-1', 'Secondary');
+
+            INSERT INTO VeteransClaims_ServiceConnectionTheories (
+                Id, ClaimIssueId, TheoryType
+            )
+            VALUES ('theory-1', 'issue-1', 'Secondary');
+
+            INSERT INTO VeteransClaims_ServiceConnectionBases (
+                Id, ClaimIssueId, ServiceConnectionTheoryId
+            )
+            VALUES
+                ('basis-a', 'issue-1', 'theory-1'),
+                ('basis-b', 'issue-1', 'theory-1');
+
+            INSERT INTO VeteransClaims_RegulatoryAuthorities (
+                Id, AuthorityType, Citation, Title
+            )
+            VALUES ('authority-1', 'CFR', '38 CFR', 'Test authority');
+
+            INSERT INTO VeteransClaims_RegulatoryProvisions (
+                Id, RegulatoryAuthorityId, ProvisionType, Citation
+            )
+            VALUES ('provision-1', 'authority-1', 'Rule', '3.310');
+
+            INSERT INTO VeteransClaims_Requirements (
+                Id, RegulatoryProvisionId, Description
+            )
+            VALUES ('requirement-1', 'provision-1', 'Medical nexus');
+
+            INSERT INTO VeteransClaims_MedicalLiteratureSources (
+                Id, Title, Authors, Publication,
+                VaAffiliated, VaFunded, PeerReviewed
+            )
+            VALUES (
+                'source-1', 'Test literature', 'Author', 'Journal',
+                0, 0, 1
+            );
+
+            INSERT INTO VeteransClaims_MedicalLiteratureSourceArtifacts (
+                MedicalLiteratureSourceId, ArtifactId
+            )
+            VALUES ('source-1', 'artifact-1');
+
+            INSERT INTO VeteransClaims_RequirementMedicalLiterature (
+                RequirementId, MedicalLiteratureSourceId,
+                GuidanceRole, Description
+            )
+            VALUES (
+                'requirement-1', 'source-1',
+                'Corroborates', 'Legacy association'
+            );
+
+            INSERT INTO
+                VeteransClaims_ReviewedMedicalLiteratureClassifications (
+                RequirementId, MedicalLiteratureSourceId, GuidanceRole,
+                ArtifactId, Description, PromotedBy, PromotedUtc,
+                ReviewedBy, ReviewedUtc, IntelligenceOutput,
+                CapabilityId, ProviderId, CorrelationId, EngineName,
+                StartedUtc, CompletedUtc, RequiresReview, WarningsJson
+            )
+            VALUES (
+                'requirement-1', 'source-1', 'Corroborates',
+                'artifact-1', 'Reviewed legacy association',
+                'promoter', '2026-09-18T12:00:00Z',
+                'reviewer', '2026-09-18T12:01:00Z',
+                'output', 'capability', 'provider', 'correlation-1',
+                'engine', '2026-09-18T11:59:00Z',
+                '2026-09-18T12:00:00Z', 0, '[]'
+            );
+
+            INSERT INTO VeteransClaims_ReviewedMedicalLiteratureExcerpts (
+                RequirementId, MedicalLiteratureSourceId, GuidanceRole,
+                ArtifactId, CorrelationId, ExcerptOrdinal, Text
+            )
+            VALUES (
+                'requirement-1', 'source-1', 'Corroborates',
+                'artifact-1', 'correlation-1', 0, 'Excerpt text'
+            );
+            """;
+
+        await command.ExecuteNonQueryAsync();
+
+        if (!includeBasisRequirements)
+            return;
+
+        await using var basisCommand = connection.CreateCommand();
+        basisCommand.CommandText =
+            """
+            INSERT INTO VeteransClaims_BasisRequirements (
+                ServiceConnectionBasisId, RequirementId
+            )
+            VALUES
+                ('basis-a', 'requirement-1'),
+                ('basis-b', 'requirement-1');
+            """;
+
+        await basisCommand.ExecuteNonQueryAsync();
+    }
+}
