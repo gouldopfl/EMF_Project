@@ -121,6 +121,53 @@ public sealed class SqliteMedicalLiteratureRepository :
             : null;
     }
 
+    public async Task<ServiceConnectionBasisId> ResolveServiceConnectionBasisAsync(
+        RequirementId requirementId,
+        ServiceConnectionBasisId? serviceConnectionBasisId = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        return await ResolveServiceConnectionBasisAsync(connection, null,
+            requirementId, serviceConnectionBasisId, cancellationToken);
+    }
+
+    private static async Task<ServiceConnectionBasisId> ResolveServiceConnectionBasisAsync(
+        SqliteConnection connection,
+        SqliteTransaction? transaction,
+        RequirementId requirementId,
+        ServiceConnectionBasisId? serviceConnectionBasisId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(requirementId.Value);
+        if (serviceConnectionBasisId is { } explicitBasis)
+            ArgumentException.ThrowIfNullOrWhiteSpace(explicitBasis.Value);
+
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT mapping.ServiceConnectionBasisId
+            FROM VeteransClaims_BasisRequirements AS mapping
+            INNER JOIN VeteransClaims_ServiceConnectionBases AS basis
+                ON basis.Id = mapping.ServiceConnectionBasisId
+            WHERE mapping.RequirementId = $requirement
+              AND ($basis IS NULL OR mapping.ServiceConnectionBasisId = $basis)
+            ORDER BY mapping.ServiceConnectionBasisId;
+            """;
+        command.Parameters.AddWithValue("$requirement", requirementId.Value);
+        command.Parameters.AddWithValue("$basis",
+            (object?)serviceConnectionBasisId?.Value ?? DBNull.Value);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+            throw new InvalidOperationException(
+                "The requirement must be linked to the intended service-connection basis.");
+        var resolved = new ServiceConnectionBasisId(reader.GetString(0));
+        if (await reader.ReadAsync(cancellationToken))
+            throw new InvalidOperationException(
+                "The requirement maps to multiple service-connection bases. Specify an explicit basis.");
+        return resolved;
+    }
+
     public async Task AddRequirementMedicalLiteratureAsync(
         RequirementMedicalLiterature literature,
         CancellationToken cancellationToken = default)
@@ -129,14 +176,20 @@ public sealed class SqliteMedicalLiteratureRepository :
 
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqliteTransaction)
+            await connection.BeginTransactionAsync(cancellationToken);
+        var basisId = await ResolveServiceConnectionBasisAsync(connection, transaction,
+            literature.RequirementId, literature.ServiceConnectionBasisId, cancellationToken);
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
 
         command.CommandText = """
             INSERT INTO VeteransClaims_RequirementMedicalLiterature
-            (RequirementId, MedicalLiteratureSourceId,
+            (ServiceConnectionBasisId, RequirementId, MedicalLiteratureSourceId,
              GuidanceRole, Description)
-            VALUES ($requirement, $source, $role, $description);
+            VALUES ($basis, $requirement, $source, $role, $description);
             """;
+        command.Parameters.AddWithValue("$basis", basisId.Value);
 
         command.Parameters.AddWithValue(
             "$requirement",
@@ -152,6 +205,7 @@ public sealed class SqliteMedicalLiteratureRepository :
             literature.Description);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public Task<IReadOnlyList<RequirementMedicalLiterature>>
@@ -497,6 +551,19 @@ public sealed class SqliteMedicalLiteratureRepository :
         await using var transaction = (SqliteTransaction)
             await connection.BeginTransactionAsync(cancellationToken);
 
+        var basisId = await ResolveServiceConnectionBasisAsync(connection, transaction,
+            classifications[0].Association.RequirementId,
+            classifications[0].Association.ServiceConnectionBasisId, cancellationToken);
+        foreach (var classification in classifications)
+        {
+            var candidateBasis = await ResolveServiceConnectionBasisAsync(connection, transaction,
+                classification.Association.RequirementId,
+                classification.Association.ServiceConnectionBasisId, cancellationToken);
+            if (candidateBasis != basisId)
+                throw new InvalidOperationException(
+                    "A supersession batch must belong to one service-connection basis.");
+        }
+
         var supersededKeys =
             new HashSet<(string, string, string, string)>();
 
@@ -507,9 +574,10 @@ public sealed class SqliteMedicalLiteratureRepository :
                 SELECT RequirementId, MedicalLiteratureSourceId,
                        GuidanceRole, ArtifactId
                 FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
-                WHERE CorrelationId = $correlation
+                WHERE ServiceConnectionBasisId = $basis AND CorrelationId = $correlation
                   AND SupersededUtc IS NULL;
                 """;
+            lookup.Parameters.AddWithValue("$basis", basisId.Value);
             lookup.Parameters.AddWithValue(
                 "$correlation",
                 supersededCorrelationId);
@@ -541,10 +609,11 @@ public sealed class SqliteMedicalLiteratureRepository :
             updateAssociation.CommandText = """
                 UPDATE VeteransClaims_RequirementMedicalLiterature
                 SET Description = $description
-                WHERE RequirementId = $requirement
+                WHERE ServiceConnectionBasisId = $basis AND RequirementId = $requirement
                   AND MedicalLiteratureSourceId = $source
                   AND GuidanceRole = $role;
                 """;
+            updateAssociation.Parameters.AddWithValue("$basis", basisId.Value);
             updateAssociation.Parameters.AddWithValue(
                 "$description",
                 association.Description);
@@ -573,9 +642,10 @@ public sealed class SqliteMedicalLiteratureRepository :
                 UPDATE VeteransClaims_ReviewedMedicalLiteratureClassifications
                 SET SupersededByCorrelationId = $replacement,
                     SupersededUtc = $supersededUtc
-                WHERE CorrelationId = $superseded
+                WHERE ServiceConnectionBasisId = $basis AND CorrelationId = $superseded
                   AND SupersededUtc IS NULL;
                 """;
+            supersede.Parameters.AddWithValue("$basis", basisId.Value);
             supersede.Parameters.AddWithValue(
                 "$replacement",
                 replacementCorrelationId);
@@ -630,6 +700,10 @@ public sealed class SqliteMedicalLiteratureRepository :
         await using var transaction = (SqliteTransaction)
             await connection.BeginTransactionAsync(cancellationToken);
 
+        var basisId = await ResolveServiceConnectionBasisAsync(connection, transaction,
+            classification.Association.RequirementId,
+            classification.Association.ServiceConnectionBasisId, cancellationToken);
+
         string? originalRequirementId = null;
         string? originalSourceId = null;
         string? originalGuidanceRole = null;
@@ -643,9 +717,10 @@ public sealed class SqliteMedicalLiteratureRepository :
                 SELECT RequirementId, MedicalLiteratureSourceId,
                        GuidanceRole, ArtifactId
                 FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
-                WHERE CorrelationId = $correlation
+                WHERE ServiceConnectionBasisId = $basis AND CorrelationId = $correlation
                   AND SupersededUtc IS NULL;
                 """;
+            lookup.Parameters.AddWithValue("$basis", basisId.Value);
             lookup.Parameters.AddWithValue(
                 "$correlation",
                 supersededCorrelationId);
@@ -696,10 +771,11 @@ public sealed class SqliteMedicalLiteratureRepository :
             association.CommandText = """
                 SELECT Description
                 FROM VeteransClaims_RequirementMedicalLiterature
-                WHERE RequirementId = $requirement
+                WHERE ServiceConnectionBasisId = $basis AND RequirementId = $requirement
                   AND MedicalLiteratureSourceId = $source
                   AND GuidanceRole = $role;
                 """;
+            association.Parameters.AddWithValue("$basis", basisId.Value);
             association.Parameters.AddWithValue(
                 "$requirement",
                 replacement.RequirementId.Value);
@@ -720,10 +796,11 @@ public sealed class SqliteMedicalLiteratureRepository :
                 update.CommandText = """
                     UPDATE VeteransClaims_RequirementMedicalLiterature
                     SET Description = $description
-                    WHERE RequirementId = $requirement
+                    WHERE ServiceConnectionBasisId = $basis AND RequirementId = $requirement
                       AND MedicalLiteratureSourceId = $source
                       AND GuidanceRole = $role;
                     """;
+            update.Parameters.AddWithValue("$basis", basisId.Value);
                 update.Parameters.AddWithValue(
                     "$description",
                     replacement.Description);
@@ -750,10 +827,11 @@ public sealed class SqliteMedicalLiteratureRepository :
                 insert.Transaction = transaction;
                 insert.CommandText = """
                     INSERT INTO VeteransClaims_RequirementMedicalLiterature
-                    (RequirementId, MedicalLiteratureSourceId,
+                    (ServiceConnectionBasisId, RequirementId, MedicalLiteratureSourceId,
                      GuidanceRole, Description)
-                    VALUES ($requirement, $source, $role, $description);
+                    VALUES ($basis, $requirement, $source, $role, $description);
                     """;
+            insert.Parameters.AddWithValue("$basis", basisId.Value);
                 insert.Parameters.AddWithValue(
                     "$requirement",
                     replacement.RequirementId.Value);
@@ -777,13 +855,14 @@ public sealed class SqliteMedicalLiteratureRepository :
                 UPDATE VeteransClaims_ReviewedMedicalLiteratureClassifications
                 SET SupersededByCorrelationId = $replacement,
                     SupersededUtc = $supersededUtc
-                WHERE RequirementId = $requirement
+                WHERE ServiceConnectionBasisId = $basis AND RequirementId = $requirement
                   AND MedicalLiteratureSourceId = $source
                   AND GuidanceRole = $role
                   AND ArtifactId = $artifact
                   AND CorrelationId = $superseded
                   AND SupersededUtc IS NULL;
                 """;
+            supersede.Parameters.AddWithValue("$basis", basisId.Value);
             supersede.Parameters.AddWithValue(
                 "$replacement",
                 classification.CorrelationId);
@@ -835,6 +914,9 @@ public sealed class SqliteMedicalLiteratureRepository :
         CancellationToken cancellationToken)
     {
         var association = classification.Association;
+        var basisId = await ResolveServiceConnectionBasisAsync(connection, transaction,
+            association.RequirementId, association.ServiceConnectionBasisId, cancellationToken);
+
 
         await using (var lookup = connection.CreateCommand())
         {
@@ -842,10 +924,11 @@ public sealed class SqliteMedicalLiteratureRepository :
             lookup.CommandText = """
                 SELECT Description
                 FROM VeteransClaims_RequirementMedicalLiterature
-                WHERE RequirementId = $requirement
+                WHERE ServiceConnectionBasisId = $basis AND RequirementId = $requirement
                   AND MedicalLiteratureSourceId = $source
                   AND GuidanceRole = $role;
                 """;
+            lookup.Parameters.AddWithValue("$basis", basisId.Value);
             lookup.Parameters.AddWithValue(
                 "$requirement",
                 association.RequirementId.Value);
@@ -877,10 +960,11 @@ public sealed class SqliteMedicalLiteratureRepository :
                 insertAssociation.Transaction = transaction;
                 insertAssociation.CommandText = """
                     INSERT INTO VeteransClaims_RequirementMedicalLiterature
-                    (RequirementId, MedicalLiteratureSourceId,
+                    (ServiceConnectionBasisId, RequirementId, MedicalLiteratureSourceId,
                      GuidanceRole, Description)
-                    VALUES ($requirement, $source, $role, $description);
+                    VALUES ($basis, $requirement, $source, $role, $description);
                     """;
+            insertAssociation.Parameters.AddWithValue("$basis", basisId.Value);
                 insertAssociation.Parameters.AddWithValue(
                     "$requirement",
                     association.RequirementId.Value);
@@ -932,13 +1016,14 @@ public sealed class SqliteMedicalLiteratureRepository :
             existingReview.CommandText = """
                 SELECT CorrelationId
                 FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
-                WHERE RequirementId = $requirement
+                WHERE ServiceConnectionBasisId = $basis AND RequirementId = $requirement
                   AND MedicalLiteratureSourceId = $source
                   AND GuidanceRole = $role
                   AND ArtifactId = $artifact
                   AND SupersededUtc IS NULL
                 LIMIT 1;
                 """;
+            existingReview.Parameters.AddWithValue("$basis", basisId.Value);
             existingReview.Parameters.AddWithValue(
                 "$requirement",
                 association.RequirementId.Value);
@@ -971,19 +1056,20 @@ public sealed class SqliteMedicalLiteratureRepository :
             command.CommandText = """
                 INSERT INTO
                     VeteransClaims_ReviewedMedicalLiteratureClassifications
-                (RequirementId, MedicalLiteratureSourceId, GuidanceRole,
+                (ServiceConnectionBasisId, RequirementId, MedicalLiteratureSourceId, GuidanceRole,
                  ArtifactId, Description, PromotedBy, PromotedUtc,
                  ReviewedBy, ReviewedUtc, IntelligenceOutput,
                  CapabilityId, ProviderId, CorrelationId, EngineName,
                  EngineVersion, ProviderOperationId, StartedUtc,
                  CompletedUtc, RequiresReview, WarningsJson)
                 VALUES
-                ($requirement, $source, $role, $artifact, $description,
+                ($basis, $requirement, $source, $role, $artifact, $description,
                  $promotedBy, $promotedUtc, $reviewedBy, $reviewedUtc,
                  $output, $capability, $provider, $correlation, $engine,
                  $engineVersion, $operation, $started, $completed,
                  $requiresReview, $warnings);
                 """;
+        command.Parameters.AddWithValue("$basis", basisId.Value);
 
             command.Parameters.AddWithValue(
                 "$requirement",
@@ -1061,13 +1147,14 @@ public sealed class SqliteMedicalLiteratureRepository :
             command.CommandText = """
                 INSERT INTO
                     VeteransClaims_ReviewedMedicalLiteratureExcerpts
-                (RequirementId, MedicalLiteratureSourceId, GuidanceRole,
+                (ServiceConnectionBasisId, RequirementId, MedicalLiteratureSourceId, GuidanceRole,
                  ArtifactId, CorrelationId, ExcerptOrdinal, Text,
                  StartOffset, Length)
                 VALUES
-                ($requirement, $source, $role, $artifact, $correlation,
+                ($basis, $requirement, $source, $role, $artifact, $correlation,
                  $ordinal, $text, $startOffset, $length);
                 """;
+            command.Parameters.AddWithValue("$basis", basisId.Value);
             command.Parameters.AddWithValue(
                 "$requirement",
                 association.RequirementId.Value);

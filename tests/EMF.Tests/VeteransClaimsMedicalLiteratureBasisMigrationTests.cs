@@ -1,3 +1,6 @@
+using EMF.Extensions.VeteransClaims.Models.Adjudication;
+using EMF.Extensions.VeteransClaims.Models.Identities;
+using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
 using EMF.Extensions.VeteransClaims.Persistence.Sqlite;
 using Microsoft.Data.Sqlite;
 
@@ -195,6 +198,60 @@ public sealed class VeteransClaimsMedicalLiteratureBasisMigrationTests
             Assert.Empty(await repository.GetReviewedClassificationsAsync(b, requirement));
         }
         finally { File.Delete(databasePath); }
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("missing-basis")]
+    public async Task Repository_RejectsAmbiguousOrInvalidWrite(string? basisValue)
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            await InitializeThrough86Async(path);
+            await SeedLegacyLiteratureAsync(path, true);
+            var repository = new SqliteMedicalLiteratureRepository(path);
+            await repository.InitializeAsync();
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                repository.AddRequirementMedicalLiteratureAsync(new RequirementMedicalLiterature
+                {
+                    ServiceConnectionBasisId = basisValue is null ? null : new ServiceConnectionBasisId(basisValue),
+                    RequirementId = new("requirement-1"),
+                    MedicalLiteratureSourceId = new("source-1"),
+                    GuidanceRole = "Clarifies",
+                    Description = "New association"
+                }));
+            Assert.Equal(2, (await repository.GetRequirementMedicalLiteratureAsync(new RequirementId("requirement-1"))).Count);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task Repository_WritesExplicitBasisWithIndependentDescription()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            await InitializeThrough86Async(path);
+            await SeedLegacyLiteratureAsync(path, true);
+            var repository = new SqliteMedicalLiteratureRepository(path);
+            await repository.InitializeAsync();
+            foreach (var value in new[] { "basis-a", "basis-b" })
+                await repository.AddRequirementMedicalLiteratureAsync(new RequirementMedicalLiterature
+                {
+                    ServiceConnectionBasisId = new(value),
+                    RequirementId = new("requirement-1"),
+                    MedicalLiteratureSourceId = new("source-1"),
+                    GuidanceRole = "Clarifies",
+                    Description = value
+                });
+            foreach (var value in new[] { "basis-a", "basis-b" })
+            {
+                var rows = await repository.GetRequirementMedicalLiteratureAsync(new ServiceConnectionBasisId(value), new RequirementId("requirement-1"));
+                Assert.Equal(value, Assert.Single(rows.Where(x => x.GuidanceRole == "Clarifies")).Description);
+            }
+        }
+        finally { File.Delete(path); }
     }
 
     private static string CreateDatabasePath() =>
