@@ -122,23 +122,47 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
             throw new InvalidOperationException(
                 "Reviewer package claim identity mismatch.");
 
-        var authoritative =
-            await new CurrentMedicationLedgerService(_medications)
-                .GetAsync(
-                    claim.VeteranId,
-                    cancellationToken);
+        var completeLedgers =
+            (await _medications.GetMedicationLedgersAsync(
+                claim.VeteranId,
+                cancellationToken))
+            .Where(ledger => ledger.IsComplete)
+            .ToArray();
 
-        if (authoritative is null)
+        if (completeLedgers.Length == 0)
             return [];
 
-        var allEntries =
-            await _medications.GetMedicationLedgerEntriesAsync(
-                authoritative.Ledger.Id,
-                cancellationToken);
+        var snapshots =
+            new List<(MedicationLedger Ledger, MedicationLedgerEntry Entry)>();
 
-        if (allEntries.Count != authoritative.Ledger.ParsedEntryCount)
-            throw new InvalidDataException(
-                "Medication ledger changed while reviewer progression was being prepared.");
+        foreach (var ledger in completeLedgers)
+        {
+            if (ledger.VeteranId != claim.VeteranId)
+                throw new InvalidDataException(
+                    "Medication ledger veteran identity mismatch.");
+
+            var entries =
+                await _medications.GetMedicationLedgerEntriesAsync(
+                    ledger.Id,
+                    cancellationToken);
+
+            ValidateLedgerEntries(ledger, entries);
+
+            snapshots.AddRange(
+                entries.Select(entry => (ledger, entry)));
+        }
+
+        var distinctSnapshots =
+            snapshots
+                .GroupBy(
+                    snapshot => MedicationSnapshotKey(snapshot.Entry),
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                    group
+                        .OrderByDescending(snapshot => snapshot.Ledger.ReportDate)
+                        .ThenByDescending(snapshot => snapshot.Entry.EntryOrdinal)
+                        .First())
+                .ToArray();
 
         var result =
             new List<VeteransReviewerMedicationProgression>();
@@ -146,16 +170,18 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
         foreach (var relevantName in relevantNames)
         {
             var matching =
-                allEntries
-                    .Where(entry =>
+                distinctSnapshots
+                    .Where(snapshot =>
                         MedicationNamesMatch(
                             relevantName,
-                            entry.MedicationName))
-                    .OrderBy(entry =>
-                        entry.PrescribedDate ??
-                        entry.LastFilledDate ??
+                            snapshot.Entry.MedicationName))
+                    .OrderBy(snapshot =>
+                        snapshot.Entry.PrescribedDate ??
+                        snapshot.Entry.LastFilledDate ??
                         DateOnly.MinValue)
-                    .ThenBy(entry => entry.EntryOrdinal)
+                    .ThenBy(snapshot => snapshot.Ledger.ReportDate)
+                    .ThenBy(snapshot => snapshot.Entry.EntryOrdinal)
+                    .Select(snapshot => snapshot.Entry)
                     .ToArray();
 
             if (matching.Length == 0)
@@ -174,6 +200,26 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
                 item => item.MedicationName,
                 StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static void ValidateLedgerEntries(
+        MedicationLedger ledger,
+        IReadOnlyList<MedicationLedgerEntry> entries)
+    {
+        if (entries.Count != ledger.ParsedEntryCount)
+            throw new InvalidDataException(
+                "Medication ledger changed while reviewer progression was being prepared.");
+
+        if (ledger.ReportedEntryCount is not null &&
+            ledger.ReportedEntryCount.Value != entries.Count)
+        {
+            throw new InvalidDataException(
+                "Complete medication ledger reported-entry count does not match persisted entries.");
+        }
+
+        if (entries.Any(entry => entry.MedicationLedgerId != ledger.Id))
+            throw new InvalidDataException(
+                "Medication ledger entry identity mismatch.");
     }
 
     private static IReadOnlyList<MedicationLedgerEntry>
@@ -228,6 +274,37 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
             NormalizeDirections(first.Directions),
             NormalizeDirections(second.Directions),
             StringComparison.OrdinalIgnoreCase);
+
+    private static string MedicationSnapshotKey(
+        MedicationLedgerEntry entry)
+    {
+        var medication =
+            MedicationIdentityKey(entry.MedicationName);
+        var prescription =
+            NormalizeValue(entry.PrescriptionNumber);
+
+        if (prescription.Length > 0)
+        {
+            return string.Join(
+                "|",
+                "rx",
+                medication,
+                prescription,
+                NormalizeValue(entry.Status),
+                NormalizeValue(entry.Strength),
+                NormalizeDirections(entry.Directions));
+        }
+
+        return string.Join(
+            "|",
+            "entry",
+            medication,
+            entry.PrescribedDate?.ToString("yyyy-MM-dd") ?? string.Empty,
+            NormalizeValue(entry.Strength),
+            NormalizeDirections(entry.Directions),
+            NormalizeValue(entry.Indication),
+            NormalizeValue(entry.Prescriber));
+    }
 
     private static bool MedicationNamesMatch(
         string relevantName,

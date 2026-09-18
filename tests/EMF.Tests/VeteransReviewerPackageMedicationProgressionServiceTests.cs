@@ -161,6 +161,149 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_CombinesCompleteLedgersAndDeduplicatesRepeatedPrescriptionSnapshots()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var seeded = await SeedAsync(path);
+            var connections = new SqliteServiceConnectionRepository(path);
+            await AddRelevantAsync(
+                connections,
+                seeded.BasisId,
+                "Isosorbide Mononitrate");
+
+            await AddLedgerAsync(
+                path,
+                seeded.VeteranId,
+                "ledger-history",
+                new DateOnly(2026, 9, 9),
+                [
+                    Entry(
+                        1,
+                        "ISOSORBIDE MONONITRATE 30MG SA TAB",
+                        "30MG",
+                        "discontinued",
+                        new DateOnly(2024, 1, 1),
+                        ledgerId: "ledger-history",
+                        prescriptionNumber: "RX-HISTORY-30"),
+                    Entry(
+                        2,
+                        "ISOSORBIDE MONONITRATE 60MG SA TAB",
+                        "60MG",
+                        "discontinued",
+                        new DateOnly(2025, 6, 2),
+                        ledgerId: "ledger-history",
+                        prescriptionNumber: "RX-HISTORY-60"),
+                    Entry(
+                        3,
+                        "isosorbide mononitrate (isosorbide mononitrate ER 30 mg/24 hour tablet)",
+                        "30 mg/24 hour",
+                        "refillinprocess",
+                        new DateOnly(2026, 8, 21),
+                        ledgerId: "ledger-history",
+                        prescriptionNumber: "RX-CURRENT")
+                ]);
+
+            await AddLedgerAsync(
+                path,
+                seeded.VeteranId,
+                "ledger-current",
+                new DateOnly(2026, 9, 17),
+                [
+                    Entry(
+                        1,
+                        "isosorbide mononitrate (isosorbide mononitrate ER 30 mg/24 hour tablet)",
+                        "30 mg/24 hour",
+                        "refillinprocess",
+                        new DateOnly(2026, 8, 21),
+                        ledgerId: "ledger-current",
+                        prescriptionNumber: "RX-CURRENT")
+                ]);
+
+            var progression =
+                Assert.Single(
+                    await CreateService(path).GetAsync(
+                        Package(seeded.IssueId, seeded.BasisId)));
+
+            Assert.Equal(3, progression.Entries.Count);
+            Assert.Equal(
+                new[] { "RX-HISTORY-30", "RX-HISTORY-60", "RX-CURRENT" },
+                progression.Entries
+                    .Select(entry => entry.PrescriptionNumber)
+                    .ToArray());
+            Assert.Equal(
+                "ledger-current",
+                progression.Entries[^1].MedicationLedgerId.Value);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task GetAsync_RetainsStatusChangeForSamePrescriptionAcrossLedgers()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var seeded = await SeedAsync(path);
+            var connections = new SqliteServiceConnectionRepository(path);
+            await AddRelevantAsync(
+                connections,
+                seeded.BasisId,
+                "Sertraline HCl");
+
+            await AddLedgerAsync(
+                path,
+                seeded.VeteranId,
+                "ledger-history",
+                new DateOnly(2026, 9, 9),
+                [
+                    Entry(
+                        1,
+                        "SERTRALINE HCL 50MG TAB",
+                        "50MG",
+                        "active",
+                        new DateOnly(2026, 8, 21),
+                        ledgerId: "ledger-history",
+                        prescriptionNumber: "RX-SAME")
+                ]);
+
+            await AddLedgerAsync(
+                path,
+                seeded.VeteranId,
+                "ledger-current",
+                new DateOnly(2026, 9, 17),
+                [
+                    Entry(
+                        1,
+                        "sertraline (sertraline 50 mg tablet)",
+                        "50 mg",
+                        "expired",
+                        new DateOnly(2026, 8, 21),
+                        ledgerId: "ledger-current",
+                        prescriptionNumber: "RX-SAME")
+                ]);
+
+            var progression =
+                Assert.Single(
+                    await CreateService(path).GetAsync(
+                        Package(seeded.IssueId, seeded.BasisId)));
+
+            Assert.Collection(
+                progression.Entries,
+                entry => Assert.Equal("active", entry.Status),
+                entry => Assert.Equal("expired", entry.Status));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task GetAsync_NoPersistedBasisReturnsEmpty()
     {
         var path = Path.GetTempFileName();
@@ -215,18 +358,23 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
         string strength,
         string status,
         DateOnly prescribed,
-        string directions = "TAKE ONE TABLET ORALLY EVERY DAY") =>
+        string directions = "TAKE ONE TABLET ORALLY EVERY DAY",
+        string ledgerId = "ledger-1",
+        string? prescriptionNumber = null) =>
         new()
         {
-            Id = new MedicationLedgerEntryId($"entry-{ordinal}"),
-            MedicationLedgerId = new MedicationLedgerId("ledger-1"),
+            Id = new MedicationLedgerEntryId(
+                ledgerId == "ledger-1"
+                    ? $"entry-{ordinal}"
+                    : $"{ledgerId}-entry-{ordinal}"),
+            MedicationLedgerId = new MedicationLedgerId(ledgerId),
             EntryOrdinal = ordinal,
             SourceStartPage = 3910 + ordinal,
             SourceEndPage = 3910 + ordinal,
             MedicationName = name,
             Strength = strength,
             Status = status,
-            PrescriptionNumber = $"RX-{ordinal}",
+            PrescriptionNumber = prescriptionNumber ?? $"RX-{ordinal}",
             PrescribedDate = prescribed,
             Directions = directions
         };
@@ -235,13 +383,27 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
         string path,
         VeteranId veteranId,
         IReadOnlyCollection<MedicationLedgerEntry> entries)
+        => await AddLedgerAsync(
+            path,
+            veteranId,
+            "ledger-1",
+            new DateOnly(2026, 9, 9),
+            entries);
+
+    private static async Task AddLedgerAsync(
+        string path,
+        VeteranId veteranId,
+        string ledgerId,
+        DateOnly reportDate,
+        IReadOnlyCollection<MedicationLedgerEntry> entries)
     {
         var ledger = new MedicationLedger
         {
-            Id = new MedicationLedgerId("ledger-1"),
+            Id = new MedicationLedgerId(ledgerId),
             VeteranId = veteranId,
-            SourceArtifactId = new ArtifactId("blue-button"),
-            ReportDate = new DateOnly(2026, 9, 9),
+            SourceArtifactId =
+                new ArtifactId($"blue-button-{ledgerId}"),
+            ReportDate = reportDate,
             SourceStartPage = 3911,
             SourceEndPage = 4023,
             ReportedEntryCount = entries.Count,
