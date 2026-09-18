@@ -96,6 +96,57 @@ public sealed class MedicalLiteratureClassificationServiceTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_PreservesBalancingEvidenceAsClarifies()
+    {
+        var result = new IntelligenceCapabilityResult<string>
+        {
+            Success = true,
+            Output = """
+                {
+                  "classifications": [{
+                    "requirementId": "requirement-a",
+                    "guidanceRole": "Clarifies",
+                    "description": "Provides balancing evidence.",
+                    "sourceSegmentIds": ["S001"]
+                  }]
+                }
+                """,
+            RequiresReview = true,
+            Metadata = Metadata()
+        };
+
+        var executor = new FakeExecutor(result);
+        var service =
+            new MedicalLiteratureClassificationService(executor);
+
+        var actual = await service.ClassifyAsync(
+            Source(),
+            new ArtifactId("artifact-a"),
+            "The study did not find a statistically significant association.",
+            [Requirement()],
+            Context());
+
+        var proposal = Assert.IsType<
+            MedicalLiteratureClassificationProposal>(
+                actual.Proposal);
+        var classification = Assert.Single(proposal.Classifications);
+
+        Assert.Equal(
+            EvidenceGuidanceRoles.Clarifies,
+            classification.GuidanceRole);
+        Assert.Contains(
+            "Use Clarifies when the article materially qualifies, limits, " +
+            "contradicts, or provides balancing context",
+            executor.Request!.Instruction,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Return no classification only when the article is not materially " +
+            "relevant",
+            executor.Request.Instruction,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ClassifyAsync_MapsSourceSegmentIdsToExactOffsets()
     {
         var service =

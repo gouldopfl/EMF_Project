@@ -240,8 +240,19 @@ internal sealed class MedicalLiteratureClassificationService
         builder.AppendLine(
             "Do not invent requirements, evidence roles, facts, or quotations.");
         builder.AppendLine(
-            "Return no classification when the article does not support " +
-            "a candidate requirement.");
+            "Classify literature when it materially informs a candidate " +
+            "requirement, whether it supports, establishes, corroborates, " +
+            "or clarifies that requirement.");
+        builder.AppendLine(
+            "Use Clarifies when the article materially qualifies, limits, " +
+            "contradicts, or provides balancing context for a candidate " +
+            "requirement without itself supporting that requirement.");
+        builder.AppendLine(
+            "Do not treat balancing or contrary evidence as irrelevant solely " +
+            "because it does not support the requirement.");
+        builder.AppendLine(
+            "Return no classification only when the article is not materially " +
+            "relevant to any candidate requirement.");
         builder.AppendLine(
             "Every classification must identify at least one exact supporting " +
             "source segment by its bracketed segment ID. " +
