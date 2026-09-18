@@ -65,6 +65,18 @@ public sealed class VeteransReviewerEvidenceSourceService
                     classificationGroup.Key,
                     cancellationToken);
 
+            // Registered literature is selected only through active basis reviews below.
+            try
+            {
+                if ((await _medicalLiterature.GetMedicalLiteratureSourceIdsAsync(
+                        activeArtifactId, cancellationToken)).Count > 0)
+                    continue;
+            }
+            catch (NotSupportedException)
+            {
+                // Older repository adapters may not expose reverse artifact lookup.
+            }
+
             if (seen.Add(activeArtifactId))
                 artifactIds.Add(activeArtifactId);
 
@@ -92,6 +104,7 @@ public sealed class VeteransReviewerEvidenceSourceService
             {
                 reviewedClassifications =
                     await _medicalLiterature.GetReviewedClassificationsAsync(
+                        requirement.Basis.Id,
                         requirement.Requirement.Id,
                         cancellationToken);
             }
@@ -103,7 +116,8 @@ public sealed class VeteransReviewerEvidenceSourceService
             if (reviewedClassifications.Any(
                     classification =>
                         classification.Association.RequirementId !=
-                        requirement.Requirement.Id))
+                        requirement.Requirement.Id ||
+                        classification.Association.ServiceConnectionBasisId != requirement.Basis.Id))
             {
                 throw new InvalidOperationException(
                     "Reviewer medical literature reviewed classification " +
@@ -113,7 +127,8 @@ public sealed class VeteransReviewerEvidenceSourceService
             foreach (var literature in requirement.MedicalLiterature)
             {
                 if (literature.Association.RequirementId !=
-                    requirement.Requirement.Id)
+                    requirement.Requirement.Id ||
+                    literature.Association.ServiceConnectionBasisId != requirement.Basis.Id)
                 {
                     throw new InvalidOperationException(
                         "Reviewer medical literature requirement mismatch.");
@@ -192,12 +207,10 @@ public sealed class VeteransReviewerEvidenceSourceService
                 }
 
                 var selectedArtifactIds =
-                    reviewedForLiterature.Length == 0
-                        ? literatureArtifactIds
-                        : reviewedForLiterature
-                            .Select(classification => classification.ArtifactId)
-                            .Distinct()
-                            .ToArray();
+                    reviewedForLiterature
+                        .Select(classification => classification.ArtifactId)
+                        .Distinct()
+                        .ToArray();
 
                 foreach (var artifactId in selectedArtifactIds)
                 {

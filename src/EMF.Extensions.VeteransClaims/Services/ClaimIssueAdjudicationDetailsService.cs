@@ -472,12 +472,14 @@ public sealed class ClaimIssueAdjudicationDetailsService :
                     var literature =
                         await _medicalLiterature
                             .GetActiveRequirementMedicalLiteratureAsync(
+                                basis.Id,
                                 requirement.Id,
                                 cancellationToken);
 
                     foreach (var association in literature)
                     {
-                        if (association.RequirementId != requirement.Id)
+                        if (association.RequirementId != requirement.Id ||
+                            association.ServiceConnectionBasisId != basis.Id)
                             throw new InvalidOperationException(
                                 "Medical literature requirement mismatch.");
 

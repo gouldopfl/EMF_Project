@@ -373,6 +373,7 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
             {
                 Id = packageId,
                 ClaimIssueId = new ClaimIssueId("issue-1"),
+                ServiceConnectionBasisId = new("basis-1"),
                 Purpose = "Physician reviewer package",
                 ReviewerRole = "MedicalProfessional"
             },
@@ -909,7 +910,8 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
                 {
                     Id = packageId,
                     ClaimIssueId = new ClaimIssueId("issue-1"),
-                    Purpose = "Physician reviewer package",
+                    ServiceConnectionBasisId = new("basis-1"),
+                Purpose = "Physician reviewer package",
                     ReviewerRole = "MedicalProfessional"
                 },
                 Artifacts =
@@ -964,7 +966,8 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
                 {
                     Id = packageId,
                     ClaimIssueId = new ClaimIssueId("issue-1"),
-                    Purpose = "Physician reviewer package",
+                    ServiceConnectionBasisId = new("basis-1"),
+                Purpose = "Physician reviewer package",
                     ReviewerRole = "MedicalProfessional"
                 },
                 Artifacts =
@@ -1037,8 +1040,10 @@ file sealed class RecordingPrintRenderer(
 
 public sealed partial class VeteransReviewerPackageDetailsServiceTests
 {
-    [Fact]
-    public async Task GetAsync_AssignsMedicalLiteratureAppendix()
+    [Theory]
+    [InlineData("basis-1", true)]
+    [InlineData("basis-other", false)]
+    public async Task GetAsync_AssignsMedicalLiteratureAppendix(string reviewBasis, bool included)
     {
         var packageId = new EvidencePackageId("package-literature");
         var artifact = CreateArtifact("artifact-literature");
@@ -1078,6 +1083,7 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
                 {
                     Association = new RequirementMedicalLiterature
                     {
+                        ServiceConnectionBasisId = new(reviewBasis),
                         RequirementId = new RequirementId("requirement-lit"),
                         MedicalLiteratureSourceId =
                             new MedicalLiteratureSourceId("study-1"),
@@ -1132,6 +1138,12 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         var result = await service.GetAsync(packageId);
 
         Assert.NotNull(result);
+        if (!included)
+        {
+            Assert.Empty(result.ArtifactContents);
+            Assert.Empty(result.Artifacts);
+            return;
+        }
         var content =
             Assert.Single(result.ArtifactContents);
 
@@ -1200,6 +1212,15 @@ file sealed class RecordingMedicalLiteratureRepository :
             CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<MedicalLiteratureSourceId>>(
             artifactId == ArtifactId ? [SourceId] : []);
+
+    public Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+        GetReviewedClassificationsAsync(
+            ServiceConnectionBasisId basisId,
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ReviewedMedicalLiteratureClassification>>(
+            ReviewedClassifications.Where(x => x.Association.ServiceConnectionBasisId == basisId &&
+                x.ArtifactId == artifactId).ToArray());
 
     public Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
         GetReviewedClassificationsAsync(

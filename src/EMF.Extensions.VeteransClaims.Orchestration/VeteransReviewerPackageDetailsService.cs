@@ -258,7 +258,15 @@ public sealed class VeteransReviewerPackageDetailsService
                 await GetReviewedMedicalLiteratureClassificationsAsync(
                     artifact.Id,
                     appendix,
+                    details.Package.ServiceConnectionBasisId,
                     cancellationToken);
+
+            if (appendix == VeteransReviewerPackageAppendix.MedicalLiterature &&
+                reviewedMedicalLiteratureClassifications.Count == 0)
+            {
+                artifacts.Remove(artifact);
+                continue;
+            }
 
             artifactContents.Add(
                 new VeteransReviewerArtifactContent
@@ -290,6 +298,7 @@ public sealed class VeteransReviewerPackageDetailsService
         GetReviewedMedicalLiteratureClassificationsAsync(
             EMF.Core.Models.Identities.ArtifactId artifactId,
             string? appendix,
+            ServiceConnectionBasisId? serviceConnectionBasisId,
             CancellationToken cancellationToken)
     {
         if (_medicalLiterature is null ||
@@ -298,12 +307,17 @@ public sealed class VeteransReviewerPackageDetailsService
             return [];
         }
 
+        if (serviceConnectionBasisId is null)
+            throw new InvalidOperationException(
+                "A reviewer package containing medical literature must have a persisted service-connection basis.");
+
         IReadOnlyList<ReviewedMedicalLiteratureClassification> reviewed;
 
         try
         {
             reviewed =
                 await _medicalLiterature.GetReviewedClassificationsAsync(
+                    serviceConnectionBasisId.Value,
                     artifactId,
                     cancellationToken);
         }
@@ -312,7 +326,8 @@ public sealed class VeteransReviewerPackageDetailsService
             return [];
         }
 
-        if (reviewed.Any(item => item.ArtifactId != artifactId))
+        if (reviewed.Any(item => item.ArtifactId != artifactId ||
+                                 item.Association.ServiceConnectionBasisId != serviceConnectionBasisId))
         {
             throw new InvalidOperationException(
                 $"Medical literature artifact '{artifactId.Value}' reviewed " +

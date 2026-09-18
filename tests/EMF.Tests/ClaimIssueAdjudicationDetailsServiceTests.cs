@@ -464,6 +464,7 @@ public sealed class ClaimIssueAdjudicationDetailsServiceTests
         var literatureAssociation =
             new RequirementMedicalLiterature
             {
+                ServiceConnectionBasisId = basis.Id,
                 RequirementId = requirement.Id,
                 MedicalLiteratureSourceId = literatureSource.Id,
                 GuidanceRole =

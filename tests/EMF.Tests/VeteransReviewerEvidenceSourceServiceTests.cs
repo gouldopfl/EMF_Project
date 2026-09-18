@@ -1,3 +1,5 @@
+using EMF.Extensions.VeteransClaims.Persistence.Sqlite.Repositories;
+using EMF.Persistence.Repositories;
 using System.Reflection;
 using EMF.Core.Contracts;
 using EMF.Core.Models;
@@ -59,7 +61,8 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
             CreateService(
                 id => CreateArtifact(id),
                 [classifiedId, literatureId, classifiedId],
-                id => $"text:{id.Value}");
+                id => $"text:{id.Value}",
+                [CreateReviewedClassification(Assert.Single(details.Requirements), literatureId)]);
 
         var result =
             await service.GetAsync(details, classifications);
@@ -72,6 +75,61 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
         Assert.Equal(literatureId, result[1].ArtifactId);
         Assert.Empty(result[1].Classifications);
         Assert.Equal("text:literature-1", result[1].Text);
+    }
+
+    [Fact]
+    public async Task GetAsync_PersistedBasisExcludesOtherBasisEvenWhenClassifiedOnSameIssue()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            await VeteransClaimsMedicalLiteratureBasisMigrationTests.InitializeThrough86Async(path);
+            await VeteransClaimsMedicalLiteratureBasisMigrationTests.SeedLegacyLiteratureAsync(path, true);
+            var repository = new SqliteMedicalLiteratureRepository(path);
+            await repository.InitializeAsync();
+            var evidence = new SqliteEvidenceRepository(path);
+            await evidence.InitializeAsync();
+            var aArtifact = new ArtifactId("artifact-1");
+            var bArtifact = new ArtifactId("artifact-b-only");
+            await evidence.AddArtifactAsync(CreateArtifact(aArtifact));
+            await evidence.AddArtifactAsync(CreateArtifact(bArtifact));
+            var aRequirement = CreateLiterature("requirement-1", "source-1", basisValue: "basis-a");
+            var bRequirement = CreateLiterature("requirement-1", "source-1", basisValue: "basis-b");
+            await repository.AddReviewedClassificationAsync(CreateReviewedClassification(aRequirement, aArtifact));
+            await repository.AddReviewedClassificationAsync(CreateReviewedClassification(bRequirement, aArtifact));
+            var bOnlyRequirement = CreateLiterature("requirement-1", "source-b", basisValue: "basis-b");
+            await repository.AddMedicalLiteratureSourceAsync(Assert.Single(bOnlyRequirement.MedicalLiterature).Source);
+            await repository.AddMedicalLiteratureSourceArtifactAsync(new() { MedicalLiteratureSourceId = new("source-b"), ArtifactId = bArtifact });
+            await repository.AddReviewedClassificationAsync(CreateReviewedClassification(bOnlyRequirement, bArtifact));
+
+            var service = new VeteransReviewerEvidenceSourceService(evidence, repository,
+                Proxy<IArtifactTextExtractor>((_, _) => Task.FromResult<string?>("Full article")));
+            var selected = await service.GetAsync(CreateDetails(aRequirement, "basis-a"),
+                [new() { Id = new("classified-b"), ArtifactId = bArtifact, ClaimIssueId = new("issue-1"), Classification = EvidenceClassifications.MedicalEvidence }]);
+            var source = Assert.Single(selected);
+            Assert.Equal(aArtifact, source.ArtifactId);
+            var review = Assert.Single(source.ReviewedMedicalLiteratureClassifications);
+            Assert.Equal(new ServiceConnectionBasisId("basis-a"), review.Association.ServiceConnectionBasisId);
+            Assert.Equal("Reviewed excerpt", Assert.Single(review.SourceExcerpts).Text);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task GetAsync_ExcludesLiteratureWithoutAnActiveBasisReview()
+    {
+        var details = CreateDetails(CreateLiterature("requirement-1", "study-1"));
+        var service = CreateService(CreateArtifact, [new ArtifactId("unreviewed")], _ => "Unreviewed text");
+        Assert.Empty(await service.GetAsync(details, []));
+    }
+
+    [Fact]
+    public async Task GetAsync_RejectsCrossBasisAssociations()
+    {
+        var requirement = CreateLiterature("requirement-1", "study-1", basisValue: "basis-other");
+        var details = CreateDetails(requirement);
+        var service = CreateService(CreateArtifact, [new ArtifactId("literature")], _ => "Text");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetAsync(details, []));
     }
 
     [Fact]
@@ -606,7 +664,9 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
                 new MedicalLiteratureSourceExcerpt
                 {
                     ArtifactId = excerptArtifactId ?? artifactId,
-                    Text = "Reviewed excerpt"
+                    Text = "Reviewed excerpt",
+                    StartOffset = 0,
+                    Length = "Reviewed excerpt".Length
                 }
             ]
         };
@@ -621,7 +681,8 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
         };
 
     private static ClaimIssueAdjudicationDetails CreateDetails(
-        ServiceConnectionBasisRequirementDetails? requirement = null)
+        ServiceConnectionBasisRequirementDetails? requirement = null,
+        string basisValue = "basis-1")
     {
         var issue =
             new ClaimIssue
@@ -642,7 +703,7 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
         var basis =
             new ServiceConnectionBasis
             {
-                Id = new ServiceConnectionBasisId("basis-1"),
+                Id = new ServiceConnectionBasisId(basisValue),
                 ClaimIssueId = issue.Id,
                 ServiceConnectionTheoryId = theory.Id
             };
@@ -691,7 +752,8 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
         string requirementId,
         string sourceId,
         string? associationRequirementId = null,
-        string? associationSourceId = null)
+        string? associationSourceId = null,
+        string basisValue = "basis-1")
     {
         var requirement =
             new Requirement
@@ -753,6 +815,7 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
                     Association =
                         new RequirementMedicalLiterature
                         {
+                            ServiceConnectionBasisId = new(basisValue),
                             RequirementId =
                                 new RequirementId(
                                     associationRequirementId ??

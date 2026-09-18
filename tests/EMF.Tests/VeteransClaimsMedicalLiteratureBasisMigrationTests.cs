@@ -331,7 +331,7 @@ public sealed class VeteransClaimsMedicalLiteratureBasisMigrationTests
             Path.GetTempPath(),
             $"{Guid.NewGuid():N}.db");
 
-    private static async Task InitializeThrough86Async(
+    internal static async Task InitializeThrough86Async(
         string databasePath)
     {
         var migrations =
@@ -382,7 +382,7 @@ public sealed class VeteransClaimsMedicalLiteratureBasisMigrationTests
         return basisIds;
     }
 
-    private static async Task SeedLegacyLiteratureAsync(
+    internal static async Task SeedLegacyLiteratureAsync(
         string databasePath,
         bool includeBasisRequirements)
     {
