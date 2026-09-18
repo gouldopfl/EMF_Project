@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
@@ -35,7 +36,11 @@ internal sealed class EcfrVeteransReviewerRegulatoryTextProvider :
     {
         _httpClient =
             httpClient ??
-            new HttpClient
+            new HttpClient(
+                new HttpClientHandler
+                {
+                    AutomaticDecompression = DecompressionMethods.All
+                })
             {
                 Timeout = TimeSpan.FromSeconds(20)
             };
