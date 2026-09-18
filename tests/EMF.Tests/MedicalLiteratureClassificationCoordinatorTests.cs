@@ -17,8 +17,10 @@ namespace EMF.Tests;
 
 public sealed class MedicalLiteratureClassificationCoordinatorTests
 {
-    [Fact]
-    public async Task ClassifyAsync_ResolvesAndTracesInputs()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ClassifyAsync_ResolvesAndTracesInputs(bool ambiguous)
     {
         var path = Path.GetTempFileName();
 
@@ -95,6 +97,10 @@ public sealed class MedicalLiteratureClassificationCoordinatorTests
                     Description = "Candidate requirement."
                 });
 
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirementId);
+            if (ambiguous)
+                await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirementId, "basis-second");
+
             var capabilityResult =
                 new IntelligenceCapabilityResult<string>
                 {
@@ -113,6 +119,19 @@ public sealed class MedicalLiteratureClassificationCoordinatorTests
                     regulatory,
                     extractor,
                     executor);
+
+            if (ambiguous)
+            {
+                await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.ClassifyAsync(
+                    sourceId, artifactId, [requirementId], Context()));
+                Assert.Null(executor.Context);
+                Assert.Null(extractor.ArtifactId);
+                var scopedResult = await coordinator.ClassifyAsync(
+                    new ServiceConnectionBasisId("basis-second"), sourceId, artifactId,
+                    [requirementId], Context());
+                Assert.Same(capabilityResult, scopedResult.IntelligenceResult);
+                return;
+            }
 
             var result = await coordinator.ClassifyAsync(
                 sourceId,
@@ -376,6 +395,11 @@ public sealed class MedicalLiteratureClassificationCoordinatorTests
                     ArtifactId = artifactId
                 });
 
+            await regulatory.AddRegulatoryAuthorityAsync(new() { Id = new("authority-no-text"), AuthorityType = "Regulation", Citation = "38 CFR", Title = "Authority" });
+            await regulatory.AddRegulatoryProvisionAsync(new() { Id = new("provision-no-text"), RegulatoryAuthorityId = new("authority-no-text"), ProvisionType = RegulatoryProvisionTypes.Requirement, Citation = "3.310" });
+            var requirementId = new RequirementId("requirement-no-text");
+            await regulatory.AddRequirementAsync(new() { Id = requirementId, RegulatoryProvisionId = new("provision-no-text"), Description = "Nexus" });
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirementId);
             var extractor = new FakeTextExtractor(null);
 
             var executor = new FakeExecutor(
@@ -398,7 +422,7 @@ public sealed class MedicalLiteratureClassificationCoordinatorTests
                 coordinator.ClassifyAsync(
                     sourceId,
                     artifactId,
-                    [],
+                    [requirementId],
                     Context()));
 
             Assert.Equal(artifactId, extractor.ArtifactId);

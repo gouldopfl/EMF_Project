@@ -12,6 +12,36 @@ namespace EMF.Tests;
 public sealed class MedicalLiteratureServiceTests
 {
     [Fact]
+    public async Task AddRequirementLiteratureAsync_IsolatesIdempotencyAndRejectsAmbiguity()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var repository = new SqliteMedicalLiteratureRepository(path);
+            await repository.InitializeAsync();
+            var regulatory = new SqliteRegulatoryRepository(path);
+            var requirementId = await AddRequirementAsync(regulatory);
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirementId, "basis-a");
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirementId, "basis-b");
+            var service = new MedicalLiteratureService(regulatory, repository);
+            var source = await service.AddSourceAsync(CreateSource("shared-source"));
+            foreach (var basisValue in new[] { "basis-a", "basis-b" })
+            {
+                var basis = new ServiceConnectionBasisId(basisValue);
+                var first = await service.AddRequirementLiteratureAsync(basis, requirementId,
+                    source.Id, EvidenceGuidanceRoles.Clarifies, basisValue);
+                var again = await service.AddRequirementLiteratureAsync(basis, requirementId,
+                    source.Id, EvidenceGuidanceRoles.Clarifies, basisValue);
+                Assert.Equal(basis, first.Association.ServiceConnectionBasisId);
+                Assert.Equal(basisValue, again.Association.Description);
+            }
+            await Assert.ThrowsAsync<InvalidOperationException>(() => service.AddRequirementLiteratureAsync(
+                requirementId, source.Id, EvidenceGuidanceRoles.Clarifies, "basis-a"));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task AddSourceAsync_AddsSourceAndIsIdempotent()
     {
         var path = Path.GetTempFileName();
@@ -102,6 +132,7 @@ public sealed class MedicalLiteratureServiceTests
 
             var requirementId =
                 await AddRequirementAsync(regulatory);
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirementId);
 
             var service =
                 new MedicalLiteratureService(
@@ -158,6 +189,7 @@ public sealed class MedicalLiteratureServiceTests
 
             var requirementId =
                 await AddRequirementAsync(regulatory);
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirementId);
 
             var service =
                 new MedicalLiteratureService(

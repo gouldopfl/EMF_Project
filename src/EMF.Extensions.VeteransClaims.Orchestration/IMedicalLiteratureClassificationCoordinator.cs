@@ -7,6 +7,14 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 public interface IMedicalLiteratureClassificationCoordinator
 {
     Task<MedicalLiteratureClassificationResult> ClassifyAsync(
+        ServiceConnectionBasisId serviceConnectionBasisId,
+        MedicalLiteratureSourceId sourceId,
+        ArtifactId artifactId,
+        IReadOnlyList<RequirementId> candidateRequirementIds,
+        IntelligenceExecutionContext context,
+        CancellationToken cancellationToken = default);
+
+    Task<MedicalLiteratureClassificationResult> ClassifyAsync(
         MedicalLiteratureSourceId sourceId,
         ArtifactId artifactId,
         IReadOnlyList<RequirementId> candidateRequirementIds,

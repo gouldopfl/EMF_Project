@@ -5,6 +5,8 @@ namespace EMF.Extensions.VeteransClaims.Models.Adjudication;
 
 public sealed class MedicalLiteratureClassificationProposal
 {
+    public ServiceConnectionBasisId? ServiceConnectionBasisId { get; init; }
+
     public required MedicalLiteratureSourceId
         MedicalLiteratureSourceId { get; init; }
 

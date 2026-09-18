@@ -93,13 +93,32 @@ public sealed class MedicalLiteratureService :
         return association;
     }
 
-    public async Task<RequirementMedicalLiteratureDetails>
-        AddRequirementLiteratureAsync(
-            RequirementId requirementId,
-            MedicalLiteratureSourceId sourceId,
-            string guidanceRole,
-            string description,
-            CancellationToken cancellationToken = default)
+    public Task<RequirementMedicalLiteratureDetails> AddRequirementLiteratureAsync(
+        RequirementId requirementId,
+        MedicalLiteratureSourceId sourceId,
+        string guidanceRole,
+        string description,
+        CancellationToken cancellationToken = default) =>
+        AddRequirementLiteratureCoreAsync(null, requirementId, sourceId,
+            guidanceRole, description, cancellationToken);
+
+    public Task<RequirementMedicalLiteratureDetails> AddRequirementLiteratureAsync(
+        ServiceConnectionBasisId serviceConnectionBasisId,
+        RequirementId requirementId,
+        MedicalLiteratureSourceId sourceId,
+        string guidanceRole,
+        string description,
+        CancellationToken cancellationToken = default) =>
+        AddRequirementLiteratureCoreAsync(serviceConnectionBasisId, requirementId, sourceId,
+            guidanceRole, description, cancellationToken);
+
+    private async Task<RequirementMedicalLiteratureDetails> AddRequirementLiteratureCoreAsync(
+        ServiceConnectionBasisId? serviceConnectionBasisId,
+        RequirementId requirementId,
+        MedicalLiteratureSourceId sourceId,
+        string guidanceRole,
+        string description,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(guidanceRole);
         ArgumentException.ThrowIfNullOrWhiteSpace(description);
@@ -133,12 +152,16 @@ public sealed class MedicalLiteratureService :
             throw new InvalidOperationException(
                 $"Medical literature source not found: {sourceId.Value}");
 
+        var basisId = await _literature.ResolveServiceConnectionBasisAsync(
+            requirementId, serviceConnectionBasisId, cancellationToken);
         var existing =
             await _literature.GetRequirementMedicalLiteratureAsync(
+                basisId,
                 requirementId,
                 cancellationToken);
 
-        if (existing.Any(x => x.RequirementId != requirementId))
+        if (existing.Any(x => x.RequirementId != requirementId ||
+                              x.ServiceConnectionBasisId != basisId))
             throw new InvalidOperationException(
                 $"Requirement '{requirementId.Value}' literature lookup " +
                 "returned an association for a different requirement.");
@@ -167,6 +190,7 @@ public sealed class MedicalLiteratureService :
         var association =
             new RequirementMedicalLiterature
             {
+                ServiceConnectionBasisId = basisId,
                 RequirementId = requirementId,
                 MedicalLiteratureSourceId = sourceId,
                 GuidanceRole = guidanceRole,

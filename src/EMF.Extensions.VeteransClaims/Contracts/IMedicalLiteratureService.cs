@@ -17,6 +17,14 @@ public interface IMedicalLiteratureService
         CancellationToken cancellationToken = default);
 
     Task<RequirementMedicalLiteratureDetails> AddRequirementLiteratureAsync(
+        ServiceConnectionBasisId serviceConnectionBasisId,
+        RequirementId requirementId,
+        MedicalLiteratureSourceId sourceId,
+        string guidanceRole,
+        string description,
+        CancellationToken cancellationToken = default);
+
+    Task<RequirementMedicalLiteratureDetails> AddRequirementLiteratureAsync(
         RequirementId requirementId,
         MedicalLiteratureSourceId sourceId,
         string guidanceRole,

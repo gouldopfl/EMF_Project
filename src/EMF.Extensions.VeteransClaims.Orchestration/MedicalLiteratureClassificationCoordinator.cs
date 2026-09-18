@@ -35,13 +35,32 @@ internal sealed class MedicalLiteratureClassificationCoordinator :
         _service = new MedicalLiteratureClassificationService(executor);
     }
 
-    public async Task<MedicalLiteratureClassificationResult>
-        ClassifyAsync(
-            MedicalLiteratureSourceId sourceId,
-            ArtifactId artifactId,
-            IReadOnlyList<RequirementId> candidateRequirementIds,
-            IntelligenceExecutionContext context,
-            CancellationToken cancellationToken = default)
+    public Task<MedicalLiteratureClassificationResult> ClassifyAsync(
+        MedicalLiteratureSourceId sourceId,
+        ArtifactId artifactId,
+        IReadOnlyList<RequirementId> candidateRequirementIds,
+        IntelligenceExecutionContext context,
+        CancellationToken cancellationToken = default) =>
+        ClassifyCoreAsync(null, sourceId, artifactId, candidateRequirementIds,
+            context, cancellationToken);
+
+    public Task<MedicalLiteratureClassificationResult> ClassifyAsync(
+        ServiceConnectionBasisId serviceConnectionBasisId,
+        MedicalLiteratureSourceId sourceId,
+        ArtifactId artifactId,
+        IReadOnlyList<RequirementId> candidateRequirementIds,
+        IntelligenceExecutionContext context,
+        CancellationToken cancellationToken = default) =>
+        ClassifyCoreAsync(serviceConnectionBasisId, sourceId, artifactId, candidateRequirementIds,
+            context, cancellationToken);
+
+    private async Task<MedicalLiteratureClassificationResult> ClassifyCoreAsync(
+        ServiceConnectionBasisId? serviceConnectionBasisId,
+        MedicalLiteratureSourceId sourceId,
+        ArtifactId artifactId,
+        IReadOnlyList<RequirementId> candidateRequirementIds,
+        IntelligenceExecutionContext context,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(candidateRequirementIds);
         ArgumentNullException.ThrowIfNull(context);
@@ -98,6 +117,18 @@ internal sealed class MedicalLiteratureClassificationCoordinator :
             requirements.Add(requirement);
         }
 
+        if (candidateRequirementIds.Count == 0)
+            throw new InvalidOperationException("At least one candidate requirement is required.");
+        ServiceConnectionBasisId? resolvedBasis = serviceConnectionBasisId;
+        foreach (var requirementId in candidateRequirementIds)
+        {
+            var basis = await _literature.ResolveServiceConnectionBasisAsync(
+                requirementId, serviceConnectionBasisId, cancellationToken);
+            if (resolvedBasis is not null && resolvedBasis != basis)
+                throw new InvalidOperationException("Candidate requirements must belong to one service-connection basis.");
+            resolvedBasis = basis;
+        }
+
         var text =
             await _textExtractor.ExtractTextAsync(
                 artifactId,
@@ -121,12 +152,24 @@ internal sealed class MedicalLiteratureClassificationCoordinator :
                 inputArtifactIds,
                 context.AgentId);
 
-        return await _service.ClassifyAsync(
+        var result = await _service.ClassifyAsync(
             source,
             artifactId,
             text,
             requirements,
             intelligenceContext,
             cancellationToken);
+
+        return new MedicalLiteratureClassificationResult
+        {
+            IntelligenceResult = result.IntelligenceResult,
+            Proposal = result.Proposal is null ? null : new()
+            {
+                ServiceConnectionBasisId = resolvedBasis,
+                MedicalLiteratureSourceId = result.Proposal.MedicalLiteratureSourceId,
+                ArtifactId = result.Proposal.ArtifactId,
+                Classifications = result.Proposal.Classifications
+            }
+        };
     }
 }
