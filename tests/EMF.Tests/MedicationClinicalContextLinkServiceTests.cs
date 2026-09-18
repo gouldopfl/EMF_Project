@@ -101,6 +101,55 @@ public sealed class MedicationClinicalContextLinkServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_AllowsStatusHistoryForSamePrescriptionAndMedication()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            var repository = await CreateAsync(path);
+
+            await repository.AddMedicationClinicalContextAsync(
+                Context(
+                    "context-isosorbide-history",
+                    "12620234",
+                    "Isosorbide Mononitrate",
+                    new DateOnly(2025, 8, 5),
+                    "Documented clinical effect."));
+
+            var links =
+                await new MedicationClinicalContextLinkService(repository)
+                    .GetAsync(
+                        new VeteranId("veteran-001"),
+                        [
+                            Entry(
+                                1,
+                                "12620234",
+                                "ISOSORBIDE MONONITRATE 60MG SA TAB",
+                                "60MG",
+                                "active"),
+                            Entry(
+                                2,
+                                "12620234",
+                                "ISOSORBIDE MONONITRATE 60MG SA TAB",
+                                "60MG",
+                                "expired")
+                        ]);
+
+            var link = Assert.Single(links);
+            Assert.Equal("entry-2", link.Medication.Id.Value);
+            Assert.Equal("expired", link.Medication.Status);
+            Assert.Equal(
+                "context-isosorbide-history",
+                link.Context.Id.Value);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task GetAsync_RejectsAmbiguousDuplicatePrescriptionNumbers()
     {
         var path = Path.GetTempFileName();
@@ -115,7 +164,7 @@ public sealed class MedicationClinicalContextLinkServiceTests
                     new VeteranId("veteran-001"),
                     [
                         Entry(1, "RX-1", "Medication A", "10MG"),
-                        Entry(2, "RX-1", "Medication B", "20MG")
+                        Entry(2, "RX-1", "Medication A", "20MG")
                     ]));
         }
         finally
@@ -163,7 +212,8 @@ public sealed class MedicationClinicalContextLinkServiceTests
         int ordinal,
         string prescriptionNumber,
         string medicationName,
-        string strength) =>
+        string strength,
+        string status = "discontinued") =>
         new()
         {
             Id = new MedicationLedgerEntryId($"entry-{ordinal}"),
@@ -173,7 +223,7 @@ public sealed class MedicationClinicalContextLinkServiceTests
             SourceEndPage = 3910 + ordinal,
             MedicationName = medicationName,
             Strength = strength,
-            Status = "discontinued",
+            Status = status,
             PrescriptionNumber = prescriptionNumber,
             PrescribedDate = new DateOnly(2025, 6, 2)
         };

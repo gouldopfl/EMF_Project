@@ -36,13 +36,26 @@ public sealed class MedicationClinicalContextLinkService
 
             var prescriptionNumber = entry.PrescriptionNumber.Trim();
 
-            if (!byPrescription.TryAdd(prescriptionNumber, entry))
+            if (byPrescription.TryGetValue(
+                    prescriptionNumber,
+                    out var existing))
             {
-                throw new InvalidDataException(
-                    "Medication progression contains duplicate " +
-                    "prescription numbers; clinical context linkage " +
-                    "would be ambiguous.");
+                if (!SameMedicationIdentity(existing, entry))
+                {
+                    throw new InvalidDataException(
+                        "Medication progression contains conflicting " +
+                        "medication identities for the same prescription " +
+                        "number; clinical context linkage would be ambiguous.");
+                }
+
+                // Progression entries are supplied in chronological order.
+                // Keep legitimate status/history snapshots and use the latest
+                // equivalent snapshot for clinical-context projection.
+                byPrescription[prescriptionNumber] = entry;
+                continue;
             }
+
+            byPrescription.Add(prescriptionNumber, entry);
         }
 
         if (byPrescription.Count == 0)
@@ -70,4 +83,21 @@ public sealed class MedicationClinicalContextLinkService
             .ThenBy(link => link.Context.Id.Value, StringComparer.Ordinal)
             .ToArray();
     }
+
+    private static bool SameMedicationIdentity(
+        MedicationLedgerEntry first,
+        MedicationLedgerEntry second) =>
+        string.Equals(
+            Normalize(first.MedicationName),
+            Normalize(second.MedicationName),
+            StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(
+            Normalize(first.Strength),
+            Normalize(second.Strength),
+            StringComparison.OrdinalIgnoreCase);
+
+    private static string Normalize(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim();
 }
