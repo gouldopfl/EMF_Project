@@ -98,7 +98,8 @@ internal static class MedicalLiteratureConsoleCommand
         RequirementId requirementId,
         MedicalLiteratureSourceId sourceId,
         string guidanceRole,
-        string description)
+        string description,
+        ServiceConnectionBasisId? serviceConnectionBasisId = null)
     {
         try
         {
@@ -112,8 +113,11 @@ internal static class MedicalLiteratureConsoleCommand
                     new SqliteRegulatoryRepository(databasePath),
                     repository);
 
+            var basisId = await repository.ResolveServiceConnectionBasisAsync(
+                requirementId, serviceConnectionBasisId);
             var result =
                 await service.AddRequirementLiteratureAsync(
+                    basisId,
                     requirementId,
                     sourceId,
                     guidanceRole,
@@ -195,7 +199,8 @@ internal static class MedicalLiteratureConsoleCommand
         string description,
         IReadOnlyList<int> excerptOrdinals,
         string? reviewedBy,
-        TextWriter output)
+        TextWriter output,
+        ServiceConnectionBasisId? serviceConnectionBasisId = null)
     {
         ArgumentNullException.ThrowIfNull(excerptOrdinals);
         ArgumentNullException.ThrowIfNull(output);
@@ -240,9 +245,11 @@ internal static class MedicalLiteratureConsoleCommand
                 new SqliteMedicalLiteratureRepository(databasePath);
             await literature.InitializeAsync();
 
+            var basisId = await literature.ResolveServiceConnectionBasisAsync(
+                requirementId, serviceConnectionBasisId);
             var matches =
                 (await literature.GetReviewedClassificationsAsync(
-                    requirementId))
+                    basisId, requirementId))
                 .Where(
                     classification =>
                         string.Equals(
@@ -280,6 +287,7 @@ internal static class MedicalLiteratureConsoleCommand
                 {
                     Association = new RequirementMedicalLiterature
                     {
+                        ServiceConnectionBasisId = basisId,
                         RequirementId = requirementId,
                         MedicalLiteratureSourceId = sourceId,
                         GuidanceRole = guidanceRole,
@@ -371,7 +379,8 @@ internal static class MedicalLiteratureConsoleCommand
         TextWriter output,
         bool promote = false,
         string? reviewedBy = null,
-        string? supersedesCorrelationId = null)
+        string? supersedesCorrelationId = null,
+        ServiceConnectionBasisId? serviceConnectionBasisId = null)
     {
         ArgumentNullException.ThrowIfNull(candidateRequirementIds);
         ArgumentNullException.ThrowIfNull(runtimeFactory);
@@ -396,6 +405,18 @@ internal static class MedicalLiteratureConsoleCommand
                 new SqliteMedicalLiteratureRepository(databasePath);
             await literature.InitializeAsync();
 
+            if (candidateRequirementIds.Count == 0)
+                throw new InvalidOperationException("At least one candidate requirement is required.");
+            ServiceConnectionBasisId? basisId = serviceConnectionBasisId;
+            foreach (var requirementId in candidateRequirementIds)
+            {
+                var resolved = await literature.ResolveServiceConnectionBasisAsync(
+                    requirementId, serviceConnectionBasisId);
+                if (basisId is not null && basisId != resolved)
+                    throw new InvalidOperationException("Candidate requirements must belong to one service-connection basis.");
+                basisId = resolved;
+            }
+
             var evidence = new SqliteEvidenceRepository(databasePath);
             await evidence.InitializeAsync();
 
@@ -415,6 +436,7 @@ internal static class MedicalLiteratureConsoleCommand
                         runtime.TextStructuredExtractionCapabilityExecutor);
 
             var result = await coordinator.ClassifyAsync(
+                basisId!.Value,
                 sourceId,
                 artifactId,
                 candidateRequirementIds,
@@ -438,6 +460,9 @@ internal static class MedicalLiteratureConsoleCommand
                 throw new InvalidOperationException(
                     "Medical literature classification produced no proposal.");
 
+            if (result.Proposal.ServiceConnectionBasisId != basisId)
+                throw new InvalidOperationException("Medical literature proposal basis mismatch.");
+            output.WriteLine($"Basis ID      : {basisId.Value.Value}");
             output.WriteLine($"Literature ID : {sourceId.Value}");
             output.WriteLine($"Artifact ID   : {artifactId.Value}");
             output.WriteLine(
@@ -479,6 +504,7 @@ internal static class MedicalLiteratureConsoleCommand
                         {
                             Association = new RequirementMedicalLiterature
                             {
+                                ServiceConnectionBasisId = basisId,
                                 RequirementId = classification.RequirementId,
                                 MedicalLiteratureSourceId = sourceId,
                                 GuidanceRole = classification.GuidanceRole,

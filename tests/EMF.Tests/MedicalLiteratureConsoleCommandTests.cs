@@ -88,6 +88,7 @@ public sealed class MedicalLiteratureConsoleCommandTests
                     RegulatoryProvisionId = provision.Id,
                     Description = "Candidate requirement."
                 });
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(databasePath, requirementId);
 
             var contentStore = new EMF.Persistence.Storage
                 .FileSystemArtifactContentStore(contentPath);
@@ -114,6 +115,25 @@ public sealed class MedicalLiteratureConsoleCommandTests
             Assert.Contains("Guidance Role : SupportsRequirement", rendered);
             Assert.Contains("offset=0 length=29", rendered);
             Assert.Contains("PTSD was associated with OSA.", rendered);
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(databasePath, requirementId, "basis-second");
+            var runtimeInvoked = false;
+            var ambiguousExit = await MedicalLiteratureConsoleCommand.RunClassifyAsync(
+                databasePath, sourceId, artifactId, [requirementId],
+                () => { runtimeInvoked = true; return Task.FromResult(Runtime(requirementId)); },
+                contentStore, output, promote: true, reviewedBy: "Reviewer");
+            Assert.Equal(1, ambiguousExit);
+            Assert.False(runtimeInvoked);
+            Assert.Equal(0, await VeteransConsoleCommand.RunAsync(
+                ["evidence", "literature", "link", databasePath, requirementId.Value,
+                 sourceId.Value, "Clarifies", "Basis B relevance", "--basis", "basis-second"]));
+            Assert.Equal("basis-second", Assert.Single(await literature.GetRequirementMedicalLiteratureAsync(
+                new ServiceConnectionBasisId("basis-second"), requirementId)).ServiceConnectionBasisId?.Value);
+            Assert.Equal(1, await VeteransConsoleCommand.RunAsync(
+                ["evidence", "literature", "link", databasePath, requirementId.Value,
+                 sourceId.Value, "Clarifies", "Ambiguous relevance"]));
+
+            Assert.Empty(await literature.GetReviewedClassificationsAsync(requirementId));
+
         }
         finally
         {
@@ -123,8 +143,10 @@ public sealed class MedicalLiteratureConsoleCommandTests
         }
     }
 
-    [Fact]
-    public async Task RunClassifyAsync_PromotesReviewedClassification()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunClassifyAsync_PromotesReviewedClassification(bool multipleBases)
     {
         var databasePath = Path.GetTempFileName();
         var contentPath = Path.Combine(
@@ -195,6 +217,10 @@ public sealed class MedicalLiteratureConsoleCommandTests
                     RegulatoryProvisionId = provision.Id,
                     Description = "Candidate requirement."
                 });
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(databasePath, requirementId);
+
+            if (multipleBases)
+                await MedicalLiteratureBasisTestData.LinkRequirementAsync(databasePath, requirementId, "basis-second");
 
             var contentStore = new EMF.Persistence.Storage
                 .FileSystemArtifactContentStore(contentPath);
@@ -213,7 +239,8 @@ public sealed class MedicalLiteratureConsoleCommandTests
                 contentStore,
                 output,
                 promote: true,
-                reviewedBy: "reviewer@example.test");
+                reviewedBy: "reviewer@example.test",
+                serviceConnectionBasisId: multipleBases ? new ServiceConnectionBasisId("basis-second") : null);
 
             Assert.Equal(0, exitCode);
             Assert.Contains("Promoted      : 1", output.ToString());
@@ -232,6 +259,10 @@ public sealed class MedicalLiteratureConsoleCommandTests
             var reviewed = Assert.Single(
                 await literature.GetReviewedClassificationsAsync(
                     requirementId));
+            Assert.Equal(new ServiceConnectionBasisId(multipleBases ? "basis-second" : "basis-literature-tests"),
+                reviewed.Association.ServiceConnectionBasisId);
+            if (multipleBases)
+                Assert.Empty(await literature.GetReviewedClassificationsAsync(new ServiceConnectionBasisId("basis-literature-tests"), requirementId));
             Assert.Equal(artifactId, reviewed.ArtifactId);
             Assert.Equal("console-test", reviewed.PromotedBy);
             Assert.Equal("reviewer@example.test", reviewed.ReviewedBy);
@@ -326,6 +357,7 @@ public sealed class MedicalLiteratureConsoleCommandTests
                     RegulatoryProvisionId = provision.Id,
                     Description = "Candidate requirement."
                 });
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(databasePath, requirementId);
 
             var contentStore = new EMF.Persistence.Storage
                 .FileSystemArtifactContentStore(contentPath);
@@ -485,6 +517,7 @@ public sealed class MedicalLiteratureConsoleCommandTests
                     RegulatoryProvisionId = provision.Id,
                     Description = "Candidate requirement."
                 });
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(databasePath, requirementId);
 
             var contentStore = new EMF.Persistence.Storage
                 .FileSystemArtifactContentStore(contentPath);

@@ -1121,6 +1121,24 @@ public static class VeteransConsoleCommand
                 args[6]);
         }
 
+        ServiceConnectionBasisId? literatureBasisId = null;
+        if (args.Length >= 3 && args[0] == "evidence" && args[1] == "literature" &&
+            args[2] is "link" or "review" or "classify")
+        {
+            var basisOption = Array.IndexOf(args, "--basis");
+            if (basisOption >= 0)
+            {
+                if (basisOption != args.Length - 2 ||
+                    string.IsNullOrWhiteSpace(args[^1]) || args[^1] == "--basis")
+                {
+                    global::System.Console.Error.WriteLine("Use a single trailing --basis <basisId> option.");
+                    return 1;
+                }
+                literatureBasisId = new ServiceConnectionBasisId(args[^1]);
+                args = args[..basisOption];
+            }
+        }
+
         if (args.Length == 8 &&
             args[0] == "evidence" &&
             args[1] == "literature" &&
@@ -1142,7 +1160,8 @@ public static class VeteransConsoleCommand
                 new RequirementId(args[4]),
                 new MedicalLiteratureSourceId(args[5]),
                 args[6],
-                args[7]);
+                args[7],
+                literatureBasisId);
         }
 
 
@@ -1199,7 +1218,8 @@ public static class VeteransConsoleCommand
                     args[10],
                     excerptOrdinals,
                     reviewedBy,
-                    global::System.Console.Out);
+                    global::System.Console.Out,
+                    literatureBasisId);
         }
 
 
@@ -1271,7 +1291,8 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out,
                 persistLiteratureClassification,
                 reviewedBy,
-                supersedesCorrelationId);
+                supersedesCorrelationId,
+                literatureBasisId);
         }
 
         if (args.Length == 6 &&
@@ -7081,13 +7102,13 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence literature classify " +
             "[--promote] <database-path> <literature-id> <artifact-id> " +
-            "<requirement-id> [<requirement-id> ...]");
+            "<requirement-id> [<requirement-id> ...] [--basis <basis-id>]");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence literature review --supersede " +
             "<correlation-id> <database-path> <literature-id> <artifact-id> " +
             "<requirement-id> <role> <description> <excerpt-ordinal> " +
-            "[<excerpt-ordinal> ...]");
+            "[<excerpt-ordinal> ...] [--basis <basis-id>]");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence literature artifact " +
@@ -7105,7 +7126,7 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence literature link " +
             "<database-path> <requirement-id> <source-id> " +
-            "<role> <description>");
+            "<role> <description> [--basis <basis-id>]");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence medication ledger current " +
