@@ -51,6 +51,7 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
             };
 
             await regulatory.AddRequirementAsync(requirement);
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirement.Id);
 
             var source = new MedicalLiteratureSource
             {
@@ -217,6 +218,7 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
             };
 
             await regulatory.AddRequirementAsync(requirement);
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirement.Id);
 
             var source = new MedicalLiteratureSource
             {
@@ -424,6 +426,7 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
             };
 
             await regulatory.AddRequirementAsync(requirement);
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirement.Id);
 
             var source = new MedicalLiteratureSource
             {
@@ -535,6 +538,7 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
                 Description = "Secondary service connection requirement."
             };
             await regulatory.AddRequirementAsync(requirement);
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirement.Id);
 
             var source = new MedicalLiteratureSource
             {
@@ -867,6 +871,7 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
                 Description = "Secondary service connection requirement."
             };
             await regulatory.AddRequirementAsync(requirement);
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirement.Id);
 
             var source = new MedicalLiteratureSource
             {
@@ -1030,6 +1035,7 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
                 Description = "Secondary service connection requirement."
             };
             await regulatory.AddRequirementAsync(requirement);
+            await MedicalLiteratureBasisTestData.LinkRequirementAsync(path, requirement.Id);
 
             var source = new MedicalLiteratureSource
             {

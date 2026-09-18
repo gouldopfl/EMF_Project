@@ -254,6 +254,78 @@ public sealed class VeteransClaimsMedicalLiteratureBasisMigrationTests
         finally { File.Delete(path); }
     }
 
+    [Fact]
+    public async Task Repository_ReviewAcceptanceAndExcerptsAreIndependentAcrossBases()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            await InitializeThrough86Async(path);
+            await SeedLegacyLiteratureAsync(path, true);
+            var repository = new SqliteMedicalLiteratureRepository(path);
+            await repository.InitializeAsync();
+            var requirement = new RequirementId("requirement-1");
+            var a = new ServiceConnectionBasisId("basis-a");
+            var b = new ServiceConnectionBasisId("basis-b");
+            await repository.AddReviewedClassificationAsync(CreateReview(a, "shared-correlation", "A accepted excerpt"));
+            Assert.DoesNotContain(await repository.GetReviewedClassificationsAsync(b, requirement), x => x.CorrelationId == "shared-correlation");
+            await repository.AddReviewedClassificationAsync(CreateReview(b, "shared-correlation", "B accepted excerpt"));
+            foreach (var (basis, expected) in new[] { (a, "A accepted excerpt"), (b, "B accepted excerpt") })
+            {
+                var review = Assert.Single((await repository.GetReviewedClassificationsAsync(basis, requirement))
+                    .Where(x => x.CorrelationId == "shared-correlation"));
+                Assert.Equal(basis, review.Association.ServiceConnectionBasisId);
+                Assert.Equal(expected, Assert.Single(review.SourceExcerpts).Text);
+            }
+            await Assert.ThrowsAsync<InvalidOperationException>(() => repository.AddReviewedClassificationAsync(
+                CreateReview(a, "duplicate", "A accepted excerpt")));
+            Assert.Equal(2, (await repository.GetReviewedClassificationsAsync(b, requirement)).Count);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task Repository_RejectsMissingRequirementAndDefaultBasis()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var repository = new SqliteMedicalLiteratureRepository(path);
+            await repository.InitializeAsync();
+            await Assert.ThrowsAsync<InvalidOperationException>(() => repository.ResolveServiceConnectionBasisAsync(new("missing")));
+            await Assert.ThrowsAnyAsync<ArgumentException>(() => repository.ResolveServiceConnectionBasisAsync(new("missing"), default(ServiceConnectionBasisId)));
+            await Assert.ThrowsAnyAsync<ArgumentException>(() => repository.GetRequirementMedicalLiteratureAsync(default(ServiceConnectionBasisId), new("missing")));
+            await Assert.ThrowsAnyAsync<ArgumentException>(() => repository.GetReviewedClassificationsAsync(default(ServiceConnectionBasisId), new RequirementId("missing")));
+        }
+        finally { File.Delete(path); }
+    }
+
+    private static ReviewedMedicalLiteratureClassification CreateReview(
+        ServiceConnectionBasisId basis, string correlation, string text,
+        string role = "Clarifies")
+    {
+        var now = DateTimeOffset.UtcNow;
+        return new ReviewedMedicalLiteratureClassification
+        {
+            Association = new RequirementMedicalLiterature
+            {
+                ServiceConnectionBasisId = basis,
+                RequirementId = new("requirement-1"),
+                MedicalLiteratureSourceId = new("source-1"),
+                GuidanceRole = role,
+                Description = text
+            },
+            ArtifactId = new("artifact-1"),
+            PromotedBy = "Reviewer", PromotedUtc = now,
+            ReviewedBy = "Reviewer", ReviewedUtc = now,
+            IntelligenceOutput = "Accepted", CapabilityId = "human.review",
+            ProviderId = "human", CorrelationId = correlation,
+            EngineName = "human-review", StartedUtc = now, CompletedUtc = now,
+            RequiresReview = false, Warnings = [],
+            SourceExcerpts = [new() { ArtifactId = new("artifact-1"), Text = text, StartOffset = 0, Length = text.Length }]
+        };
+    }
+
     private static string CreateDatabasePath() =>
         Path.Combine(
             Path.GetTempPath(),

@@ -219,7 +219,7 @@ public sealed class SqliteMedicalLiteratureRepository :
             ServiceConnectionBasisId serviceConnectionBasisId,
             RequirementId requirementId,
             CancellationToken cancellationToken = default) =>
-        GetRequirementMedicalLiteratureAsync(requirementId, serviceConnectionBasisId, cancellationToken);
+        GetRequirementMedicalLiteratureAsync(requirementId, new ServiceConnectionBasisId(serviceConnectionBasisId.Value), cancellationToken);
 
     private async Task<IReadOnlyList<RequirementMedicalLiterature>>
         GetRequirementMedicalLiteratureAsync(
@@ -284,7 +284,7 @@ public sealed class SqliteMedicalLiteratureRepository :
             ServiceConnectionBasisId serviceConnectionBasisId,
             RequirementId requirementId,
             CancellationToken cancellationToken = default) =>
-        GetActiveRequirementMedicalLiteratureAsync(requirementId, serviceConnectionBasisId, cancellationToken);
+        GetActiveRequirementMedicalLiteratureAsync(requirementId, new ServiceConnectionBasisId(serviceConnectionBasisId.Value), cancellationToken);
 
     private async Task<IReadOnlyList<RequirementMedicalLiterature>>
         GetActiveRequirementMedicalLiteratureAsync(
@@ -1279,7 +1279,7 @@ public sealed class SqliteMedicalLiteratureRepository :
             RequirementId requirementId,
             CancellationToken cancellationToken = default) =>
         GetReviewedClassificationsAsync(requirementId, null, cancellationToken,
-            serviceConnectionBasisId);
+            new ServiceConnectionBasisId(serviceConnectionBasisId.Value));
 
     public Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
         GetReviewedClassificationsAsync(
@@ -1287,7 +1287,7 @@ public sealed class SqliteMedicalLiteratureRepository :
             ArtifactId artifactId,
             CancellationToken cancellationToken = default) =>
         GetReviewedClassificationsAsync(null, artifactId, cancellationToken,
-            serviceConnectionBasisId);
+            new ServiceConnectionBasisId(serviceConnectionBasisId.Value));
 
     private async Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
         GetReviewedClassificationsAsync(
