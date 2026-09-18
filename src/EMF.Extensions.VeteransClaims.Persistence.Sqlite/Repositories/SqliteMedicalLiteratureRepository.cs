@@ -564,6 +564,9 @@ public sealed class SqliteMedicalLiteratureRepository :
                     "A supersession batch must belong to one service-connection basis.");
         }
 
+        await ValidateReplacementCorrelationAsync(connection, transaction,
+            basisId, replacementCorrelationId, cancellationToken);
+
         var supersededKeys =
             new HashSet<(string, string, string, string)>();
 
@@ -703,6 +706,9 @@ public sealed class SqliteMedicalLiteratureRepository :
         var basisId = await ResolveServiceConnectionBasisAsync(connection, transaction,
             classification.Association.RequirementId,
             classification.Association.ServiceConnectionBasisId, cancellationToken);
+
+        await ValidateReplacementCorrelationAsync(connection, transaction,
+            basisId, classification.CorrelationId, cancellationToken);
 
         string? originalRequirementId = null;
         string? originalSourceId = null;
@@ -897,6 +903,27 @@ public sealed class SqliteMedicalLiteratureRepository :
             cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task ValidateReplacementCorrelationAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        ServiceConnectionBasisId basisId,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT COUNT(*)
+            FROM VeteransClaims_ReviewedMedicalLiteratureClassifications
+            WHERE ServiceConnectionBasisId = $basis AND CorrelationId = $correlation;
+            """;
+        command.Parameters.AddWithValue("$basis", basisId.Value);
+        command.Parameters.AddWithValue("$correlation", correlationId);
+        if (Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken)) != 0)
+            throw new InvalidOperationException(
+                "A replacement correlation must be new within its service-connection basis.");
     }
 
     private static (string, string, string, string)

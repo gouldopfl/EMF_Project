@@ -300,6 +300,112 @@ public sealed class VeteransClaimsMedicalLiteratureBasisMigrationTests
         finally { File.Delete(path); }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Migrate87_RejectsUnsafeOrphanReviewsAndExcerptsWithoutDiscardingRows(bool orphanReview)
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            await InitializeThrough86Async(path);
+            await SeedLegacyLiteratureAsync(path, true);
+            await using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+                { DataSource = path, ForeignKeys = false }.ToString()))
+            {
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText = orphanReview
+                    ? "UPDATE VeteransClaims_ReviewedMedicalLiteratureClassifications SET RequirementId = 'orphan'; UPDATE VeteransClaims_ReviewedMedicalLiteratureExcerpts SET RequirementId = 'orphan';"
+                    : "UPDATE VeteransClaims_ReviewedMedicalLiteratureExcerpts SET RequirementId = 'orphan';";
+                await command.ExecuteNonQueryAsync();
+            }
+            await Assert.ThrowsAsync<SqliteException>(() => new SqliteMedicalLiteratureRepository(path).InitializeAsync());
+            await using var check = CreateConnection(path);
+            await check.OpenAsync();
+            await using var count = check.CreateCommand();
+            count.CommandText = "SELECT COUNT(*) FROM VeteransClaims_ReviewedMedicalLiteratureExcerpts WHERE RequirementId = 'orphan';";
+            Assert.Equal(1L, await count.ExecuteScalarAsync());
+            count.CommandText = "SELECT MAX(Version) FROM VeteransClaims_SchemaMigrations;";
+            Assert.Equal(86L, await count.ExecuteScalarAsync());
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Repository_SupersessionChangesOnlySelectedBasis(bool batch)
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            await InitializeThrough86Async(path);
+            await SeedLegacyLiteratureAsync(path, true);
+            var repository = new SqliteMedicalLiteratureRepository(path);
+            await repository.InitializeAsync();
+            var a = new ServiceConnectionBasisId("basis-a");
+            var b = new ServiceConnectionBasisId("basis-b");
+            var requirement = new RequirementId("requirement-1");
+            await repository.AddReviewedClassificationAsync(CreateReview(a, "shared", "A original"));
+            await repository.AddReviewedClassificationAsync(CreateReview(b, "shared", "B original"));
+            var replacement = CreateReview(a, "replacement", "A revised", batch ? "Clarifies" : "EstablishesElement");
+            if (batch)
+                await repository.SupersedeReviewedClassificationsAsync("shared", [replacement]);
+            else
+                await repository.SupersedeReviewedClassificationAsync("shared", replacement);
+
+            var aReviews = await repository.GetReviewedClassificationsAsync(a, requirement);
+            Assert.DoesNotContain(aReviews, x => x.CorrelationId == "shared");
+            Assert.Equal("A revised", Assert.Single(aReviews.Where(x => x.CorrelationId == "replacement")).Association.Description);
+            var bReview = Assert.Single((await repository.GetReviewedClassificationsAsync(b, requirement)).Where(x => x.CorrelationId == "shared"));
+            Assert.Equal("B original", bReview.Association.Description);
+            Assert.Equal("B original", Assert.Single(bReview.SourceExcerpts).Text);
+            Assert.DoesNotContain(await repository.GetActiveRequirementMedicalLiteratureAsync(b, requirement), x => x.Description == "A revised");
+            if (!batch)
+                Assert.DoesNotContain(await repository.GetActiveRequirementMedicalLiteratureAsync(a, requirement), x => x.GuidanceRole == "Clarifies");
+
+            await using var connection = CreateConnection(path);
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM VeteransClaims_ReviewedMedicalLiteratureClassifications WHERE CorrelationId = 'shared' AND SupersededUtc IS NOT NULL AND ServiceConnectionBasisId = 'basis-a';";
+            Assert.Equal(1L, await command.ExecuteScalarAsync());
+            command.CommandText = "SELECT Text FROM VeteransClaims_ReviewedMedicalLiteratureExcerpts WHERE ServiceConnectionBasisId = 'basis-a' AND CorrelationId = 'shared';";
+            Assert.Equal("A original", await command.ExecuteScalarAsync());
+            command.CommandText = "PRAGMA foreign_key_check;";
+            await using var reader = await command.ExecuteReaderAsync();
+            Assert.False(await reader.ReadAsync());
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task Repository_RejectsMixedBasisSupersessionAndCorrelationReuseAtomically()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            await InitializeThrough86Async(path);
+            await SeedLegacyLiteratureAsync(path, true);
+            var repository = new SqliteMedicalLiteratureRepository(path);
+            await repository.InitializeAsync();
+            var a = new ServiceConnectionBasisId("basis-a");
+            var b = new ServiceConnectionBasisId("basis-b");
+            var requirement = new RequirementId("requirement-1");
+            await repository.AddReviewedClassificationAsync(CreateReview(a, "shared", "A original"));
+            await repository.AddReviewedClassificationAsync(CreateReview(b, "shared", "B original"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => repository.SupersedeReviewedClassificationsAsync(
+                "shared", [CreateReview(a, "mixed", "A revised"), CreateReview(b, "mixed", "B revised")]));
+            Assert.Contains(await repository.GetReviewedClassificationsAsync(a, requirement), x => x.CorrelationId == "shared");
+            await repository.SupersedeReviewedClassificationAsync("shared", CreateReview(a, "next", "A revised"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => repository.SupersedeReviewedClassificationAsync(
+                "next", CreateReview(a, "shared", "Cycle attempt", "EstablishesElement")));
+            Assert.Contains(await repository.GetReviewedClassificationsAsync(a, requirement), x => x.CorrelationId == "next" && x.Association.Description == "A revised");
+            Assert.Contains(await repository.GetReviewedClassificationsAsync(b, requirement), x => x.CorrelationId == "shared" && x.Association.Description == "B original");
+        }
+        finally { File.Delete(path); }
+    }
+
     private static ReviewedMedicalLiteratureClassification CreateReview(
         ServiceConnectionBasisId basis, string correlation, string text,
         string role = "Clarifies")

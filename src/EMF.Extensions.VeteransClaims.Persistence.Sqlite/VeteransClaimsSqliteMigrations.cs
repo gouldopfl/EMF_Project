@@ -2636,6 +2636,24 @@ internal static class VeteransClaimsSqliteMigrations
                           literature.RequirementId
                 );
 
+                INSERT INTO VeteransClaims_M87LiteratureMigrationGuard (OrphanCount)
+                SELECT COUNT(*)
+                FROM VeteransClaims_ReviewedMedicalLiteratureClassifications AS reviewed
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM VeteransClaims_BasisRequirements AS basisRequirement
+                    WHERE basisRequirement.RequirementId = reviewed.RequirementId
+                );
+
+                INSERT INTO VeteransClaims_M87LiteratureMigrationGuard (OrphanCount)
+                SELECT COUNT(*)
+                FROM VeteransClaims_ReviewedMedicalLiteratureExcerpts AS excerpt
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM VeteransClaims_BasisRequirements AS basisRequirement
+                    WHERE basisRequirement.RequirementId = excerpt.RequirementId
+                );
+
                 CREATE TABLE VeteransClaims_M87RequirementMedicalLiterature AS
                 SELECT basisRequirement.ServiceConnectionBasisId,
                        literature.RequirementId,
