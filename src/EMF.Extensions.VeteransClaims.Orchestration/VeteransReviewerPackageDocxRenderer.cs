@@ -524,6 +524,18 @@ public static class VeteransReviewerPackageDocxRenderer
                 "Executive Summary",
                 "Heading1"));
 
+        if (details.MedicalOpinionRequested is not null)
+        {
+            body.Append(
+                StyledParagraph(
+                    "Medical Opinion Requested",
+                    "Heading2"));
+
+            body.Append(
+                ContentParagraph(
+                    details.MedicalOpinionRequested.OpinionText));
+        }
+
         if (details.MedicalOpinionRequested is not null &&
             details.MedicalOpinionRequested
                 .ApplicableRegulatoryCitations.Count > 0)
@@ -1506,8 +1518,8 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             ContentParagraph(
-                "The chronology below uses evidence dates explicitly preserved " +
-                "in artifact metadata. Medical sources without an indexed evidence " +
+                "The chronology below uses evidence dates documented in the " +
+                "supplied source records. Medical sources without a documented evidence " +
                 "date remain listed after the dated entries and in the applicable appendix."));
 
         foreach (var content in

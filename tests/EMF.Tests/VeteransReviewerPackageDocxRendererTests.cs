@@ -1201,11 +1201,12 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
                 .ToArray();
 
-        var heading =
-            Assert.Single(
-                paragraphElements.Where(
-                    paragraph =>
-                        paragraph.InnerText == "Medical Opinion Requested"));
+        var headings =
+            paragraphElements.Where(
+                paragraph =>
+                    paragraph.InnerText == "Medical Opinion Requested").ToArray();
+
+        Assert.Equal(2, headings.Length);
 
         var regulation =
             Assert.Single(
@@ -1215,17 +1216,17 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                             "Applicable VA Regulation:",
                             StringComparison.Ordinal)));
 
-        var opinion =
-            Assert.Single(
-                paragraphElements.Where(
-                    paragraph =>
-                        paragraph.InnerText.StartsWith(
-                            "Determine whether the Veteran's Obstructive Sleep Apnea",
-                            StringComparison.Ordinal)));
+        var opinions =
+            paragraphElements.Where(
+                paragraph =>
+                    paragraph.InnerText.StartsWith(
+                        "Determine whether the Veteran's Obstructive Sleep Apnea",
+                        StringComparison.Ordinal)).ToArray();
 
-        Assert.NotNull(heading.ParagraphProperties?.KeepNext);
+        Assert.Equal(2, opinions.Length);
+        Assert.All(headings, h => Assert.NotNull(h.ParagraphProperties?.KeepNext));
         Assert.NotNull(regulation.ParagraphProperties?.KeepNext);
-        Assert.NotNull(opinion.ParagraphProperties?.KeepLines);
+        Assert.All(opinions, o => Assert.NotNull(o.ParagraphProperties?.KeepLines));
     }
 
     [Fact]
