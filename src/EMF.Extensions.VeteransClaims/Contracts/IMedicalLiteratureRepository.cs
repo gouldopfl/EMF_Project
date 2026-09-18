@@ -6,6 +6,40 @@ namespace EMF.Extensions.VeteransClaims.Contracts;
 
 public interface IMedicalLiteratureRepository
 {
+    Task<ServiceConnectionBasisId> ResolveServiceConnectionBasisAsync(
+        RequirementId requirementId,
+        ServiceConnectionBasisId? serviceConnectionBasisId = null,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<RequirementMedicalLiterature>>
+        GetRequirementMedicalLiteratureAsync(
+            ServiceConnectionBasisId serviceConnectionBasisId,
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<RequirementMedicalLiterature>>
+        GetActiveRequirementMedicalLiteratureAsync(
+            ServiceConnectionBasisId serviceConnectionBasisId,
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+        GetReviewedClassificationsAsync(
+            ServiceConnectionBasisId serviceConnectionBasisId,
+            RequirementId requirementId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+        GetReviewedClassificationsAsync(
+            ServiceConnectionBasisId serviceConnectionBasisId,
+            ArtifactId artifactId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     Task AddMedicalLiteratureSourceAsync(
         MedicalLiteratureSource source,
         CancellationToken cancellationToken = default);
