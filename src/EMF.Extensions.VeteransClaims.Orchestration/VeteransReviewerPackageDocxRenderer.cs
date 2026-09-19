@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
 using System.Globalization;
+using System.Net;
 using System.Text;
+using System.Xml.Linq;
 using System.Text.RegularExpressions;
 using DocumentFormat.OpenXml;
 using A = DocumentFormat.OpenXml.Drawing;
@@ -657,15 +659,13 @@ public static class VeteransReviewerPackageDocxRenderer
                 "Questions for the Reviewing Physician",
                 "Lists the medical questions the reviewing physician is asked to address."));
 
-        var appendices =
+        IReadOnlyList<string> appendices =
             GetRoleContents(
                     details,
                     EvidencePackageContentRoles.UnderlyingEvidence)
-                .Where(content => content.Appendix is not null)
-                .Select(content => content.Appendix!)
-                .Distinct(StringComparer.Ordinal)
-                .OrderBy(AppendixOrder)
-                .ToArray();
+                .Any(content => content.Appendix is not null)
+                ? AllReviewerAppendices
+                : Array.Empty<string>();
 
         foreach (var appendix in appendices)
         {
@@ -1662,25 +1662,19 @@ public static class VeteransReviewerPackageDocxRenderer
                         "identity mismatch.");
                 }
 
+                var requirementLabel =
+                    RequirementLabel(
+                        reviewed.Association.RequirementId.Value);
+
                 body.Append(
                     ContentParagraph(
-                        $"Role: {GuidanceRoleDisplayName(reviewed.Association.GuidanceRole)}"));
+                        requirementLabel is null
+                            ? $"Role: {GuidanceRoleDisplayName(reviewed.Association.GuidanceRole)}"
+                            : $"Role: {requirementLabel} — {GuidanceRoleDisplayName(reviewed.Association.GuidanceRole)}"));
 
                 body.Append(
                     ContentParagraph(
                         $"Relevance: {reviewed.Association.Description}"));
-
-                foreach (var excerpt in reviewed.SourceExcerpts)
-                {
-                    body.Append(
-                        ContentParagraph(
-                            "Accepted Source Excerpt:",
-                            keepWithNext: true));
-
-                    AppendReviewerText(
-                        body,
-                        excerpt.Text);
-                }
             }
         }
     }
@@ -1778,27 +1772,42 @@ public static class VeteransReviewerPackageDocxRenderer
         if (contents.Count == 0)
             return;
 
-        foreach (var group in
+        var appendixGroups =
             contents
                 .Where(content => content.Appendix is not null)
                 .GroupBy(content => content.Appendix!)
-                .OrderBy(group => AppendixOrder(group.Key)))
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.ToArray(),
+                    StringComparer.Ordinal);
+
+        foreach (var appendix in AllReviewerAppendices)
         {
             body.Append(PageBreakParagraph());
 
             body.Append(
                 StyledParagraph(
-                    AppendixHeading(group.Key),
+                    AppendixHeading(appendix),
                     "Heading1"));
 
             body.Append(
                 ContentParagraph(
-                    AppendixDescription(group.Key)));
+                    AppendixDescription(appendix)));
+
+            if (!appendixGroups.TryGetValue(
+                    appendix,
+                    out var groupContents))
+            {
+                body.Append(
+                    ContentParagraph(
+                        EmptyAppendixMessage(appendix)));
+                continue;
+            }
 
             var firstArtifact = true;
 
             foreach (var content in
-                group
+                groupContents
                     .OrderBy(
                         content =>
                             string.IsNullOrWhiteSpace(GetEvidenceDate(content))
@@ -1916,7 +1925,19 @@ public static class VeteransReviewerPackageDocxRenderer
                 clarifications,
                 includeDisplayHeading: false);
 
-            if (content.PrintablePages.Count > 0)
+            if (string.Equals(
+                    content.Appendix,
+                    VeteransReviewerPackageAppendix.MedicalLiterature,
+                    StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(content.MedicalLiteratureReviewerText))
+            {
+                AppendMedicalLiteratureText(
+                    contentBody,
+                    ApplyReviewerSourceCorrections(
+                        content.MedicalLiteratureReviewerText,
+                        clarifications));
+            }
+            else if (content.PrintablePages.Count > 0)
             {
                 AppendPrintablePages(
                     mainPart,
@@ -1977,6 +1998,20 @@ public static class VeteransReviewerPackageDocxRenderer
             sourceName,
             clarifications,
             includeDisplayHeading: true);
+
+        if (string.Equals(
+                content.Appendix,
+                VeteransReviewerPackageAppendix.MedicalLiterature,
+                StringComparison.Ordinal) &&
+            !string.IsNullOrWhiteSpace(content.MedicalLiteratureReviewerText))
+        {
+            AppendMedicalLiteratureText(
+                body,
+                ApplyReviewerSourceCorrections(
+                    content.MedicalLiteratureReviewerText,
+                    clarifications));
+            return;
+        }
 
         if (content.PrintablePages.Count > 0)
         {
@@ -2599,6 +2634,54 @@ public static class VeteransReviewerPackageDocxRenderer
             : text;
     }
 
+    private static readonly string[] AllReviewerAppendices =
+    [
+        VeteransReviewerPackageAppendix.MedicalEvidence,
+        VeteransReviewerPackageAppendix.MedicalOpinionEvidence,
+        VeteransReviewerPackageAppendix.ServiceRecords,
+        VeteransReviewerPackageAppendix.LayEvidence,
+        VeteransReviewerPackageAppendix.AdjudicativeRecords,
+        VeteransReviewerPackageAppendix.MedicalLiterature
+    ];
+
+    private static string EmptyAppendixMessage(string appendix) =>
+        appendix switch
+        {
+            VeteransReviewerPackageAppendix.MedicalEvidence =>
+                "No medical evidence is included in this package.",
+            VeteransReviewerPackageAppendix.MedicalOpinionEvidence =>
+                "No medical opinion evidence is included in this package.",
+            VeteransReviewerPackageAppendix.ServiceRecords =>
+                "No service records are included in this package.",
+            VeteransReviewerPackageAppendix.LayEvidence =>
+                "No lay evidence is included in this package.",
+            VeteransReviewerPackageAppendix.AdjudicativeRecords =>
+                "No adjudicative records are included in this package.",
+            VeteransReviewerPackageAppendix.MedicalLiterature =>
+                "No medical/scientific literature is included in this package.",
+            _ =>
+                "No evidence is included in this appendix."
+        };
+
+    private static string? RequirementLabel(string requirementId)
+    {
+        if (requirementId.Contains(
+                "causation",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "Causation";
+        }
+
+        if (requirementId.Contains(
+                "aggravation",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "Aggravation";
+        }
+
+        return null;
+    }
+
     private static int AppendixOrder(string appendix) =>
         appendix switch
         {
@@ -3201,7 +3284,10 @@ public static class VeteransReviewerPackageDocxRenderer
         Body body,
         string text)
     {
-        foreach (var line in NormalizeReviewerText(text))
+        var readableText =
+            PrepareMedicalLiteratureText(text);
+
+        foreach (var line in NormalizeReviewerText(readableText))
         {
             if (line.Length == 0)
                 continue;
@@ -3234,7 +3320,7 @@ public static class VeteransReviewerPackageDocxRenderer
                     },
                     new FontSize
                     {
-                        Val = "24"
+                        Val = "26"
                     });
 
             if (heading)
@@ -3251,6 +3337,193 @@ public static class VeteransReviewerPackageDocxRenderer
                                 SpaceProcessingModeValues.Preserve
                         })));
         }
+    }
+
+    private static string PrepareMedicalLiteratureText(
+        string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return string.Empty;
+
+        var normalized =
+            text
+                .Replace('\uFFFD', ' ')
+                .Trim();
+
+        if (normalized.Contains('<', StringComparison.Ordinal) &&
+            normalized.Contains('>', StringComparison.Ordinal))
+        {
+            try
+            {
+                var document =
+                    XDocument.Parse(
+                        normalized,
+                        LoadOptions.PreserveWhitespace);
+
+                var readable =
+                    ExtractReadableMedicalLiteratureXml(document);
+
+                if (!string.IsNullOrWhiteSpace(readable))
+                    return readable;
+            }
+            catch (System.Xml.XmlException)
+            {
+                // Some literature sources contain incomplete XML fragments.
+                // Fall through to conservative markup removal rather than
+                // displaying XML/JATS tags to the physician.
+            }
+        }
+
+        return StripResidualMedicalLiteratureMarkup(normalized);
+    }
+
+    private static string ExtractReadableMedicalLiteratureXml(
+        XDocument document)
+    {
+        var lines = new List<string>();
+        var isPubMed =
+            document.Root?.DescendantsAndSelf()
+                .Any(
+                    element =>
+                        element.Name.LocalName is
+                            "PubmedArticleSet" or "PubmedArticle") == true;
+
+        if (isPubMed)
+        {
+            foreach (var abstractElement in
+                document
+                    .Descendants()
+                    .Where(
+                        element =>
+                            element.Name.LocalName == "AbstractText"))
+            {
+                var label =
+                    abstractElement.Attribute("Label")?.Value?.Trim();
+                var value = NormalizeMedicalLiteratureInlineText(abstractElement.Value);
+
+                if (value.Length == 0)
+                    continue;
+
+                if (!string.IsNullOrWhiteSpace(label))
+                    lines.Add(label.TrimEnd(':'));
+
+                lines.Add(value);
+                lines.Add(string.Empty);
+            }
+        }
+        else
+        {
+            foreach (var element in document.Descendants())
+            {
+                var localName = element.Name.LocalName;
+
+                if (localName is not ("title" or "p"))
+                    continue;
+
+                if (!element.Ancestors().Any(
+                        ancestor =>
+                            ancestor.Name.LocalName is "abstract" or "body"))
+                {
+                    continue;
+                }
+
+                if (element.Ancestors().Any(IsExcludedMedicalLiteratureXmlElement))
+                    continue;
+
+                var value =
+                    NormalizeMedicalLiteratureInlineText(element.Value);
+
+                if (value.Length == 0)
+                    continue;
+
+                lines.Add(value);
+
+                if (localName == "p")
+                    lines.Add(string.Empty);
+            }
+        }
+
+        while (lines.Count > 0 &&
+               lines[^1].Length == 0)
+        {
+            lines.RemoveAt(lines.Count - 1);
+        }
+
+        return string.Join('\n', lines);
+    }
+
+    private static bool IsExcludedMedicalLiteratureXmlElement(
+        XElement element) =>
+        element.Name.LocalName is
+            "ref-list" or
+            "ref" or
+            "table-wrap" or
+            "table" or
+            "fig" or
+            "alternatives" or
+            "graphic" or
+            "permissions" or
+            "custom-meta-group" or
+            "supplementary-material" or
+            "inline-supplementary-material";
+
+    private static string NormalizeMedicalLiteratureInlineText(
+        string text) =>
+        Regex.Replace(
+                WebUtility.HtmlDecode(text),
+                @"\s+",
+                " ",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1))
+            .Trim();
+
+    private static string StripResidualMedicalLiteratureMarkup(
+        string text)
+    {
+        var cleaned =
+            Regex.Replace(
+                text,
+                @"<\?.*?\?>",
+                " ",
+                RegexOptions.Singleline | RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1));
+
+        cleaned =
+            Regex.Replace(
+                cleaned,
+                @"<[^>]+>",
+                " ",
+                RegexOptions.Singleline | RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1));
+
+        cleaned =
+            Regex.Replace(
+                cleaned,
+                "\\b(?:ref-type|rid|disp-level|position|content-type|rowspan|colspan|align|xlink:href|xmlns(?::xlink)?)\\s*=\\s*[\"'][^\"']*[\"']",
+                " ",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1));
+
+        cleaned =
+            Regex.Replace(
+                cleaned,
+                @"<(?=\d+\))",
+                string.Empty,
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1));
+
+        cleaned =
+            WebUtility.HtmlDecode(cleaned);
+
+        cleaned =
+            Regex.Replace(
+                cleaned,
+                @"[ \t]+",
+                " ",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1));
+
+        return cleaned.Trim();
     }
 
     private static bool IsMedicalLiteratureHeadingLine(

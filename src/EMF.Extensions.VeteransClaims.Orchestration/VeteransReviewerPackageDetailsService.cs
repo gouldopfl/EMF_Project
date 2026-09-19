@@ -132,10 +132,21 @@ public sealed class VeteransReviewerPackageDetailsService
             var isPapExport =
                 isOscar || isSnore;
 
+            var appendix =
+                await GetAppendixAsync(
+                    artifact.Id,
+                    cancellationToken);
+
             var text =
                 GetTextSummary(artifact);
 
-            if ((isPapExport || string.IsNullOrWhiteSpace(text)) &&
+            var isMedicalLiterature =
+                string.Equals(
+                    appendix,
+                    VeteransReviewerPackageAppendix.MedicalLiterature,
+                    StringComparison.Ordinal);
+
+            if ((isPapExport || isMedicalLiterature || string.IsNullOrWhiteSpace(text)) &&
                 _textExtractor is not null)
             {
                 text =
@@ -243,11 +254,6 @@ public sealed class VeteransReviewerPackageDetailsService
                     relationships,
                     cancellationToken);
 
-            var appendix =
-                await GetAppendixAsync(
-                    artifact.Id,
-                    cancellationToken);
-
             var reviewerArtifact =
                 await GetReviewerArtifactAsync(
                     artifact,
@@ -268,11 +274,20 @@ public sealed class VeteransReviewerPackageDetailsService
                 continue;
             }
 
+            var medicalLiteratureReviewerText =
+                await GetOrCreateMedicalLiteratureReviewerTextAsync(
+                    artifact,
+                    appendix,
+                    text,
+                    cancellationToken);
+
             artifactContents.Add(
                 new VeteransReviewerArtifactContent
                 {
                     Artifact = reviewerArtifact,
                     Text = text ?? string.Empty,
+                    MedicalLiteratureReviewerText =
+                        medicalLiteratureReviewerText,
                     PrintablePages = printablePages,
                     ReviewerPageSelection =
                         packageArtifact.ReviewerPageSelection,
@@ -292,6 +307,153 @@ public sealed class VeteransReviewerPackageDetailsService
             ArtifactContents = artifactContents
         };
     }
+
+    private async Task<string?> GetOrCreateMedicalLiteratureReviewerTextAsync(
+        Artifact artifact,
+        string? appendix,
+        string? extractedText,
+        CancellationToken cancellationToken)
+    {
+        if (_medicalLiterature is null ||
+            appendix != VeteransReviewerPackageAppendix.MedicalLiterature)
+            return null;
+
+        var sourceIds =
+            await _medicalLiterature.GetMedicalLiteratureSourceIdsAsync(
+                artifact.Id,
+                cancellationToken);
+
+        if (sourceIds.Count != 1)
+            return null;
+
+        var sourceId = sourceIds[0];
+
+        MedicalLiteratureReviewerText? stored = null;
+
+        try
+        {
+            stored =
+                await _medicalLiterature.GetReviewerTextAsync(
+                    sourceId,
+                    artifact.Id,
+                    cancellationToken);
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+
+        var isPdf = IsPdfArtifact(artifact);
+
+        if (stored is not null &&
+            (!isPdf ||
+             string.Equals(
+                 stored.ExtractionMethod,
+                 "artifact-text-extractor-pdf-normalized-v2",
+                 StringComparison.Ordinal)))
+        {
+            return stored.Text;
+        }
+
+        if (string.IsNullOrWhiteSpace(extractedText))
+            return stored?.Text;
+
+        var source =
+            await _medicalLiterature.GetMedicalLiteratureSourceAsync(
+                sourceId,
+                cancellationToken);
+
+        var reviewerText = new MedicalLiteratureReviewerText
+        {
+            MedicalLiteratureSourceId = sourceId,
+            ArtifactId = artifact.Id,
+            Text = isPdf
+                ? NormalizePdfMedicalLiteratureReviewerText(extractedText)
+                : extractedText.Trim(),
+            SourceHash = source?.SourceHash,
+            ExtractionMethod = isPdf
+                ? "artifact-text-extractor-pdf-normalized-v2"
+                : "artifact-text-extractor-v1",
+            ExtractedUtc = DateTimeOffset.UtcNow
+        };
+
+        try
+        {
+            await _medicalLiterature.UpsertReviewerTextAsync(
+                reviewerText,
+                cancellationToken);
+        }
+        catch (NotSupportedException)
+        {
+            return reviewerText.Text;
+        }
+
+        return reviewerText.Text;
+    }
+
+
+    private static bool IsPdfArtifact(Artifact artifact)
+    {
+        if (artifact.Name.EndsWith(
+                ".pdf",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return artifact.Metadata.TryGetValue(
+                   ArtifactMetadataKeys.ContentType,
+                   out var contentType) &&
+               string.Equals(
+                   contentType?.ToString(),
+                   "application/pdf",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static string NormalizePdfMedicalLiteratureReviewerText(
+        string text)
+    {
+        var normalized =
+            text.Replace(
+                    "\r\n",
+                    "\n",
+                    StringComparison.Ordinal)
+                .Replace('\r', '\n')
+                .Replace('\u00ad', '-');
+
+        normalized =
+            System.Text.RegularExpressions.Regex.Replace(
+                normalized,
+                @"(?<left>\b[A-Za-z]{3,})-[ \t]*\n[ \t]*(?<right>[a-z]{2,}\b)",
+                match =>
+                {
+                    var left = match.Groups["left"].Value;
+                    var right = match.Groups["right"].Value;
+
+                    return PreserveMedicalCompoundHyphen(left)
+                        ? $"{left}-{right}"
+                        : left + right;
+                },
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        return normalized.Trim();
+    }
+
+    private static bool PreserveMedicalCompoundHyphen(
+        string left) =>
+        left.Equals("anti", StringComparison.OrdinalIgnoreCase) ||
+        left.Equals("case", StringComparison.OrdinalIgnoreCase) ||
+        left.Equals("cross", StringComparison.OrdinalIgnoreCase) ||
+        left.Equals("double", StringComparison.OrdinalIgnoreCase) ||
+        left.Equals("follow", StringComparison.OrdinalIgnoreCase) ||
+        left.Equals("long", StringComparison.OrdinalIgnoreCase) ||
+        left.Equals("meta", StringComparison.OrdinalIgnoreCase) ||
+        left.Equals("non", StringComparison.OrdinalIgnoreCase) ||
+        left.Equals("post", StringComparison.OrdinalIgnoreCase) ||
+        left.Equals("pre", StringComparison.OrdinalIgnoreCase) ||
+        left.Equals("service", StringComparison.OrdinalIgnoreCase) ||
+        left.Equals("short", StringComparison.OrdinalIgnoreCase) ||
+        left.Equals("well", StringComparison.OrdinalIgnoreCase);
 
     private async Task<
         IReadOnlyList<ReviewedMedicalLiteratureClassification>>

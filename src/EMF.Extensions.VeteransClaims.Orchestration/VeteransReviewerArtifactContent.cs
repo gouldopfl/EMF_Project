@@ -11,6 +11,9 @@ public sealed class VeteransReviewerArtifactContent
     public required string Text
     { get; init; }
 
+    public string? MedicalLiteratureReviewerText
+    { get; init; }
+
     public IReadOnlyList<PrintableArtifactPage> PrintablePages
     { get; init; } = [];
 

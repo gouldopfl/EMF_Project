@@ -116,4 +116,15 @@ public interface IMedicalLiteratureRepository
             CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
+    Task UpsertReviewerTextAsync(
+        MedicalLiteratureReviewerText reviewerText,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    Task<MedicalLiteratureReviewerText?> GetReviewerTextAsync(
+        MedicalLiteratureSourceId sourceId,
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
 }

@@ -1562,6 +1562,85 @@ public sealed class SqliteMedicalLiteratureRepository :
         public required IReadOnlyList<string> Warnings { get; init; }
     }
 
+    public async Task UpsertReviewerTextAsync(
+        MedicalLiteratureReviewerText reviewerText,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(reviewerText);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reviewerText.Text);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reviewerText.ExtractionMethod);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            INSERT INTO VeteransClaims_MedicalLiteratureReviewerText
+                (MedicalLiteratureSourceId, ArtifactId, Text, SourceHash,
+                 ExtractionMethod, ExtractedUtc)
+            VALUES
+                ($sourceId, $artifactId, $text, $sourceHash,
+                 $extractionMethod, $extractedUtc)
+            ON CONFLICT(MedicalLiteratureSourceId, ArtifactId) DO UPDATE SET
+                Text = excluded.Text,
+                SourceHash = excluded.SourceHash,
+                ExtractionMethod = excluded.ExtractionMethod,
+                ExtractedUtc = excluded.ExtractedUtc;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$sourceId", reviewerText.MedicalLiteratureSourceId.Value);
+        command.Parameters.AddWithValue(
+            "$artifactId", reviewerText.ArtifactId.Value);
+        command.Parameters.AddWithValue("$text", reviewerText.Text);
+        command.Parameters.AddWithValue(
+            "$sourceHash", (object?)reviewerText.SourceHash ?? DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$extractionMethod", reviewerText.ExtractionMethod);
+        command.Parameters.AddWithValue(
+            "$extractedUtc", reviewerText.ExtractedUtc.ToString("O"));
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<MedicalLiteratureReviewerText?> GetReviewerTextAsync(
+        MedicalLiteratureSourceId sourceId,
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT MedicalLiteratureSourceId, ArtifactId, Text, SourceHash,
+                   ExtractionMethod, ExtractedUtc
+            FROM VeteransClaims_MedicalLiteratureReviewerText
+            WHERE MedicalLiteratureSourceId = $sourceId
+              AND ArtifactId = $artifactId;
+            """;
+
+        command.Parameters.AddWithValue("$sourceId", sourceId.Value);
+        command.Parameters.AddWithValue("$artifactId", artifactId.Value);
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+            return null;
+
+        return new MedicalLiteratureReviewerText
+        {
+            MedicalLiteratureSourceId =
+                new MedicalLiteratureSourceId(reader.GetString(0)),
+            ArtifactId = new ArtifactId(reader.GetString(1)),
+            Text = reader.GetString(2),
+            SourceHash = reader.IsDBNull(3) ? null : reader.GetString(3),
+            ExtractionMethod = reader.GetString(4),
+            ExtractedUtc = DateTimeOffset.Parse(reader.GetString(5))
+        };
+    }
+
     private static MedicalLiteratureSource ReadSource(
         SqliteDataReader reader) =>
         new()

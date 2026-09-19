@@ -1174,6 +1174,29 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
     }
 }
 
+public sealed partial class VeteransReviewerPackageDetailsServiceTests
+{
+    [Fact]
+    public void NormalizePdfMedicalLiteratureReviewerText_DehyphenatesPdfLineBreakArtifacts()
+    {
+        var input =
+            "These drugs indi-\nrectly increase gastroesoph-\nageal symptoms. " +
+            "A double-\nblind case-\ncontrol study reported anti-\ninflammatory effects.";
+
+        var normalized =
+            VeteransReviewerPackageDetailsService
+                .NormalizePdfMedicalLiteratureReviewerText(input);
+
+        Assert.Contains("indirectly", normalized);
+        Assert.Contains("gastroesophageal", normalized);
+        Assert.Contains("double-blind", normalized);
+        Assert.Contains("case-control", normalized);
+        Assert.Contains("anti-inflammatory", normalized);
+        Assert.DoesNotContain("indi-\nrectly", normalized);
+        Assert.DoesNotContain("gastroesoph-\nageal", normalized);
+    }
+}
+
 file sealed class RecordingMedicalLiteratureRepository :
     IMedicalLiteratureRepository
 {

@@ -819,7 +819,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                                     {
                                         RequirementId =
                                             new RequirementId(
-                                                "requirement-reviewed-lit"),
+                                                "requirement-secondary-causation"),
                                         MedicalLiteratureSourceId =
                                             new MedicalLiteratureSourceId(
                                                 "study-reviewed-lit"),
@@ -897,18 +897,18 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             text);
 
         Assert.Contains(
-            "Role: Supports Requirement",
+            "Role: Causation — Supports Requirement",
             text);
 
         Assert.Contains(
             "Relevance: Supports the medical mechanism.",
             text);
 
-        Assert.Contains(
+        Assert.DoesNotContain(
             "Accepted Source Excerpt:",
             text);
 
-        Assert.Contains(
+        Assert.DoesNotContain(
             "Exact accepted source excerpt.",
             text);
 
@@ -2662,7 +2662,18 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "Contains medical opinion and nexus evidence supplied for review.",
             text);
         Assert.Contains("Psychiatric Nexus Letter — Treating Clinician", text);
-        Assert.DoesNotContain("Appendix A — Medical Evidence", text);
+        Assert.Contains("Appendix A — Medical Evidence", text);
+        Assert.Contains(
+            "No medical evidence is included in this package.",
+            text);
+
+        Assert.True(
+            text.IndexOf(
+                "Appendix A — Medical Evidence",
+                StringComparison.Ordinal) <
+            text.IndexOf(
+                "Appendix B — Medical Opinion Evidence",
+                StringComparison.Ordinal));
 
         var paragraphs =
             document.MainDocumentPart!.Document!.Body!
@@ -3497,7 +3508,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
     }
 
     [Fact]
-    public void Render_DoesNotAdvertiseAbsentMedicalLiteratureSections()
+    public void Render_DoesNotAddLiteratureSummaryWhenLiteratureIsAbsent()
     {
         var packageId =
             new EvidencePackageId("package-no-literature");
@@ -3564,8 +3575,184 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.DoesNotContain(
             "Medical/scientific literature is reproduced in Appendix F.",
             text);
-        Assert.DoesNotContain(
+        Assert.Contains(
             "Appendix F — Medical / Scientific Literature",
+            text);
+        Assert.Contains(
+            "No medical/scientific literature is included in this package.",
+            text);
+    }
+
+    [Fact]
+    public void Render_SanitizesMedicalLiteratureXmlAndUsesReadableFont()
+    {
+        var packageId = new EvidencePackageId("package-literature-xml");
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId("artifact-literature-xml"),
+            Name = "statin-study.xml",
+            ArtifactType = "xml"
+        };
+
+        var details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = new EvidencePackageDetails
+            {
+                Package = new EvidencePackage
+                {
+                    Id = packageId,
+                    ClaimIssueId = new ClaimIssueId("issue-1"),
+                    Purpose = "Medical review",
+                    ReviewerRole = "MedicalProfessional"
+                },
+                Artifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = artifact.Id,
+                        ContentRole =
+                            EvidencePackageContentRoles.UnderlyingEvidence
+                    }
+                ]
+            },
+            Artifacts = [artifact],
+            ArtifactContents =
+            [
+                new VeteransReviewerArtifactContent
+                {
+                    Artifact = artifact,
+                    Text =
+                        "<?xml version=\"1.0\"?><article><abstract>" +
+                        "<title>Abstract</title><p>Statin therapy was studied " +
+                        "with <xref rid=\"ref1\" ref-type=\"bibr\">1</xref> " +
+                        "for GERD.</p></abstract><body><sec><title>Results</title>" +
+                        "<p>Readable physician result.</p></sec></body>" +
+                        "<ref-list><ref id=\"ref1\"><p>Reference markup.</p></ref>" +
+                        "</ref-list></article>",
+                    Appendix =
+                        VeteransReviewerPackageAppendix.MedicalLiterature
+                }
+            ]
+        };
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var body = document.MainDocumentPart!.Document!.Body!;
+        var text = body.InnerText;
+
+        Assert.Contains("Statin therapy was studied with 1 for GERD.", text);
+        Assert.Contains("Readable physician result.", text);
+        Assert.DoesNotContain("ref-type", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<xref", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Reference markup.", text);
+
+        var literatureParagraph =
+            body
+                .Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Single(
+                    paragraph =>
+                        paragraph.InnerText.Contains(
+                            "Readable physician result.",
+                            StringComparison.Ordinal));
+
+        Assert.Contains(
+            literatureParagraph
+                .Descendants<DocumentFormat.OpenXml.Wordprocessing.FontSize>(),
+            size => size.Val?.Value == "26");
+    }
+
+    [Fact]
+    public void Render_IncludesEmptyAppendixEWhenLiteratureFollowsWithoutAdjudicativeRecords()
+    {
+        var packageId = new EvidencePackageId("package-literature-empty-e");
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId("artifact-literature-empty-e"),
+            Name = "study.pdf",
+            ArtifactType = "pdf"
+        };
+
+        var details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = new EvidencePackageDetails
+            {
+                Package = new EvidencePackage
+                {
+                    Id = packageId,
+                    ClaimIssueId = new ClaimIssueId("issue-1"),
+                    Purpose = "Medical review",
+                    ReviewerRole = "MedicalProfessional"
+                },
+                Artifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = artifact.Id,
+                        ContentRole =
+                            EvidencePackageContentRoles.UnderlyingEvidence
+                    }
+                ]
+            },
+            Artifacts = [artifact],
+            ArtifactContents =
+            [
+                new VeteransReviewerArtifactContent
+                {
+                    Artifact = artifact,
+                    Text = "Published study.",
+                    Appendix =
+                        VeteransReviewerPackageAppendix.MedicalLiterature
+                }
+            ]
+        };
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var text = document.MainDocumentPart!.Document!.InnerText;
+        var appendixE = text.IndexOf(
+            "Appendix E — Adjudicative Records",
+            StringComparison.Ordinal);
+        var appendixF = text.IndexOf(
+            "Appendix F — Medical / Scientific Literature",
+            StringComparison.Ordinal);
+
+        var appendixA = text.IndexOf(
+            "Appendix A — Medical Evidence",
+            StringComparison.Ordinal);
+        var appendixB = text.IndexOf(
+            "Appendix B — Medical Opinion Evidence",
+            StringComparison.Ordinal);
+        var appendixC = text.IndexOf(
+            "Appendix C — Service Records",
+            StringComparison.Ordinal);
+        var appendixD = text.IndexOf(
+            "Appendix D — Lay Evidence",
+            StringComparison.Ordinal);
+
+        Assert.True(appendixA >= 0);
+        Assert.True(appendixB > appendixA);
+        Assert.True(appendixC > appendixB);
+        Assert.True(appendixD > appendixC);
+        Assert.True(appendixE > appendixD);
+        Assert.True(appendixF > appendixE);
+        Assert.Contains(
+            "No medical opinion evidence is included in this package.",
+            text);
+        Assert.Contains(
+            "No service records are included in this package.",
+            text);
+        Assert.Contains(
+            "No adjudicative records are included in this package.",
             text);
     }
 

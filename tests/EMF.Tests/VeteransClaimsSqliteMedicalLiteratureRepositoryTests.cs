@@ -20,8 +20,10 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
         {
             var regulatory = new SqliteRegulatoryRepository(path);
             var repository = new SqliteMedicalLiteratureRepository(path);
+            var evidence = new SqliteEvidenceRepository(path);
 
             await repository.InitializeAsync();
+            await evidence.InitializeAsync();
 
             var authority = new RegulatoryAuthority
             {
@@ -111,6 +113,45 @@ public sealed class VeteransClaimsSqliteMedicalLiteratureRepositoryTests
             Assert.Equal(
                 EvidenceGuidanceRoles.SupportsRequirement,
                 link.GuidanceRole);
+
+
+            var artifactId = new ArtifactId("artifact-medlit-reviewer-text");
+            await evidence.AddArtifactAsync(
+                new Artifact
+                {
+                    Id = artifactId,
+                    Name = "reviewer-text-study.pdf",
+                    ArtifactType = "pdf"
+                });
+
+            await repository.AddMedicalLiteratureSourceArtifactAsync(
+                new MedicalLiteratureSourceArtifact
+                {
+                    MedicalLiteratureSourceId = source.Id,
+                    ArtifactId = artifactId
+                });
+
+            var reviewerText = new MedicalLiteratureReviewerText
+            {
+                MedicalLiteratureSourceId = source.Id,
+                ArtifactId = artifactId,
+                Text = "Readable physician literature text.",
+                SourceHash = source.SourceHash,
+                ExtractionMethod = "artifact-text-extractor-v1",
+                ExtractedUtc = DateTimeOffset.UtcNow
+            };
+
+            await repository.UpsertReviewerTextAsync(reviewerText);
+
+            var storedReviewerText =
+                await repository.GetReviewerTextAsync(source.Id, artifactId);
+
+            Assert.NotNull(storedReviewerText);
+            Assert.Equal(reviewerText.Text, storedReviewerText!.Text);
+            Assert.Equal(
+                reviewerText.ExtractionMethod,
+                storedReviewerText.ExtractionMethod);
+            Assert.Equal(source.SourceHash, storedReviewerText.SourceHash);
         }
         finally
         {
