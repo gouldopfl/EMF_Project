@@ -105,23 +105,35 @@ internal sealed class MedicalLiteratureClassificationService
             MedicalLiteratureSourceId = source.Id,
             ArtifactId = artifactId,
             Classifications =
-                extracted.Classifications.Select(
-                    item =>
-                        new MedicalLiteratureRequirementClassification
+                extracted.Classifications
+                    .GroupBy(
+                        item =>
+                            (item.RequirementId, item.GuidanceRole))
+                    .Select(
+                        group =>
                         {
-                            RequirementId = new(item.RequirementId),
-                            GuidanceRole = item.GuidanceRole,
-                            Description = item.Description,
-                            SourceExcerpts =
-                                item.SourceSegmentIds
-                                    .Select(
-                                        segmentId =>
-                                            MapSegment(
-                                                artifactId,
-                                                segmentId,
-                                                segmentById))
-                                    .ToArray()
-                        }).ToArray()
+                            var first = group.First();
+
+                            return new MedicalLiteratureRequirementClassification
+                            {
+                                RequirementId = new(first.RequirementId),
+                                GuidanceRole = first.GuidanceRole,
+                                Description = first.Description,
+                                SourceExcerpts =
+                                    group
+                                        .SelectMany(
+                                            item => item.SourceSegmentIds)
+                                        .Distinct(StringComparer.Ordinal)
+                                        .Select(
+                                            segmentId =>
+                                                MapSegment(
+                                                    artifactId,
+                                                    segmentId,
+                                                    segmentById))
+                                        .ToArray()
+                            };
+                        })
+                    .ToArray()
         };
 
     private static MedicalLiteratureSourceExcerpt MapSegment(
@@ -292,6 +304,9 @@ internal sealed class MedicalLiteratureClassificationService
         builder.AppendLine(
             "Return no classification only when the article is not materially " +
             "relevant to any candidate requirement.");
+        builder.AppendLine(
+            "Return at most one classification for each unique combination " +
+            "of candidate requirement and guidance role.");
         builder.AppendLine(
             "Every classification must identify at least one exact supporting " +
             "source segment by its bracketed segment ID. " +

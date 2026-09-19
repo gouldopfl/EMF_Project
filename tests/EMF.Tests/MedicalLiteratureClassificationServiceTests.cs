@@ -147,6 +147,66 @@ public sealed class MedicalLiteratureClassificationServiceTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_MergesDuplicateRequirementRoleClassifications()
+    {
+        var result = new IntelligenceCapabilityResult<string>
+        {
+            Success = true,
+            Output = """
+                {
+                  "classifications": [
+                    {
+                      "requirementId": "requirement-a",
+                      "guidanceRole": "Clarifies",
+                      "description": "Provides balancing evidence.",
+                      "sourceSegmentIds": ["S001", "S002"]
+                    },
+                    {
+                      "requirementId": "requirement-a",
+                      "guidanceRole": "Clarifies",
+                      "description": "Repeated classification.",
+                      "sourceSegmentIds": ["S002", "S003"]
+                    }
+                  ]
+                }
+                """,
+            RequiresReview = true,
+            Metadata = Metadata()
+        };
+
+        var executor = new FakeExecutor(result);
+        var service =
+            new MedicalLiteratureClassificationService(executor);
+
+        var actual = await service.ClassifyAsync(
+            Source(),
+            new ArtifactId("artifact-a"),
+            "First segment.\nSecond segment.\nThird segment.",
+            [Requirement()],
+            Context());
+
+        var proposal = Assert.IsType<
+            MedicalLiteratureClassificationProposal>(
+                actual.Proposal);
+        var classification = Assert.Single(proposal.Classifications);
+
+        Assert.Equal(
+            EvidenceGuidanceRoles.Clarifies,
+            classification.GuidanceRole);
+        Assert.Equal(
+            "Provides balancing evidence.",
+            classification.Description);
+        Assert.Equal(3, classification.SourceExcerpts.Count);
+        Assert.Equal(
+            new[] { "First segment.", "Second segment.", "Third segment." },
+            classification.SourceExcerpts.Select(x => x.Text));
+        Assert.Contains(
+            "Return at most one classification for each unique combination",
+            executor.Request!.Instruction,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ClassifyAsync_MapsSourceSegmentIdsToExactOffsets()
     {
         var service =
