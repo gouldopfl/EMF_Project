@@ -4,7 +4,10 @@ using EMF.Core.Contracts.Storage;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using UglyToad.PdfPig;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.PageSegmenter;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.ReadingOrderDetector;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
 
 namespace EMF.Orchestration.Services;
 
@@ -229,7 +232,7 @@ public sealed class PdfArtifactTextExtractionProvider :
             selectedPageCount++;
 
             var text =
-                ContentOrderTextExtractor.GetText(page);
+                ExtractReadingOrderText(page);
 
             if (string.IsNullOrWhiteSpace(text) &&
                 _pageImageRenderer is not null &&
@@ -306,6 +309,56 @@ public sealed class PdfArtifactTextExtractionProvider :
         }
 
         return pages;
+    }
+
+
+    private static string ExtractReadingOrderText(
+        UglyToad.PdfPig.Content.Page page)
+    {
+        var words =
+            NearestNeighbourWordExtractor.Instance
+                .GetWords(page.Letters);
+
+        var blocks =
+            RecursiveXYCut.Instance
+                .GetBlocks(words);
+
+        if (blocks.Count <= 1)
+        {
+            blocks =
+                DocstrumBoundingBoxes.Instance
+                    .GetBlocks(words);
+        }
+
+        var orderedBlocks =
+            new UnsupervisedReadingOrderDetector(
+                    useRenderingOrder: false)
+                .Get(blocks)
+                .ToArray();
+
+        if (orderedBlocks.Length == 0)
+            return ContentOrderTextExtractor.GetText(page);
+
+        var builder = new StringBuilder();
+
+        foreach (var block in orderedBlocks)
+        {
+            var blockText =
+                block.Text.Normalize(
+                    NormalizationForm.FormKC);
+
+            if (string.IsNullOrWhiteSpace(blockText))
+                continue;
+
+            if (builder.Length > 0)
+                builder.AppendLine();
+
+            builder.Append(blockText.Trim());
+        }
+
+        return builder.Length == 0
+            ? ContentOrderTextExtractor.GetText(page)
+            : builder.ToString();
     }
 
     private void AppendPageText(

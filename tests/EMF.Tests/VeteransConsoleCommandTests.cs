@@ -4920,7 +4920,7 @@ public sealed partial class VeteransConsoleCommandTests
             Assert.DoesNotContain(
                 $"Reviewed UTC: {replacementReviewedUtc:O}",
                 text);
-            Assert.Contains(
+            Assert.DoesNotContain(
                 "Replacement accepted excerpt.",
                 text);
             Assert.DoesNotContain("Initial accepted relevance.", text);

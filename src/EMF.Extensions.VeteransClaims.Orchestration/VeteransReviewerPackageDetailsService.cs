@@ -349,7 +349,7 @@ public sealed class VeteransReviewerPackageDetailsService
             (!isPdf ||
              string.Equals(
                  stored.ExtractionMethod,
-                 "artifact-text-extractor-pdf-normalized-v2",
+                 "artifact-text-extractor-pdf-normalized-v3",
                  StringComparison.Ordinal)))
         {
             return stored.Text;
@@ -372,7 +372,7 @@ public sealed class VeteransReviewerPackageDetailsService
                 : extractedText.Trim(),
             SourceHash = source?.SourceHash,
             ExtractionMethod = isPdf
-                ? "artifact-text-extractor-pdf-normalized-v2"
+                ? "artifact-text-extractor-pdf-normalized-v3"
                 : "artifact-text-extractor-v1",
             ExtractedUtc = DateTimeOffset.UtcNow
         };
@@ -418,42 +418,61 @@ public sealed class VeteransReviewerPackageDetailsService
                     "\r\n",
                     "\n",
                     StringComparison.Ordinal)
-                .Replace('\r', '\n')
-                .Replace('\u00ad', '-');
+                .Replace('\r', '\n');
 
         normalized =
             System.Text.RegularExpressions.Regex.Replace(
                 normalized,
-                @"(?<left>\b[A-Za-z]{3,})-[ \t]*\n[ \t]*(?<right>[a-z]{2,}\b)",
-                match =>
-                {
-                    var left = match.Groups["left"].Value;
-                    var right = match.Groups["right"].Value;
+                @"(?<left>\p{L}{2,})[\u00AD\uFFFD\uFFFE\uFFFF](?<right>\p{Ll}{2,})",
+                NormalizePdfSplitWord,
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
-                    return PreserveMedicalCompoundHyphen(left)
-                        ? $"{left}-{right}"
-                        : left + right;
-                },
+        normalized =
+            System.Text.RegularExpressions.Regex.Replace(
+                normalized,
+                @"(?<left>\b\p{L}{2,})-[ \t]*(?:\n[ \t]*|[ \t]+)(?<right>\p{Ll}{2,}\b)",
+                NormalizePdfSplitWord,
                 System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
         return normalized.Trim();
     }
 
+    private static string NormalizePdfSplitWord(
+        System.Text.RegularExpressions.Match match)
+    {
+        var left = match.Groups["left"].Value;
+        var right = match.Groups["right"].Value;
+
+        return PreserveMedicalCompoundHyphen(left, right)
+            ? $"{left}-{right}"
+            : left + right;
+    }
+
     private static bool PreserveMedicalCompoundHyphen(
-        string left) =>
-        left.Equals("anti", StringComparison.OrdinalIgnoreCase) ||
-        left.Equals("case", StringComparison.OrdinalIgnoreCase) ||
-        left.Equals("cross", StringComparison.OrdinalIgnoreCase) ||
-        left.Equals("double", StringComparison.OrdinalIgnoreCase) ||
-        left.Equals("follow", StringComparison.OrdinalIgnoreCase) ||
-        left.Equals("long", StringComparison.OrdinalIgnoreCase) ||
-        left.Equals("meta", StringComparison.OrdinalIgnoreCase) ||
-        left.Equals("non", StringComparison.OrdinalIgnoreCase) ||
-        left.Equals("post", StringComparison.OrdinalIgnoreCase) ||
-        left.Equals("pre", StringComparison.OrdinalIgnoreCase) ||
-        left.Equals("service", StringComparison.OrdinalIgnoreCase) ||
-        left.Equals("short", StringComparison.OrdinalIgnoreCase) ||
-        left.Equals("well", StringComparison.OrdinalIgnoreCase);
+        string left,
+        string right)
+    {
+        if (left.Equals("pre", StringComparison.OrdinalIgnoreCase) &&
+            right.Equals("scribed", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return
+            left.Equals("anti", StringComparison.OrdinalIgnoreCase) ||
+            left.Equals("case", StringComparison.OrdinalIgnoreCase) ||
+            left.Equals("cross", StringComparison.OrdinalIgnoreCase) ||
+            left.Equals("double", StringComparison.OrdinalIgnoreCase) ||
+            left.Equals("follow", StringComparison.OrdinalIgnoreCase) ||
+            left.Equals("long", StringComparison.OrdinalIgnoreCase) ||
+            left.Equals("meta", StringComparison.OrdinalIgnoreCase) ||
+            left.Equals("non", StringComparison.OrdinalIgnoreCase) ||
+            left.Equals("post", StringComparison.OrdinalIgnoreCase) ||
+            left.Equals("pre", StringComparison.OrdinalIgnoreCase) ||
+            left.Equals("service", StringComparison.OrdinalIgnoreCase) ||
+            left.Equals("short", StringComparison.OrdinalIgnoreCase) ||
+            left.Equals("well", StringComparison.OrdinalIgnoreCase);
+    }
 
     private async Task<
         IReadOnlyList<ReviewedMedicalLiteratureClassification>>

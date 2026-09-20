@@ -1181,7 +1181,10 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
     {
         var input =
             "These drugs indi-\nrectly increase gastroesoph-\nageal symptoms. " +
-            "A double-\nblind case-\ncontrol study reported anti-\ninflammatory effects.";
+            "A double-\nblind case-\ncontrol study reported anti-\ninflammatory effects. " +
+            "Patients were pre- scribed therapy in a study in- volving 2,251 participants; " +
+            "heartburn de- veloped in 68%. Ruigó- mez et al. reported that reflux in-\n" +
+            "creased ap\uFFFEproximately four times with anti\uFFFEasthmatic therapy.";
 
         var normalized =
             VeteransReviewerPackageDetailsService
@@ -1192,8 +1195,18 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         Assert.Contains("double-blind", normalized);
         Assert.Contains("case-control", normalized);
         Assert.Contains("anti-inflammatory", normalized);
+        Assert.Contains("prescribed", normalized);
+        Assert.Contains("involving", normalized);
+        Assert.Contains("developed", normalized);
+        Assert.Contains("Ruigómez", normalized);
+        Assert.Contains("increased", normalized);
+        Assert.Contains("approximately", normalized);
+        Assert.Contains("anti-asthmatic", normalized);
         Assert.DoesNotContain("indi-\nrectly", normalized);
         Assert.DoesNotContain("gastroesoph-\nageal", normalized);
+        Assert.DoesNotContain("pre- scribed", normalized);
+        Assert.DoesNotContain("in- volving", normalized);
+        Assert.DoesNotContain("de- veloped", normalized);
     }
 }
 

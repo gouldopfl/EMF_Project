@@ -43,6 +43,36 @@ public sealed class PdfArtifactTextExtractionProviderTests
             text);
     }
 
+
+    [Fact]
+    public async Task ExtractTextAsync_UsesColumnAwareReadingOrder()
+    {
+        var provider =
+            new PdfArtifactTextExtractionProvider(
+                new StubContentStore(
+                    CreateTwoColumnPdf()));
+
+        var text =
+            await provider.ExtractTextAsync(
+                new ArtifactId("pdf-two-column"));
+
+        Assert.NotNull(text);
+
+        var leftIndex =
+            text.IndexOf(
+                "LEFT COLUMN FIRST",
+                StringComparison.Ordinal);
+
+        var rightIndex =
+            text.IndexOf(
+                "RIGHT COLUMN FIRST",
+                StringComparison.Ordinal);
+
+        Assert.True(leftIndex >= 0);
+        Assert.True(rightIndex >= 0);
+        Assert.True(leftIndex < rightIndex);
+    }
+
     [Fact]
     public async Task ExtractTextAsync_ReturnsNullWhenContentMissing()
     {
@@ -536,6 +566,46 @@ public sealed class PdfArtifactTextExtractionProviderTests
             ex.Message);
     }
 
+
+    private static byte[] CreateTwoColumnPdf()
+    {
+        var builder =
+            new UglyToad.PdfPig.Writer.PdfDocumentBuilder();
+
+        var page =
+            builder.AddPage(612, 792);
+
+        var font =
+            builder.AddStandard14Font(
+                UglyToad.PdfPig.Fonts.Standard14Fonts
+                    .Standard14Font.Helvetica);
+
+        // Write the right column first on purpose. The fixture must remain
+        // text-extractable, while the provider must recover visual reading
+        // order rather than PDF content-stream order.
+        page.AddText(
+            "RIGHT COLUMN FIRST",
+            14,
+            new UglyToad.PdfPig.Core.PdfPoint(330, 690),
+            font);
+        page.AddText(
+            "RIGHT COLUMN SECOND",
+            14,
+            new UglyToad.PdfPig.Core.PdfPoint(330, 665),
+            font);
+        page.AddText(
+            "LEFT COLUMN FIRST",
+            14,
+            new UglyToad.PdfPig.Core.PdfPoint(50, 690),
+            font);
+        page.AddText(
+            "LEFT COLUMN SECOND",
+            14,
+            new UglyToad.PdfPig.Core.PdfPoint(50, 665),
+            font);
+
+        return builder.Build();
+    }
     private static byte[] CreateTextlessPdf(
         int pageCount = 1)
     {
