@@ -1046,7 +1046,12 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
     public async Task GetAsync_AssignsMedicalLiteratureAppendix(string reviewBasis, bool included)
     {
         var packageId = new EvidencePackageId("package-literature");
-        var artifact = CreateArtifact("artifact-literature");
+        var artifact = new Artifact
+        {
+            Id = new ArtifactId("artifact-literature"),
+            Name = "artifact-literature.pdf",
+            ArtifactType = "test"
+        };
 
         var evidence = new InMemoryEvidenceRepository();
         await evidence.AddArtifactAsync(artifact);
@@ -1076,6 +1081,18 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
                 Authors = "Chinoy et al.",
                 Publication = "Sleep Medicine",
                 PublicationYear = 2022
+            },
+            StoredReviewerText = new MedicalLiteratureReviewerText
+            {
+                MedicalLiteratureSourceId =
+                    new MedicalLiteratureSourceId("study-1"),
+                ArtifactId = artifact.Id,
+                Text = "stale normalized reviewer text",
+                ExtractionMethod =
+                    "artifact-text-extractor-pdf-normalized-v3",
+                ExtractedUtc =
+                    new DateTimeOffset(
+                        2026, 9, 19, 17, 59, 18, TimeSpan.Zero)
             },
             ReviewedClassifications =
             [
@@ -1171,6 +1188,17 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         Assert.Equal(
             "Exact accepted literature excerpt.",
             Assert.Single(reviewed.SourceExcerpts).Text);
+
+        Assert.Equal(
+            "literature text",
+            content.MedicalLiteratureReviewerText);
+        Assert.NotNull(literature.UpsertedReviewerText);
+        Assert.Equal(
+            "artifact-text-extractor-pdf-normalized-v4",
+            literature.UpsertedReviewerText!.ExtractionMethod);
+        Assert.Equal(
+            "literature text",
+            literature.UpsertedReviewerText.Text);
     }
 }
 
@@ -1220,6 +1248,12 @@ file sealed class RecordingMedicalLiteratureRepository :
     public IReadOnlyList<ReviewedMedicalLiteratureClassification>
         ReviewedClassifications { get; init; } = [];
 
+    public MedicalLiteratureReviewerText? StoredReviewerText
+        { get; set; }
+
+    public MedicalLiteratureReviewerText? UpsertedReviewerText
+        { get; private set; }
+
     public Task AddMedicalLiteratureSourceAsync(
         MedicalLiteratureSource source,
         CancellationToken cancellationToken = default) =>
@@ -1264,4 +1298,22 @@ file sealed class RecordingMedicalLiteratureRepository :
             CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<ReviewedMedicalLiteratureClassification>>(
             artifactId == ArtifactId ? ReviewedClassifications : []);
+
+    public Task UpsertReviewerTextAsync(
+        MedicalLiteratureReviewerText reviewerText,
+        CancellationToken cancellationToken = default)
+    {
+        UpsertedReviewerText = reviewerText;
+        StoredReviewerText = reviewerText;
+        return Task.CompletedTask;
+    }
+
+    public Task<MedicalLiteratureReviewerText?> GetReviewerTextAsync(
+        MedicalLiteratureSourceId sourceId,
+        ArtifactId artifactId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(
+            sourceId == SourceId && artifactId == ArtifactId
+                ? StoredReviewerText
+                : null);
 }

@@ -17,6 +17,12 @@ public sealed class VeteransReviewerPackageDetailsService
     private readonly IArtifactTextExtractor? _textExtractor;
     private readonly IArtifactPrintRenderer? _printRenderer;
 
+    private const string PdfMedicalLiteratureReviewerTextExtractionMethod =
+        "artifact-text-extractor-pdf-normalized-v4";
+
+    private const string DefaultMedicalLiteratureReviewerTextExtractionMethod =
+        "artifact-text-extractor-v1";
+
     public VeteransReviewerPackageDetailsService(
         IEvidencePackageService packages,
         IEvidenceRepository evidence)
@@ -349,7 +355,7 @@ public sealed class VeteransReviewerPackageDetailsService
             (!isPdf ||
              string.Equals(
                  stored.ExtractionMethod,
-                 "artifact-text-extractor-pdf-normalized-v3",
+                 PdfMedicalLiteratureReviewerTextExtractionMethod,
                  StringComparison.Ordinal)))
         {
             return stored.Text;
@@ -372,8 +378,8 @@ public sealed class VeteransReviewerPackageDetailsService
                 : extractedText.Trim(),
             SourceHash = source?.SourceHash,
             ExtractionMethod = isPdf
-                ? "artifact-text-extractor-pdf-normalized-v3"
-                : "artifact-text-extractor-v1",
+                ? PdfMedicalLiteratureReviewerTextExtractionMethod
+                : DefaultMedicalLiteratureReviewerTextExtractionMethod,
             ExtractedUtc = DateTimeOffset.UtcNow
         };
 
