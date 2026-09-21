@@ -36,6 +36,12 @@ public sealed class AzureOpenAIIntegrationTests
                     DeploymentName = deployment,
                     ProviderId = "azure.openai",
                     LiveCallsEnabled = true,
+                    UseMaxCompletionTokensProperty =
+                        string.Equals(
+                            Environment.GetEnvironmentVariable(
+                                "EMF_AZURE_OPENAI_USE_MAX_COMPLETION_TOKENS"),
+                            "true",
+                            StringComparison.OrdinalIgnoreCase),
                     InputCostUsdPerMillionTokens = 0m,
                     OutputCostUsdPerMillionTokens = 0m,
                     ManagedIdentityClientId =

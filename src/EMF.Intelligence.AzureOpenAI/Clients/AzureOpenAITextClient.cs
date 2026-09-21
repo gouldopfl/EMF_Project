@@ -1,3 +1,4 @@
+using Azure.AI.OpenAI.Chat;
 using Azure.Identity;
 using EMF.Intelligence.AzureOpenAI.Configuration;
 using EMF.Intelligence.AzureOpenAI.Exceptions;
@@ -12,6 +13,7 @@ internal sealed class AzureOpenAITextClient :
 {
     private readonly ChatClient? _chatClient;
     private readonly bool _liveCallsEnabled;
+    private readonly bool _useMaxCompletionTokensProperty;
     private readonly decimal? _inputCostUsdPerMillionTokens;
     private readonly decimal? _outputCostUsdPerMillionTokens;
 
@@ -24,6 +26,8 @@ internal sealed class AzureOpenAITextClient :
         AzureOpenAIOptionsValidator.Validate(options);
 
         _liveCallsEnabled = options.LiveCallsEnabled;
+        _useMaxCompletionTokensProperty =
+            options.UseMaxCompletionTokensProperty;
         _inputCostUsdPerMillionTokens =
             options.InputCostUsdPerMillionTokens;
         _outputCostUsdPerMillionTokens =
@@ -74,6 +78,14 @@ internal sealed class AzureOpenAITextClient :
                 MaxOutputTokenCount =
                     maximumOutputTokenCount
             };
+
+        if (_useMaxCompletionTokensProperty)
+        {
+#pragma warning disable AOAI001
+            completionOptions
+                .SetNewMaxCompletionTokensPropertyEnabled();
+#pragma warning restore AOAI001
+        }
 
         ClientResult<ChatCompletion> response;
 

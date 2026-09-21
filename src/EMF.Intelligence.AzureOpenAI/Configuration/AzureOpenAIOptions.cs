@@ -17,6 +17,8 @@ public sealed class AzureOpenAIOptions
 
     public bool LiveCallsEnabled { get; init; }
 
+    public bool UseMaxCompletionTokensProperty { get; init; }
+
     public decimal? InputCostUsdPerMillionTokens { get; init; }
 
     public decimal? OutputCostUsdPerMillionTokens { get; init; }
