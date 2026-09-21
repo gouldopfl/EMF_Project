@@ -133,7 +133,7 @@ public sealed class VeteransClinicalNoteDerivationServiceTests
     }
 
     [Fact]
-    public async Task DeriveAsync_ReusesExistingClinicalNote()
+    public async Task DeriveAsync_RestoresMissingContentWhenReusingExistingClinicalNote()
     {
         var repository =
             new TestInfrastructure.InMemoryEvidenceRepository();
@@ -211,7 +211,8 @@ public sealed class VeteransClinicalNoteDerivationServiceTests
                 "same content"u8.ToArray());
 
         Assert.Equal(existingId, result.Artifact.Id);
-        Assert.Empty(store.Written);
+        Assert.Single(store.Written);
+        Assert.Equal(existingId, store.Written[0]);
         Assert.Equal(2, result.Relationships.Count);
     }
 

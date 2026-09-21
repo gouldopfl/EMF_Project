@@ -103,6 +103,32 @@ public sealed class VeteransClinicalNoteDerivationService
 
         if (existing is not null)
         {
+            var existingContent =
+                await _contentStore.ReadAsync(
+                    existing.Id, cancellationToken);
+
+            if (existingContent is null)
+            {
+                await _contentStore.WriteAsync(
+                    existing.Id,
+                    content,
+                    cancellationToken);
+            }
+            else
+            {
+                var existingFingerprint =
+                    await _fingerprints.ComputeAsync(
+                        existingContent,
+                        cancellationToken);
+
+                if (existing.Fingerprint is null ||
+                    existingFingerprint != existing.Fingerprint)
+                {
+                    throw new InvalidOperationException(
+                        "Existing clinical note content failed fingerprint validation.");
+                }
+            }
+
             var provenance =
                 await _repository.GetProvenanceAsync(
                     existing.Id, cancellationToken);
