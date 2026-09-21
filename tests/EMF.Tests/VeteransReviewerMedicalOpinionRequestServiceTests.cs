@@ -149,6 +149,230 @@ public sealed class VeteransReviewerMedicalOpinionRequestServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_MedicationBasisCombinesSiblingMedicationBasesUnderSameTheory()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(path).InitializeAsync();
+
+            var seeded =
+                await SeedAsync(
+                    path,
+                    "combined-medications",
+                    ServiceConnectionTheoryTypes.Secondary,
+                    "Gastroesophageal reflux disease",
+                    ["Coronary artery disease"]);
+
+            var connections =
+                new SqliteServiceConnectionRepository(path);
+            var selectedBasis =
+                await connections.GetServiceConnectionBasisAsync(
+                    seeded.BasisId);
+
+            Assert.NotNull(selectedBasis);
+
+            await SetBasisReviewerLabelAsync(
+                path,
+                seeded.BasisId,
+                "Secondary to medications used for service-connected coronary artery disease");
+
+            await connections.AddBasisPrescribedMedicationAsync(
+                new ServiceConnectionBasisPrescribedMedication
+                {
+                    ServiceConnectionBasisId = seeded.BasisId,
+                    MedicationName = "Isosorbide Mononitrate"
+                });
+
+            var claimedConditionId =
+                Assert.Single(
+                    await connections.GetClaimedConditionIdsAsync(
+                        seeded.BasisId));
+
+            var mentalHealthBasis =
+                new ServiceConnectionBasis
+                {
+                    Id =
+                        new ServiceConnectionBasisId(
+                            "basis-combined-medications-mental-health"),
+                    ClaimIssueId = seeded.IssueId,
+                    ServiceConnectionTheoryId =
+                        selectedBasis.ServiceConnectionTheoryId,
+                    ReviewerLabel =
+                        "Secondary to medications used for service-connected PTSD / Anxiety / Major Depression"
+                };
+
+            await connections.AddServiceConnectionBasisAsync(
+                mentalHealthBasis);
+
+            await connections.AddBasisClaimedConditionAsync(
+                new ServiceConnectionBasisClaimedCondition
+                {
+                    ServiceConnectionBasisId = mentalHealthBasis.Id,
+                    ClaimedConditionId = claimedConditionId
+                });
+
+            var conditions = new SqliteConditionRepository(path);
+            var mentalHealthCondition =
+                new MedicalCondition
+                {
+                    Id =
+                        new MedicalConditionId(
+                            "service-connected-combined-medications-mental-health"),
+                    Name = "PTSD"
+                };
+
+            await conditions.AddMedicalConditionAsync(
+                mentalHealthCondition);
+
+            await conditions.AddVeteranMedicalConditionAsync(
+                new VeteranMedicalCondition
+                {
+                    VeteranId =
+                        new VeteranId(
+                            "veteran-combined-medications"),
+                    MedicalConditionId = mentalHealthCondition.Id
+                });
+
+            await connections.AddBasisServiceConnectedConditionAsync(
+                new ServiceConnectionBasisServiceConnectedCondition
+                {
+                    ServiceConnectionBasisId = mentalHealthBasis.Id,
+                    ServiceConnectedConditionId = mentalHealthCondition.Id
+                });
+
+            await connections.AddBasisPrescribedMedicationAsync(
+                new ServiceConnectionBasisPrescribedMedication
+                {
+                    ServiceConnectionBasisId = mentalHealthBasis.Id,
+                    MedicationName = "Sertraline HCl"
+                });
+
+            var result =
+                await CreateService(path).GetAsync(
+                    Package(seeded.IssueId, seeded.BasisId));
+
+            Assert.NotNull(result);
+            Assert.Contains(
+                "proximately due to or the result of one or more medications " +
+                "prescribed for the Veteran's service-connected coronary artery disease " +
+                "and/or one or more medications prescribed for the Veteran's " +
+                "service-connected PTSD / Anxiety / Major Depression",
+                result.OpinionText);
+            Assert.Contains(
+                "aggravated by one or more of those medications",
+                result.OpinionText);
+            Assert.DoesNotContain(
+                "service-connected Secondary to medications",
+                result.OpinionText,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task GetAsync_NonMedicationBasisDoesNotPullSiblingMedicationBasis()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(path).InitializeAsync();
+
+            var seeded =
+                await SeedAsync(
+                    path,
+                    "non-medication-selected",
+                    ServiceConnectionTheoryTypes.Secondary,
+                    "Obstructive Sleep Apnea",
+                    ["PTSD"]);
+
+            var connections =
+                new SqliteServiceConnectionRepository(path);
+            var selectedBasis =
+                await connections.GetServiceConnectionBasisAsync(
+                    seeded.BasisId);
+
+            Assert.NotNull(selectedBasis);
+
+            var cadBasis =
+                new ServiceConnectionBasis
+                {
+                    Id =
+                        new ServiceConnectionBasisId(
+                            "basis-non-medication-selected-cad"),
+                    ClaimIssueId = seeded.IssueId,
+                    ServiceConnectionTheoryId =
+                        selectedBasis.ServiceConnectionTheoryId,
+                    ReviewerLabel =
+                        "Secondary to medications used for service-connected coronary artery disease"
+                };
+
+            await connections.AddServiceConnectionBasisAsync(cadBasis);
+
+            var conditions = new SqliteConditionRepository(path);
+            var cadCondition =
+                new MedicalCondition
+                {
+                    Id =
+                        new MedicalConditionId(
+                            "service-connected-non-medication-selected-cad"),
+                    Name = "Coronary artery disease"
+                };
+
+            await conditions.AddMedicalConditionAsync(cadCondition);
+
+            await conditions.AddVeteranMedicalConditionAsync(
+                new VeteranMedicalCondition
+                {
+                    VeteranId =
+                        new VeteranId(
+                            "veteran-non-medication-selected"),
+                    MedicalConditionId = cadCondition.Id
+                });
+
+            await connections.AddBasisServiceConnectedConditionAsync(
+                new ServiceConnectionBasisServiceConnectedCondition
+                {
+                    ServiceConnectionBasisId = cadBasis.Id,
+                    ServiceConnectedConditionId = cadCondition.Id
+                });
+
+            await connections.AddBasisPrescribedMedicationAsync(
+                new ServiceConnectionBasisPrescribedMedication
+                {
+                    ServiceConnectionBasisId = cadBasis.Id,
+                    MedicationName = "Isosorbide Mononitrate"
+                });
+
+            var result =
+                await CreateService(path).GetAsync(
+                    Package(seeded.IssueId, seeded.BasisId));
+
+            Assert.NotNull(result);
+            Assert.Contains(
+                "service-connected PTSD",
+                result.OpinionText);
+            Assert.DoesNotContain(
+                "coronary",
+                result.OpinionText,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(
+                "medications prescribed",
+                result.OpinionText,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task GetAsync_SecondaryIncludesPersistedRegulatoryCitations()
     {
         var path = Path.GetTempFileName();
@@ -296,6 +520,28 @@ public sealed class VeteransReviewerMedicalOpinionRequestServiceTests
         {
             File.Delete(path);
         }
+    }
+
+    private static async Task SetBasisReviewerLabelAsync(
+        string path,
+        ServiceConnectionBasisId basisId,
+        string reviewerLabel)
+    {
+        await using var connection =
+            new Microsoft.Data.Sqlite.SqliteConnection(
+                $"Data Source={path}");
+
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE VeteransClaims_ServiceConnectionBases
+            SET ReviewerLabel = $label
+            WHERE Id = $id;
+            """;
+        command.Parameters.AddWithValue("$label", reviewerLabel);
+        command.Parameters.AddWithValue("$id", basisId.Value);
+        await command.ExecuteNonQueryAsync();
     }
 
     private static VeteransReviewerMedicalOpinionRequestService CreateService(

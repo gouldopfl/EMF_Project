@@ -80,15 +80,6 @@ public sealed class VeteransReviewerMedicalOpinionRequestService
             throw new InvalidOperationException(
                 "Secondary reviewer basis has no claimed condition.");
 
-        var serviceConnectedConditionIds =
-            await _connections.GetServiceConnectedConditionIdsAsync(
-                basis.Id,
-                cancellationToken);
-
-        if (serviceConnectedConditionIds.Count == 0)
-            throw new InvalidOperationException(
-                "Secondary reviewer basis has no service-connected condition.");
-
         var claimedConditions = new List<ClaimedCondition>();
 
         foreach (var conditionId in claimedConditionIds)
@@ -110,46 +101,110 @@ public sealed class VeteransReviewerMedicalOpinionRequestService
             claimedConditions.Add(condition);
         }
 
-        var serviceConnectedConditions = new List<MedicalCondition>();
+        var selectedMedicationNames =
+            await _connections.GetPrescribedMedicationNamesAsync(
+                basis.Id,
+                cancellationToken);
 
-        foreach (var conditionId in serviceConnectedConditionIds)
-        {
-            var condition =
-                await _conditions.GetMedicalConditionAsync(
-                    conditionId,
-                    cancellationToken)
-                ?? throw new InvalidOperationException(
-                    "Secondary reviewer service-connected condition was not found.");
-
-            if (condition.Id != conditionId)
+        var opinionBases =
+            new List<(
+                ServiceConnectionBasis Basis,
+                IReadOnlyList<string> MedicationNames)>
             {
+                (basis, selectedMedicationNames)
+            };
+
+        if (selectedMedicationNames.Count > 0)
+        {
+            var siblingBases =
+                await _connections.GetServiceConnectionBasesAsync(
+                    basis.ServiceConnectionTheoryId,
+                    cancellationToken);
+
+            foreach (var siblingBasis in siblingBases)
+            {
+                if (siblingBasis.Id == basis.Id ||
+                    siblingBasis.ClaimIssueId != package.ClaimIssueId ||
+                    siblingBasis.ServiceConnectionTheoryId !=
+                        basis.ServiceConnectionTheoryId)
+                {
+                    continue;
+                }
+
+                var siblingMedicationNames =
+                    await _connections.GetPrescribedMedicationNamesAsync(
+                        siblingBasis.Id,
+                        cancellationToken);
+
+                if (siblingMedicationNames.Count > 0)
+                    opinionBases.Add(
+                        (siblingBasis, siblingMedicationNames));
+            }
+        }
+
+        var targets = new List<string>();
+
+        foreach (var opinionBasis in opinionBases)
+        {
+            var serviceConnectedConditionIds =
+                await _connections.GetServiceConnectedConditionIdsAsync(
+                    opinionBasis.Basis.Id,
+                    cancellationToken);
+
+            if (serviceConnectedConditionIds.Count == 0)
                 throw new InvalidOperationException(
-                    "Secondary reviewer service-connected condition identity mismatch.");
+                    "Secondary reviewer basis has no service-connected condition.");
+
+            var serviceConnectedConditions = new List<MedicalCondition>();
+
+            foreach (var conditionId in serviceConnectedConditionIds)
+            {
+                var condition =
+                    await _conditions.GetMedicalConditionAsync(
+                        conditionId,
+                        cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        "Secondary reviewer service-connected condition was not found.");
+
+                if (condition.Id != conditionId)
+                {
+                    throw new InvalidOperationException(
+                        "Secondary reviewer service-connected condition identity mismatch.");
+                }
+
+                serviceConnectedConditions.Add(condition);
             }
 
-            serviceConnectedConditions.Add(condition);
+            var serviceConnectedNames =
+                string.IsNullOrWhiteSpace(opinionBasis.Basis.ReviewerLabel)
+                    ? FormatConditionNames(
+                        serviceConnectedConditions.Select(x => x.Name))
+                    : opinionBasis.Basis.ReviewerLabel.Trim();
+
+            if (!VeteransReviewerDisplayNameResolver
+                    .IsReviewerFacingLabel(serviceConnectedNames))
+            {
+                throw new InvalidOperationException(
+                    "Reviewer medical opinion basis label is invalid.");
+            }
+
+            targets.Add(
+                opinionBasis.MedicationNames.Count > 0
+                    ? MedicationOpinionTarget(serviceConnectedNames)
+                    : $"the Veteran's service-connected {serviceConnectedNames}");
         }
 
         var claimedNames =
             FormatConditionNames(
                 claimedConditions.Select(x => x.Name));
 
-        var serviceConnectedNames =
-            string.IsNullOrWhiteSpace(basis.ReviewerLabel)
-                ? FormatConditionNames(
-                    serviceConnectedConditions.Select(x => x.Name))
-                : basis.ReviewerLabel.Trim();
-
-        if (!VeteransReviewerDisplayNameResolver
-                .IsReviewerFacingLabel(serviceConnectedNames))
-            throw new InvalidOperationException(
-                "Reviewer medical opinion basis label is invalid.");
-
         var verb = claimedConditions.Count == 1 ? "is" : "are";
+        var targetText = FormatOpinionTargets(targets);
+        var medicationOpinion = selectedMedicationNames.Count > 0;
 
         var citations =
             await GetApplicableRegulatoryCitationsAsync(
-                basis.Id,
+                opinionBases.Select(item => item.Basis.Id),
                 cancellationToken);
 
         return new VeteransReviewerMedicalOpinionRequest
@@ -157,70 +212,127 @@ public sealed class VeteransReviewerMedicalOpinionRequestService
             OpinionText =
                 $"Determine whether the Veteran's {claimedNames} {verb} at least as " +
                 "likely as not (50 percent or greater probability) proximately due to " +
-                $"or the result of the Veteran's service-connected {serviceConnectedNames}. " +
+                $"or the result of {targetText}. " +
                 "If causation is not established, determine whether the Veteran's " +
-                $"{claimedNames} {verb} at least as likely as not aggravated by the " +
-                $"service-connected {serviceConnectedNames}, with supporting medical rationale.",
+                $"{claimedNames} {verb} at least as likely as not aggravated by " +
+                (medicationOpinion
+                    ? "one or more of those medications"
+                    : AggravationOpinionTargets(targets)) +
+                ", with supporting medical rationale.",
             ApplicableRegulatoryCitations = citations
         };
     }
 
     private async Task<IReadOnlyList<string>>
         GetApplicableRegulatoryCitationsAsync(
-            ServiceConnectionBasisId basisId,
+            IEnumerable<ServiceConnectionBasisId> basisIds,
             CancellationToken cancellationToken)
     {
-        var requirementIds =
-            await _connections.GetRequirementIdsAsync(
-                basisId,
-                cancellationToken);
-
-        if (requirementIds.Count == 0)
-            return Array.Empty<string>();
-
         var citations = new List<string>();
 
-        foreach (var requirementId in requirementIds)
+        foreach (var basisId in basisIds.Distinct())
         {
-            var requirement =
-                await _regulatory.GetRequirementAsync(
-                    requirementId,
-                    cancellationToken)
-                ?? throw new InvalidOperationException(
-                    "Reviewer medical opinion requirement was not found.");
+            var requirementIds =
+                await _connections.GetRequirementIdsAsync(
+                    basisId,
+                    cancellationToken);
 
-            if (requirement.Id != requirementId)
+            foreach (var requirementId in requirementIds)
             {
-                throw new InvalidOperationException(
-                    "Reviewer medical opinion requirement identity mismatch.");
+                var requirement =
+                    await _regulatory.GetRequirementAsync(
+                        requirementId,
+                        cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        "Reviewer medical opinion requirement was not found.");
+
+                if (requirement.Id != requirementId)
+                {
+                    throw new InvalidOperationException(
+                        "Reviewer medical opinion requirement identity mismatch.");
+                }
+
+                var provision =
+                    await _regulatory.GetRegulatoryProvisionAsync(
+                        requirement.RegulatoryProvisionId,
+                        cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        "Reviewer medical opinion regulatory provision was not found.");
+
+                if (provision.Id != requirement.RegulatoryProvisionId)
+                {
+                    throw new InvalidOperationException(
+                        "Reviewer medical opinion regulatory provision identity mismatch.");
+                }
+
+                if (string.IsNullOrWhiteSpace(provision.Citation))
+                {
+                    throw new InvalidOperationException(
+                        "Reviewer medical opinion regulatory citation is empty.");
+                }
+
+                citations.Add(provision.Citation.Trim());
             }
-
-            var provision =
-                await _regulatory.GetRegulatoryProvisionAsync(
-                    requirement.RegulatoryProvisionId,
-                    cancellationToken)
-                ?? throw new InvalidOperationException(
-                    "Reviewer medical opinion regulatory provision was not found.");
-
-            if (provision.Id != requirement.RegulatoryProvisionId)
-            {
-                throw new InvalidOperationException(
-                    "Reviewer medical opinion regulatory provision identity mismatch.");
-            }
-
-            if (string.IsNullOrWhiteSpace(provision.Citation))
-            {
-                throw new InvalidOperationException(
-                    "Reviewer medical opinion regulatory citation is empty.");
-            }
-
-            citations.Add(provision.Citation.Trim());
         }
 
         return citations
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static string MedicationOpinionTarget(string reviewerLabel)
+    {
+        const string prefix =
+            "Secondary to medications used for service-connected ";
+
+        var label = reviewerLabel.Trim().TrimEnd('.');
+
+        if (label.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            label = label[prefix.Length..].Trim();
+
+        return
+            $"one or more medications prescribed for the Veteran's service-connected {label}";
+    }
+
+    private static string FormatOpinionTargets(IReadOnlyList<string> targets)
+    {
+        var values =
+            targets
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        if (values.Length == 0)
+            throw new InvalidOperationException(
+                "Reviewer medical opinion target is empty.");
+
+        return values.Length switch
+        {
+            1 => values[0],
+            2 => $"{values[0]} and/or {values[1]}",
+            _ =>
+                string.Join(", ", values[..^1]) +
+                $", and/or {values[^1]}"
+        };
+    }
+
+    private static string AggravationOpinionTargets(
+        IReadOnlyList<string> targets)
+    {
+        var values =
+            targets
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(value =>
+                    value.StartsWith(
+                        "the Veteran's ",
+                        StringComparison.Ordinal)
+                        ? "the " + value["the Veteran's ".Length..]
+                        : value)
+                .ToArray();
+
+        return FormatOpinionTargets(values);
     }
 
     private static string FormatConditionNames(IEnumerable<string> names)
