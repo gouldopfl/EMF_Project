@@ -14,6 +14,7 @@ internal sealed class AzureOpenAITextClient :
     private readonly ChatClient? _chatClient;
     private readonly bool _liveCallsEnabled;
     private readonly bool _useMaxCompletionTokensProperty;
+    private readonly string? _reasoningEffort;
     private readonly decimal? _inputCostUsdPerMillionTokens;
     private readonly decimal? _outputCostUsdPerMillionTokens;
 
@@ -28,6 +29,7 @@ internal sealed class AzureOpenAITextClient :
         _liveCallsEnabled = options.LiveCallsEnabled;
         _useMaxCompletionTokensProperty =
             options.UseMaxCompletionTokensProperty;
+        _reasoningEffort = options.ReasoningEffort;
         _inputCostUsdPerMillionTokens =
             options.InputCostUsdPerMillionTokens;
         _outputCostUsdPerMillionTokens =
@@ -85,6 +87,14 @@ internal sealed class AzureOpenAITextClient :
             completionOptions
                 .SetNewMaxCompletionTokensPropertyEnabled();
 #pragma warning restore AOAI001
+        }
+
+        if (!string.IsNullOrWhiteSpace(_reasoningEffort))
+        {
+#pragma warning disable OPENAI001
+            completionOptions.ReasoningEffortLevel =
+                new ChatReasoningEffortLevel(_reasoningEffort);
+#pragma warning restore OPENAI001
         }
 
         ClientResult<ChatCompletion> response;

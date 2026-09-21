@@ -33,6 +33,10 @@ internal static class AzureOpenAIConsoleOptionsFactory
                 "EMF_AZURE_OPENAI_USE_MAX_COMPLETION_TOKENS",
                 false);
 
+        var reasoningEffort =
+            Environment.GetEnvironmentVariable(
+                "EMF_AZURE_OPENAI_REASONING_EFFORT");
+
         var inputCost =
             ParseOptionalDecimal(
                 "EMF_AZURE_OPENAI_INPUT_COST_USD_PER_MILLION");
@@ -67,6 +71,7 @@ internal static class AzureOpenAIConsoleOptionsFactory
             LiveCallsEnabled = liveCallsEnabled,
             UseMaxCompletionTokensProperty =
                 useMaxCompletionTokensProperty,
+            ReasoningEffort = reasoningEffort,
             InputCostUsdPerMillionTokens = inputCost,
             OutputCostUsdPerMillionTokens = outputCost
         };

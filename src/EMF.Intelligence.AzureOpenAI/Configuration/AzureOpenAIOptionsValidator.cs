@@ -40,6 +40,8 @@ internal static class AzureOpenAIOptionsValidator
         ValidateManagedIdentityClientId(
             options.ManagedIdentityClientId);
 
+        ValidateReasoningEffort(options.ReasoningEffort);
+
         if (options.RequestTimeout <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(
@@ -53,6 +55,27 @@ internal static class AzureOpenAIOptionsValidator
         }
 
         ValidateCostRates(options);
+    }
+
+    private static void ValidateReasoningEffort(
+        string? reasoningEffort)
+    {
+        if (string.IsNullOrWhiteSpace(reasoningEffort))
+            return;
+
+        if (reasoningEffort is not (
+                "none" or
+                "minimal" or
+                "low" or
+                "medium" or
+                "high" or
+                "xhigh"))
+        {
+            throw new ArgumentException(
+                "Azure OpenAI reasoning effort must be one of: " +
+                "none, minimal, low, medium, high, xhigh.",
+                nameof(reasoningEffort));
+        }
     }
 
     private static void ValidateCostRates(

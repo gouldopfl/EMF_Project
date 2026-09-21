@@ -19,6 +19,8 @@ public sealed class AzureOpenAIOptions
 
     public bool UseMaxCompletionTokensProperty { get; init; }
 
+    public string? ReasoningEffort { get; init; }
+
     public decimal? InputCostUsdPerMillionTokens { get; init; }
 
     public decimal? OutputCostUsdPerMillionTokens { get; init; }

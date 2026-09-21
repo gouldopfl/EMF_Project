@@ -135,4 +135,37 @@ public sealed class AzureOpenAIOptionsTests
                 options));
     }
 
+    [Fact]
+    public void Factory_RejectsUnsupportedReasoningEffort()
+    {
+        var options =
+            new AzureOpenAIOptions
+            {
+                Endpoint =
+                    "https://example.openai.azure.com",
+                DeploymentName = "test-deployment",
+                ProviderId = "azure.openai",
+                ReasoningEffort = "extreme"
+            };
+
+        Assert.Throws<ArgumentException>(
+            () => new AzureOpenAIClientFactory(options));
+    }
+
+    [Fact]
+    public void Factory_AcceptsNoneReasoningEffort()
+    {
+        var options =
+            new AzureOpenAIOptions
+            {
+                Endpoint =
+                    "https://example.openai.azure.com",
+                DeploymentName = "test-deployment",
+                ProviderId = "azure.openai",
+                ReasoningEffort = "none"
+            };
+
+        _ = new AzureOpenAIClientFactory(options);
+    }
+
 }

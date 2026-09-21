@@ -42,6 +42,9 @@ public sealed class AzureOpenAIIntegrationTests
                                 "EMF_AZURE_OPENAI_USE_MAX_COMPLETION_TOKENS"),
                             "true",
                             StringComparison.OrdinalIgnoreCase),
+                    ReasoningEffort =
+                        Environment.GetEnvironmentVariable(
+                            "EMF_AZURE_OPENAI_REASONING_EFFORT"),
                     InputCostUsdPerMillionTokens = 0m,
                     OutputCostUsdPerMillionTokens = 0m,
                     ManagedIdentityClientId =
