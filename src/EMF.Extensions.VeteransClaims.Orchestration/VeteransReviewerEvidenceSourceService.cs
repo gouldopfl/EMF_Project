@@ -4,6 +4,7 @@ using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
+using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Orchestration.Services;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
@@ -28,11 +29,35 @@ public sealed class VeteransReviewerEvidenceSourceService
         _textExtractor = textExtractor;
     }
 
-    public async Task<IReadOnlyList<VeteransReviewerEvidenceSource>>
+    public Task<IReadOnlyList<VeteransReviewerEvidenceSource>>
         GetAsync(
             ClaimIssueAdjudicationDetails details,
             IReadOnlyList<EvidenceClassification> classifications,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default) =>
+        GetCoreAsync(
+            details,
+            classifications,
+            null,
+            cancellationToken);
+
+    public Task<IReadOnlyList<VeteransReviewerEvidenceSource>>
+        GetAsync(
+            ClaimIssueAdjudicationDetails details,
+            IReadOnlyList<EvidenceClassification> classifications,
+            ServiceConnectionBasisId selectedBasisId,
+            CancellationToken cancellationToken = default) =>
+        GetCoreAsync(
+            details,
+            classifications,
+            selectedBasisId,
+            cancellationToken);
+
+    private async Task<IReadOnlyList<VeteransReviewerEvidenceSource>>
+        GetCoreAsync(
+            ClaimIssueAdjudicationDetails details,
+            IReadOnlyList<EvidenceClassification> classifications,
+            ServiceConnectionBasisId? selectedBasisId,
+            CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(details);
         ArgumentNullException.ThrowIfNull(classifications);
@@ -95,7 +120,16 @@ public sealed class VeteransReviewerEvidenceSourceService
                 activeClassifications.Add(classification.Classification);
         }
 
-        foreach (var requirement in details.Requirements)
+        var literatureBasisIds =
+            GetLiteratureBasisIds(
+                details,
+                selectedBasisId);
+
+        foreach (var requirement in
+                 details.Requirements.Where(
+                     requirement =>
+                         literatureBasisIds is null ||
+                         literatureBasisIds.Contains(requirement.Basis.Id)))
         {
             IReadOnlyList<ReviewedMedicalLiteratureClassification>
                 reviewedClassifications;
@@ -341,6 +375,43 @@ public sealed class VeteransReviewerEvidenceSourceService
         }
 
         return sources;
+    }
+
+    private static IReadOnlySet<ServiceConnectionBasisId>?
+        GetLiteratureBasisIds(
+            ClaimIssueAdjudicationDetails details,
+            ServiceConnectionBasisId? selectedBasisId)
+    {
+        if (selectedBasisId is null)
+            return null;
+
+        var selectedBasis =
+            details.ServiceConnectionBases.SingleOrDefault(
+                basis => basis.Id == selectedBasisId.Value)
+            ?? throw new InvalidOperationException(
+                $"Reviewer literature basis not found: {selectedBasisId.Value.Value}");
+
+        if (selectedBasis.ClaimIssueId != details.ClaimIssue.Id)
+        {
+            throw new InvalidOperationException(
+                "Reviewer literature basis belongs to another claim issue.");
+        }
+
+        var prescribedMedicationBasisIds =
+            details.PrescribedMedications
+                .Select(item => item.Basis.Id)
+                .ToHashSet();
+
+        return details.ServiceConnectionBases
+            .Where(
+                basis =>
+                    basis.ClaimIssueId == details.ClaimIssue.Id &&
+                    basis.ServiceConnectionTheoryId ==
+                        selectedBasis.ServiceConnectionTheoryId &&
+                    (basis.Id == selectedBasis.Id ||
+                     prescribedMedicationBasisIds.Contains(basis.Id)))
+            .Select(basis => basis.Id)
+            .ToHashSet();
     }
 
     private static string? GetMetadataText(

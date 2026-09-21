@@ -81,30 +81,14 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
             new VeteransReviewerMedicationProgression
             {
                 MedicationName = "Isosorbide Mononitrate",
-                Entries =
-                [
-                    new MedicationLedgerEntry
-                    {
-                        Id = new MedicationLedgerEntryId("entry-history-1"),
-                        MedicationLedgerId = new MedicationLedgerId("ledger-1"),
-                        EntryOrdinal = 1,
-                        SourceStartPage = 3990,
-                        SourceEndPage = 3990,
-                        MedicationName = "ISOSORBIDE MONONITRATE 60MG SA TAB",
-                        Strength = "60MG",
-                        Status = "discontinued",
-                        PrescribedDate = new DateOnly(2025, 6, 2),
-                        Directions = "TAKE ONE TABLET ORALLY EVERY DAY"
-                    },
-                    current
-                ]
+                Entries = [current]
             };
 
         var text = RenderText(current, [progression]);
 
-        Assert.Contains("Relevant Medication Progression / History", text);
+        Assert.Contains("Relevant Medications for Medical Opinion", text);
         Assert.Contains("Isosorbide Mononitrate", text);
-        Assert.Contains("June 2, 2025 — Discontinued — 60MG", text);
+        Assert.DoesNotContain("Discontinued", text);
         Assert.Contains("Current Medication Use — Reconciled", text);
         Assert.Contains("VA prescription status: Refill in process", text);
 
@@ -113,34 +97,103 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
                 "Current Medication Use — Reconciled",
                 StringComparison.Ordinal) <
             text.IndexOf(
-                "Relevant Medication Progression / History",
+                "Relevant Medications for Medical Opinion",
                 StringComparison.Ordinal));
         Assert.Contains(
-            "does not infer a clinical reason for a change unless that reason is separately documented",
+            "Historical non-current prescription states remain preserved in the underlying VA medication ledger",
             text);
     }
 
 
     [Fact]
-    public void Render_AttachesClinicalContextOnlyToExplicitPrescriptionWithoutInternalPages()
+    public void Render_GroupsProgressionsByServiceConnectedMedicationBasis()
     {
-        var sixty =
+        var current =
             new MedicationLedgerEntry
             {
-                Id = new MedicationLedgerEntryId("entry-60"),
+                Id = new MedicationLedgerEntryId("entry-current"),
                 MedicationLedgerId = new MedicationLedgerId("ledger-1"),
-                EntryOrdinal = 1,
-                SourceStartPage = 3943,
-                SourceEndPage = 3943,
-                MedicationName = "ISOSORBIDE MONONITRATE 60MG SA TAB",
-                Strength = "60MG",
-                Status = "discontinued",
-                PrescriptionNumber = "12620234",
-                PrescribedDate = new DateOnly(2025, 6, 2),
+                EntryOrdinal = 3,
+                SourceStartPage = 3923,
+                SourceEndPage = 3923,
+                MedicationName = "isosorbide mononitrate",
+                Strength = "30 mg/24 hour",
+                Status = "active",
                 Directions = "TAKE ONE TABLET ORALLY EVERY DAY"
             };
 
-        var thirty =
+        var progressions =
+            new[]
+            {
+                new VeteransReviewerMedicationProgression
+                {
+                    ServiceConnectionBasisId =
+                        new ServiceConnectionBasisId("basis-cad"),
+                    ServiceConnectionBasisReviewerLabel =
+                        "Secondary to medications used for service-connected coronary artery disease",
+                    MedicationName = "Atorvastatin",
+                    Entries = [current]
+                },
+                new VeteransReviewerMedicationProgression
+                {
+                    ServiceConnectionBasisId =
+                        new ServiceConnectionBasisId("basis-mental-health"),
+                    ServiceConnectionBasisReviewerLabel =
+                        "Secondary to medications used for service-connected PTSD / Anxiety / Major Depression",
+                    MedicationName = "Trazodone HCl",
+                    Entries = [current]
+                }
+            };
+
+        var text = RenderText(current, progressions);
+
+        const string cadHeading =
+            "Medications for service-connected coronary artery disease";
+        const string mentalHealthHeading =
+            "Medications for service-connected PTSD / Anxiety / Major Depression";
+
+        Assert.Contains(cadHeading, text);
+        Assert.Contains(mentalHealthHeading, text);
+        Assert.Contains("Atorvastatin", text);
+        Assert.Contains("Trazodone HCl", text);
+
+        var cadIndex = text.IndexOf(cadHeading, StringComparison.Ordinal);
+        var atorvastatinIndex = text.IndexOf("Atorvastatin", StringComparison.Ordinal);
+        var mentalHealthIndex = text.IndexOf(mentalHealthHeading, StringComparison.Ordinal);
+        var trazodoneIndex = text.IndexOf("Trazodone HCl", StringComparison.Ordinal);
+
+        Assert.True(cadIndex >= 0);
+        Assert.True(atorvastatinIndex > cadIndex);
+        Assert.True(mentalHealthIndex > atorvastatinIndex);
+        Assert.True(trazodoneIndex > mentalHealthIndex);
+
+        var bytes = RenderBytes(current, progressions);
+        using var stream = new MemoryStream(bytes);
+        using var document = WordprocessingDocument.Open(stream, false);
+
+        var medicationNameParagraphs =
+            document.MainDocumentPart!
+                .Document!
+                .Body!
+                .Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Where(paragraph =>
+                    paragraph.InnerText == "Atorvastatin" ||
+                    paragraph.InnerText == "Trazodone HCl")
+                .ToArray();
+
+        Assert.Equal(2, medicationNameParagraphs.Length);
+        Assert.All(
+            medicationNameParagraphs,
+            paragraph =>
+                Assert.Contains(
+                    paragraph.Descendants<DocumentFormat.OpenXml.Wordprocessing.Bold>(),
+                    bold => bold.Val?.Value != false));
+    }
+
+    [Fact]
+    public void Render_AttachesClinicalContextOnlyToExplicitCurrentPrescriptionWithoutInternalPages()
+    {
+        var current =
             new MedicationLedgerEntry
             {
                 Id = new MedicationLedgerEntryId("entry-30"),
@@ -160,52 +213,64 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
             new VeteransReviewerMedicationProgression
             {
                 MedicationName = "Isosorbide Mononitrate",
-                Entries = [sixty, thirty]
+                Entries = [current]
             };
 
         var context =
             new VeteransReviewerMedicationClinicalContext
             {
-                MedicationName = sixty.MedicationName,
+                MedicationName = current.MedicationName,
                 ContextType = MedicationClinicalContextTypes.ClinicalEffect,
-                PrescriptionNumber = "12620234",
+                PrescriptionNumber = "3211-50014120",
                 SourceLocator =
-                    "VA Blue Button Report — PC Nursing Outpatient Telephone Note — August 12, 2025",
+                    "VA Blue Button Report — Cardiology Follow-up — August 21, 2026",
                 Summary =
-                    "The Veteran reported dizziness after the 60 mg increase; the same note records that Cardiology did not agree that isosorbide caused the complaints."
+                    "The prescription remained part of the documented antianginal regimen."
             };
 
         var text =
             RenderText(
-                thirty,
+                current,
                 [progression],
                 [context]);
 
-        var sixtyIndex =
+        var currentIndex =
             text.IndexOf(
-                "June 2, 2025 — Discontinued — 60MG",
+                "August 21, 2026 — Refill in process — 30 mg/24 hour",
                 StringComparison.Ordinal);
         var contextIndex =
             text.IndexOf(
                 "Documented clinical context:",
                 StringComparison.Ordinal);
-        var thirtyIndex =
-            text.IndexOf(
-                "August 21, 2026 — Refill in process — 30 mg/24 hour",
-                StringComparison.Ordinal);
 
-        Assert.True(sixtyIndex >= 0);
-        Assert.True(contextIndex > sixtyIndex);
-        Assert.True(thirtyIndex > contextIndex);
+        Assert.True(currentIndex >= 0);
+        Assert.True(contextIndex > currentIndex);
         Assert.Contains(
-            "Source: VA Blue Button Report — PC Nursing Outpatient Telephone Note — August 12, 2025",
+            "Source: VA Blue Button Report — Cardiology Follow-up — August 21, 2026",
             text);
-        Assert.DoesNotContain("948", text);
-        Assert.DoesNotContain("949", text);
-        Assert.DoesNotContain("12620234", text);
+        Assert.DoesNotContain("3211-50014120", text);
     }
 
     private static string RenderText(
+        MedicationLedgerEntry medication,
+        IReadOnlyList<VeteransReviewerMedicationProgression>? progressions = null,
+        IReadOnlyList<VeteransReviewerMedicationClinicalContext>? clinicalContexts = null)
+    {
+        var bytes =
+            RenderBytes(
+                medication,
+                progressions,
+                clinicalContexts);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        return document.MainDocumentPart!
+            .Document!.Body!.InnerText;
+    }
+
+    private static byte[] RenderBytes(
         MedicationLedgerEntry medication,
         IReadOnlyList<VeteransReviewerMedicationProgression>? progressions = null,
         IReadOnlyList<VeteransReviewerMedicationClinicalContext>? clinicalContexts = null)
@@ -229,14 +294,6 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
             CurrentMedications = [medication]
         };
 
-        var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
-
-        using var stream = new MemoryStream(bytes);
-        using var document =
-            WordprocessingDocument.Open(stream, false);
-
-        return document.MainDocumentPart!
-            .Document!.Body!.InnerText;
+        return VeteransReviewerPackageDocxRenderer.Render(details);
     }
 }

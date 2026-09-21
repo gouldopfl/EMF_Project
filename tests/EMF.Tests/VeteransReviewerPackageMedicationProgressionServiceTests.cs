@@ -40,7 +40,8 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
 
             var progression = Assert.Single(result);
             Assert.Equal("Isosorbide Mononitrate", progression.MedicationName);
-            Assert.Equal(2, progression.Entries.Count);
+            Assert.Single(progression.Entries);
+            Assert.Equal("refillinprocess", progression.Entries[0].Status);
             Assert.DoesNotContain(
                 progression.Entries,
                 entry => entry.MedicationName.Contains("allopurinol", StringComparison.OrdinalIgnoreCase));
@@ -77,9 +78,9 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
                     await CreateService(path).GetAsync(
                         Package(seeded.IssueId, seeded.BasisId)));
 
-            Assert.Equal(2, progression.Entries.Count);
-            Assert.Equal("TRAZODONE HCL 100MG TAB", progression.Entries[0].MedicationName);
-            Assert.StartsWith("traZODone", progression.Entries[1].MedicationName);
+            var current = Assert.Single(progression.Entries);
+            Assert.StartsWith("traZODone", current.MedicationName);
+            Assert.Equal("active", current.Status);
         }
         finally
         {
@@ -88,7 +89,7 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
     }
 
     [Fact]
-    public async Task GetAsync_KeepsDoseDirectionTransferAndCurrentChangesButDropsRenewalNoise()
+    public async Task GetAsync_ShowsCurrentStatusAndOmitsHistoricalStopAndSupersededTransferEntries()
     {
         var path = Path.GetTempFileName();
         try
@@ -116,12 +117,9 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
                     await CreateService(path).GetAsync(
                         Package(seeded.IssueId, seeded.BasisId)));
 
-            Assert.Collection(
-                progression.Entries,
-                entry => Assert.Equal(1, entry.EntryOrdinal),
-                entry => Assert.Equal(3, entry.EntryOrdinal),
-                entry => Assert.Equal(4, entry.EntryOrdinal),
-                entry => Assert.Equal(5, entry.EntryOrdinal));
+            var current = Assert.Single(progression.Entries);
+            Assert.Equal(5, current.EntryOrdinal);
+            Assert.Equal("refillinprocess", current.Status);
         }
         finally
         {
@@ -130,7 +128,7 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
     }
 
     [Fact]
-    public async Task GetAsync_KeepsTerminalDiscontinuationWhenTherapyDidNotChange()
+    public async Task GetAsync_OmitsMedicationWhenLatestContinuityStateIsStopped()
     {
         var path = Path.GetTempFileName();
         try
@@ -147,12 +145,11 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
                     Entry(2, "SERTRALINE HCL 50MG TAB", "50MG", "discontinued", new DateOnly(2025, 1, 1), "TAKE ONE TABLET ORALLY EVERY MORNING")
                 ]);
 
-            var progression =
-                Assert.Single(
-                    await CreateService(path).GetAsync(
-                        Package(seeded.IssueId, seeded.BasisId)));
+            var result =
+                await CreateService(path).GetAsync(
+                    Package(seeded.IssueId, seeded.BasisId));
 
-            Assert.Equal(new[] { 1, 2 }, progression.Entries.Select(entry => entry.EntryOrdinal).ToArray());
+            Assert.Empty(result);
         }
         finally
         {
@@ -226,15 +223,11 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
                     await CreateService(path).GetAsync(
                         Package(seeded.IssueId, seeded.BasisId)));
 
-            Assert.Equal(3, progression.Entries.Count);
-            Assert.Equal(
-                new[] { "RX-HISTORY-30", "RX-HISTORY-60", "RX-CURRENT" },
-                progression.Entries
-                    .Select(entry => entry.PrescriptionNumber)
-                    .ToArray());
+            var current = Assert.Single(progression.Entries);
+            Assert.Equal("RX-CURRENT", current.PrescriptionNumber);
             Assert.Equal(
                 "ledger-current",
-                progression.Entries[^1].MedicationLedgerId.Value);
+                current.MedicationLedgerId.Value);
         }
         finally
         {
@@ -243,7 +236,7 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
     }
 
     [Fact]
-    public async Task GetAsync_RetainsStatusChangeForSamePrescriptionAcrossLedgers()
+    public async Task GetAsync_LaterStoppedStatusSuppressesEarlierCurrentSnapshot()
     {
         var path = Path.GetTempFileName();
         try
@@ -287,15 +280,136 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
                         prescriptionNumber: "RX-SAME")
                 ]);
 
+            var result =
+                await CreateService(path).GetAsync(
+                    Package(seeded.IssueId, seeded.BasisId));
+
+            Assert.Empty(result);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task GetAsync_RetainsTransferredWhenItIsLatestContinuityRecord()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var seeded = await SeedAsync(path);
+            var connections = new SqliteServiceConnectionRepository(path);
+            await AddRelevantAsync(
+                connections,
+                seeded.BasisId,
+                "Lamotrigine");
+
+            await AddLedgerAsync(
+                path,
+                seeded.VeteranId,
+                [
+                    Entry(
+                        1,
+                        "LAMOTRIGINE 200MG TAB",
+                        "200MG",
+                        "discontinued",
+                        new DateOnly(2025, 1, 1)),
+                    Entry(
+                        2,
+                        "LAMOTRIGINE 200MG TAB",
+                        "200MG",
+                        "transferred",
+                        new DateOnly(2026, 6, 9),
+                        "TAKE ONE TABLET ORALLY TWICE A DAY FOR MOOD")
+                ]);
+
             var progression =
                 Assert.Single(
                     await CreateService(path).GetAsync(
                         Package(seeded.IssueId, seeded.BasisId)));
 
-            Assert.Collection(
-                progression.Entries,
-                entry => Assert.Equal("active", entry.Status),
-                entry => Assert.Equal("expired", entry.Status));
+            var transferred = Assert.Single(progression.Entries);
+            Assert.Equal("transferred", transferred.Status);
+            Assert.Equal(2, transferred.EntryOrdinal);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task GetAsync_IncludesSiblingMedicationBasisUnderSameTheory()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var seeded = await SeedAsync(path);
+            var connections = new SqliteServiceConnectionRepository(path);
+
+            var siblingBasis =
+                new ServiceConnectionBasis
+                {
+                    Id = new ServiceConnectionBasisId("basis-mental-health"),
+                    ClaimIssueId = seeded.IssueId,
+                    ServiceConnectionTheoryId =
+                        new ServiceConnectionTheoryId("theory-1"),
+                    ReviewerLabel =
+                        "Secondary to medications used for service-connected PTSD / Anxiety / Major Depression"
+                };
+
+            await connections.AddServiceConnectionBasisAsync(siblingBasis);
+
+            await AddRelevantAsync(
+                connections,
+                seeded.BasisId,
+                "Isosorbide Mononitrate");
+            await AddRelevantAsync(
+                connections,
+                siblingBasis.Id,
+                "Trazodone HCl");
+
+            await AddLedgerAsync(
+                path,
+                seeded.VeteranId,
+                [
+                    Entry(
+                        1,
+                        "ISOSORBIDE MONONITRATE 30MG SA TAB",
+                        "30MG",
+                        "active",
+                        new DateOnly(2026, 8, 21)),
+                    Entry(
+                        2,
+                        "TRAZODONE HCL 100MG TAB",
+                        "100MG",
+                        "active",
+                        new DateOnly(2026, 8, 22))
+                ]);
+
+            var result =
+                await CreateService(path).GetAsync(
+                    Package(seeded.IssueId, seeded.BasisId));
+
+            Assert.Equal(2, result.Count);
+
+            Assert.Equal(
+                seeded.BasisId,
+                result[0].ServiceConnectionBasisId);
+            Assert.Equal(
+                "Isosorbide Mononitrate",
+                result[0].MedicationName);
+
+            Assert.Equal(
+                siblingBasis.Id,
+                result[1].ServiceConnectionBasisId);
+            Assert.Equal(
+                siblingBasis.ReviewerLabel,
+                result[1].ServiceConnectionBasisReviewerLabel);
+            Assert.Equal(
+                "Trazodone HCl",
+                result[1].MedicationName);
         }
         finally
         {

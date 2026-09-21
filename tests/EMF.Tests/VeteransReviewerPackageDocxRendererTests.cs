@@ -2930,6 +2930,39 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
     }
 
     [Fact]
+    public void Render_UsesLargerSinglePageImageForLayEvidence()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 1,
+                    ContentType = "image/png",
+                    Content = TallPng()
+                }
+            ],
+            "",
+            appendix: VeteransReviewerPackageAppendix.LayEvidence);
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var extent =
+            Assert.Single(
+                document.MainDocumentPart!
+                    .Document!
+                    .Descendants<
+                        DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent>());
+
+        Assert.Equal(7_000_000L, extent.Cy?.Value);
+    }
+
+    [Fact]
     public void Render_PreservesPrintableSourcePageOrder()
     {
         var details =
@@ -3185,7 +3218,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
     private static VeteransReviewerPackageDetails CreatePrintableDetails(
         IReadOnlyList<PrintableArtifactPage> pages,
         string text,
-        string? reviewerPageSelection = null)
+        string? reviewerPageSelection = null,
+        string? appendix = null)
     {
         var packageId =
             new EvidencePackageId("package-print");
@@ -3235,10 +3269,144 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     Text = text,
                     PrintablePages = pages,
                     ReviewerPageSelection =
-                        reviewerPageSelection
+                        reviewerPageSelection,
+                    Appendix = appendix
                 }
             ]
         };
+    }
+
+    [Fact]
+    public void Render_AlignsReviewerFieldValuesAndRejoinsWrappedContinuations()
+    {
+        var sourceText =
+            "Procedure: Upper GI endoscopy\n" +
+            "Indications: Patient with uncontrolled heartburn, despite\n" +
+            "Omeprazole 40 mg daily. He is s/p sleeve gastrectomy in 2010.\n" +
+            "Providers: Nabil Fayad, MD\n" +
+            "Written by: TERESA C RN MCKAMEY\n\n" +
+            "Signed by: TERESA C RN MCKAMEY\n" +
+            "Referring MD: Lekshmi Md Natarajan (Referring MD)\n" +
+            "Requesting Provider:\n" +
+            "Medicines: Fentanyl 50 micrograms IV,\n" +
+            "Midazolam 5 mg IV\n" +
+            "Complications: No immediate complications.\n" +
+            "Procedure: Pre-Anesthesia Assessment:\n" +
+            "03/18/2020 09: 43 /es/ Patricia S Woods Medical Support Assistant\n" +
+            "- Prior to the procedure, a History and Physical was\n" +
+            "performed, and patient medications and allergies were reviewed. " +
+            "The patient is competent.";
+
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 1,
+                    ContentType = "text/plain",
+                    Content =
+                        System.Text.Encoding.UTF8.GetBytes(sourceText)
+                }
+            ],
+            sourceText);
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document =
+            WordprocessingDocument.Open(stream, false);
+
+        var body =
+            document.MainDocumentPart!
+                .Document!
+                .Body!;
+
+        var fieldRows =
+            body
+                .Descendants<
+                    DocumentFormat.OpenXml.Wordprocessing.Table>()
+                .SelectMany(
+                    table =>
+                        table.Elements<
+                            DocumentFormat.OpenXml.Wordprocessing.TableRow>())
+                .Select(
+                    row =>
+                        row.Elements<
+                                DocumentFormat.OpenXml.Wordprocessing.TableCell>()
+                            .ToArray())
+                .Where(cells => cells.Length == 2)
+                .Select(cells => (Label: cells[0].InnerText, Value: cells[1].InnerText))
+                .ToArray();
+
+        Assert.Contains(
+            fieldRows,
+            row =>
+                row.Label == "Procedure:" &&
+                row.Value == "Upper GI endoscopy");
+
+        Assert.Contains(
+            fieldRows,
+            row =>
+                row.Label == "Indications:" &&
+                row.Value ==
+                    "Patient with uncontrolled heartburn, despite " +
+                    "Omeprazole 40 mg daily. He is s/p sleeve gastrectomy in 2010.");
+
+        Assert.Contains(
+            fieldRows,
+            row =>
+                row.Label == "Requesting Provider:" &&
+                row.Value.Length == 0);
+
+        Assert.Contains(
+            fieldRows,
+            row =>
+                row.Label == "Medicines:" &&
+                row.Value ==
+                    "Fentanyl 50 micrograms IV, Midazolam 5 mg IV");
+
+        Assert.DoesNotContain(
+            fieldRows,
+            row => row.Label.StartsWith("03/18/2020 09", StringComparison.Ordinal));
+
+        var bodyElements = body.Elements().ToArray();
+        var writtenByIndex =
+            Array.FindIndex(
+                bodyElements,
+                element => element.InnerText.Contains(
+                    "Written by:TERESA C RN MCKAMEY",
+                    StringComparison.Ordinal));
+        var signedByIndex =
+            Array.FindIndex(
+                bodyElements,
+                element => element.InnerText.Contains(
+                    "Signed by:TERESA C RN MCKAMEY",
+                    StringComparison.Ordinal));
+
+        Assert.True(writtenByIndex >= 0);
+        Assert.InRange(
+            signedByIndex,
+            writtenByIndex,
+            writtenByIndex + 1);
+
+        var paragraphs =
+            body
+                .Descendants<
+                    DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Select(paragraph => paragraph.InnerText)
+                .ToArray();
+
+        Assert.Contains(
+            "03/18/2020 09: 43 /es/ Patricia S Woods Medical Support Assistant",
+            paragraphs);
+        Assert.Contains(
+            "- Prior to the procedure, a History and Physical was performed, " +
+            "and patient medications and allergies were reviewed. The patient is competent.",
+            paragraphs);
+        Assert.DoesNotContain(
+            "performed, and patient medications and allergies were reviewed. The patient is competent.",
+            paragraphs);
     }
 
     [Fact]
@@ -4455,14 +4623,15 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "See Current Medication Use — Reconciled",
             text);
         Assert.Contains(
-            "See Relevant Medication Progression / History.",
+            "See Relevant Medications for Medical Opinion.",
             text);
         Assert.DoesNotContain("GABAPENTIN 400MG CAP", text);
         Assert.DoesNotContain("Non-VA BUPROPION", text);
         Assert.DoesNotContain("Non-VA Medications Status", text);
         Assert.Contains("Columbia Suicide Severity Rating Scale", text);
         Assert.Contains("PHYSICAL EXAM:", text);
-        Assert.Contains("General: well developed", text);
+        Assert.Contains("General:", text);
+        Assert.Contains("well developed", text);
     }
 
     [Fact]

@@ -116,6 +116,189 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_SelectedBasisIncludesReviewedLiteratureFromSiblingMedicationBasis()
+    {
+        var issue =
+            new ClaimIssue
+            {
+                Id = new ClaimIssueId("issue-1"),
+                ClaimId = new ClaimId("claim-1"),
+                ClaimIssueType = "ServiceConnection"
+            };
+
+        var theory =
+            new ServiceConnectionTheory
+            {
+                Id = new ServiceConnectionTheoryId("theory-secondary"),
+                ClaimIssueId = issue.Id,
+                TheoryType = "Secondary"
+            };
+
+        var selectedBasis =
+            new ServiceConnectionBasis
+            {
+                Id = new ServiceConnectionBasisId("basis-cad"),
+                ClaimIssueId = issue.Id,
+                ServiceConnectionTheoryId = theory.Id
+            };
+
+        var siblingBasis =
+            new ServiceConnectionBasis
+            {
+                Id = new ServiceConnectionBasisId("basis-mental-health"),
+                ClaimIssueId = issue.Id,
+                ServiceConnectionTheoryId = theory.Id
+            };
+
+        var unrelatedBasis =
+            new ServiceConnectionBasis
+            {
+                Id = new ServiceConnectionBasisId("basis-unrelated"),
+                ClaimIssueId = issue.Id,
+                ServiceConnectionTheoryId = theory.Id
+            };
+
+        var selectedRequirement =
+            BindRequirementToBasis(
+                CreateLiterature(
+                    "req-cad",
+                    "study-cad",
+                    basisValue: selectedBasis.Id.Value),
+                selectedBasis);
+        var siblingRequirement =
+            BindRequirementToBasis(
+                CreateLiterature(
+                    "req-mental-health",
+                    "study-mental-health",
+                    basisValue: siblingBasis.Id.Value),
+                siblingBasis);
+        var unrelatedRequirement =
+            BindRequirementToBasis(
+                CreateLiterature(
+                    "req-unrelated",
+                    "study-unrelated",
+                    basisValue: unrelatedBasis.Id.Value),
+                unrelatedBasis);
+
+        var selectedArtifact = new ArtifactId("artifact-cad");
+        var siblingArtifact = new ArtifactId("artifact-mental-health");
+        var unrelatedArtifact = new ArtifactId("artifact-unrelated");
+
+        var reviewedByRequirement =
+            new Dictionary<(string BasisId, string RequirementId),
+                IReadOnlyList<ReviewedMedicalLiteratureClassification>>
+            {
+                [(selectedBasis.Id.Value, selectedRequirement.Requirement.Id.Value)] =
+                    [CreateReviewedClassification(selectedRequirement, selectedArtifact)],
+                [(siblingBasis.Id.Value, siblingRequirement.Requirement.Id.Value)] =
+                    [CreateReviewedClassification(siblingRequirement, siblingArtifact)],
+                [(unrelatedBasis.Id.Value, unrelatedRequirement.Requirement.Id.Value)] =
+                    [CreateReviewedClassification(unrelatedRequirement, unrelatedArtifact)]
+            };
+
+        var artifactsBySource =
+            new Dictionary<string, IReadOnlyList<ArtifactId>>(StringComparer.Ordinal)
+            {
+                ["study-cad"] = [selectedArtifact],
+                ["study-mental-health"] = [siblingArtifact],
+                ["study-unrelated"] = [unrelatedArtifact]
+            };
+
+        var details =
+            new ClaimIssueAdjudicationDetails
+            {
+                ClaimIssue = issue,
+                ClaimedConditions = [],
+                ServiceConnectionTheories = [theory],
+                ServiceConnectionBases =
+                    [selectedBasis, siblingBasis, unrelatedBasis],
+                ServiceConnectedConditions = [],
+                PrescribedMedications =
+                [
+                    new ServiceConnectionBasisMedicationDetails
+                    {
+                        Basis = selectedBasis,
+                        MedicationName = "Isosorbide Mononitrate"
+                    },
+                    new ServiceConnectionBasisMedicationDetails
+                    {
+                        Basis = siblingBasis,
+                        MedicationName = "Sertraline HCl"
+                    }
+                ],
+                ServiceEvents = [],
+                Requirements =
+                    [selectedRequirement, siblingRequirement, unrelatedRequirement],
+                Evidence =
+                    new ClaimIssueEvidenceDetails
+                    {
+                        ClaimIssue = issue,
+                        Checklist =
+                            new ClaimIssueEvidenceChecklist
+                            {
+                                ClaimIssueId = issue.Id,
+                                RequirementChecklists = []
+                            },
+                        DevelopmentPlans = []
+                    },
+                Timeline = []
+            };
+
+        var service =
+            new VeteransReviewerEvidenceSourceService(
+                Proxy<IEvidenceRepository>(
+                    (method, args) =>
+                        method.Name switch
+                        {
+                            "GetArtifactAsync" =>
+                                Task.FromResult<Artifact?>(
+                                    CreateArtifact((ArtifactId)args[0]!)),
+                            "GetRelationshipsAsync" =>
+                                Task.FromResult<IReadOnlyList<Relationship>>([]),
+                            _ => throw new NotSupportedException(method.Name)
+                        }),
+                Proxy<IMedicalLiteratureRepository>(
+                    (method, args) =>
+                        method.Name switch
+                        {
+                            "GetArtifactIdsAsync" =>
+                                Task.FromResult(
+                                    artifactsBySource[
+                                        ((MedicalLiteratureSourceId)args[0]!).Value]),
+                            "GetReviewedClassificationsAsync" =>
+                                Task.FromResult(
+                                    reviewedByRequirement[
+                                        (
+                                            ((ServiceConnectionBasisId)args[0]!).Value,
+                                            ((RequirementId)args[1]!).Value
+                                        )]),
+                            _ => throw new NotSupportedException(method.Name)
+                        }),
+                Proxy<IArtifactTextExtractor>(
+                    (method, args) =>
+                        method.Name == "ExtractTextAsync"
+                            ? Task.FromResult<string?>(
+                                $"text:{((ArtifactId)args[0]!).Value}")
+                            : throw new NotSupportedException(method.Name)));
+
+        var result =
+            await service.GetAsync(
+                details,
+                [],
+                selectedBasis.Id);
+
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, source => source.ArtifactId == selectedArtifact);
+        Assert.Contains(result, source => source.ArtifactId == siblingArtifact);
+        Assert.DoesNotContain(result, source => source.ArtifactId == unrelatedArtifact);
+
+        Assert.Contains(
+            result.SelectMany(source => source.ReviewedMedicalLiteratureClassifications),
+            review =>
+                review.Association.ServiceConnectionBasisId == siblingBasis.Id);
+    }
+
+    [Fact]
     public async Task GetAsync_ExcludesLiteratureWithoutAnActiveBasisReview()
     {
         var details = CreateDetails(CreateLiterature("requirement-1", "study-1"));
@@ -671,6 +854,20 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
             ]
         };
     }
+
+    private static ServiceConnectionBasisRequirementDetails
+        BindRequirementToBasis(
+            ServiceConnectionBasisRequirementDetails requirement,
+            ServiceConnectionBasis basis) =>
+        new()
+        {
+            Basis = basis,
+            Requirement = requirement.Requirement,
+            RegulatoryProvision = requirement.RegulatoryProvision,
+            Responsiveness = requirement.Responsiveness,
+            DevelopmentChecklist = requirement.DevelopmentChecklist,
+            MedicalLiterature = requirement.MedicalLiterature
+        };
 
     private static Artifact CreateArtifact(ArtifactId id) =>
         new()

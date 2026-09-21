@@ -14,11 +14,12 @@ public sealed class VeteransReviewerPackageDetailsService
     private readonly IEvidenceRepository _evidence;
     private readonly IEvidenceClassificationRepository? _classifications;
     private readonly IMedicalLiteratureRepository? _medicalLiterature;
+    private readonly IClaimIssueAdjudicationDetailsService? _adjudicationDetails;
     private readonly IArtifactTextExtractor? _textExtractor;
     private readonly IArtifactPrintRenderer? _printRenderer;
 
     private const string PdfMedicalLiteratureReviewerTextExtractionMethod =
-        "artifact-text-extractor-pdf-normalized-v4";
+        "artifact-text-extractor-pdf-normalized-v8";
 
     private const string DefaultMedicalLiteratureReviewerTextExtractionMethod =
         "artifact-text-extractor-v1";
@@ -44,6 +45,22 @@ public sealed class VeteransReviewerPackageDetailsService
         ArgumentNullException.ThrowIfNull(classifications);
         _classifications = classifications;
         _medicalLiterature = medicalLiterature;
+    }
+
+    public VeteransReviewerPackageDetailsService(
+        IEvidencePackageService packages,
+        IEvidenceRepository evidence,
+        IEvidenceClassificationRepository classifications,
+        IMedicalLiteratureRepository medicalLiterature,
+        IClaimIssueAdjudicationDetailsService adjudicationDetails)
+        : this(
+            packages,
+            evidence,
+            classifications,
+            medicalLiterature)
+    {
+        ArgumentNullException.ThrowIfNull(adjudicationDetails);
+        _adjudicationDetails = adjudicationDetails;
     }
 
     public VeteransReviewerPackageDetailsService(
@@ -78,6 +95,24 @@ public sealed class VeteransReviewerPackageDetailsService
         IEvidenceRepository evidence,
         IEvidenceClassificationRepository classifications,
         IArtifactTextExtractor textExtractor,
+        IMedicalLiteratureRepository medicalLiterature,
+        IClaimIssueAdjudicationDetailsService adjudicationDetails)
+        : this(
+            packages,
+            evidence,
+            classifications,
+            textExtractor,
+            medicalLiterature)
+    {
+        ArgumentNullException.ThrowIfNull(adjudicationDetails);
+        _adjudicationDetails = adjudicationDetails;
+    }
+
+    public VeteransReviewerPackageDetailsService(
+        IEvidencePackageService packages,
+        IEvidenceRepository evidence,
+        IEvidenceClassificationRepository classifications,
+        IArtifactTextExtractor textExtractor,
         IArtifactPrintRenderer printRenderer,
         IMedicalLiteratureRepository? medicalLiterature = null)
         : this(
@@ -89,6 +124,26 @@ public sealed class VeteransReviewerPackageDetailsService
         ArgumentNullException.ThrowIfNull(printRenderer);
         _printRenderer = printRenderer;
         _medicalLiterature = medicalLiterature;
+    }
+
+    public VeteransReviewerPackageDetailsService(
+        IEvidencePackageService packages,
+        IEvidenceRepository evidence,
+        IEvidenceClassificationRepository classifications,
+        IArtifactTextExtractor textExtractor,
+        IArtifactPrintRenderer printRenderer,
+        IMedicalLiteratureRepository medicalLiterature,
+        IClaimIssueAdjudicationDetailsService adjudicationDetails)
+        : this(
+            packages,
+            evidence,
+            classifications,
+            textExtractor,
+            printRenderer,
+            medicalLiterature)
+    {
+        ArgumentNullException.ThrowIfNull(adjudicationDetails);
+        _adjudicationDetails = adjudicationDetails;
     }
 
     public async Task<VeteransReviewerPackageDetails?> GetAsync(
@@ -107,7 +162,24 @@ public sealed class VeteransReviewerPackageDetailsService
         var artifactContents =
             new List<VeteransReviewerArtifactContent>();
 
-        foreach (var packageArtifact in details.Artifacts)
+        var packageArtifacts = details.Artifacts.ToList();
+
+        var literatureScope =
+            await GetReviewerLiteratureScopeAsync(
+                details.Package,
+                cancellationToken);
+
+        if (literatureScope is not null)
+        {
+            await AddReviewedMedicalLiteratureArtifactsAsync(
+                details.Package,
+                packageArtifacts,
+                literatureScope.Value.Details,
+                literatureScope.Value.BasisIds,
+                cancellationToken);
+        }
+
+        foreach (var packageArtifact in packageArtifacts)
         {
             var artifact =
                 await _evidence.GetArtifactAsync(
@@ -271,6 +343,7 @@ public sealed class VeteransReviewerPackageDetailsService
                     artifact.Id,
                     appendix,
                     details.Package.ServiceConnectionBasisId,
+                    literatureScope?.BasisIds,
                     cancellationToken);
 
             if (appendix == VeteransReviewerPackageAppendix.MedicalLiterature &&
@@ -306,12 +379,148 @@ public sealed class VeteransReviewerPackageDetailsService
                 });
         }
 
+        var reviewerPackageDetails =
+            packageArtifacts.Count == details.Artifacts.Count
+                ? details
+                : new EvidencePackageDetails
+                {
+                    Package = details.Package,
+                    Artifacts = packageArtifacts
+                };
+
         return new VeteransReviewerPackageDetails
         {
-            PackageDetails = details,
+            PackageDetails = reviewerPackageDetails,
             Artifacts = artifacts,
             ArtifactContents = artifactContents
         };
+    }
+
+    private async Task<(
+        ClaimIssueAdjudicationDetails Details,
+        IReadOnlySet<ServiceConnectionBasisId> BasisIds)?>
+        GetReviewerLiteratureScopeAsync(
+            EvidencePackage package,
+            CancellationToken cancellationToken)
+    {
+        if (_medicalLiterature is null ||
+            _adjudicationDetails is null ||
+            package.ServiceConnectionBasisId is null)
+        {
+            return null;
+        }
+
+        var adjudicationDetails =
+            await _adjudicationDetails.GetAsync(
+                package.ClaimIssueId,
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"Reviewer claim issue not found: {package.ClaimIssueId.Value}");
+
+        if (adjudicationDetails.ClaimIssue.Id != package.ClaimIssueId)
+        {
+            throw new InvalidOperationException(
+                "Reviewer adjudication details claim issue mismatch.");
+        }
+
+        var selectedBasis =
+            adjudicationDetails.ServiceConnectionBases.SingleOrDefault(
+                basis => basis.Id == package.ServiceConnectionBasisId.Value)
+            ?? throw new InvalidOperationException(
+                $"Reviewer literature basis not found: " +
+                $"{package.ServiceConnectionBasisId.Value.Value}");
+
+        if (selectedBasis.ClaimIssueId != package.ClaimIssueId)
+        {
+            throw new InvalidOperationException(
+                "Reviewer literature basis belongs to another claim issue.");
+        }
+
+        var prescribedMedicationBasisIds =
+            adjudicationDetails.PrescribedMedications
+                .Select(item => item.Basis.Id)
+                .ToHashSet();
+
+        var basisIds =
+            adjudicationDetails.ServiceConnectionBases
+                .Where(
+                    basis =>
+                        basis.ClaimIssueId == package.ClaimIssueId &&
+                        basis.ServiceConnectionTheoryId ==
+                            selectedBasis.ServiceConnectionTheoryId &&
+                        (basis.Id == selectedBasis.Id ||
+                         prescribedMedicationBasisIds.Contains(basis.Id)))
+                .Select(basis => basis.Id)
+                .ToHashSet();
+
+        return (adjudicationDetails, basisIds);
+    }
+
+    private async Task AddReviewedMedicalLiteratureArtifactsAsync(
+        EvidencePackage package,
+        List<EvidencePackageArtifact> packageArtifacts,
+        ClaimIssueAdjudicationDetails adjudicationDetails,
+        IReadOnlySet<ServiceConnectionBasisId> literatureBasisIds,
+        CancellationToken cancellationToken)
+    {
+        if (_medicalLiterature is null)
+            return;
+
+        var existingArtifactIds =
+            packageArtifacts
+                .Select(item => item.ArtifactId)
+                .ToHashSet();
+
+        foreach (var requirement in
+                 adjudicationDetails.Requirements.Where(
+                     item =>
+                         literatureBasisIds.Contains(item.Basis.Id)))
+        {
+            IReadOnlyList<ReviewedMedicalLiteratureClassification> reviewed;
+
+            try
+            {
+                reviewed =
+                    await _medicalLiterature.GetReviewedClassificationsAsync(
+                        requirement.Basis.Id,
+                        requirement.Requirement.Id,
+                        cancellationToken);
+            }
+            catch (NotSupportedException)
+            {
+                continue;
+            }
+
+            if (reviewed.Any(
+                    item =>
+                        item.Association.ServiceConnectionBasisId !=
+                            requirement.Basis.Id ||
+                        item.Association.RequirementId !=
+                            requirement.Requirement.Id))
+            {
+                throw new InvalidOperationException(
+                    "Reviewer medical literature reviewed classification " +
+                    "requirement mismatch.");
+            }
+
+            foreach (var artifactId in
+                     reviewed
+                         .Select(item => item.ArtifactId)
+                         .Distinct())
+            {
+                if (!existingArtifactIds.Add(artifactId))
+                    continue;
+
+                packageArtifacts.Add(
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = package.Id,
+                        ArtifactId = artifactId,
+                        ContentRole =
+                            EvidencePackageContentRoles.UnderlyingEvidence
+                    });
+            }
+        }
     }
 
     private async Task<string?> GetOrCreateMedicalLiteratureReviewerTextAsync(
@@ -427,6 +636,9 @@ public sealed class VeteransReviewerPackageDetailsService
                 .Replace('\r', '\n');
 
         normalized =
+            RemovePdfMedicalLiteratureLayoutNoise(normalized);
+
+        normalized =
             System.Text.RegularExpressions.Regex.Replace(
                 normalized,
                 @"(?<left>\p{L}{2,})[\u00AD\uFFFD\uFFFE\uFFFF](?<right>\p{Ll}{2,})",
@@ -436,11 +648,201 @@ public sealed class VeteransReviewerPackageDetailsService
         normalized =
             System.Text.RegularExpressions.Regex.Replace(
                 normalized,
-                @"(?<left>\b\p{L}{2,})-[ \t]*(?:\n[ \t]*|[ \t]+)(?<right>\p{Ll}{2,}\b)",
+                @"(?<left>\b\p{L}{2,})-[ \t]*(?:(?:\n[ \t]*)+|[ \t]+)(?<right>\p{Ll}{2,}\b)",
                 NormalizePdfSplitWord,
                 System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
+        normalized =
+            NormalizePdfMedicalLiteratureParagraphStructure(normalized);
+
         return normalized.Trim();
+    }
+
+    private static string RemovePdfMedicalLiteratureLayoutNoise(
+        string text)
+    {
+        var cleaned =
+            System.Text.RegularExpressions.Regex.Replace(
+                text,
+                @"(?m)(?:^[ \t]*[•●▪◦][ \t]*$\n?){2,}",
+                string.Empty,
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        cleaned =
+            System.Text.RegularExpressions.Regex.Replace(
+                cleaned,
+                @"(?m)^[ \t]*(?:\d{1,3}\.[ \t]*){4,}$\n?",
+                string.Empty,
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        // The Mungan source includes a repeating journal running header that PdfPig
+        // can place either on its own line or inline between the two halves of a
+        // word in the body column. Remove it before dehyphenation so `pla-` +
+        // `cebo` and `to-` + `tal` can be reconstructed correctly. PdfPig may
+        // separate the S-page markers and running header with hard line breaks.
+        cleaned =
+            System.Text.RegularExpressions.Regex.Replace(
+                cleaned,
+                @"S\d{1,4}\s+S\d{1,4}\s+Mungan and Pınarbaşı Şimşek\. Drugs and\s+gastroesophageal reflux disease",
+                " ",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        cleaned =
+            System.Text.RegularExpressions.Regex.Replace(
+                cleaned,
+                @"Mungan and Pınarbaşı Şimşek\. Drugs and\s+gastroesophageal reflux disease",
+                " ",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        // Standalone supplement-page markers are layout artifacts, not article text.
+        cleaned =
+            System.Text.RegularExpressions.Regex.Replace(
+                cleaned,
+                @"(?m)^[ \t]*S\d{1,4}[ \t]*$\n?",
+                string.Empty,
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        // Remove the journal correspondence/copyright footer when PdfPig injects
+        // it into the middle of the article body.
+        cleaned =
+            System.Text.RegularExpressions.Regex.Replace(
+                cleaned,
+                @"Address for Correspondence:.*?DOI:\s*10\.5152/tjg\.2017\.11",
+                " ",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant |
+                System.Text.RegularExpressions.RegexOptions.Singleline);
+
+        // Likewise discard the duplicated journal footer/citation line wherever
+        // the PDF layout engine injects it into the body text. The source citation
+        // remains elsewhere in the article and package metadata.
+        cleaned =
+            System.Text.RegularExpressions.Regex.Replace(
+                cleaned,
+                @"Turk J Gastroenterol 2017;[ \t]*28\(Suppl 1\):[ \t]*S38-S43",
+                " ",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        return cleaned;
+    }
+
+    private static string NormalizePdfMedicalLiteratureParagraphStructure(
+        string text)
+    {
+        var withHeadingBoundaries =
+            SplitInlinePdfMedicalLiteratureHeadings(text);
+
+        var output = new List<string>();
+        var paragraph = new StringBuilder();
+
+        void FlushParagraph()
+        {
+            if (paragraph.Length == 0)
+                return;
+
+            output.Add(paragraph.ToString());
+            paragraph.Clear();
+        }
+
+        foreach (var rawLine in withHeadingBoundaries.Split('\n'))
+        {
+            var line =
+                System.Text.RegularExpressions.Regex.Replace(
+                        rawLine.Trim(),
+                        @"[ \t]+",
+                        " ",
+                        System.Text.RegularExpressions.RegexOptions.CultureInvariant)
+                    .Trim();
+
+            // PdfPig paragraph/block boundaries are layout hints, not reliable
+            // semantic paragraph boundaries. Ignore empty lines and reflow prose.
+            if (line.Length == 0)
+                continue;
+
+            if (IsPdfMedicalLiteratureListItemStart(line))
+            {
+                FlushParagraph();
+                paragraph.Append(line);
+                continue;
+            }
+
+            if (IsPdfMedicalLiteratureStructuralLine(line))
+            {
+                FlushParagraph();
+                output.Add(line);
+                continue;
+            }
+
+            if (paragraph.Length > 0)
+                paragraph.Append(' ');
+
+            paragraph.Append(line);
+        }
+
+        FlushParagraph();
+
+        var reflowed = string.Join("\n\n", output);
+
+        // Some PDF extractors concatenate the first word of a new sentence to
+        // terminal punctuation. Restore the missing sentence boundary space.
+        reflowed =
+            System.Text.RegularExpressions.Regex.Replace(
+                reflowed,
+                @"(?<=[.!?])(?=\p{Lu})",
+                " ",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        return reflowed;
+    }
+
+    private static string SplitInlinePdfMedicalLiteratureHeadings(
+        string text)
+    {
+        const string headingPattern =
+            "Abstract|Introduction|Background|Methods|Materials and Methods|" +
+            "Results|Discussion|Conclusion|Conclusions|References|" +
+            "Acknowledgments|Funding|Disclosures|Keywords|" +
+            "Non-Steroidal Anti-Inflammatory Drugs|Acetylsalicylic Acid|" +
+            "Hormone Replacement Therapy and Oral Contraceptive Drugs|" +
+            "Bisphosphonates|Nitrates and Calcium Channel Blockers|" +
+            "Antidepressant Drugs|Benzodiazepines and Hypnotic Drugs|" +
+            "Anticholinergic Drugs|Antiasthmatic Drugs";
+
+        return System.Text.RegularExpressions.Regex.Replace(
+            text,
+            $@"(?m)(^|(?<=[.!?])\s+)(?<heading>{headingPattern})(?=\s+\p{{Lu}})",
+            match =>
+                $"{match.Groups[1].Value.TrimEnd()}\n{match.Groups["heading"].Value}\n",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    }
+
+    private static bool IsPdfMedicalLiteratureListItemStart(
+        string line) =>
+        line.StartsWith("•", StringComparison.Ordinal) ||
+        line.StartsWith("- ", StringComparison.Ordinal) ||
+        line.StartsWith("* ", StringComparison.Ordinal);
+
+    private static bool IsPdfMedicalLiteratureStructuralLine(
+        string line)
+    {
+        if (line.StartsWith("Table ", StringComparison.OrdinalIgnoreCase) ||
+            line.StartsWith("Figure ", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var heading = line.Trim().TrimEnd(':');
+
+        if (heading.Length is >= 3 and <= 100 &&
+            heading.Any(char.IsLetter) &&
+            heading.Where(char.IsLetter).All(char.IsUpper))
+        {
+            return true;
+        }
+
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            heading,
+            @"^(?:Abstract|Introduction|Background|Methods|Materials and Methods|Results|Discussion|Conclusion|Conclusions|References|Acknowledgments|Funding|Disclosures|Keywords|Non-Steroidal Anti-Inflammatory Drugs|Acetylsalicylic Acid|Hormone Replacement Therapy and Oral Contraceptive Drugs|Bisphosphonates|Nitrates and Calcium Channel Blockers|Antidepressant Drugs|Benzodiazepines and Hypnotic Drugs|Anticholinergic Drugs|Antiasthmatic Drugs)$",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     }
 
     private static string NormalizePdfSplitWord(
@@ -486,6 +888,7 @@ public sealed class VeteransReviewerPackageDetailsService
             EMF.Core.Models.Identities.ArtifactId artifactId,
             string? appendix,
             ServiceConnectionBasisId? serviceConnectionBasisId,
+            IReadOnlySet<ServiceConnectionBasisId>? literatureBasisIds,
             CancellationToken cancellationToken)
     {
         if (_medicalLiterature is null ||
@@ -502,19 +905,42 @@ public sealed class VeteransReviewerPackageDetailsService
 
         try
         {
-            reviewed =
-                await _medicalLiterature.GetReviewedClassificationsAsync(
-                    serviceConnectionBasisId.Value,
-                    artifactId,
-                    cancellationToken);
+            if (literatureBasisIds is null)
+            {
+                reviewed =
+                    await _medicalLiterature.GetReviewedClassificationsAsync(
+                        serviceConnectionBasisId.Value,
+                        artifactId,
+                        cancellationToken);
+            }
+            else
+            {
+                reviewed =
+                    (await _medicalLiterature.GetReviewedClassificationsAsync(
+                        artifactId,
+                        cancellationToken))
+                    .Where(
+                        item =>
+                            item.Association.ServiceConnectionBasisId is not null &&
+                            literatureBasisIds.Contains(
+                                item.Association.ServiceConnectionBasisId.Value))
+                    .ToArray();
+            }
         }
         catch (NotSupportedException)
         {
             return [];
         }
 
-        if (reviewed.Any(item => item.ArtifactId != artifactId ||
-                                 item.Association.ServiceConnectionBasisId != serviceConnectionBasisId))
+        if (reviewed.Any(
+                item =>
+                    item.ArtifactId != artifactId ||
+                    (literatureBasisIds is null
+                        ? item.Association.ServiceConnectionBasisId !=
+                            serviceConnectionBasisId
+                        : item.Association.ServiceConnectionBasisId is null ||
+                          !literatureBasisIds.Contains(
+                              item.Association.ServiceConnectionBasisId.Value))))
         {
             throw new InvalidOperationException(
                 $"Medical literature artifact '{artifactId.Value}' reviewed " +

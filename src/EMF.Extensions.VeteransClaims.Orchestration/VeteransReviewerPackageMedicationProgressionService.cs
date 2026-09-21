@@ -96,19 +96,48 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
                 "Reviewer package service-connection basis lineage mismatch.");
         }
 
-        var relevantNames =
-            (await _connections.GetPrescribedMedicationNamesAsync(
-                basis.Id,
+        var medicationBases =
+            (await _connections.GetServiceConnectionBasesAsync(
+                basis.ServiceConnectionTheoryId,
                 cancellationToken))
-            .Select(name => name.Trim())
-            .Where(name => name.Length > 0)
-            .GroupBy(
-                MedicationIdentityKey,
+            .Where(candidate =>
+                candidate.ClaimIssueId == package.ClaimIssueId)
+            .OrderBy(candidate => candidate.Id == basis.Id ? 0 : 1)
+            .ThenBy(
+                candidate => candidate.ReviewerLabel ?? string.Empty,
                 StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
+            .ThenBy(candidate => candidate.Id.Value, StringComparer.Ordinal)
             .ToArray();
 
-        if (relevantNames.Length == 0)
+        if (!medicationBases.Any(candidate => candidate.Id == basis.Id))
+        {
+            throw new InvalidOperationException(
+                "Reviewer package service-connection basis was not found under its theory.");
+        }
+
+        var relevantMedications =
+            new List<(
+                EMF.Extensions.VeteransClaims.Models.Service.ServiceConnectionBasis Basis,
+                string MedicationName)>();
+
+        foreach (var medicationBasis in medicationBases)
+        {
+            var names =
+                (await _connections.GetPrescribedMedicationNamesAsync(
+                    medicationBasis.Id,
+                    cancellationToken))
+                .Select(name => name.Trim())
+                .Where(name => name.Length > 0)
+                .GroupBy(
+                    MedicationIdentityKey,
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First());
+
+            relevantMedications.AddRange(
+                names.Select(name => (medicationBasis, name)));
+        }
+
+        if (relevantMedications.Count == 0)
             return [];
 
         var claim =
@@ -167,13 +196,13 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
         var result =
             new List<VeteransReviewerMedicationProgression>();
 
-        foreach (var relevantName in relevantNames)
+        foreach (var relevantMedication in relevantMedications)
         {
             var matching =
                 distinctSnapshots
                     .Where(snapshot =>
                         MedicationNamesMatch(
-                            relevantName,
+                            relevantMedication.MedicationName,
                             snapshot.Entry.MedicationName))
                     .OrderBy(snapshot =>
                         snapshot.Entry.PrescribedDate ??
@@ -187,16 +216,30 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
             if (matching.Length == 0)
                 continue;
 
+            var reviewerEntries =
+                SelectReviewerMedicationEntries(matching);
+
+            if (reviewerEntries.Count == 0)
+                continue;
+
             result.Add(
                 new VeteransReviewerMedicationProgression
                 {
-                    MedicationName = relevantName,
-                    Entries = SelectMeaningfulEntries(matching)
+                    ServiceConnectionBasisId = relevantMedication.Basis.Id,
+                    ServiceConnectionBasisReviewerLabel =
+                        relevantMedication.Basis.ReviewerLabel,
+                    MedicationName = relevantMedication.MedicationName,
+                    Entries = reviewerEntries
                 });
         }
 
         return result
-            .OrderBy(
+            .OrderBy(item =>
+                item.ServiceConnectionBasisId == basis.Id ? 0 : 1)
+            .ThenBy(
+                item => item.ServiceConnectionBasisReviewerLabel ?? string.Empty,
+                StringComparer.OrdinalIgnoreCase)
+            .ThenBy(
                 item => item.MedicationName,
                 StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -220,6 +263,68 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
         if (entries.Any(entry => entry.MedicationLedgerId != ledger.Id))
             throw new InvalidDataException(
                 "Medication ledger entry identity mismatch.");
+    }
+
+    private static IReadOnlyList<MedicationLedgerEntry>
+        SelectReviewerMedicationEntries(
+            IReadOnlyList<MedicationLedgerEntry> ordered)
+    {
+        var meaningful = SelectMeaningfulEntries(ordered);
+
+        if (meaningful.Count == 0)
+            return [];
+
+        var lastStopIndex = -1;
+
+        for (var index = meaningful.Count - 1; index >= 0; index--)
+        {
+            var status = meaningful[index].Status.Trim();
+
+            if (string.Equals(
+                    status,
+                    MedicationLedgerStatuses.Discontinued,
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    status,
+                    MedicationLedgerStatuses.Expired,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                lastStopIndex = index;
+                break;
+            }
+        }
+
+        var continuityEntries =
+            meaningful
+                .Skip(lastStopIndex + 1)
+                .Where(entry =>
+                    MedicationLedgerStatuses.IsCurrent(entry.Status) ||
+                    string.Equals(
+                        entry.Status.Trim(),
+                        MedicationLedgerStatuses.Transferred,
+                        StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+        var currentEntries =
+            continuityEntries
+                .Where(entry =>
+                    MedicationLedgerStatuses.IsCurrent(entry.Status))
+                .ToArray();
+
+        if (currentEntries.Length > 0)
+            return currentEntries;
+
+        var latestTransferred =
+            continuityEntries
+                .LastOrDefault(entry =>
+                    string.Equals(
+                        entry.Status.Trim(),
+                        MedicationLedgerStatuses.Transferred,
+                        StringComparison.OrdinalIgnoreCase));
+
+        return latestTransferred is null
+            ? []
+            : [latestTransferred];
     }
 
     private static IReadOnlyList<MedicationLedgerEntry>

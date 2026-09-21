@@ -1089,7 +1089,7 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
                 ArtifactId = artifact.Id,
                 Text = "stale normalized reviewer text",
                 ExtractionMethod =
-                    "artifact-text-extractor-pdf-normalized-v3",
+                    "artifact-text-extractor-pdf-normalized-v4",
                 ExtractedUtc =
                     new DateTimeOffset(
                         2026, 9, 19, 17, 59, 18, TimeSpan.Zero)
@@ -1194,7 +1194,7 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
             content.MedicalLiteratureReviewerText);
         Assert.NotNull(literature.UpsertedReviewerText);
         Assert.Equal(
-            "artifact-text-extractor-pdf-normalized-v4",
+            "artifact-text-extractor-pdf-normalized-v8",
             literature.UpsertedReviewerText!.ExtractionMethod);
         Assert.Equal(
             "literature text",
@@ -1212,7 +1212,34 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
             "A double-\nblind case-\ncontrol study reported anti-\ninflammatory effects. " +
             "Patients were pre- scribed therapy in a study in- volving 2,251 participants; " +
             "heartburn de- veloped in 68%. Ruigó- mez et al. reported that reflux in-\n" +
-            "creased ap\uFFFEproximately four times with anti\uFFFEasthmatic therapy.";
+            "creased ap\uFFFEproximately four times with anti\uFFFEasthmatic therapy.\n\n" +
+            "In a randomized study, theophylline and a pla- S41 S42 Mungan and Pınarbaşı Şimşek. Drugs and\n" +
+            "gastroesophageal reflux disease cebo were compared with placebo.\n\n" +
+            "Symptoms decreased over time (20). Bisphosphonates Although gastrointestinal side\n" +
+            "effects of bisphosphonates have been found to be similar to those of placebos in clinical\n\n" +
+            "trials, side effects occur in approximately one in three patients.\n" +
+            "It can be said that the use of bisphosphonate alone does not lead to an\n" +
+            "•\n•\n•\n•\n•\n•\n" +
+            "Turk J Gastroenterol 2017; 28(Suppl 1): S38-S43\n" +
+            "increase in the development risk of GERD symptoms.\n" +
+            "A placebo was used. Nitrates and Calcium Channel Blockers Nitrates and Calcium Channel Blockers (CCBs) decrease LESP.\n" +
+            "Tanaka M. High incidence of newly-developed gastroesophageal\n" +
+            "24. 25. 26. 27. 28. 29. 30. 31. 32. 33. 34. 35. 36. 37. 38. 39. 40. 41.\n" +
+            "reflux disease in the Japanese community.\n" +
+            "• Beta-adrenergic agonists\n• Anticholinergics\n" +
+            "In a randomized study in which a to-\nS39\nS40\n" +
+            "Mungan and Pınarbaşı Şimşek. Drugs and gastroesophageal reflux disease\n" +
+            "tal of 40 centers participated.\n" +
+            "Address for Correspondence: Author E-mail: example@example.com © Copyright 2017 by The Turkish Society of Gastroenterology • Available online at example.org • DOI: 10.5152/tjg.2017.11\n" +
+            "Gastrointestinal side effects can regress when the uses of\n\n" +
+            "bisphosphonates\n\nchanges from weekly preparations.\n" +
+            "Symptoms improved.Similarly, treatment continued.\n" +
+            "• The use of hormone replacement therapy (HRT) containing only estrogen increases the risk of GERD development. " +
+            "The use of HRT preparations with combined\n\nestrogen and progesterone and the use of oral contraceptive (OC) therapeutic agents " +
+            "does not lead to a significant increase in the risk of GERD development (Level of evidence: 2b).\n" +
+            "• It can be said in light of the limited data available that\n\nthe use of bisphosphonate alone does not lead to an increase in GERD symptoms.\n" +
+            "Antidepressant Drugs The use of antidepressant drugs was evaluated.\n" +
+            "S43";
 
         var normalized =
             VeteransReviewerPackageDetailsService
@@ -1230,12 +1257,57 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         Assert.Contains("increased", normalized);
         Assert.Contains("approximately", normalized);
         Assert.Contains("anti-asthmatic", normalized);
+        Assert.Contains(
+            "theophylline and a placebo were compared with placebo",
+            normalized);
+        Assert.Contains(
+            "Symptoms decreased over time (20).\n\nBisphosphonates\n\nAlthough gastrointestinal side effects of bisphosphonates have been found to be similar to those of placebos in clinical trials, side effects occur",
+            normalized);
+        Assert.Contains(
+            "bisphosphonate alone does not lead to an increase in the development risk of GERD symptoms",
+            normalized);
+        Assert.Contains(
+            "A placebo was used.\n\nNitrates and Calcium Channel Blockers\n\nNitrates and Calcium Channel Blockers (CCBs) decrease LESP.",
+            normalized);
+        Assert.Contains(
+            "newly-developed gastroesophageal reflux disease in the Japanese community",
+            normalized);
+        Assert.Contains("• Beta-adrenergic agonists", normalized);
+        Assert.Contains("• Anticholinergics", normalized);
+        Assert.Contains("a total of 40 centers participated.", normalized);
+        Assert.Contains(
+            "the uses of bisphosphonates changes from weekly preparations.",
+            normalized);
+        Assert.Contains(
+            "Symptoms improved. Similarly, treatment continued.",
+            normalized);
+        Assert.Contains(
+            "• The use of hormone replacement therapy (HRT) containing only estrogen increases the risk of GERD development. " +
+            "The use of HRT preparations with combined estrogen and progesterone and the use of oral contraceptive (OC) therapeutic agents " +
+            "does not lead to a significant increase in the risk of GERD development (Level of evidence: 2b).",
+            normalized);
+        Assert.DoesNotContain("combined\n\nestrogen", normalized);
+        Assert.Contains(
+            "• It can be said in light of the limited data available that the use of bisphosphonate alone does not lead to an increase in GERD symptoms.",
+            normalized);
+        Assert.Contains(
+            "Antidepressant Drugs\n\nThe use of antidepressant drugs was evaluated.",
+            normalized);
+        Assert.DoesNotContain("S41 S42 Mungan", normalized);
+        Assert.DoesNotContain("S39", normalized);
+        Assert.DoesNotContain("S40", normalized);
+        Assert.DoesNotContain("S43", normalized);
+        Assert.DoesNotContain("Address for Correspondence", normalized);
+        Assert.DoesNotContain("Turk J Gastroenterol 2017", normalized);
+        Assert.DoesNotContain("24. 25. 26. 27.", normalized);
+        Assert.DoesNotContain("\n•\n", normalized);
         Assert.DoesNotContain("indi-\nrectly", normalized);
         Assert.DoesNotContain("gastroesoph-\nageal", normalized);
         Assert.DoesNotContain("pre- scribed", normalized);
         Assert.DoesNotContain("in- volving", normalized);
         Assert.DoesNotContain("de- veloped", normalized);
     }
+
 }
 
 file sealed class RecordingMedicalLiteratureRepository :

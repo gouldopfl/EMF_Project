@@ -21,7 +21,7 @@ public static class VeteransReviewerPackageDocxRenderer
         "Current Medication Use — Reconciled";
 
     private const string MedicationProgressionSectionTitle =
-        "Relevant Medication Progression / History";
+        "Relevant Medications for Medical Opinion";
 
     private const string MedicalLiteratureSectionTitle =
         "Medical / Scientific Literature Considered";
@@ -638,7 +638,7 @@ public static class VeteransReviewerPackageDocxRenderer
             sections.Add(
                 new PackageGuideSection(
                     MedicationProgressionSectionTitle,
-                    "Summarizes meaningful dose, direction, and prescription-status changes for medications relevant to the medical opinion request."));
+                    "Shows current prescription states for medications relevant to the medical opinion request, grouped by service-connected condition."));
         }
 
         sections.Add(
@@ -1333,9 +1333,17 @@ public static class VeteransReviewerPackageDocxRenderer
         Body body,
         VeteransReviewerPackageDetails details)
     {
+        var packageBasisId =
+            details.PackageDetails.Package.ServiceConnectionBasisId;
+
         var progressions =
             details.MedicationProgressions
-                .OrderBy(
+                .OrderBy(item =>
+                    item.ServiceConnectionBasisId == packageBasisId ? 0 : 1)
+                .ThenBy(
+                    item => item.ServiceConnectionBasisReviewerLabel ?? string.Empty,
+                    StringComparer.OrdinalIgnoreCase)
+                .ThenBy(
                     item => item.MedicationName,
                     StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -1350,19 +1358,53 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             ContentParagraph(
-                "This section highlights meaningful prescription changes for medications " +
-                "identified as relevant to the medical opinion request. It preserves the " +
-                "VA medication-ledger history and does not infer a clinical reason for a " +
-                "change unless that reason is separately documented in the medical record. " +
-                "Documented clinical context is shown only when explicitly linked to the " +
-                "specific prescription record."));
+                "This section shows current prescription states for medications identified " +
+                "as relevant to the medical opinion request. When more than one prescribed-" +
+                "medication basis is part of the same medical-review theory, medications are " +
+                "grouped by service-connected condition. Active and refill-in-process " +
+                "prescriptions are included. A transferred prescription may be retained when " +
+                "it is the latest available continuity record; transferred status is not " +
+                "treated as a medication stop. Historical non-current prescription states remain " +
+                "preserved in the underlying VA medication ledger but are omitted from this " +
+                "physician-facing section."));
+
+        var showBasisGroups =
+            progressions.Any(item =>
+                item.ServiceConnectionBasisId is not null ||
+                !string.IsNullOrWhiteSpace(
+                    item.ServiceConnectionBasisReviewerLabel));
+
+        string? currentBasisKey = null;
 
         foreach (var progression in progressions)
         {
+            if (showBasisGroups)
+            {
+                var basisKey =
+                    progression.ServiceConnectionBasisId?.Value ??
+                    progression.ServiceConnectionBasisReviewerLabel?.Trim() ??
+                    string.Empty;
+
+                if (!string.Equals(
+                        currentBasisKey,
+                        basisKey,
+                        StringComparison.Ordinal))
+                {
+                    body.Append(
+                        StyledParagraph(
+                            MedicationBasisDisplayName(
+                                progression.ServiceConnectionBasisReviewerLabel),
+                            "Heading2"));
+
+                    currentBasisKey = basisKey;
+                }
+            }
+
             body.Append(
                 StyledParagraph(
                     progression.MedicationName,
-                    "Heading2"));
+                    showBasisGroups ? "Heading3" : "Heading2",
+                    bold: true));
 
             foreach (var entry in progression.Entries)
             {
@@ -1414,6 +1456,31 @@ public static class VeteransReviewerPackageDocxRenderer
                 }
             }
         }
+    }
+
+    private static string MedicationBasisDisplayName(
+        string? reviewerLabel)
+    {
+        if (string.IsNullOrWhiteSpace(reviewerLabel))
+            return "Relevant medications";
+
+        const string secondaryMedicationPrefix =
+            "Secondary to medications used for service-connected ";
+
+        var label = reviewerLabel.Trim().TrimEnd('.');
+
+        if (label.StartsWith(
+                secondaryMedicationPrefix,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var condition =
+                label[secondaryMedicationPrefix.Length..].Trim();
+
+            if (condition.Length > 0)
+                return $"Medications for service-connected {condition}";
+        }
+
+        return label;
     }
 
     private static void AppendPrescribedMedications(
@@ -1956,6 +2023,11 @@ public static class VeteransReviewerPackageDocxRenderer
                         historicalMedicationTitle,
                     historicalMedicationOmissionMessage:
                         historicalMedicationOmissionMessage,
+                    allowLargerSinglePageImage:
+                        string.Equals(
+                            content.Appendix,
+                            VeteransReviewerPackageAppendix.LayEvidence,
+                            StringComparison.Ordinal),
                     includeReviewerContinuationMarkers: false);
             }
             else if (!string.IsNullOrWhiteSpace(content.Text))
@@ -2031,7 +2103,12 @@ public static class VeteransReviewerPackageDocxRenderer
                 historicalMedicationTitle:
                     historicalMedicationTitle,
                 historicalMedicationOmissionMessage:
-                    historicalMedicationOmissionMessage);
+                    historicalMedicationOmissionMessage,
+                allowLargerSinglePageImage:
+                    string.Equals(
+                        content.Appendix,
+                        VeteransReviewerPackageAppendix.LayEvidence,
+                        StringComparison.Ordinal));
             return;
         }
 
@@ -2948,7 +3025,8 @@ public static class VeteransReviewerPackageDocxRenderer
 
     private static Paragraph StyledParagraph(
         string text,
-        string styleId)
+        string styleId,
+        bool bold = false)
     {
         var properties =
             new ParagraphProperties(
@@ -3029,10 +3107,15 @@ public static class VeteransReviewerPackageDocxRenderer
                 });
         }
 
+        var runProperties = ReviewerRunProperties(styleId);
+
+        if (bold && runProperties.GetFirstChild<Bold>() is null)
+            runProperties.Append(new Bold());
+
         return new Paragraph(
             properties,
             new Run(
-                ReviewerRunProperties(styleId),
+                runProperties,
                 new Text(SanitizeXmlText(text))
                 {
                     Space = SpaceProcessingModeValues.Preserve
@@ -3156,10 +3239,13 @@ public static class VeteransReviewerPackageDocxRenderer
     {
         var historicalMedicationTitleRendered = false;
         var suppressHistoricalMedicationSection = false;
+        var normalizedLines = NormalizeReviewerText(text);
 
-        foreach (var normalizedLine in NormalizeReviewerText(text))
+        for (var lineIndex = 0;
+             lineIndex < normalizedLines.Count;
+             lineIndex++)
         {
-            var line = normalizedLine;
+            var line = normalizedLines[lineIndex];
 
             if (line.Length == 0)
             {
@@ -3205,6 +3291,42 @@ public static class VeteransReviewerPackageDocxRenderer
                     continue;
             }
 
+            if (TryParseReviewerField(
+                    line,
+                    out var fieldLabel,
+                    out var fieldValue) &&
+                ShouldRenderReviewerField(
+                    fieldLabel,
+                    fieldValue))
+            {
+                while (lineIndex + 1 < normalizedLines.Count &&
+                       ShouldAppendReviewerFieldContinuation(
+                           fieldValue,
+                           normalizedLines[lineIndex + 1]))
+                {
+                    fieldValue =
+                        $"{fieldValue} {normalizedLines[++lineIndex]}".Trim();
+                }
+
+                body.Append(
+                    ReviewerFieldTable(
+                        fieldLabel,
+                        fieldValue));
+                continue;
+            }
+
+            if (IsReviewerListLine(line))
+            {
+                while (lineIndex + 1 < normalizedLines.Count &&
+                       ShouldAppendReviewerListContinuation(
+                           line,
+                           normalizedLines[lineIndex + 1]))
+                {
+                    line =
+                        $"{line} {normalizedLines[++lineIndex]}".Trim();
+                }
+            }
+
             var properties =
                 new ParagraphProperties(
                     new SpacingBetweenLines
@@ -3240,6 +3362,161 @@ public static class VeteransReviewerPackageDocxRenderer
                                 SpaceProcessingModeValues.Preserve
                         })));
         }
+    }
+
+    private static bool TryParseReviewerField(
+        string line,
+        out string label,
+        out string value)
+    {
+        label = string.Empty;
+        value = string.Empty;
+
+        if (!IsReviewerFieldLine(line))
+            return false;
+
+        var colon = line.IndexOf(':');
+
+        label = line[..colon].Trim();
+        value = line[(colon + 1)..].Trim();
+        return label.Length > 0;
+    }
+
+    private static bool ShouldRenderReviewerField(
+        string label,
+        string value) =>
+        value.Length > 0 ||
+        label.Equals(
+            "Requesting Provider",
+            StringComparison.OrdinalIgnoreCase) ||
+        label.Equals(
+            "Requesting Physician",
+            StringComparison.OrdinalIgnoreCase) ||
+        label.Equals(
+            "Referring Provider",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool ShouldAppendReviewerFieldContinuation(
+        string currentValue,
+        string nextLine) =>
+        currentValue.Length > 0 &&
+        nextLine.Length > 0 &&
+        !IsReviewerStructuralLine(nextLine) &&
+        !EndsReviewerSentence(currentValue);
+
+    private static bool IsReviewerListLine(
+        string line) =>
+        line.StartsWith("•", StringComparison.Ordinal) ||
+        line.StartsWith("- ", StringComparison.Ordinal) ||
+        line.StartsWith("* ", StringComparison.Ordinal);
+
+    private static bool ShouldAppendReviewerListContinuation(
+        string currentLine,
+        string nextLine) =>
+        nextLine.Length > 0 &&
+        !IsReviewerStructuralLine(nextLine) &&
+        !EndsReviewerSentence(currentLine);
+
+    private static bool EndsReviewerSentence(
+        string text)
+    {
+        var value = text.TrimEnd();
+
+        if (value.Length == 0)
+            return false;
+
+        return value[^1] is '.' or '!' or '?' or ':';
+    }
+
+    private static Table ReviewerFieldTable(
+        string label,
+        string value)
+    {
+        var table =
+            new Table(
+                new TableProperties(
+                    new TableWidth
+                    {
+                        Type = TableWidthUnitValues.Pct,
+                        Width = "5000"
+                    },
+                    new TableLayout
+                    {
+                        Type = TableLayoutValues.Fixed
+                    },
+                    new TableBorders(
+                        new TopBorder { Val = BorderValues.Nil },
+                        new LeftBorder { Val = BorderValues.Nil },
+                        new BottomBorder { Val = BorderValues.Nil },
+                        new RightBorder { Val = BorderValues.Nil },
+                        new InsideHorizontalBorder { Val = BorderValues.Nil },
+                        new InsideVerticalBorder { Val = BorderValues.Nil })));
+
+        table.Append(
+            new TableGrid(
+                new GridColumn { Width = "2400" },
+                new GridColumn { Width = "6200" }));
+
+        table.Append(
+            new TableRow(
+                new TableRowProperties(
+                    new CantSplit()),
+                ReviewerFieldCell(
+                    $"{label}:",
+                    "1400",
+                    bold: true),
+                ReviewerFieldCell(
+                    value,
+                    "3600",
+                    bold: false)));
+
+        return table;
+    }
+
+    private static TableCell ReviewerFieldCell(
+        string text,
+        string width,
+        bool bold)
+    {
+        var runProperties =
+            new RunProperties(
+                new RunFonts
+                {
+                    Ascii = "Cambria",
+                    HighAnsi = "Cambria"
+                },
+                new FontSize
+                {
+                    Val = "24"
+                });
+
+        if (bold)
+            runProperties.Append(new Bold());
+
+        return new TableCell(
+            new TableCellProperties(
+                new TableCellWidth
+                {
+                    Type = TableWidthUnitValues.Pct,
+                    Width = width
+                },
+                new TableCellVerticalAlignment
+                {
+                    Val = TableVerticalAlignmentValues.Top
+                }),
+            new Paragraph(
+                new ParagraphProperties(
+                    new SpacingBetweenLines
+                    {
+                        After = "20"
+                    },
+                    new KeepLines()),
+                new Run(
+                    runProperties,
+                    new Text(SanitizeXmlText(text))
+                    {
+                        Space = SpaceProcessingModeValues.Preserve
+                    })));
     }
 
     private static string? GetTextAfterHistoricalMedicationSection(
@@ -3725,6 +4002,23 @@ public static class VeteransReviewerPackageDocxRenderer
 
         FlushParagraph();
 
+        // A blank line inside a VA label/value block is commonly an extraction
+        // artifact. Keep the fields in one compact block instead of rendering
+        // a visible gap between adjacent metadata rows.
+        for (var index = 1;
+             index < output.Count - 1;)
+        {
+            if (output[index].Length == 0 &&
+                IsReviewerFieldLine(output[index - 1]) &&
+                IsReviewerFieldLine(output[index + 1]))
+            {
+                output.RemoveAt(index);
+                continue;
+            }
+
+            index++;
+        }
+
         while (output.Count > 0 &&
                output[^1].Length == 0)
         {
@@ -3788,13 +4082,21 @@ public static class VeteransReviewerPackageDocxRenderer
             return false;
         }
 
+        var hasLetter = false;
+
         for (var index = 0;
              index < colon;
              index++)
         {
             var character = line[index];
 
-            if (char.IsLetterOrDigit(character) ||
+            if (char.IsLetter(character))
+            {
+                hasLetter = true;
+                continue;
+            }
+
+            if (char.IsDigit(character) ||
                 char.IsWhiteSpace(character) ||
                 character is '(' or ')' or '/' or '-' or '&' or '.' or '%')
             {
@@ -3804,7 +4106,9 @@ public static class VeteransReviewerPackageDocxRenderer
             return false;
         }
 
-        return true;
+        // Prevent timestamps such as "03/18/2020 09: 43" from being
+        // misread as a label/value field at the time colon.
+        return hasLetter;
     }
 
 
@@ -3818,6 +4122,7 @@ public static class VeteransReviewerPackageDocxRenderer
         bool medicalLiterature,
         string? historicalMedicationTitle,
         string? historicalMedicationOmissionMessage,
+        bool allowLargerSinglePageImage = false,
         bool includeReviewerContinuationMarkers = true)
     {
         var previousPageNumber = 0;
@@ -3929,7 +4234,10 @@ public static class VeteransReviewerPackageDocxRenderer
                     height,
                     reserveSourceHeadingSpace:
                         renderedPageCount == 0 ||
-                        reviewerPageCount > 1);
+                        reviewerPageCount > 1,
+                    allowLargerSinglePageImage:
+                        allowLargerSinglePageImage &&
+                        reviewerPageCount == 1);
 
             var drawingId =
                 checked((uint)mainPart.ImageParts.Count());
@@ -4052,16 +4360,20 @@ public static class VeteransReviewerPackageDocxRenderer
     private static (long Cx, long Cy) FitPageToDocument(
         uint width,
         uint height,
-        bool reserveSourceHeadingSpace)
+        bool reserveSourceHeadingSpace,
+        bool allowLargerSinglePageImage = false)
     {
         const long maxWidth = 5_943_600;
         const long standardMaxHeight = 7_772_400;
         const long firstSourcePageMaxHeight = 6_400_800;
+        const long largerSinglePageMaxHeight = 7_000_000;
 
         var maxHeight =
-            reserveSourceHeadingSpace
-                ? firstSourcePageMaxHeight
-                : standardMaxHeight;
+            allowLargerSinglePageImage
+                ? largerSinglePageMaxHeight
+                : reserveSourceHeadingSpace
+                    ? firstSourcePageMaxHeight
+                    : standardMaxHeight;
 
         var scale =
             Math.Min(

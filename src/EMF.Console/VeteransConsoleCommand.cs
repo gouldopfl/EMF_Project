@@ -2191,6 +2191,8 @@ public static class VeteransConsoleCommand
             requestedBasisId = details.ServiceConnectionBases.Single().Id;
         }
 
+        var evidenceSourceDetails = details;
+
         if (requestedBasisId.HasValue)
         {
             try
@@ -2225,12 +2227,19 @@ public static class VeteransConsoleCommand
             "EXTRACT",
             "Extracting reviewer evidence sources");
 
+        var evidenceSourceService =
+            new VeteransReviewerEvidenceSourceService(
+                evidenceRepository,
+                medicalLiteratureRepository,
+                textExtractor);
+
         var evidenceSources =
-            await new VeteransReviewerEvidenceSourceService(
-                    evidenceRepository,
-                    medicalLiteratureRepository,
-                    textExtractor)
-                .GetAsync(
+            requestedBasisId.HasValue
+                ? await evidenceSourceService.GetAsync(
+                    evidenceSourceDetails,
+                    classifications,
+                    requestedBasisId.Value)
+                : await evidenceSourceService.GetAsync(
                     details,
                     classifications);
 
@@ -6552,13 +6561,17 @@ public static class VeteransConsoleCommand
             suppliedContentStore ??
             contentStoreFactory();
 
+        var adjudicationDetailsService =
+            CreateAdjudicationDetailsService(fullDatabasePath);
+
         var detailsService =
             contentStore is null
                 ? new VeteransReviewerPackageDetailsService(
                     packageService,
                     evidenceRepository,
                     classifications,
-                    medicalLiterature)
+                    medicalLiterature,
+                    adjudicationDetailsService)
                 : new VeteransReviewerPackageDetailsService(
                     packageService,
                     evidenceRepository,
@@ -6569,7 +6582,8 @@ public static class VeteransConsoleCommand
                     ArtifactPrintRenderingFactory.Create(
                         evidenceRepository,
                         contentStore),
-                    medicalLiterature);
+                    medicalLiterature,
+                    adjudicationDetailsService);
 
         var medicationRepository =
             new SqliteMedicationRepository(fullDatabasePath);
