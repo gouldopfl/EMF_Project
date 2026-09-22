@@ -14,11 +14,20 @@ internal static class ArtifactPrintRenderingFactory
         ArgumentNullException.ThrowIfNull(contentStore);
 
 #pragma warning disable CA1416
+        var pageRenderer =
+            new PdfToImagePageRenderer(
+                grayscale: false);
+
         var pdfProvider =
             new PdfArtifactPrintRenderingProvider(
                 contentStore,
-                new PdfToImagePageRenderer(
-                    grayscale: false));
+                pageRenderer);
+
+        var docxProvider =
+            new DocxArtifactPrintRenderingProvider(
+                contentStore,
+                new LibreOfficeVeteransReviewerPackageDocumentConverter(),
+                pageRenderer);
 #pragma warning restore CA1416
 
         var textProvider =
@@ -37,6 +46,6 @@ internal static class ArtifactPrintRenderingFactory
         return new ArtifactPrintRendererRouter(
             repository,
             new DefaultArtifactContentTypeResolver(),
-            [pdfProvider, textProvider, imageProvider, htmlProvider]);
+            [pdfProvider, docxProvider, textProvider, imageProvider, htmlProvider]);
     }
 }
