@@ -43,5 +43,7 @@ public sealed class VeteransReviewerPackageDetails
     public VeteransReviewerMedicalOpinionRequest? MedicalOpinionRequested
     { get; init; }
 
+    public string? VeteranDisplayName { get; init; }
+
     public string? PackagePreparedBy { get; init; }
 }

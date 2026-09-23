@@ -44,11 +44,23 @@ public sealed class VeteransReviewerPackageAssemblyService
         AssembleAsync(
             packageId,
             packagePreparedBy: null,
+            veteranDisplayName: null,
+            cancellationToken);
+
+    public Task<VeteransReviewerPackageDetails?> AssembleAsync(
+        EvidencePackageId packageId,
+        string? packagePreparedBy,
+        CancellationToken cancellationToken = default) =>
+        AssembleAsync(
+            packageId,
+            packagePreparedBy,
+            veteranDisplayName: null,
             cancellationToken);
 
     public async Task<VeteransReviewerPackageDetails?> AssembleAsync(
         EvidencePackageId packageId,
         string? packagePreparedBy,
+        string? veteranDisplayName,
         CancellationToken cancellationToken = default)
     {
         var details = await _details.GetAsync(packageId, cancellationToken);
@@ -90,6 +102,10 @@ public sealed class VeteransReviewerPackageAssemblyService
             ClinicalProgressionEvents = clinicalProgressionEvents,
             CurrentMedications = currentMedications,
             MedicalOpinionRequested = medicalOpinionRequested,
+            VeteranDisplayName =
+                string.IsNullOrWhiteSpace(veteranDisplayName)
+                    ? null
+                    : veteranDisplayName.Trim(),
             PackagePreparedBy =
                 string.IsNullOrWhiteSpace(packagePreparedBy)
                     ? null

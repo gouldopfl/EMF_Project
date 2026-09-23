@@ -88,13 +88,23 @@ public static class VeteransReviewerPackageDocxRenderer
                     ConfidentialParagraph(),
                     StyledParagraph(
                         "Veterans Evidence Package for Medical Review",
-                        "Title"),
+                        "Title"));
+
+            if (!string.IsNullOrWhiteSpace(details.VeteranDisplayName))
+            {
+                body.Append(
                     StyledParagraph(
-                        $"Purpose: {package.Purpose}",
-                        "Subtitle"),
-                    StyledParagraph(
-                        $"Reviewer Role: {ReviewerRoleDisplayName(package.ReviewerRole)}",
+                        $"Veteran: {details.VeteranDisplayName}",
                         "Subtitle"));
+            }
+
+            body.Append(
+                StyledParagraph(
+                    $"Purpose: {package.Purpose}",
+                    "Subtitle"),
+                StyledParagraph(
+                    $"Reviewer Role: {ReviewerRoleDisplayName(package.ReviewerRole)}",
+                    "Subtitle"));
 
             if (!string.IsNullOrWhiteSpace(details.PackagePreparedBy))
             {

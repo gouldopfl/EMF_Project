@@ -6640,7 +6640,9 @@ public static class VeteransConsoleCommand
             await assemblyService.AssembleAsync(
                 evidencePackageId,
                 Environment.GetEnvironmentVariable(
-                    "EMF_PACKAGE_PREPARED_BY"));
+                    "EMF_PACKAGE_PREPARED_BY"),
+                Environment.GetEnvironmentVariable(
+                    "EMF_VETERAN_DISPLAY_NAME"));
 
         if (details is null)
             return 1;

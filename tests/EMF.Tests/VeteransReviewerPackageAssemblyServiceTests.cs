@@ -135,9 +135,11 @@ public sealed class VeteransReviewerPackageAssemblyServiceTests
             var result =
                 await service.AssembleAsync(
                     packageId,
-                    "Michael Gould");
+                    "Michael Gould",
+                    "Michael Allen Gould");
 
             Assert.NotNull(result);
+            Assert.Equal("Michael Allen Gould", result.VeteranDisplayName);
             Assert.Equal("Michael Gould", result.PackagePreparedBy);
             Assert.Same(packageDetails, result.PackageDetails);
             Assert.Empty(result.Artifacts);

@@ -37,6 +37,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                         Artifacts = []
                     },
                 Artifacts = [],
+                VeteranDisplayName = "Michael Allen Gould",
                 PackagePreparedBy = "Michael Gould"
             };
 
@@ -69,6 +70,10 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         Assert.Contains(
             "Medical Professional",
+            text);
+
+        Assert.Contains(
+            "Veteran: Michael Allen Gould",
             text);
 
         Assert.Contains(
