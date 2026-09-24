@@ -2496,7 +2496,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.NotNull(
             paragraphs[headingIndex - 1]
                 .ParagraphProperties?
-                .PageBreakBefore);
+                .GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.SectionProperties>());
 
         Assert.Null(
             paragraphs[headingIndex]
@@ -2716,7 +2716,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.NotNull(
             paragraphs[appendixHeadingIndex - 1]
                 .ParagraphProperties?
-                .PageBreakBefore);
+                .GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.SectionProperties>());
 
         Assert.Null(appendixHeading.ParagraphProperties?.PageBreakBefore);
         Assert.Null(evidenceHeading.ParagraphProperties?.PageBreakBefore);
@@ -2810,7 +2810,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.NotNull(
             paragraphs[secondHeadingIndex - 1]
                 .ParagraphProperties?
-                .PageBreakBefore);
+                .GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.SectionProperties>());
         Assert.Null(
             paragraphs[secondHeadingIndex]
                 .ParagraphProperties?
@@ -3487,86 +3487,21 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
     }
 
     [Fact]
-    public void Render_RepeatsTextEvidenceTitleAsTableHeader()
+    public void Render_UsesSectionHeadersForTextEvidenceContinuation()
     {
-        var details =
-            CreatePrintableDetails(
-            [
-                new PrintableArtifactPage
-                {
-                    PageNumber = 1,
-                    ContentType = "text/plain",
-                    Content =
-                        System.Text.Encoding.UTF8.GetBytes(
-                            "First reviewer text block that may flow across physical pages.\n" +
-                            "Second reviewer text block that may flow across physical pages.")
-                }
-            ],
-            "");
-
-        var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
-
-        using var stream = new MemoryStream(bytes);
-        using var document =
-            WordprocessingDocument.Open(stream, false);
-
-        var table =
-            Assert.Single(
-                document.MainDocumentPart!
-                    .Document!
-                    .Body!
-                    .Elements<
-                        DocumentFormat.OpenXml.Wordprocessing.Table>());
-
-        var rows =
-            table.Elements<
-                    DocumentFormat.OpenXml.Wordprocessing.TableRow>()
-                .ToArray();
-
-        var headerRow =
-            Assert.Single(
-                rows
-                    .Where(
-                        row =>
-                            row.TableRowProperties?
-                                .GetFirstChild<
-                                    DocumentFormat.OpenXml.Wordprocessing.TableHeader>()
-                                is not null));
-
-        Assert.Equal(
-            "Source Evidence",
-            headerRow.InnerText);
-
-        Assert.True(rows.Length >= 3);
-
-        Assert.All(
-            rows.Skip(1),
-            row =>
-            {
-                Assert.NotNull(
-                    row.TableRowProperties?
-                        .GetFirstChild<
-                            DocumentFormat.OpenXml.Wordprocessing.CantSplit>());
-
-                var cell =
-                    Assert.Single(
-                        row.Elements<
-                            DocumentFormat.OpenXml.Wordprocessing.TableCell>());
-
-                Assert.Single(
-                    cell.ChildElements.Where(
-                        element =>
-                            element is DocumentFormat.OpenXml.Wordprocessing.Paragraph or
-                                DocumentFormat.OpenXml.Wordprocessing.Table));
-            });
-
-        Assert.Contains(
-            "First reviewer text block that may flow across physical pages.",
-            table.InnerText);
-        Assert.Contains(
-            "Second reviewer text block that may flow across physical pages.",
-            table.InnerText);
+        var details = CreatePrintableDetails(
+            [new PrintableArtifactPage { PageNumber = 1, ContentType = "text/plain",
+                Content = System.Text.Encoding.UTF8.GetBytes("First reviewer text block.\nSecond reviewer text block.") }], "");
+        using var document = WordprocessingDocument.Open(
+            new MemoryStream(VeteransReviewerPackageDocxRenderer.Render(details)), false);
+        var main = document.MainDocumentPart!;
+        Assert.Contains(main.Document!.Body!.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>(),
+            paragraph => paragraph.InnerText == "Source Evidence");
+        Assert.Contains(main.HeaderParts, part => part.Header!.InnerText.Contains("Source Evidence — Continued"));
+        Assert.DoesNotContain(main.Document.Body.Descendants<DocumentFormat.OpenXml.Wordprocessing.TableHeader>(),
+            _ => true);
+        Assert.Contains("First reviewer text block.", main.Document.Body.InnerText);
+        Assert.Contains("Second reviewer text block.", main.Document.Body.InnerText);
     }
 
     private static byte[] TinyPng() =>
@@ -4421,32 +4356,12 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         using var document =
             WordprocessingDocument.Open(stream, false);
 
-        var paragraphs =
-            document.MainDocumentPart!
-                .Document!
-                .Body!
-                .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
-                .Select(paragraph => paragraph.InnerText)
-                .ToArray();
-
-        var displayName =
-            paragraphs.Single(
-                text =>
-                    text.Contains("1 of 2", StringComparison.Ordinal))
-                .Split(" — 1 of 2", StringSplitOptions.None)[0];
-
-        Assert.Contains(
-            $"{displayName} — 1 of 2",
-            paragraphs);
-
-        Assert.Contains(
-            $"{displayName} — 2 of 2 — Continued",
-            paragraphs);
-
-        Assert.DoesNotContain(
-            paragraphs,
-            text =>
-                text.Contains("3 of 3", StringComparison.Ordinal));
+        var main = document.MainDocumentPart!;
+        Assert.Contains(main.Document!.Body!.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>(),
+            paragraph => paragraph.InnerText == "Source Evidence");
+        Assert.Contains(main.HeaderParts, part => part.Header!.InnerText.Contains("Source Evidence — Continued"));
+        Assert.DoesNotContain("1 of 2", main.Document.Body.InnerText);
+        Assert.DoesNotContain("2 of 2", main.Document.Body.InnerText);
     }
 
     [Fact]
@@ -4809,7 +4724,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             Assert.NotNull(
                 paragraphs[headingIndex - 1]
                     .ParagraphProperties?
-                    .PageBreakBefore);
+                .GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.SectionProperties>());
 
             Assert.Null(
                 heading.ParagraphProperties?.PageBreakBefore);
