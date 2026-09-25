@@ -50,7 +50,7 @@ public sealed class VeteransReviewerPackageClinicalProgressionTests
     }
 
     [Fact]
-    public async Task GetAsync_MapsPagedParentSourceToContainingBoundedRecordOnly()
+    public async Task GetAsync_OmitsParentSourceThatIsNotAPackageMember()
     {
         var issueId = new ClaimIssueId("issue-osa");
         var sourceId = new ArtifactId("blue-button-internal");
@@ -77,10 +77,7 @@ public sealed class VeteransReviewerPackageClinicalProgressionTests
             await new VeteransReviewerPackageClinicalProgressionService(repository)
                 .GetAsync(details);
 
-        var item = Assert.Single(projected);
-        Assert.Equal(affectedId, item.ReviewerArtifactId);
-        Assert.DoesNotContain("1140", item.SourceLocator);
-        Assert.DoesNotContain("blue-button-internal", item.SourceLocator);
+        Assert.Empty(projected);
     }
 
     [Fact]
@@ -102,6 +99,44 @@ public sealed class VeteransReviewerPackageClinicalProgressionTests
                 .GetAsync(details);
 
         Assert.Empty(projected);
+    }
+
+    [Fact]
+    public async Task GetAsync_LaterClaimOnlyEvidenceCannotEnterExistingPackageOrRenderedOutput()
+    {
+        var issueId = new ClaimIssueId("issue-osa");
+        var includedId = new ArtifactId("included-record");
+        var included = Content(includedId);
+        var later = Content(new ArtifactId("later-claim-record"));
+        var original = Details(issueId, included);
+        // Even a caller supplying extra content cannot expand persisted membership.
+        var details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = original.PackageDetails,
+            Artifacts = [included.Artifact, later.Artifact],
+            ArtifactContents = [included, later]
+        };
+        var repository = new ClinicalProgressionRepositoryStub(
+            Event(issueId, includedId, new DateOnly(2026, 9, 25),
+                ClinicalProgressionEventTypes.DiagnosticFinding, "Bilateral pes planus"),
+            Event(issueId, later.Artifact.Id, new DateOnly(2026, 9, 26),
+                ClinicalProgressionEventTypes.TreatmentProblem, "LATER CLAIM ONLY FACT"));
+        var events = await new VeteransReviewerPackageClinicalProgressionService(repository).GetAsync(details);
+        Assert.Equal("Bilateral pes planus", Assert.Single(events).Summary);
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(new VeteransReviewerPackageDetails
+        {
+            PackageDetails = original.PackageDetails,
+            Artifacts = original.Artifacts,
+            ArtifactContents = original.ArtifactContents,
+            ClinicalProgressionEvents = events
+        });
+        using var document = WordprocessingDocument.Open(new MemoryStream(bytes), false);
+        var text = document.MainDocumentPart!.Document!.Body!.InnerText;
+        Assert.Contains("Bilateral pes planus", text);
+        Assert.DoesNotContain("flat feet", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("LATER CLAIM ONLY FACT", text);
+        Assert.DoesNotContain("Structured Clinical Progression", text);
+        Assert.Contains("not independent medical nexus opinions", text);
     }
 
     [Fact]

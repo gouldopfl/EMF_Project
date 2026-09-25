@@ -1,5 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using System.Globalization;
+using EMF.Extensions.VeteransClaims.Models.Clinical;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Intelligence.Agents;
 using EMF.Intelligence.Capabilities;
@@ -18,7 +21,7 @@ public sealed class VeteransReviewerPackageIntelligenceService :
     private const int ProviderResponseHeadroomCharacters = 2_000;
     private const int MaximumReviewerCapabilityCalls = 64;
     private const string ReviewerReuseStrategyVersion =
-        "claim-aware-projection-v2";
+        "claim-aware-projection-v6-package-scoped-progression";
 
     private readonly TextSummarizationAgent _agent;
     private readonly VeteransReviewerEvidenceProjectionService? _projection;
@@ -51,11 +54,28 @@ public sealed class VeteransReviewerPackageIntelligenceService :
         ClaimIssueAdjudicationDetails details,
         IReadOnlyList<VeteransReviewerEvidenceSource> evidenceSources,
         IReadOnlyList<VeteransReviewerEvidenceDevelopmentDetails>
-            developmentDetails)
+            developmentDetails,
+        IReadOnlyList<EvidenceRecognitionTerm> recognitionTerms) =>
+        CreateReuseKey(
+            details,
+            evidenceSources,
+            developmentDetails,
+            recognitionTerms,
+            []);
+
+    public static string CreateReuseKey(
+        ClaimIssueAdjudicationDetails details,
+        IReadOnlyList<VeteransReviewerEvidenceSource> evidenceSources,
+        IReadOnlyList<VeteransReviewerEvidenceDevelopmentDetails>
+            developmentDetails,
+        IReadOnlyList<EvidenceRecognitionTerm> recognitionTerms,
+        IReadOnlyList<ClinicalProgressionEvent> clinicalProgressionEvents)
     {
         ArgumentNullException.ThrowIfNull(details);
         ArgumentNullException.ThrowIfNull(evidenceSources);
         ArgumentNullException.ThrowIfNull(developmentDetails);
+        ArgumentNullException.ThrowIfNull(recognitionTerms);
+        ArgumentNullException.ThrowIfNull(clinicalProgressionEvents);
 
         var source =
             VeteransReviewerPackageSourceFormatter.Format(
@@ -63,16 +83,48 @@ public sealed class VeteransReviewerPackageIntelligenceService :
                 evidenceSources,
                 developmentDetails);
 
+        // Serialize semantic values before sorting: IDs and repository order do not
+        // affect output, and JSON avoids delimiter collisions in free text.
+        var recognitionTermSource = CanonicalValues(
+            recognitionTerms.Select(term => new string?[]
+            {
+                term.RequirementId.Value, term.Term, term.TermType,
+                term.RecognitionRole, term.EvidenceClassification, term.AuthoritySource
+            }));
+
+        var artifactIds = evidenceSources.Select(item => item.ArtifactId).ToHashSet();
+        var clinicalProgressionSource = CanonicalValues(
+            clinicalProgressionEvents
+                .Where(item => item.ClaimIssueId == details.ClaimIssue.Id &&
+                    artifactIds.Contains(item.SourceArtifactId))
+                .Select(item => new string?[]
+                {
+                    item.SourceArtifactId.Value,
+                    item.EventDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    item.SourceStartPage?.ToString(CultureInfo.InvariantCulture),
+                    item.SourceEndPage?.ToString(CultureInfo.InvariantCulture),
+                    item.RecordTitle.Trim(), item.EventType.Trim(), item.Summary.Trim()
+                }));
+
         var input =
             ReviewerReuseStrategyVersion +
             "\n" +
-            BuildInput(source);
+            BuildInput(source) +
+            "\nRecognition terms:\n" +
+            recognitionTermSource +
+            "\nClinical progression:\n" +
+            clinicalProgressionSource;
 
         return Convert.ToHexString(
                 SHA256.HashData(
                     Encoding.UTF8.GetBytes(input)))
             .ToLowerInvariant();
     }
+
+    private static string CanonicalValues(IEnumerable<string?[]> values) =>
+        JsonSerializer.Serialize(values
+            .Select(value => JsonSerializer.Serialize(value))
+            .OrderBy(value => value, StringComparer.Ordinal));
 
     public Task<IntelligenceAgentResult<string>>
         SummarizeAsync(
@@ -920,6 +972,11 @@ public sealed class VeteransReviewerPackageIntelligenceService :
             "When an Authoritative Evidence Inventory is supplied, use it " +
             "to determine whether evidence categories are present or absent. " +
             "Never equate an unselected excerpt with absent evidence.");
+
+        builder.AppendLine(
+            "Include material evidence that supports, contradicts, or " +
+            "contextualizes the claimed causation or aggravation pathway. " +
+            "Do not omit such evidence merely to shorten the summary.");
 
         builder.AppendLine(
             "Do not make medical, legal, or adjudicative conclusions.");

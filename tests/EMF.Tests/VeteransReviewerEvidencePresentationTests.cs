@@ -373,7 +373,7 @@ public sealed class VeteransReviewerEvidencePresentationTests
         using var document = WordprocessingDocument.Open(new MemoryStream(bytes), false);
         var paragraph = Assert.Single(document.MainDocumentPart!.Document!.Body!
             .Descendants<Paragraph>().Where(p => p.InnerText == prose));
-        Assert.Equal("Cambria", paragraph.Descendants<RunFonts>().Single().Ascii!.Value);
+        Assert.Equal("DejaVu Serif", paragraph.Descendants<RunFonts>().Single().Ascii!.Value);
     }
 
     [Fact]
@@ -441,7 +441,7 @@ public sealed class VeteransReviewerEvidencePresentationTests
         Assert.Contains("No active infection.", body.InnerText);
         Assert.Contains(body.Descendants<Paragraph>(), p => p.InnerText == "ACTIVE");
         var row = Assert.Single(body.Descendants<Paragraph>().Where(p => p.InnerText == "Temperature   37.2      C"));
-        Assert.Equal("Consolas", row.Descendants<RunFonts>().Single().Ascii!.Value);
+        Assert.Equal("DejaVu Sans Mono", row.Descendants<RunFonts>().Single().Ascii!.Value);
         Assert.Contains(body.Descendants<Paragraph>(), p => p.InnerText == "Pulse   72      /min");
         Assert.Contains("See Page 17 of 900 for the previous measurement.", body.InnerText);
         if (printablePages)

@@ -16,7 +16,7 @@ internal sealed class VeteransReviewerPrintableSourceResolver(
     IEvidenceRepository evidence, IArtifactPrintRenderer renderer)
 {
     public async Task<VeteransReviewerPrintableSource> ResolveAsync(
-        Artifact artifact, CancellationToken cancellationToken)
+        Artifact artifact, CancellationToken cancellationToken, string? excerptText = null)
     {
         // A native artifact remains authoritative in its own right. Only text
         // derivatives need their immediate parent's page-coordinate mapping.
@@ -67,6 +67,21 @@ internal sealed class VeteransReviewerPrintableSourceResolver(
                 !string.Equals(page.ContentType, "image/png", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("Native source rendering returned invalid page order, range, or format.");
             previous = page.PageNumber;
+        }
+        var startAnchor = Text(artifact, VeteransArtifactMetadataKeys.SourceStartText);
+        var endAnchor = Text(artifact, VeteransArtifactMetadataKeys.SourceEndText);
+        var blueButtonNote = Text(artifact, ArtifactMetadataKeys.SourceType) == "veterans-clinical-note" &&
+            parent.Name.Contains("Blue", StringComparison.OrdinalIgnoreCase) &&
+            parent.Name.Contains("Button", StringComparison.OrdinalIgnoreCase);
+        if (blueButtonNote || startAnchor is not null || endAnchor is not null)
+        {
+            if (startAnchor is null && endAnchor is null && !string.IsNullOrWhiteSpace(excerptText))
+                pages = VeteransReviewerNativeExcerpt.Match(pages, excerptText);
+            else if (string.IsNullOrWhiteSpace(startAnchor) || string.IsNullOrWhiteSpace(endAnchor))
+                throw new InvalidDataException(
+                    $"Reviewer evidence '{artifact.Id.Value}' requires reviewed native text boundaries; " +
+                    "a Blue Button page range alone can include adjacent records.");
+            else pages = VeteransReviewerNativeExcerpt.Restrict(pages, start, end, startAnchor, endAnchor);
         }
         return new(pages, parent.Id);
     }

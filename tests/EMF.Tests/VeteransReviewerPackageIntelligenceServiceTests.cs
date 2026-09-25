@@ -1,6 +1,7 @@
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Claims;
+using EMF.Extensions.VeteransClaims.Models.Clinical;
 using EMF.Extensions.VeteransClaims.Models.Conditions;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Orchestration;
@@ -72,6 +73,15 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
             executor.Request!.Text);
 
         Assert.Contains(
+            "Include material evidence that supports, contradicts, or " +
+            "contextualizes the claimed causation or aggravation pathway.",
+            executor.Request.Text);
+
+        Assert.Contains(
+            "Do not omit such evidence merely to shorten the summary.",
+            executor.Request.Text);
+
+        Assert.Contains(
             "Do not make medical, legal, or adjudicative conclusions.",
             executor.Request.Text);
 
@@ -127,6 +137,164 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
         };
     }
 
+
+    [Fact]
+    public void CreateReuseKey_ChangesWhenRecognitionTermsChange()
+    {
+        var details = CreateDetails();
+        var requirementId =
+            new RequirementId("requirement-reuse-recognition");
+
+        var existingTerm = new EvidenceRecognitionTerm
+        {
+            Id = new EvidenceRecognitionTermId("term-existing"),
+            RequirementId = requirementId,
+            Term = "gait",
+            TermType = "Keyword",
+            RecognitionRole = "MedicalNexus",
+            EvidenceClassification = "MedicalEvidence",
+            AuthoritySource = "reviewed-projection"
+        };
+
+        var addedTerm = new EvidenceRecognitionTerm
+        {
+            Id = new EvidenceRecognitionTermId("term-added"),
+            RequirementId = requirementId,
+            Term = "AFO",
+            TermType = "Keyword",
+            RecognitionRole = "Aggravation",
+            EvidenceClassification = "MedicalEvidence",
+            AuthoritySource = "reviewed-projection"
+        };
+
+        var before =
+            VeteransReviewerPackageIntelligenceService.CreateReuseKey(
+                details,
+                [],
+                [],
+                [existingTerm]);
+
+        var after =
+            VeteransReviewerPackageIntelligenceService.CreateReuseKey(
+                details,
+                [],
+                [],
+                [existingTerm, addedTerm]);
+
+        Assert.NotEqual(before, after);
+    }
+
+    [Fact]
+    public void CreateReuseKey_IsStableAcrossRecognitionTermOrderAndIds()
+    {
+        var details = CreateDetails();
+        var requirementId =
+            new RequirementId("requirement-reuse-stable");
+
+        EvidenceRecognitionTerm CreateTerm(
+            string id,
+            string term,
+            string role) =>
+            new()
+            {
+                Id = new EvidenceRecognitionTermId(id),
+                RequirementId = requirementId,
+                Term = term,
+                TermType = "Keyword",
+                RecognitionRole = role,
+                EvidenceClassification = "MedicalEvidence",
+                AuthoritySource = "reviewed-projection"
+            };
+
+        var first =
+            VeteransReviewerPackageIntelligenceService.CreateReuseKey(
+                details,
+                [],
+                [],
+                [
+                    CreateTerm("term-1", "gait", "MedicalNexus"),
+                    CreateTerm("term-2", "AFO", "Aggravation")
+                ]);
+
+        var second =
+            VeteransReviewerPackageIntelligenceService.CreateReuseKey(
+                details,
+                [],
+                [],
+                [
+                    CreateTerm("replacement-2", "AFO", "Aggravation"),
+                    CreateTerm("replacement-1", "gait", "MedicalNexus")
+                ]);
+
+        Assert.Equal(first, second);
+    }
+
+
+    [Fact]
+    public void CreateReuseKey_ChangesWhenClinicalProgressionChanges()
+    {
+        var details = CreateDetails();
+        var sourceId = new ArtifactId("progression-source");
+
+        ClinicalProgressionEvent CreateEvent(string summary) =>
+            new()
+            {
+                Id = new ClinicalProgressionEventId("progression-event"),
+                ClaimIssueId = details.ClaimIssue.Id,
+                SourceArtifactId = sourceId,
+                EventDate = new DateOnly(2026, 9, 25),
+                SourceStartPage = 1,
+                SourceEndPage = 2,
+                RecordTitle = "AFO-related falls",
+                EventType = ClinicalProgressionEventTypes.TreatmentProblem,
+                Summary = summary
+            };
+
+        var before =
+            VeteransReviewerPackageIntelligenceService.CreateReuseKey(
+                details, [new VeteransReviewerEvidenceSource { ArtifactId = sourceId, Classifications = [], Text = "record" }], [], [],
+                [CreateEvent("Low back pain increased after falls.")]);
+
+        var after =
+            VeteransReviewerPackageIntelligenceService.CreateReuseKey(
+                details, [new VeteransReviewerEvidenceSource { ArtifactId = sourceId, Classifications = [], Text = "record" }], [], [],
+                [CreateEvent("Low back pain increased after two AFO-related falls.")]);
+
+        Assert.NotEqual(before, after);
+    }
+
+    [Fact]
+    public void CreateReuseKey_ProgressionIgnoresIdsOrderAndOutsideEvidenceButTracksEveryFact()
+    {
+        var details = CreateDetails();
+        var sourceId = new ArtifactId("package-source");
+        var sources = new[] { new VeteransReviewerEvidenceSource
+        {
+            ArtifactId = sourceId, Classifications = [], Text = "Bilateral pes planus"
+        }};
+        ClinicalProgressionEvent Event(string id, int page, string summary = "Bilateral pes planus",
+            string? artifact = null, string? issue = null) => new()
+        {
+            Id = new ClinicalProgressionEventId(id),
+            ClaimIssueId = issue is null ? details.ClaimIssue.Id : new ClaimIssueId(issue),
+            SourceArtifactId = artifact is null ? sourceId : new ArtifactId(artifact),
+            EventDate = new DateOnly(2026, 9, 25),
+            SourceStartPage = page, SourceEndPage = page,
+            RecordTitle = "Diagnosis", EventType = ClinicalProgressionEventTypes.DiagnosticFinding,
+            Summary = summary
+        };
+        string Key(params ClinicalProgressionEvent[] events) =>
+            VeteransReviewerPackageIntelligenceService.CreateReuseKey(details, sources, [], [], events);
+
+        var original = Key(Event("one", 1), Event("two", 2));
+        Assert.Equal(original, Key(Event("new-two", 2), Event("new-one", 1)));
+        Assert.Equal(original, Key(Event("one", 1), Event("two", 2),
+            Event("later-claim-only", 3, artifact: "outside-package"),
+            Event("other-claim", 4, issue: "another-claim")));
+        Assert.NotEqual(original, Key(Event("one", 1), Event("two", 3)));
+        Assert.NotEqual(original, Key(Event("one", 1), Event("two", 2, "Changed factual observation")));
+        Assert.NotEqual(original, Key(Event("one", 1)));
+    }
 
     [Fact]
     public async Task SummarizeAsync_RejectsEmptySuccessfulOutput()

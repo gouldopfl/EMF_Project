@@ -149,7 +149,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         foreach (var row in new[] { "Temperature     37.2     C", "Pulse   72      /min", "Form [ ] Yes [X] No" })
         {
             var p = Assert.Single(paragraphs.Where(p => p.InnerText == row));
-            Assert.Equal("Consolas", p.Descendants<RunFonts>().Single().Ascii!.Value);
+            Assert.Equal("DejaVu Sans Mono", p.Descendants<RunFonts>().Single().Ascii!.Value);
             Assert.Equal("18", p.Descendants<FontSize>().Single().Val!.Value);
         }
         foreach (var line in new[] { "ACTIVE", "COMPLETED", "SIGNED", "Dose 5 mg",
@@ -203,7 +203,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         Assert.Equal(form.Split('\n'), rows.Select(p => p.InnerText));
         Assert.All(rows, p =>
         {
-            Assert.Equal("Consolas", p.Descendants<RunFonts>().Single().Ascii!.Value);
+            Assert.Equal("DejaVu Sans Mono", p.Descendants<RunFonts>().Single().Ascii!.Value);
             Assert.Equal("18", p.Descendants<FontSize>().Single().Val!.Value);
             Assert.Equal("0", p.ParagraphProperties!.GetFirstChild<SpacingBetweenLines>()!.After!.Value);
             Assert.Null(p.ParagraphProperties.GetFirstChild<KeepNext>());
@@ -214,7 +214,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         Assert.Equal("0", blank.ParagraphProperties!.GetFirstChild<SpacingBetweenLines>()!.After!.Value);
         Assert.Equal("18", blank.Descendants<FontSize>().Single().Val!.Value);
         var prose = Assert.Single(body.Elements<Paragraph>().Where(p => p.InnerText == narrative));
-        Assert.Equal("Cambria", prose.Descendants<RunFonts>().Single().Ascii!.Value);
+        Assert.Equal("DejaVu Serif", prose.Descendants<RunFonts>().Single().Ascii!.Value);
         Assert.Equal(form + "\n\n" + narrative, content.Text);
     }
 
@@ -387,7 +387,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             Assert.All(rows, p =>
             {
                 Assert.Equal("18", p.Descendants<FontSize>().Single().Val!.Value);
-                Assert.Equal("Consolas", p.Descendants<RunFonts>().Single().Ascii!.Value);
+                Assert.Equal("DejaVu Sans Mono", p.Descendants<RunFonts>().Single().Ascii!.Value);
                 Assert.Null(p.Ancestors<Table>().FirstOrDefault());
             });
         }
@@ -588,7 +588,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         using var document = Open([Evidence("Fallback publication", text, VeteransReviewerPackageAppendix.MedicalLiterature)]);
         var row = Assert.Single(document.MainDocumentPart!.Document!.Body!.Descendants<Paragraph>()
             .Where(p => p.InnerText == "Control        42       0.8"));
-        Assert.Equal("Consolas", row.Descendants<RunFonts>().Single().Ascii!.Value);
+        Assert.Equal("DejaVu Sans Mono", row.Descendants<RunFonts>().Single().Ascii!.Value);
         Assert.Contains("physical examinaiton", document.MainDocumentPart.Document.Body.InnerText);
     }
 
@@ -602,7 +602,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         using var document = Open([Evidence("XML fallback", xml, VeteransReviewerPackageAppendix.MedicalLiterature)]);
         var body = document.MainDocumentPart!.Document!.Body!;
         var row = Assert.Single(body.Descendants<Paragraph>().Where(p => p.InnerText == "Control 42 mg"));
-        Assert.Equal("Consolas", row.Descendants<RunFonts>().Single().Ascii!.Value);
+        Assert.Equal("DejaVu Sans Mono", row.Descendants<RunFonts>().Single().Ascii!.Value);
         Assert.Contains("Figure A: reported distribution.", body.InnerText);
         Assert.Contains("Literal study values", body.InnerText);
     }

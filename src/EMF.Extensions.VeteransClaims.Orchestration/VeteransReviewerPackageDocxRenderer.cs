@@ -83,6 +83,8 @@ public static class VeteransReviewerPackageDocxRenderer
                         Val = true
                     });
 
+            VeteransReviewerFonts.Embed(mainPart);
+
             var body =
                 new Body(
                     ConfidentialParagraph(),
@@ -736,8 +738,8 @@ public static class VeteransReviewerPackageDocxRenderer
                     new RunProperties(
                         new RunFonts
                         {
-                            Ascii = "Cambria",
-                            HighAnsi = "Cambria"
+                            Ascii = VeteransReviewerFonts.Body,
+                            HighAnsi = VeteransReviewerFonts.Body
                         },
                         new FontSize
                         {
@@ -1257,6 +1259,7 @@ public static class VeteransReviewerPackageDocxRenderer
                 .OrderBy(item => item.EventDate)
                 .ThenBy(item => item.SourceLocator, StringComparer.Ordinal)
                 .ThenBy(item => item.EventType, StringComparer.Ordinal)
+                .ThenBy(item => item.Summary, StringComparer.Ordinal)
                 .ToArray();
 
         if (progression.Length == 0)
@@ -1272,7 +1275,8 @@ public static class VeteransReviewerPackageDocxRenderer
                 "This source-grounded progression highlights clinically meaningful " +
                 "treatment use, problems, adjustments, diagnostic findings, transitions, " +
                 "and responses documented in the supplied records. It does not infer " +
-                "causation or resolve conflicts that are not resolved in the source record."));
+                "causation or resolve conflicts that are not resolved in the source record. " +
+                "These factual observations are not independent medical nexus opinions."));
 
         foreach (var item in progression)
         {
@@ -1950,6 +1954,11 @@ public static class VeteransReviewerPackageDocxRenderer
         VeteransReviewerArtifactContent content,
         VeteransReviewerEvidenceSections sections)
     {
+        var storedSelection = details.PackageDetails.Artifacts
+            .Single(item => item.ArtifactId == content.Artifact.Id).ReviewerPageSelection;
+        var pages = storedSelection is null ? content.PrintablePages :
+            VeteransReviewerPageSelector.Select(content.PrintablePages, storedSelection);
+
         var displayName =
             GetDisplayName(content);
 
@@ -1983,7 +1992,7 @@ public static class VeteransReviewerPackageDocxRenderer
 
         var presentation = VeteransReviewerEvidencePresentation.Create(
             content,
-            content.PrintablePages
+            pages
                 .Where(page => string.Equals(page.ContentType, "text/plain",
                     StringComparison.OrdinalIgnoreCase))
                 .Select(page => DecodePrintableText(page.Content)),
@@ -2001,17 +2010,17 @@ public static class VeteransReviewerPackageDocxRenderer
             VeteransReviewerPackageAppendix.MedicalLiterature, StringComparison.Ordinal);
         // Reviewed summaries/relevance remain in the package's literature section.
         // A publication's extracted reviewer text must never displace source pages.
-        if (content.PrintablePages.Count > 0)
+        if (pages.Count > 0)
         {
-            if (medicalLiterature && content.PrintablePages.All(page =>
+            if (medicalLiterature && pages.All(page =>
                     string.Equals(page.ContentType, "image/png", StringComparison.OrdinalIgnoreCase)))
             {
-                AppendLiteratureSourcePages(mainPart, body, content.PrintablePages, sections,
-                    content.ReviewerPageSelection is not null || content.PrintableSourceArtifactId is not null);
+                AppendLiteratureSourcePages(mainPart, body, pages, sections,
+                    storedSelection is not null || content.PrintableSourceArtifactId is not null);
                 return;
             }
-            AppendPrintablePages(mainPart, body, content.PrintablePages,
-                clarifications, content.ReviewerPageSelection is not null || content.PrintableSourceArtifactId is not null, medicalLiterature,
+            AppendPrintablePages(mainPart, body, pages,
+                clarifications, storedSelection is not null || content.PrintableSourceArtifactId is not null, medicalLiterature,
                 presentation, historicalMedicationTitle, historicalMedicationOmissionMessage,
                 allowLargerSinglePageImage:
                     content.Appendix == VeteransReviewerPackageAppendix.LayEvidence,
@@ -2731,8 +2740,8 @@ public static class VeteransReviewerPackageDocxRenderer
             new RunProperties(
                 new RunFonts
                 {
-                    Ascii = "Cambria",
-                    HighAnsi = "Cambria"
+                    Ascii = VeteransReviewerFonts.Body,
+                    HighAnsi = VeteransReviewerFonts.Body
                 });
 
         if (bold)
@@ -2764,8 +2773,8 @@ public static class VeteransReviewerPackageDocxRenderer
                 new RunProperties(
                     new RunFonts
                     {
-                        Ascii = "Cambria",
-                        HighAnsi = "Cambria"
+                        Ascii = VeteransReviewerFonts.Body,
+                        HighAnsi = VeteransReviewerFonts.Body
                     },
                     new Bold(),
                     new FontSize
@@ -2939,8 +2948,8 @@ public static class VeteransReviewerPackageDocxRenderer
             new RunProperties(
                 new RunFonts
                 {
-                    Ascii = "Cambria",
-                    HighAnsi = "Cambria"
+                    Ascii = VeteransReviewerFonts.Body,
+                    HighAnsi = VeteransReviewerFonts.Body
                 });
 
         if (string.Equals(
@@ -3034,8 +3043,8 @@ public static class VeteransReviewerPackageDocxRenderer
                 new RunProperties(
                     new RunFonts
                     {
-                        Ascii = "Cambria",
-                        HighAnsi = "Cambria"
+                        Ascii = VeteransReviewerFonts.Body,
+                        HighAnsi = VeteransReviewerFonts.Body
                     },
                     new FontSize
                     {
@@ -3209,8 +3218,8 @@ public static class VeteransReviewerPackageDocxRenderer
                         new RunProperties(
                             new RunFonts
                             {
-                                Ascii = preformatted ? "Consolas" : "Cambria",
-                                HighAnsi = preformatted ? "Consolas" : "Cambria"
+                                Ascii = preformatted ? VeteransReviewerFonts.Monospace : VeteransReviewerFonts.Body,
+                                HighAnsi = preformatted ? VeteransReviewerFonts.Monospace : VeteransReviewerFonts.Body
                             },
                             new FontSize
                             {
@@ -3352,8 +3361,8 @@ public static class VeteransReviewerPackageDocxRenderer
             new RunProperties(
                 new RunFonts
                 {
-                    Ascii = "Cambria",
-                    HighAnsi = "Cambria"
+                    Ascii = VeteransReviewerFonts.Body,
+                    HighAnsi = VeteransReviewerFonts.Body
                 },
                 new FontSize
                 {
@@ -3464,8 +3473,8 @@ public static class VeteransReviewerPackageDocxRenderer
                 new RunProperties(
                     new RunFonts
                     {
-                        Ascii = preformatted ? "Consolas" : "Cambria",
-                        HighAnsi = preformatted ? "Consolas" : "Cambria"
+                        Ascii = preformatted ? VeteransReviewerFonts.Monospace : VeteransReviewerFonts.Body,
+                        HighAnsi = preformatted ? VeteransReviewerFonts.Monospace : VeteransReviewerFonts.Body
                     },
                     new FontSize
                     {

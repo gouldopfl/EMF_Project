@@ -58,7 +58,8 @@ public sealed class VeteransReviewerPackageClinicalProgressionService
 
         var result = new List<VeteransReviewerClinicalProgressionEvent>();
 
-        foreach (var progressionEvent in persisted)
+        foreach (var progressionEvent in persisted.Where(
+                     item => underlyingArtifactIds.Contains(item.SourceArtifactId)))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -79,32 +80,6 @@ public sealed class VeteransReviewerPackageClinicalProgressionService
 
             VeteransReviewerArtifactContent? match =
                 directMatches.SingleOrDefault();
-
-            if (match is null &&
-                progressionEvent.SourceStartPage is int startPage &&
-                progressionEvent.SourceEndPage is int endPage)
-            {
-                var derivedMatches =
-                    contents
-                        .Where(
-                            content =>
-                                IsDerivedFrom(
-                                    content,
-                                    progressionEvent.SourceArtifactId) &&
-                                ContainsSourceRange(
-                                    content.Artifact,
-                                    startPage,
-                                    endPage))
-                        .ToArray();
-
-                if (derivedMatches.Length > 1)
-                {
-                    throw new InvalidOperationException(
-                        "Clinical progression event maps to multiple bounded reviewer records.");
-                }
-
-                match = derivedMatches.SingleOrDefault();
-            }
 
             if (match is null)
                 continue;
@@ -134,6 +109,7 @@ public sealed class VeteransReviewerPackageClinicalProgressionService
             .OrderBy(item => item.EventDate)
             .ThenBy(item => item.SourceLocator, StringComparer.Ordinal)
             .ThenBy(item => item.EventType, StringComparer.Ordinal)
+            .ThenBy(item => item.Summary, StringComparer.Ordinal)
             .ToArray();
     }
 
@@ -171,69 +147,4 @@ public sealed class VeteransReviewerPackageClinicalProgressionService
         }
     }
 
-    private static bool IsDerivedFrom(
-        VeteransReviewerArtifactContent content,
-        ArtifactId sourceArtifactId) =>
-        content.Relationships.Any(
-            relationship =>
-                relationship.SourceArtifactId == content.Artifact.Id &&
-                relationship.TargetArtifactId == sourceArtifactId &&
-                string.Equals(
-                    relationship.RelationshipType,
-                    RelationshipTypes.DerivedFrom,
-                    StringComparison.Ordinal));
-
-    private static bool ContainsSourceRange(
-        Artifact artifact,
-        int eventStartPage,
-        int eventEndPage)
-    {
-        if (!TryGetPositivePage(
-                artifact,
-                VeteransArtifactMetadataKeys.SourceStartPage,
-                out var sourceStartPage) ||
-            !TryGetPositivePage(
-                artifact,
-                VeteransArtifactMetadataKeys.SourceEndPage,
-                out var sourceEndPage))
-        {
-            return false;
-        }
-
-        if (sourceEndPage < sourceStartPage)
-        {
-            throw new InvalidDataException(
-                "Reviewer evidence source page range is invalid.");
-        }
-
-        return eventStartPage >= sourceStartPage &&
-               eventEndPage <= sourceEndPage;
-    }
-
-    private static bool TryGetPositivePage(
-        Artifact artifact,
-        string key,
-        out int page)
-    {
-        page = 0;
-
-        if (!artifact.Metadata.TryGetValue(key, out var value) ||
-            value is null ||
-            !int.TryParse(
-                value.ToString(),
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out page))
-        {
-            return false;
-        }
-
-        if (page <= 0)
-        {
-            throw new InvalidDataException(
-                "Reviewer evidence source page must be positive.");
-        }
-
-        return true;
-    }
 }

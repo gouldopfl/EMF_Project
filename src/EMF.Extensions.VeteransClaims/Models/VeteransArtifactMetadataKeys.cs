@@ -4,6 +4,10 @@ public static class VeteransArtifactMetadataKeys
 {
     public const string SourceStartPage = "sourceStartPage";
     public const string SourceEndPage = "sourceEndPage";
+    // Verbatim native text at the beginning/end of a reviewed excerpt. These
+    // refine page lineage when neighboring records share a source page.
+    public const string SourceStartText = "sourceStartText";
+    public const string SourceEndText = "sourceEndText";
     public const string SourceStartLine = "sourceStartLine";
     public const string SourceEndLine = "sourceEndLine";
     public const string ClaimIssueId = "claimIssueId";

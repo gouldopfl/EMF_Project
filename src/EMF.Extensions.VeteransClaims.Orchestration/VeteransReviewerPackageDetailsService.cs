@@ -169,15 +169,8 @@ public sealed class VeteransReviewerPackageDetailsService
                 details.Package,
                 cancellationToken);
 
-        if (literatureScope is not null)
-        {
-            await AddReviewedMedicalLiteratureArtifactsAsync(
-                details.Package,
-                packageArtifacts,
-                literatureScope.Value.Details,
-                literatureScope.Value.BasisIds,
-                cancellationToken);
-        }
+        // Package membership is fixed at creation. Current claim literature may
+        // classify existing members, but must never add evidence to an old package.
 
         foreach (var packageArtifact in packageArtifacts)
         {
@@ -271,7 +264,7 @@ public sealed class VeteransReviewerPackageDetailsService
                 else
                 {
                     printableSource = await new VeteransReviewerPrintableSourceResolver(_evidence, _printRenderer)
-                        .ResolveAsync(artifact, cancellationToken);
+                        .ResolveAsync(artifact, cancellationToken, text);
                     printablePages = printableSource.Pages;
                 }
 
@@ -384,18 +377,9 @@ public sealed class VeteransReviewerPackageDetailsService
                 });
         }
 
-        var reviewerPackageDetails =
-            packageArtifacts.Count == details.Artifacts.Count
-                ? details
-                : new EvidencePackageDetails
-                {
-                    Package = details.Package,
-                    Artifacts = packageArtifacts
-                };
-
         return new VeteransReviewerPackageDetails
         {
-            PackageDetails = reviewerPackageDetails,
+            PackageDetails = details,
             Artifacts = artifacts,
             ArtifactContents = artifactContents
         };
@@ -459,73 +443,6 @@ public sealed class VeteransReviewerPackageDetailsService
                 .ToHashSet();
 
         return (adjudicationDetails, basisIds);
-    }
-
-    private async Task AddReviewedMedicalLiteratureArtifactsAsync(
-        EvidencePackage package,
-        List<EvidencePackageArtifact> packageArtifacts,
-        ClaimIssueAdjudicationDetails adjudicationDetails,
-        IReadOnlySet<ServiceConnectionBasisId> literatureBasisIds,
-        CancellationToken cancellationToken)
-    {
-        if (_medicalLiterature is null)
-            return;
-
-        var existingArtifactIds =
-            packageArtifacts
-                .Select(item => item.ArtifactId)
-                .ToHashSet();
-
-        foreach (var requirement in
-                 adjudicationDetails.Requirements.Where(
-                     item =>
-                         literatureBasisIds.Contains(item.Basis.Id)))
-        {
-            IReadOnlyList<ReviewedMedicalLiteratureClassification> reviewed;
-
-            try
-            {
-                reviewed =
-                    await _medicalLiterature.GetReviewedClassificationsAsync(
-                        requirement.Basis.Id,
-                        requirement.Requirement.Id,
-                        cancellationToken);
-            }
-            catch (NotSupportedException)
-            {
-                continue;
-            }
-
-            if (reviewed.Any(
-                    item =>
-                        item.Association.ServiceConnectionBasisId !=
-                            requirement.Basis.Id ||
-                        item.Association.RequirementId !=
-                            requirement.Requirement.Id))
-            {
-                throw new InvalidOperationException(
-                    "Reviewer medical literature reviewed classification " +
-                    "requirement mismatch.");
-            }
-
-            foreach (var artifactId in
-                     reviewed
-                         .Select(item => item.ArtifactId)
-                         .Distinct())
-            {
-                if (!existingArtifactIds.Add(artifactId))
-                    continue;
-
-                packageArtifacts.Add(
-                    new EvidencePackageArtifact
-                    {
-                        EvidencePackageId = package.Id,
-                        ArtifactId = artifactId,
-                        ContentRole =
-                            EvidencePackageContentRoles.UnderlyingEvidence
-                    });
-            }
-        }
     }
 
     private async Task<string?> GetOrCreateMedicalLiteratureReviewerTextAsync(

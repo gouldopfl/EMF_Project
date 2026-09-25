@@ -110,6 +110,48 @@ public sealed class VeteransReviewerPrintableSourceResolverTests
         Assert.Empty(renderer.FullCalls);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Resolve_BlueButtonRequiresVerifiedRecordBoundaries(bool withBoundaries)
+    {
+        var (repository, original, _) = await Fixture(".pdf");
+        var metadata = new Dictionary<string, object>(original.Metadata)
+        {
+            [ArtifactMetadataKeys.SourceType] = "veterans-clinical-note"
+        };
+        if (withBoundaries)
+        {
+            metadata[VeteransArtifactMetadataKeys.SourceStartText] = "ER STAFF ASSESSMENT";
+            metadata[VeteransArtifactMetadataKeys.SourceEndText] = "Signed";
+        }
+        var child = new Artifact { Id = original.Id, Name = original.Name, ArtifactType = original.ArtifactType, Metadata = metadata };
+        // Use an independent fixture to keep the evidence repository append-only.
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(child);
+        var parent = new Artifact { Id = new("source"), Name = "VA-Blue-Button.pdf", ArtifactType = "file" };
+        await evidence.AddArtifactAsync(parent);
+        await evidence.AddRelationshipAsync(new Relationship { SourceArtifactId = child.Id,
+            TargetArtifactId = parent.Id, RelationshipType = RelationshipTypes.DerivedFrom });
+        var renderer = new RecordingRenderer { RangePages = [
+            VeteransReviewerNativeExcerptTests.Page(2, "Previous record", "ER STAFF ASSESSMENT"),
+            VeteransReviewerNativeExcerptTests.Page(3, "Bilateral pes planus"),
+            VeteransReviewerNativeExcerptTests.Page(4, "Signed", "AUDIO HEARING AID CHECK")
+        ] };
+        var resolver = new VeteransReviewerPrintableSourceResolver(evidence, renderer);
+        if (!withBoundaries)
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => resolver.ResolveAsync(child, default));
+            return;
+        }
+        var result = await resolver.ResolveAsync(child, default);
+        var text = string.Join(" ", result.Pages.SelectMany(p => p.TextGeometry!.Glyphs).Select(g => g.Text));
+        Assert.Contains("Bilateral pes planus", text);
+        Assert.DoesNotContain("Previous record", text);
+        Assert.DoesNotContain("AUDIO HEARING AID CHECK", text);
+        Assert.Equal(parent.Id, result.SourceArtifactId);
+    }
+
     private static async Task<(InMemoryEvidenceRepository Repository, Artifact Child, Artifact Parent)> Fixture(
         string extension, string? start = "2", string? end = "4")
     {

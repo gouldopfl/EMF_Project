@@ -1113,9 +1113,11 @@ file sealed class RecordingPrintRenderer(
 public sealed partial class VeteransReviewerPackageDetailsServiceTests
 {
     [Theory]
-    [InlineData("basis-1", true)]
-    [InlineData("basis-other", false)]
-    public async Task GetAsync_AssignsMedicalLiteratureAppendix(string reviewBasis, bool included)
+    [InlineData("basis-1", true, true)]
+    [InlineData("basis-other", false, true)]
+    [InlineData("basis-1", false, false)]
+    public async Task GetAsync_AssignsMedicalLiteratureAppendixOnlyToStoredPackageMembers(
+        string reviewBasis, bool included, bool packageMember)
     {
         var packageId = new EvidencePackageId("package-literature");
         var artifact = new Artifact
@@ -1214,19 +1216,46 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
             ]
         };
 
-        var service = new VeteransReviewerPackageDetailsService(
-            new RecordingPackageService
+        var packageDetails = packageMember
+            ? CreateDetails(packageId, artifact.Id)
+            : CreateDetails(packageId);
+        var basis = new EMF.Extensions.VeteransClaims.Models.Service.ServiceConnectionBasis
+        {
+            Id = new("basis-1"), ClaimIssueId = packageDetails.Package.ClaimIssueId,
+            ServiceConnectionTheoryId = new("theory-1")
+        };
+        var claimDetails = new ClaimIssueAdjudicationDetails
+        {
+            ClaimIssue = new EMF.Extensions.VeteransClaims.Models.Claims.ClaimIssue
             {
-                Details = CreateDetails(packageId, artifact.Id)
+                Id = basis.ClaimIssueId, ClaimId = new("claim-1"),
+                ClaimIssueType = "ServiceConnection"
             },
-            evidence,
-            classifications,
-            new RecordingTextExtractor("literature text"),
-            literature);
+            ClaimedConditions = [], ServiceConnectionTheories = [],
+            ServiceConnectionBases = [basis], ServiceConnectedConditions = [],
+            ServiceEvents = [], Timeline = [], Evidence = null!,
+            Requirements = [new ServiceConnectionBasisRequirementDetails
+            {
+                Basis = basis,
+                Requirement = new EMF.Extensions.VeteransClaims.Regulatory.Requirement
+                {
+                    Id = new("requirement-lit"), RegulatoryProvisionId = new("provision-1"),
+                    Description = "Medical evidence"
+                },
+                RegulatoryProvision = null!, Responsiveness = null!, DevelopmentChecklist = null!
+            }]
+        };
+        var service = new VeteransReviewerPackageDetailsService(
+            new RecordingPackageService { Details = packageDetails },
+            evidence, classifications, new RecordingTextExtractor("literature text"),
+            literature,
+            Proxy<IClaimIssueAdjudicationDetailsService>((_, _) =>
+                Task.FromResult<ClaimIssueAdjudicationDetails?>(claimDetails)));
 
         var result = await service.GetAsync(packageId);
 
         Assert.NotNull(result);
+        Assert.Same(packageDetails, result.PackageDetails);
         if (!included)
         {
             Assert.Empty(result.ArtifactContents);

@@ -224,6 +224,33 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 10 &&
+            args[0] == "evidence" &&
+            args[1] == "recognition" &&
+            args[2] == "add")
+        {
+            var recognitionDatabasePath =
+                Path.GetFullPath(args[3]);
+
+            if (!File.Exists(recognitionDatabasePath))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Veterans Claims database not found: {recognitionDatabasePath}");
+
+                return 2;
+            }
+
+            return await RunAddEvidenceRecognitionTermAsync(
+                recognitionDatabasePath,
+                new RequirementId(args[4]),
+                args[5],
+                args[6],
+                args[7],
+                args[8] == "-" ? null : args[8],
+                args[9],
+                global::System.Console.Out);
+        }
+
         if ((args.Length == 5 || args.Length == 6) &&
             args[0] == "evidence" &&
             args[1] == "recognition" &&
@@ -2272,12 +2299,51 @@ public static class VeteransConsoleCommand
             return 1;
         }
 
+        var recognitionTermRepository =
+            new SqliteEvidenceRecognitionTermRepository(
+                databasePath);
+
+        await recognitionTermRepository.InitializeAsync();
+
+        var reviewerRequirementIds =
+            details.Requirements
+                .Select(item => item.Requirement.Id)
+                .Distinct()
+                .OrderBy(id => id.Value, StringComparer.Ordinal)
+                .ToArray();
+
+        var reviewerRecognitionTerms =
+            new List<EvidenceRecognitionTerm>();
+
+        foreach (var requirementId in reviewerRequirementIds)
+        {
+            reviewerRecognitionTerms.AddRange(
+                await recognitionTermRepository
+                    .GetEvidenceRecognitionTermsAsync(
+                        requirementId));
+        }
+
+        var clinicalProgressionRepository =
+            new SqliteClinicalProgressionRepository(databasePath);
+
+        await clinicalProgressionRepository.InitializeAsync();
+
+        var sourceArtifactIdSet =
+            sourceArtifactIds.ToHashSet();
+
+        var reviewerClinicalProgression =
+            (await clinicalProgressionRepository.GetAsync(claimIssueId))
+                .Where(item => sourceArtifactIdSet.Contains(item.SourceArtifactId))
+                .ToArray();
+
         var reviewerReuseKey =
             VeteransReviewerPackageIntelligenceService
                 .CreateReuseKey(
                     details,
                     evidenceSources,
-                    developmentDetails);
+                    developmentDetails,
+                    reviewerRecognitionTerms,
+                    reviewerClinicalProgression);
 
         var packageRepository =
             new SqliteEvidencePackageRepository(
@@ -2450,12 +2516,6 @@ public static class VeteransConsoleCommand
 
         var runtime =
             await runtimeFactory();
-
-        var recognitionTermRepository =
-            new SqliteEvidenceRecognitionTermRepository(
-                databasePath);
-
-        await recognitionTermRepository.InitializeAsync();
 
         var intelligence =
             VeteransEvidenceOrchestrationFactory
@@ -5534,6 +5594,72 @@ public static class VeteransConsoleCommand
 
 
     internal static async Task<int>
+        RunAddEvidenceRecognitionTermAsync(
+            string databasePath,
+            RequirementId requirementId,
+            string term,
+            string termType,
+            string recognitionRole,
+            string? evidenceClassification,
+            string authoritySource,
+            TextWriter output)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        ArgumentNullException.ThrowIfNull(output);
+
+        var regulatory =
+            new SqliteRegulatoryRepository(databasePath);
+        await regulatory.InitializeAsync();
+
+        var recognition =
+            new SqliteEvidenceRecognitionTermRepository(databasePath);
+        await recognition.InitializeAsync();
+
+        var service =
+            new EvidenceRecognitionTermService(
+                regulatory,
+                recognition);
+
+        EvidenceRecognitionTerm result;
+
+        try
+        {
+            result =
+                await service.AddAsync(
+                    requirementId,
+                    term,
+                    termType,
+                    recognitionRole,
+                    evidenceClassification,
+                    authoritySource);
+        }
+        catch (ArgumentException ex)
+        {
+            output.WriteLine(
+                ConsoleTextSanitizer.Sanitize(ex.Message));
+            return 1;
+        }
+        catch (InvalidOperationException ex)
+        {
+            output.WriteLine(
+                ConsoleTextSanitizer.Sanitize(ex.Message));
+            return 1;
+        }
+
+        output.WriteLine($"Recognition Term ID  : {result.Id.Value}");
+        output.WriteLine($"Requirement ID       : {result.RequirementId.Value}");
+        output.WriteLine($"Term                 : {result.Term}");
+        output.WriteLine($"Term Type            : {result.TermType}");
+        output.WriteLine($"Recognition Role     : {result.RecognitionRole}");
+        output.WriteLine(
+            $"Evidence Classification: {result.EvidenceClassification ?? "-"}");
+        output.WriteLine($"Authority Source     : {result.AuthoritySource}");
+
+        return 0;
+    }
+
+
+    internal static async Task<int>
         RunAddRegulatoryRequirementAsync(
             string databasePath,
             ServiceConnectionBasisId basisId,
@@ -7198,6 +7324,13 @@ public static class VeteransConsoleCommand
             "       emf veterans evidence guidance " +
             "<database-path> <requirement-id> <classification> " +
             "<role> <description>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence recognition add " +
+            "<database-path> <requirement-id> <term> " +
+            "<Keyword|Phrase|Acronym|Synonym> " +
+            "<recognition-role> <evidence-classification|-> " +
+            "<authority-source>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence literature source " +

@@ -118,7 +118,7 @@ internal sealed class VeteransReviewerEvidenceSections
     private static Paragraph HeaderParagraph(string text, string size, string? color = null)
     {
         var properties = new RunProperties(
-            new RunFonts { Ascii = "Cambria", HighAnsi = "Cambria" }, new Bold());
+            new RunFonts { Ascii = VeteransReviewerFonts.Body, HighAnsi = VeteransReviewerFonts.Body }, new Bold());
         if (color is not null)
             properties.Append(new Color { Val = color });
         properties.Append(new FontSize { Val = size });
@@ -129,6 +129,6 @@ internal sealed class VeteransReviewerEvidenceSections
     }
 
     private static Run SmallRun(string text) => new(
-        new RunProperties(new RunFonts { Ascii = "Cambria", HighAnsi = "Cambria" }, new FontSize { Val = "16" }),
+        new RunProperties(new RunFonts { Ascii = VeteransReviewerFonts.Body, HighAnsi = VeteransReviewerFonts.Body }, new FontSize { Val = "16" }),
         new Text(text) { Space = DocumentFormat.OpenXml.SpaceProcessingModeValues.Preserve });
 }

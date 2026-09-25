@@ -3221,6 +3221,80 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
 public sealed partial class VeteransReviewerPackageDocxRendererTests
 {
+    [Fact]
+    public void Render_StoredSelectionCannotBeExpandedBySuppliedPrintableContent()
+    {
+        var details = CreatePrintableDetails([
+            new PrintableArtifactPage { PageNumber = 1, ContentType = "text/plain",
+                Content = System.Text.Encoding.UTF8.GetBytes("AUDIO HEARING AID CHECK") },
+            new PrintableArtifactPage { PageNumber = 2, ContentType = "text/plain",
+                Content = System.Text.Encoding.UTF8.GetBytes("Bilateral pes planus and low back pain") },
+            new PrintableArtifactPage { PageNumber = 3, ContentType = "text/plain",
+                Content = System.Text.Encoding.UTF8.GetBytes("PRIMARY CARE SECURE MESSAGING about sleep studies") }
+        ], "Unselected extracted content", reviewerPageSelection: "2");
+        var content = details.ArtifactContents.Single();
+        details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = details.PackageDetails, Artifacts = details.Artifacts,
+            ArtifactContents = [new VeteransReviewerArtifactContent
+            {
+                Artifact = content.Artifact, Text = content.Text, PrintablePages = content.PrintablePages,
+                ReviewerPageSelection = "1-3" // stale/expanded caller view must not override persisted selection
+            }]
+        };
+        using var document = WordprocessingDocument.Open(
+            new MemoryStream(VeteransReviewerPackageDocxRenderer.Render(details)), false);
+        var text = document.MainDocumentPart!.Document!.InnerText;
+        Assert.Contains("Bilateral pes planus and low back pain", text);
+        Assert.DoesNotContain("AUDIO HEARING AID CHECK", text);
+        Assert.DoesNotContain("sleep studies", text);
+        Assert.Single(details.PackageDetails.Artifacts);
+    }
+
+    [Fact]
+    public void Render_RejectsMissingPersistedSelectedPages()
+    {
+        var details = CreatePrintableDetails([
+            new PrintableArtifactPage { PageNumber = 2, ContentType = "text/plain",
+                Content = System.Text.Encoding.UTF8.GetBytes("ER assessment") }
+        ], "", reviewerPageSelection: "2,3");
+        Assert.Throws<InvalidDataException>(() => VeteransReviewerPackageDocxRenderer.Render(details));
+    }
+
+    [Fact]
+    public void Render_EmbedsTheDeclaredOpenFontsForWordAndPdf()
+    {
+        var details = CreatePrintableDetails([
+            new PrintableArtifactPage { PageNumber = 1, ContentType = "text/plain",
+                Content = System.Text.Encoding.UTF8.GetBytes("Reviewer evidence") }
+        ], "");
+        using var document = WordprocessingDocument.Open(
+            new MemoryStream(VeteransReviewerPackageDocxRenderer.Render(details)), false);
+        var main = document.MainDocumentPart!;
+        var fonts = main.FontTablePart!.Fonts!;
+        Assert.Equal(new[] { "DejaVu Serif", "DejaVu Sans Mono" },
+            fonts.Elements<DocumentFormat.OpenXml.Wordprocessing.Font>().Select(f => f.Name!.Value));
+        Assert.Equal(4, main.FontTablePart.FontParts.Count());
+        foreach (var font in fonts.Elements<DocumentFormat.OpenXml.Wordprocessing.Font>())
+        {
+            Assert.NotNull(font.EmbedRegularFont);
+            Assert.NotNull(font.EmbedBoldFont);
+            var embed = font.EmbedRegularFont!;
+            using var stream = main.FontTablePart.GetPartById(embed.Id!).GetStream();
+            using var buffer = new MemoryStream(); stream.CopyTo(buffer);
+            var bytes = buffer.ToArray();
+            var key = Convert.FromHexString(embed.FontKey!.Value!.Replace("{", "").Replace("}", "").Replace("-", "")).Reverse().ToArray();
+            for (var i = 0; i < 32; i++) bytes[i] ^= key[i % 16];
+            var file = font.Name == "DejaVu Serif" ? "DejaVuSerif" : "DejaVuSansMono";
+            using var original = typeof(VeteransReviewerPackageDocxRenderer).Assembly.GetManifestResourceStream(
+                $"EMF.Extensions.VeteransClaims.Orchestration.Fonts.{file}.ttf")!;
+            using var expected = new MemoryStream(); original.CopyTo(expected);
+            Assert.Equal(expected.ToArray(), bytes);
+        }
+        Assert.DoesNotContain("Cambria", main.Document!.OuterXml);
+        Assert.DoesNotContain("Consolas", main.Document.OuterXml);
+    }
+
     private static VeteransReviewerPackageDetails CreatePrintableDetails(
         IReadOnlyList<PrintableArtifactPage> pages,
         string text,
@@ -4306,7 +4380,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 }
             ],
             "",
-            "11,13-17");
+            "11,13");
 
         var bytes =
             VeteransReviewerPackageDocxRenderer.Render(details);
