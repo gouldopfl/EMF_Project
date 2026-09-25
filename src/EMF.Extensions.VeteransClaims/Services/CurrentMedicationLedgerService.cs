@@ -17,7 +17,8 @@ public sealed class CurrentMedicationLedgerService
 
     public async Task<CurrentMedicationLedgerSnapshot?> GetAsync(
         VeteranId veteranId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlySet<EMF.Core.Models.Identities.ArtifactId>? sourceArtifactIds = null)
     {
         var ledgers =
             await _repository.GetMedicationLedgersAsync(
@@ -33,7 +34,8 @@ public sealed class CurrentMedicationLedgerService
 
         var complete =
             ledgers
-                .Where(ledger => ledger.IsComplete)
+                .Where(ledger => ledger.IsComplete &&
+                    (sourceArtifactIds is null || sourceArtifactIds.Contains(ledger.SourceArtifactId)))
                 .ToArray();
 
         if (complete.Length == 0)

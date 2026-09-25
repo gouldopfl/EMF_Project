@@ -6,6 +6,31 @@ namespace EMF.Tests;
 public sealed class VeteransClaimsSqliteMigrationTests
 {
     [Fact]
+    public async Task MigrateAsync_RejectsLedgerHoleWithoutReplayingDataMigration()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var migrator = new VeteransClaimsSqliteMigrator(path,
+            [
+                new(1, "Seed", "CREATE TABLE Marker(Value TEXT); INSERT INTO Marker VALUES ('original');"),
+                new(2, "Advance", "UPDATE Marker SET Value = 'advanced';")
+            ]);
+            await migrator.MigrateAsync();
+            await using var connection = new SqliteConnection($"Data Source={path}");
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM VeteransClaims_SchemaMigrations WHERE Version = 1;";
+            await command.ExecuteNonQueryAsync();
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => migrator.MigrateAsync());
+            Assert.Contains("incomplete or noncontiguous", error.Message);
+            command.CommandText = "SELECT Value FROM Marker;";
+            Assert.Equal("advanced", await command.ExecuteScalarAsync());
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task InitializeAsync_RecordsCurrentMigrationsOnce()
     {
         var databasePath =

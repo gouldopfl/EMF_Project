@@ -1,7 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using System.Globalization;
 using EMF.Extensions.VeteransClaims.Models.Clinical;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Intelligence.Agents;
@@ -21,7 +19,7 @@ public sealed class VeteransReviewerPackageIntelligenceService :
     private const int ProviderResponseHeadroomCharacters = 2_000;
     private const int MaximumReviewerCapabilityCalls = 64;
     private const string ReviewerReuseStrategyVersion =
-        "claim-aware-projection-v6-package-scoped-progression";
+        "claim-aware-projection-v7-semantic-input";
 
     private readonly TextSummarizationAgent _agent;
     private readonly VeteransReviewerEvidenceProjectionService? _projection;
@@ -77,54 +75,18 @@ public sealed class VeteransReviewerPackageIntelligenceService :
         ArgumentNullException.ThrowIfNull(recognitionTerms);
         ArgumentNullException.ThrowIfNull(clinicalProgressionEvents);
 
-        var source =
-            VeteransReviewerPackageSourceFormatter.Format(
-                details,
-                evidenceSources,
-                developmentDetails);
-
-        // Serialize semantic values before sorting: IDs and repository order do not
-        // affect output, and JSON avoids delimiter collisions in free text.
-        var recognitionTermSource = CanonicalValues(
-            recognitionTerms.Select(term => new string?[]
-            {
-                term.RequirementId.Value, term.Term, term.TermType,
-                term.RecognitionRole, term.EvidenceClassification, term.AuthoritySource
-            }));
-
-        var artifactIds = evidenceSources.Select(item => item.ArtifactId).ToHashSet();
-        var clinicalProgressionSource = CanonicalValues(
-            clinicalProgressionEvents
-                .Where(item => item.ClaimIssueId == details.ClaimIssue.Id &&
-                    artifactIds.Contains(item.SourceArtifactId))
-                .Select(item => new string?[]
-                {
-                    item.SourceArtifactId.Value,
-                    item.EventDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    item.SourceStartPage?.ToString(CultureInfo.InvariantCulture),
-                    item.SourceEndPage?.ToString(CultureInfo.InvariantCulture),
-                    item.RecordTitle.Trim(), item.EventType.Trim(), item.Summary.Trim()
-                }));
-
-        var input =
-            ReviewerReuseStrategyVersion +
-            "\n" +
-            BuildInput(source) +
-            "\nRecognition terms:\n" +
-            recognitionTermSource +
-            "\nClinical progression:\n" +
-            clinicalProgressionSource;
+        // Retain the formatter's source-lineage validation, but do not hash
+        // presentation text: it contains storage IDs and repository ordering.
+        _ = VeteransReviewerPackageSourceFormatter.Format(details, evidenceSources, developmentDetails);
+        var input = ReviewerReuseStrategyVersion + "\n" + BuildInput(string.Empty) + "\n" +
+            VeteransReviewerReuseInput.Serialize(details, evidenceSources,
+                developmentDetails, recognitionTerms, clinicalProgressionEvents);
 
         return Convert.ToHexString(
                 SHA256.HashData(
                     Encoding.UTF8.GetBytes(input)))
             .ToLowerInvariant();
     }
-
-    private static string CanonicalValues(IEnumerable<string?[]> values) =>
-        JsonSerializer.Serialize(values
-            .Select(value => JsonSerializer.Serialize(value))
-            .OrderBy(value => value, StringComparer.Ordinal));
 
     public Task<IntelligenceAgentResult<string>>
         SummarizeAsync(

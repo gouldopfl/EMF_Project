@@ -66,10 +66,12 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
 
     public async Task<IReadOnlyList<VeteransReviewerMedicationProgression>>
         GetAsync(
-            EvidencePackage package,
+            VeteransReviewerPackageDetails details,
             CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(details);
+        var package = details.PackageDetails.Package;
+        var scope = new VeteransReviewerPackageEvidenceScope(details);
 
         if (package.ServiceConnectionBasisId is null)
             return [];
@@ -163,7 +165,7 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
             (await _medications.GetMedicationLedgersAsync(
                 claim.VeteranId,
                 cancellationToken))
-            .Where(ledger => ledger.IsComplete)
+            .Where(ledger => ledger.IsComplete && scope.ArtifactIds.Contains(ledger.SourceArtifactId))
             .ToArray();
 
         if (completeLedgers.Length == 0)
@@ -187,7 +189,8 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
 
             var sourceEvidence = _sourceEvidence is null ? null :
                 await _sourceEvidence.GetAsync(ledger, entries, cancellationToken);
-            snapshots.AddRange(entries.Where(entry => MedicationLedgerSource.IsVaPrescription(entry,
+            snapshots.AddRange(entries.Where(entry => scope.Contains(ledger.SourceArtifactId,
+                entry.SourceStartPage, entry.SourceEndPage) && MedicationLedgerSource.IsVaPrescription(entry,
                 sourceEvidence?.GetValueOrDefault(entry.Id))).Select(entry => (ledger, entry)));
         }
 
@@ -197,10 +200,27 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
                     snapshot => MedicationSnapshotKey(snapshot.Entry),
                     StringComparer.OrdinalIgnoreCase)
                 .Select(group =>
-                    group
-                        .OrderByDescending(snapshot => snapshot.Ledger.ReportDate)
-                        .ThenByDescending(snapshot => snapshot.Entry.EntryOrdinal)
-                        .First())
+                {
+                    var ordered = group.OrderByDescending(snapshot => snapshot.Ledger.ReportDate)
+                        .ThenByDescending(snapshot => snapshot.Entry.EntryOrdinal).ToArray();
+                    var first = ordered[0];
+                    var tied = ordered.Where(snapshot => snapshot.Ledger.ReportDate == first.Ledger.ReportDate &&
+                        snapshot.Entry.EntryOrdinal == first.Entry.EntryOrdinal);
+                    // Equal ranking cannot silently choose between contradictory source facts.
+                    // Storage identities are deliberately excluded from semantic equality.
+                    if (tied.Select(snapshot => new
+                        {
+                            snapshot.Entry.SourceStartPage, snapshot.Entry.SourceEndPage,
+                            snapshot.Entry.MedicationName, snapshot.Entry.Strength, snapshot.Entry.Status,
+                            snapshot.Entry.PrescriptionNumber, snapshot.Entry.PrescribedDate,
+                            snapshot.Entry.LastFilledDate, snapshot.Entry.LastFilledOnText,
+                            snapshot.Entry.ExpirationDate, snapshot.Entry.RefillsLeft,
+                            snapshot.Entry.Directions, snapshot.Entry.Indication, snapshot.Entry.Prescriber,
+                            snapshot.Entry.Facility, snapshot.Entry.Quantity
+                        }).Distinct().Skip(1).Any())
+                        throw new InvalidDataException("Conflicting equally ranked reviewer medication snapshots.");
+                    return first;
+                })
                 .ToArray();
 
         var result =

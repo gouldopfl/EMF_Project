@@ -71,14 +71,14 @@ public sealed class VeteransReviewerPackageAssemblyService
         var package = details.PackageDetails.Package;
 
         var currentMedications =
-            await _currentMedications.GetAsync(package, cancellationToken);
+            await _currentMedications.GetAsync(details, cancellationToken);
 
         var medicationProgressions =
-            await _medicationProgressions.GetAsync(package, cancellationToken);
+            await _medicationProgressions.GetAsync(details, cancellationToken);
 
         var medicationClinicalContexts =
             await _medicationClinicalContexts.GetAsync(
-                package,
+                details,
                 medicationProgressions,
                 cancellationToken);
 

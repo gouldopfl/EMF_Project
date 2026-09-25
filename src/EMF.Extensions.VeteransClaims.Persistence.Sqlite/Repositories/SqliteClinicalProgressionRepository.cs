@@ -1,3 +1,4 @@
+using System.Globalization;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Clinical;
@@ -56,7 +57,7 @@ public sealed class SqliteClinicalProgressionRepository :
         command.Parameters.AddWithValue(
             "$sourceArtifactId", progressionEvent.SourceArtifactId.Value);
         command.Parameters.AddWithValue(
-            "$eventDate", progressionEvent.EventDate.ToString("yyyy-MM-dd"));
+            "$eventDate", progressionEvent.EventDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         command.Parameters.AddWithValue(
             "$sourceStartPage",
             (object?)progressionEvent.SourceStartPage ?? DBNull.Value);
@@ -88,7 +89,9 @@ public sealed class SqliteClinicalProgressionRepository :
                    EventType, Summary
             FROM VeteransClaims_ClinicalProgressionEvents
             WHERE ClaimIssueId = $claimIssueId
-            ORDER BY EventDate, COALESCE(SourceStartPage, 0), Id;
+            ORDER BY EventDate, COALESCE(SourceStartPage, 0),
+                     COALESCE(SourceEndPage, 0), RecordTitle COLLATE BINARY,
+                     EventType COLLATE BINARY, Summary COLLATE BINARY;
             """;
 
         command.Parameters.AddWithValue("$claimIssueId", claimIssueId.Value);
@@ -99,13 +102,12 @@ public sealed class SqliteClinicalProgressionRepository :
 
         while (await reader.ReadAsync(cancellationToken))
         {
-            result.Add(
-                new ClinicalProgressionEvent
+            var item = new ClinicalProgressionEvent
                 {
                     Id = new ClinicalProgressionEventId(reader.GetString(0)),
                     ClaimIssueId = new ClaimIssueId(reader.GetString(1)),
                     SourceArtifactId = new ArtifactId(reader.GetString(2)),
-                    EventDate = DateOnly.Parse(reader.GetString(3)),
+                    EventDate = DateOnly.ParseExact(reader.GetString(3), "yyyy-MM-dd", CultureInfo.InvariantCulture),
                     SourceStartPage =
                         reader.IsDBNull(4) ? null : reader.GetInt32(4),
                     SourceEndPage =
@@ -113,7 +115,9 @@ public sealed class SqliteClinicalProgressionRepository :
                     RecordTitle = reader.GetString(6),
                     EventType = reader.GetString(7),
                     Summary = reader.GetString(8)
-                });
+                };
+            Validate(item);
+            result.Add(item);
         }
 
         return result;

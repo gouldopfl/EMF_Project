@@ -120,9 +120,11 @@ internal sealed class VeteransClaimsSqliteMigrator
         IReadOnlyDictionary<int, string>>
         GetAppliedMigrationsAsync(
             SqliteConnection connection,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            SqliteTransaction? transaction = null)
     {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText =
             """
             SELECT Version, Name
@@ -155,6 +157,15 @@ internal sealed class VeteransClaimsSqliteMigrator
             _migrations.ToDictionary(
                 migration => migration.Version);
 
+        // A valid ledger is a prefix of the supported history. Filling a hole
+        // can replay destructive data migrations against a newer schema.
+        if (!appliedMigrations.Keys.OrderBy(version => version)
+                .SequenceEqual(Enumerable.Range(1, appliedMigrations.Count)))
+        {
+            throw new InvalidOperationException(
+                "The database migration ledger is incomplete or noncontiguous.");
+        }
+
         foreach (var appliedMigration in appliedMigrations)
         {
             if (!supportedVersions.TryGetValue(
@@ -180,7 +191,7 @@ internal sealed class VeteransClaimsSqliteMigrator
         }
     }
 
-    private static async Task ApplyMigrationAsync(
+    private async Task ApplyMigrationAsync(
         SqliteConnection connection,
         VeteransClaimsSqliteMigration migration,
         CancellationToken cancellationToken)
@@ -188,6 +199,16 @@ internal sealed class VeteransClaimsSqliteMigrator
         await using var transaction = (SqliteTransaction)
             await connection.BeginTransactionAsync(
                 cancellationToken);
+
+        // Read again under the write transaction: another initializer may have
+        // advanced the ledger after our initial compatibility check.
+        var applied = await GetAppliedMigrationsAsync(connection, cancellationToken, transaction);
+        ValidateCompatibility(applied);
+        if (applied.ContainsKey(migration.Version))
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return;
+        }
 
         await using var migrationCommand =
             connection.CreateCommand();

@@ -428,6 +428,45 @@ Raw OSCAR session records are intentionally omitted from this physician report.
                 .PageBreakBefore);
     }
 
+    [Theory]
+    [InlineData(2, 2, true)]
+    [InlineData(1, 1, false)]
+    [InlineData(null, null, false)]
+    public async Task GetAsync_RespectsStoredSourcePageSelection(int? start, int? end, bool included)
+    {
+        var issue = new ClaimIssueId("issue");
+        var id = new ArtifactId("member");
+        var original = Details(issue, Content(id, startPage: 1, endPage: 4));
+        var details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = new EvidencePackageDetails
+            {
+                Package = original.PackageDetails.Package,
+                Artifacts = [new EvidencePackageArtifact
+                {
+                    EvidencePackageId = original.PackageDetails.Package.Id, ArtifactId = id,
+                    ContentRole = EvidencePackageContentRoles.UnderlyingEvidence, ReviewerPageSelection = "2"
+                }]
+            },
+            Artifacts = original.Artifacts,
+            ArtifactContents = [new VeteransReviewerArtifactContent
+            {
+                Artifact = original.Artifacts.Single(), Text = "Synthetic evidence", PrintablePages =
+                [new PrintableArtifactPage { PageNumber = 2, ContentType = "image/png", Content = new byte[] { 1 } }]
+            }]
+        };
+        var service = new VeteransReviewerPackageClinicalProgressionService(new ClinicalProgressionRepositoryStub(
+            Event(issue, id, new DateOnly(2026, 1, 1), ClinicalProgressionEventTypes.TreatmentResponse,
+                "Factual observation", start, end)));
+        if (start is null)
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => service.GetAsync(details));
+            return;
+        }
+        var events = await service.GetAsync(details);
+        Assert.Equal(included ? 1 : 0, events.Count);
+    }
+
     private static ClinicalProgressionEvent Event(
         ClaimIssueId issueId,
         ArtifactId sourceArtifactId,

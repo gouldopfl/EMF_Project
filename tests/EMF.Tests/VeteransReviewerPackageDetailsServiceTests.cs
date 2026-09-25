@@ -85,6 +85,30 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
         Assert.False(content.IsExtractedTextFallback);
     }
 
+    [Theory]
+    [InlineData("package")]
+    [InlineData("row")]
+    [InlineData("duplicate")]
+    [InlineData("role")]
+    public async Task GetAsync_RejectsInconsistentPersistedMembershipBeforeContentLookup(string defect)
+    {
+        var id = new EvidencePackageId("expected");
+        var artifact = new ArtifactId("missing-content-must-not-be-looked-up");
+        var original = CreateDetails(defect == "package" ? new("wrong") : id, artifact);
+        var row = new EvidencePackageArtifact
+        {
+            EvidencePackageId = defect == "row" ? new("wrong") : id,
+            ArtifactId = artifact,
+            ContentRole = defect == "role" ? "invalid" : EvidencePackageContentRoles.UnderlyingEvidence
+        };
+        var service = new VeteransReviewerPackageDetailsService(new RecordingPackageService
+        {
+            Details = new EvidencePackageDetails { Package = original.Package,
+                Artifacts = defect == "duplicate" ? [row, row] : [row] }
+        }, new InMemoryEvidenceRepository());
+        await Assert.ThrowsAsync<InvalidDataException>(() => service.GetAsync(id));
+    }
+
     [Fact]
     public async Task GetAsync_MissingPackageReturnsNull()
     {
@@ -1252,6 +1276,12 @@ public sealed partial class VeteransReviewerPackageDetailsServiceTests
             Proxy<IClaimIssueAdjudicationDetailsService>((_, _) =>
                 Task.FromResult<ClaimIssueAdjudicationDetails?>(claimDetails)));
 
+        if (packageMember && !included)
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => service.GetAsync(packageId));
+            Assert.Single(packageDetails.Artifacts);
+            return;
+        }
         var result = await service.GetAsync(packageId);
 
         Assert.NotNull(result);

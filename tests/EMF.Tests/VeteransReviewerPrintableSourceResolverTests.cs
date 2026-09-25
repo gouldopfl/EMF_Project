@@ -33,6 +33,7 @@ public sealed class VeteransReviewerPrintableSourceResolverTests
     [InlineData("0", "4")]
     [InlineData("4", "2")]
     [InlineData("bad", "4")]
+    [InlineData(null, null)]
     public async Task Resolve_RejectsInvalidMappingRatherThanFallingBack(string? start, string? end)
     {
         var (repository, child, _) = await Fixture(".pdf", start, end);
@@ -44,8 +45,7 @@ public sealed class VeteransReviewerPrintableSourceResolverTests
     }
 
     [Theory]
-    [InlineData(".txt", "2", "4")]
-    [InlineData(".pdf", null, null)]
+    [InlineData(".txt", null, null)]
     public async Task Resolve_MarksExtractedFallbackWhenNoBoundedNativeRepresentationExists(
         string extension, string? start, string? end)
     {
@@ -89,6 +89,9 @@ public sealed class VeteransReviewerPrintableSourceResolverTests
     [InlineData("2,5", "image/png")]
     [InlineData("3,2", "image/png")]
     [InlineData("2,2", "image/png")]
+    [InlineData("2,4", "image/png")]
+    [InlineData("3,4", "image/png")]
+    [InlineData("2,3", "image/png")]
     [InlineData("2,3,4", "text/plain")]
     public async Task Resolve_RejectsInvalidNativePagesWithoutRenderingExtraction(string numbers, string contentType)
     {
@@ -129,7 +132,8 @@ public sealed class VeteransReviewerPrintableSourceResolverTests
         // Use an independent fixture to keep the evidence repository append-only.
         var evidence = new InMemoryEvidenceRepository();
         await evidence.AddArtifactAsync(child);
-        var parent = new Artifact { Id = new("source"), Name = "VA-Blue-Button.pdf", ArtifactType = "file" };
+        // Renaming a Blue Button source must not disable its boundary enforcement.
+        var parent = new Artifact { Id = new("source"), Name = "renamed-source.pdf", ArtifactType = "file" };
         await evidence.AddArtifactAsync(parent);
         await evidence.AddRelationshipAsync(new Relationship { SourceArtifactId = child.Id,
             TargetArtifactId = parent.Id, RelationshipType = RelationshipTypes.DerivedFrom });
@@ -150,6 +154,50 @@ public sealed class VeteransReviewerPrintableSourceResolverTests
         Assert.DoesNotContain("Previous record", text);
         Assert.DoesNotContain("AUDIO HEARING AID CHECK", text);
         Assert.Equal(parent.Id, result.SourceArtifactId);
+    }
+
+    [Fact]
+    public async Task Resolve_RejectsDeclaredBoundariesWithoutParent()
+    {
+        var (_, child, _) = await Fixture(".pdf");
+        var repository = new InMemoryEvidenceRepository();
+        await repository.AddArtifactAsync(child);
+        var renderer = new RecordingRenderer();
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new VeteransReviewerPrintableSourceResolver(repository, renderer).ResolveAsync(child, default));
+        Assert.Empty(renderer.FullCalls);
+    }
+
+    [Fact]
+    public async Task Resolve_RejectsDeclaredNativeRangeOnUnsupportedParent()
+    {
+        var (repository, child, _) = await Fixture(".txt");
+        var renderer = new RecordingRenderer();
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new VeteransReviewerPrintableSourceResolver(repository, renderer).ResolveAsync(child, default));
+        Assert.Empty(renderer.FullCalls);
+    }
+
+    [Theory]
+    [InlineData(".pdf")]
+    [InlineData(".docx")]
+    [InlineData(".bin")]
+    public async Task Resolve_RejectsContradictoryBoundedFormatBeforeRendering(string extension)
+    {
+        var (_, original, _) = await Fixture(".pdf");
+        var child = new Artifact
+        {
+            Id = original.Id, Name = "renamed" + extension, ArtifactType = "derived-text",
+            Metadata = new Dictionary<string, object>(original.Metadata)
+            { [ArtifactMetadataKeys.FileExtension] = extension }
+        };
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(child);
+        var renderer = new RecordingRenderer();
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new VeteransReviewerPrintableSourceResolver(evidence, renderer).ResolveAsync(child, default));
+        Assert.Empty(renderer.FullCalls);
+        Assert.Empty(renderer.Ranges);
     }
 
     private static async Task<(InMemoryEvidenceRepository Repository, Artifact Child, Artifact Parent)> Fixture(

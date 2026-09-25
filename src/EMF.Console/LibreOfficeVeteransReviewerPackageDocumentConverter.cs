@@ -64,7 +64,10 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
                 Path.GetTempPath(),
                 $"emf-reviewer-pdf-{Guid.NewGuid():N}");
 
-        Directory.CreateDirectory(workingDirectory);
+        if (OperatingSystem.IsWindows())
+            Directory.CreateDirectory(workingDirectory);
+        else
+            Directory.CreateDirectory(workingDirectory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 
         var profileDirectory =
             Path.Combine(
@@ -159,22 +162,21 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
                 throw;
             }
 
-            var stdout = await stdoutTask;
-            var stderr = await stderrTask;
+            // Drain subprocess output without exposing document text or paths in diagnostics.
+            await stdoutTask;
+            await stderrTask;
 
             if (process.ExitCode != 0)
             {
                 throw new InvalidOperationException(
                     "LibreOffice PDF conversion failed with exit code " +
-                    $"{process.ExitCode}. " +
-                    BuildDiagnostic(stdout, stderr));
+                    $"{process.ExitCode}.");
             }
 
             if (!File.Exists(outputPath))
             {
                 throw new InvalidOperationException(
-                    "LibreOffice PDF conversion completed without producing a PDF. " +
-                    BuildDiagnostic(stdout, stderr));
+                    "LibreOffice PDF conversion completed without producing a PDF.");
             }
 
             var outputInfo = new FileInfo(outputPath);
@@ -239,21 +241,6 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
         }
 
         return result.ToString().Trim();
-    }
-
-    private static string BuildDiagnostic(
-        string stdout,
-        string stderr)
-    {
-        var diagnostic =
-            string.Join(
-                " ",
-                new[] { stdout, stderr }
-                    .Where(value => !string.IsNullOrWhiteSpace(value)));
-
-        return string.IsNullOrWhiteSpace(diagnostic)
-            ? "No converter diagnostics were returned."
-            : diagnostic;
     }
 
     private static void ValidatePdfSignature(byte[] pdf)

@@ -7,6 +7,62 @@ namespace EMF.Tests;
 
 public sealed class AzureMonitorSecurityAlertSinkTests
 {
+    [Fact]
+    public async Task WriteAsync_AllowsOnlyValidatedOperationalFacts()
+    {
+        var client = new RecordingLogsClient();
+        var sink = new AzureMonitorSecurityAlertSink(new AzureMonitorAlertOptions
+        {
+            Endpoint = "https://example.eastus-1.ingest.monitor.azure.com",
+            RuleId = "rule", StreamName = "stream"
+        }, client);
+        await sink.WriteAsync(new SecurityAlert
+        {
+            AlertId = "synthetic-alert", AlertType = "test",
+            Operation = "artifact.access", Severity = SecurityAlertSeverity.High,
+            ObservedUtc = DateTimeOffset.UtcNow, WindowStartedUtc = DateTimeOffset.UtcNow,
+            EventCount = 1,
+            Facts = new Dictionary<string, string>
+            {
+                ["patientName"] = "synthetic private patient",
+                ["clinicalNotes"] = "synthetic private diagnosis",
+                ["outcome"] = "Denied synthetic private diagnosis",
+                ["threshold"] = "3",
+                ["chainHeadHash"] = new string('A', 64)
+            }
+        });
+        using var doc = JsonDocument.Parse(client.Data!.ToStream());
+        var facts = doc.RootElement.GetProperty("Facts");
+        Assert.Equal(2, facts.EnumerateObject().Count());
+        Assert.Equal("3", facts.GetProperty("threshold").GetString());
+        Assert.Equal(new string('A', 64), facts.GetProperty("chainHeadHash").GetString());
+        Assert.DoesNotContain("synthetic private", client.Data.ToString());
+    }
+
+    [Theory]
+    [InlineData("threshold", "-1")]
+    [InlineData("threshold", "3 private detail")]
+    [InlineData("chainHeadHash", "private detail")]
+    [InlineData("outcome", "999")]
+    public async Task WriteAsync_RejectsMalformedOperationalFacts(string key, string value)
+    {
+        var client = new RecordingLogsClient();
+        var sink = new AzureMonitorSecurityAlertSink(new AzureMonitorAlertOptions
+        {
+            Endpoint = "https://example.eastus-1.ingest.monitor.azure.com",
+            RuleId = "rule", StreamName = "stream"
+        }, client);
+        await sink.WriteAsync(new SecurityAlert
+        {
+            AlertId = "synthetic-alert", AlertType = "test",
+            Operation = "artifact.access", Severity = SecurityAlertSeverity.High,
+            ObservedUtc = DateTimeOffset.UtcNow, WindowStartedUtc = DateTimeOffset.UtcNow,
+            EventCount = 1, Facts = new Dictionary<string, string> { [key] = value }
+        });
+        using var doc = JsonDocument.Parse(client.Data!.ToStream());
+        Assert.Empty(doc.RootElement.GetProperty("Facts").EnumerateObject());
+    }
+
     [Theory]
     [InlineData("-----BEGIN EC PRIVATE KEY-----")]
     [InlineData("-----BEGIN ENCRYPTED PRIVATE KEY-----")]

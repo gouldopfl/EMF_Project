@@ -64,8 +64,8 @@ public static class VeteransReviewerPageSelector
                 throw new InvalidDataException(
                     "Reviewer page range exceeds the available source page count.");
 
-            for (var page = start; page <= end; page++)
-                Add(page);
+            for (long page = start; page <= end; page++)
+                Add((int)page);
         }
 
         var selected = new List<PrintableArtifactPage>();

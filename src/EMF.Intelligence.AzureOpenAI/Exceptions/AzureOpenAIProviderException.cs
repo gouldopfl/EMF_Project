@@ -8,7 +8,9 @@ public sealed class AzureOpenAIProviderException :
         string message,
         int? statusCode = null,
         Exception? innerException = null)
-        : base(message, innerException)
+        : base(message)
+        // SDK exceptions can contain response bodies, prompts, and credentials.
+        // Only the normalized failure kind and HTTP status may cross this boundary.
     {
         FailureKind = failureKind;
         StatusCode = statusCode;

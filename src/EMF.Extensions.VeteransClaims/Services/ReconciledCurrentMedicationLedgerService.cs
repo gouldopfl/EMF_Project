@@ -55,12 +55,14 @@ public sealed class ReconciledCurrentMedicationLedgerService
 
     public async Task<CurrentMedicationLedgerSnapshot?> GetVerifiedAsync(
         VeteranId veteranId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlySet<EMF.Core.Models.Identities.ArtifactId>? sourceArtifactIds = null)
     {
         var snapshot =
             await _currentMedications.GetAsync(
                 veteranId,
-                cancellationToken);
+                cancellationToken,
+                sourceArtifactIds);
 
         if (snapshot is null)
             return null;

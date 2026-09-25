@@ -5,6 +5,46 @@ namespace EMF.Tests;
 public sealed class IntelligenceAgentStateSqliteTests
 {
     [Fact]
+    public async Task SaveAsync_RejectsResurrectionOfMissingState()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var store = new SqliteIntelligenceAgentStateStore(path);
+            await store.InitializeAsync();
+            var state = new EMF.Intelligence.State.IntelligenceAgentState
+            {
+                AgentId = new("missing-agent"), StateId = "missing-state",
+                Version = 1, Revision = 7, Payload = "{}", UpdatedUtc = DateTimeOffset.UtcNow
+            };
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveAsync(state));
+            Assert.Null(await store.GetAsync(state.AgentId, state.StateId));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task InitializeAsync_RejectsHoleInMigrationLedger()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var store = new SqliteIntelligenceAgentStateStore(path);
+            await store.InitializeAsync();
+            await using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path}");
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM IntelligenceAgentState_SchemaMigrations WHERE Version = 1;";
+            await command.ExecuteNonQueryAsync();
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
+            Assert.Contains("incomplete or noncontiguous", error.Message);
+            command.CommandText = "SELECT COUNT(*) FROM IntelligenceAgentState_SchemaMigrations;";
+            Assert.Equal(1L, await command.ExecuteScalarAsync());
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task InitializeAsync_IsIdempotent()
     {
         var databasePath = Path.GetTempFileName();
@@ -89,7 +129,7 @@ public sealed class IntelligenceAgentStateSqliteTests
                 AgentId = new("state-agent"),
                 StateId = "session-stale",
                 Version = 1,
-                Revision = 1,
+                Revision = 0,
                 Payload = "{}",
                 UpdatedUtc = DateTimeOffset.UtcNow
             };
@@ -109,7 +149,7 @@ public sealed class IntelligenceAgentStateSqliteTests
             await store.SaveAsync(updated);
 
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => store.SaveAsync(state));
+                () => store.SaveAsync(updated));
         }
         finally
         {

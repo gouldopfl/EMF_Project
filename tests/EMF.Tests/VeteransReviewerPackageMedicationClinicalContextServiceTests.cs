@@ -1,3 +1,4 @@
+using EMF.Tests.TestInfrastructure;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
@@ -131,14 +132,14 @@ public sealed class VeteransReviewerPackageMedicationClinicalContextServiceTests
                     "Isosorbide context must not leak into the mental-health basis."));
 
             var package =
-                new EvidencePackage
+                ReviewerPackageTestScope.Create(new EvidencePackage
                 {
                     Id = new EvidencePackageId("package-1"),
                     ClaimIssueId = issueId,
                     Purpose = "Medical review",
                     ReviewerRole = "MedicalProfessional",
                     ServiceConnectionBasisId = basisId
-                };
+                }, "blue-button");
 
             var progressions =
                 await new VeteransReviewerPackageMedicationProgressionService(

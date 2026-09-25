@@ -1,5 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using EMF.Security.Encryption.Envelope;
+using EMF.Security.Encryption.Envelope.Models;
 using EMF.Core.Models.Identities;
 using EMF.Persistence.Storage;
 using EMF.Security.Encryption.Envelope.Services;
@@ -11,6 +14,66 @@ namespace EMF.Tests;
 
 public sealed class EncryptedArtifactContentStoreTests
 {
+
+    [Fact]
+    public async Task ReadAsync_RejectsValidButUnboundEnvelope()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        try
+        {
+            var encryption = new DevelopmentEnvelopeEncryptionService(
+                new InMemoryEncryptionKeyProvider(new[]
+                {
+                    new EncryptionKey { KeyId = "test-key", KeyMaterial = new byte[32] }
+                }));
+            var envelope = await encryption.EncryptAsync(Encoding.UTF8.GetBytes("synthetic protected content"));
+            var inner = new FileSystemArtifactContentStore(root);
+            var id = new ArtifactId("wrong-artifact");
+            await inner.WriteAsync(id, JsonSerializer.SerializeToUtf8Bytes(envelope));
+
+            var store = new EncryptedArtifactContentStore(inner, encryption);
+            await Assert.ThrowsAsync<CryptographicException>(() => store.ReadAsync(id));
+            // Explicit legacy migration can still decrypt through the generic API.
+            Assert.Equal("synthetic protected content", Encoding.UTF8.GetString(await encryption.DecryptAsync(envelope)));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task WriteAsync_RejectsProviderThatIgnoresIdentityContext()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        try
+        {
+            var store = new EncryptedArtifactContentStore(
+                new FileSystemArtifactContentStore(root), new UnboundProvider());
+            await Assert.ThrowsAsync<CryptographicException>(() => store.WriteAsync(
+                new ArtifactId("artifact"), Encoding.UTF8.GetBytes("synthetic protected content")));
+            Assert.False(Directory.Exists(root));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    private sealed class UnboundProvider : IEnvelopeEncryptionService
+    {
+        public Task<EncryptedEnvelope> EncryptWithContextAsync(ReadOnlyMemory<byte> plaintext,
+            ReadOnlyMemory<byte> authenticatedContext, CancellationToken cancellationToken = default)
+            => Task.FromResult(new EncryptedEnvelope
+            {
+                FormatVersion = EncryptedEnvelopeFormat.CurrentVersion,
+                Algorithm = EncryptedEnvelopeFormat.Aes256GcmAlgorithm,
+                Ciphertext = Array.Empty<byte>(), Nonce = new byte[12],
+                AuthenticationTag = new byte[16], WrappedDataEncryptionKey = new byte[32],
+                KeyEncryptionKeyId = "test-key"
+            });
+        public Task<EncryptedEnvelope> EncryptAsync(ReadOnlyMemory<byte> plaintext,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<byte[]> DecryptAsync(EncryptedEnvelope envelope,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<byte[]> DecryptWithContextAsync(EncryptedEnvelope envelope,
+            ReadOnlyMemory<byte> authenticatedContext, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+    }
 
     [Fact]
     public async Task DeleteAsync_RemovesEncryptedContent()

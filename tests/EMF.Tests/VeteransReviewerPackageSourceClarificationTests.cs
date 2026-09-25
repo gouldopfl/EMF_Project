@@ -13,8 +13,10 @@ namespace EMF.Tests;
 
 public sealed class VeteransReviewerPackageSourceClarificationTests
 {
-    [Fact]
-    public async Task GetAsync_AttachesClarificationToContainingDerivedRecordOnly()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetAsync_RequiresDirectPackageSourceForClarification(bool directMember)
     {
         var sourceId = new ArtifactId("blue-button");
         var affectedId = new ArtifactId("sleep-note");
@@ -35,7 +37,7 @@ public sealed class VeteransReviewerPackageSourceClarificationTests
                 {
                     Id = new SourceClarificationId("clarification-1"),
                     ClaimIssueId = issueId,
-                    SourceArtifactId = sourceId,
+                    SourceArtifactId = directMember ? affectedId : sourceId,
                     EvidenceDate = new DateOnly(2024, 1, 25),
                     SourceStartPage = 2010,
                     SourceEndPage = 2010,
@@ -56,6 +58,11 @@ public sealed class VeteransReviewerPackageSourceClarificationTests
             await new VeteransReviewerPackageSourceClarificationService(repository)
                 .GetAsync(details);
 
+        if (!directMember)
+        {
+            Assert.Empty(projected);
+            return;
+        }
         var clarification = Assert.Single(projected);
 
         Assert.Equal(affectedId, clarification.ReviewerArtifactId);

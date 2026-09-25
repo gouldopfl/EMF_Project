@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using EMF.Core.Contracts.Storage;
@@ -46,6 +47,8 @@ public sealed class EncryptedArtifactContentStore :
                 GetContext(artifactId),
                 cancellationToken);
 
+        ValidateArtifactEnvelope(envelope);
+
         var serialized =
             JsonSerializer.SerializeToUtf8Bytes(envelope);
 
@@ -93,12 +96,25 @@ public sealed class EncryptedArtifactContentStore :
             throw new InvalidOperationException(
                 "Encrypted artifact envelope is invalid.");
 
-        EncryptedEnvelopeFormat.Validate(envelope);
+        ValidateArtifactEnvelope(envelope);
 
         return await _encryption.DecryptWithContextAsync(
             envelope,
             GetContext(artifactId),
             cancellationToken);
+    }
+
+    private static void ValidateArtifactEnvelope(EncryptedEnvelope envelope)
+    {
+        EncryptedEnvelopeFormat.Validate(envelope);
+
+        // Generic decryption supports legacy migration, but an artifact read
+        // must never accept ciphertext without authenticated artifact identity.
+        if (envelope.FormatVersion != EncryptedEnvelopeFormat.ContextBoundVersion)
+        {
+            throw new CryptographicException(
+                "Artifact content requires an identity-bound encrypted envelope.");
+        }
     }
 
     private static byte[] GetContext(

@@ -1,3 +1,4 @@
+using EMF.Tests.TestInfrastructure;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Claims;
@@ -236,6 +237,52 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
         {
             File.Delete(path);
         }
+    }
+
+    [Theory]
+    [InlineData("indication", false)]
+    [InlineData("indication", true)]
+    [InlineData("sourcePage", false)]
+    [InlineData("sourcePage", true)]
+    [InlineData("facility", false)]
+    [InlineData("facility", true)]
+    [InlineData("date", false)]
+    [InlineData("date", true)]
+    [InlineData("identical", false)]
+    [InlineData("identical", true)]
+    public async Task GetAsync_TiedSnapshotsRejectConflictingFactsRegardlessOfInsertionOrder(
+        string difference, bool reverse)
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var seeded = await SeedAsync(path);
+            await AddRelevantAsync(new SqliteServiceConnectionRepository(path), seeded.BasisId, "Examplemed");
+            var ids = reverse ? new[] { "ledger-current", "ledger-history" } : new[] { "ledger-history", "ledger-current" };
+            foreach (var id in ids)
+            {
+                var changed = id == "ledger-current";
+                await AddLedgerAsync(path, seeded.VeteranId, id, new DateOnly(2026, 9, 9),
+                    [Entry(1, "Examplemed", "10MG", "active",
+                        changed && difference == "date" ? new(2026, 2, 1) : new(2026, 1, 1),
+                        ledgerId: id,
+                        indication: changed && difference == "indication" ? "different indication" : "indication",
+                        sourcePage: changed && difference == "sourcePage" ? 3912 : 3911,
+                        facility: changed && difference == "facility" ? "Other VA Clinic" : "Example VA Clinic")]);
+            }
+            if (difference == "identical")
+            {
+                var progression = Assert.Single(await CreateService(path).GetAsync(Package(seeded.IssueId, seeded.BasisId)));
+                var entry = Assert.Single(progression.Entries);
+                Assert.Equal("indication", entry.Indication);
+                Assert.Equal("Example VA Clinic — VA medication report dated September 9, 2026 — source pages 3911–3911; prescription RX-1.", progression.EntrySources[entry.Id]);
+            }
+            else
+            {
+                await Assert.ThrowsAsync<InvalidDataException>(() => CreateService(path).GetAsync(Package(seeded.IssueId, seeded.BasisId)));
+            }
+        }
+        finally { File.Delete(path); }
     }
 
     [Fact]
@@ -479,17 +526,17 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
             new SqliteServiceConnectionRepository(path),
             new SqliteMedicationRepository(path));
 
-    private static EvidencePackage Package(
+    private static VeteransReviewerPackageDetails Package(
         ClaimIssueId issueId,
         ServiceConnectionBasisId? basisId) =>
-        new()
+        ReviewerPackageTestScope.Create(new EvidencePackage()
         {
             Id = new EvidencePackageId("package-1"),
             ClaimIssueId = issueId,
             Purpose = "Medical review",
             ReviewerRole = "MedicalProfessional",
             ServiceConnectionBasisId = basisId
-        };
+        }, "blue-button-ledger-1", "blue-button-ledger-history", "blue-button-ledger-current");
 
     private static async Task AddRelevantAsync(
         SqliteServiceConnectionRepository connections,
@@ -510,7 +557,10 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
         DateOnly prescribed,
         string directions = "TAKE ONE TABLET ORALLY EVERY DAY",
         string ledgerId = "ledger-1",
-        string? prescriptionNumber = null) =>
+        string? prescriptionNumber = null,
+        string? indication = null,
+        int? sourcePage = null,
+        string facility = "Example VA Clinic") =>
         new()
         {
             Id = new MedicationLedgerEntryId(
@@ -519,15 +569,16 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
                     : $"{ledgerId}-entry-{ordinal}"),
             MedicationLedgerId = new MedicationLedgerId(ledgerId),
             EntryOrdinal = ordinal,
-            SourceStartPage = 3910 + ordinal,
-            SourceEndPage = 3910 + ordinal,
+            SourceStartPage = sourcePage ?? 3910 + ordinal,
+            SourceEndPage = sourcePage ?? 3910 + ordinal,
             MedicationName = name,
             Strength = strength,
             Status = status,
             PrescriptionNumber = prescriptionNumber ?? $"RX-{ordinal}",
             PrescribedDate = prescribed,
             Directions = directions,
-            Facility = "Example VA Clinic"
+            Indication = indication,
+            Facility = facility
         };
 
     private static async Task AddLedgerAsync(

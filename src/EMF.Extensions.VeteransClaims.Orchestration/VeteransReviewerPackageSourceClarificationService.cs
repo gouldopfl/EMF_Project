@@ -61,49 +61,12 @@ public sealed class VeteransReviewerPackageSourceClarificationService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var derivedMatches =
-                contents
-                    .Where(
-                        content =>
-                            IsDerivedFrom(
-                                content,
-                                clarification.SourceArtifactId) &&
-                            ContainsSourceRange(
-                                content.Artifact,
-                                clarification.SourceStartPage,
-                                clarification.SourceEndPage))
-                    .ToArray();
-
-            if (derivedMatches.Length > 1)
-            {
-                throw new InvalidOperationException(
-                    "Source clarification maps to multiple bounded reviewer records.");
-            }
-
-            VeteransReviewerArtifactContent? match =
-                derivedMatches.SingleOrDefault();
-
-            if (match is null)
-            {
-                var directMatches =
-                    contents
-                        .Where(
-                            content =>
-                                content.Artifact.Id ==
-                                clarification.SourceArtifactId)
-                        .ToArray();
-
-                if (directMatches.Length > 1)
-                {
-                    throw new InvalidOperationException(
-                        "Source clarification maps to multiple reviewer records.");
-                }
-
-                match = directMatches.SingleOrDefault();
-            }
-
-            if (match is null)
+            var scope = new VeteransReviewerPackageEvidenceScope(details);
+            if (!scope.Contains(clarification.SourceArtifactId,
+                    clarification.SourceStartPage, clarification.SourceEndPage))
                 continue;
+            var match = contents.SingleOrDefault(content => content.Artifact.Id == clarification.SourceArtifactId)
+                ?? throw new InvalidDataException("Reviewer clarification member content is missing.");
 
             var sourceName =
                 VeteransReviewerDisplayNameResolver.Resolve(
@@ -131,68 +94,10 @@ public sealed class VeteransReviewerPackageSourceClarificationService
         return result
             .OrderBy(item => item.SourceLocator, StringComparer.Ordinal)
             .ThenBy(item => item.OriginalText, StringComparer.Ordinal)
+            .ThenBy(item => item.Clarification, StringComparer.Ordinal)
+            .ThenBy(item => item.ReviewerMatchText, StringComparer.Ordinal)
+            .ThenBy(item => item.ReviewerReplacementText, StringComparer.Ordinal)
             .ToArray();
     }
 
-    private static bool IsDerivedFrom(
-        VeteransReviewerArtifactContent content,
-        ArtifactId sourceArtifactId) =>
-        content.Relationships.Any(
-            relationship =>
-                relationship.SourceArtifactId == content.Artifact.Id &&
-                relationship.TargetArtifactId == sourceArtifactId &&
-                string.Equals(
-                    relationship.RelationshipType,
-                    RelationshipTypes.DerivedFrom,
-                    StringComparison.Ordinal));
-
-    private static bool ContainsSourceRange(
-        Artifact artifact,
-        int clarificationStartPage,
-        int clarificationEndPage)
-    {
-        if (!TryGetPositivePage(
-                artifact,
-                VeteransArtifactMetadataKeys.SourceStartPage,
-                out var sourceStartPage) ||
-            !TryGetPositivePage(
-                artifact,
-                VeteransArtifactMetadataKeys.SourceEndPage,
-                out var sourceEndPage))
-        {
-            return false;
-        }
-
-        if (sourceEndPage < sourceStartPage)
-            throw new InvalidDataException(
-                "Reviewer evidence source page range is invalid.");
-
-        return clarificationStartPage >= sourceStartPage &&
-               clarificationEndPage <= sourceEndPage;
-    }
-
-    private static bool TryGetPositivePage(
-        Artifact artifact,
-        string key,
-        out int page)
-    {
-        page = 0;
-
-        if (!artifact.Metadata.TryGetValue(key, out var value) ||
-            value is null ||
-            !int.TryParse(
-                value.ToString(),
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out page))
-        {
-            return false;
-        }
-
-        if (page <= 0)
-            throw new InvalidDataException(
-                "Reviewer evidence source page must be positive.");
-
-        return true;
-    }
 }

@@ -45,7 +45,12 @@ public sealed class FileSystemArtifactContentStore :
                 "Artifact content exceeds the maximum stored size.");
         }
 
-        Directory.CreateDirectory(_rootPath);
+        RejectSymbolicLinks(_rootPath);
+        if (OperatingSystem.IsWindows())
+            Directory.CreateDirectory(_rootPath);
+        else
+            Directory.CreateDirectory(_rootPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 
         var path = GetPath(artifactId);
         var temporaryPath =
@@ -56,12 +61,7 @@ public sealed class FileSystemArtifactContentStore :
             await using (var stream =
                 new FileStream(
                     temporaryPath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None,
-                    81920,
-                    FileOptions.Asynchronous |
-                    FileOptions.SequentialScan))
+                    CreatePrivateWriteOptions()))
             {
                 await stream.WriteAsync(
                     content,
@@ -168,6 +168,37 @@ public sealed class FileSystemArtifactContentStore :
                 "Artifact ID resolves outside the content store root.");
         }
 
+        RejectSymbolicLinks(path);
         return path;
+    }
+
+    private static FileStreamOptions CreatePrivateWriteOptions()
+    {
+        var options = new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+            BufferSize = 81920,
+            Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+        };
+        if (!OperatingSystem.IsWindows())
+            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        return options;
+    }
+
+    private static void RejectSymbolicLinks(string path)
+    {
+        // Lexical containment alone does not prevent an existing link from
+        // redirecting a read outside the content root. The root and its ancestors
+        // are part of the trusted deployment boundary as well.
+        for (var current = path; current is not null;
+             current = Path.GetDirectoryName(current))
+        {
+            var info = new FileInfo(current);
+            if (info.LinkTarget is not null ||
+                (info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0))
+                throw new IOException("Artifact content paths cannot contain symbolic links.");
+        }
     }
 }

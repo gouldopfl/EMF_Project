@@ -29,10 +29,12 @@ public sealed class VeteransReviewerPackageCurrentMedicationService
     }
 
     public async Task<IReadOnlyList<MedicationLedgerEntry>> GetAsync(
-        EvidencePackage package,
+        VeteransReviewerPackageDetails details,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(details);
+        var package = details.PackageDetails.Package;
+        var scope = new VeteransReviewerPackageEvidenceScope(details);
 
         var issue =
             await _issues.GetClaimIssueAsync(
@@ -59,12 +61,14 @@ public sealed class VeteransReviewerPackageCurrentMedicationService
         var snapshot =
             await _currentMedications.GetVerifiedAsync(
                 claim.VeteranId,
-                cancellationToken);
+                cancellationToken,
+                scope.ArtifactIds);
 
         if (snapshot is null) return [];
         var sourceEvidence = _sourceEvidence is null ? null :
             await _sourceEvidence.GetAsync(snapshot.Ledger, snapshot.Entries, cancellationToken);
-        return snapshot.Entries.Where(entry => MedicationLedgerSource.IsVaPrescription(entry,
+        return snapshot.Entries.Where(entry => scope.Contains(snapshot.Ledger.SourceArtifactId,
+            entry.SourceStartPage, entry.SourceEndPage) && MedicationLedgerSource.IsVaPrescription(entry,
             sourceEvidence?.GetValueOrDefault(entry.Id))).ToArray();
     }
 }

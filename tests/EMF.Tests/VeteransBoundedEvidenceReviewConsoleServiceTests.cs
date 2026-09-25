@@ -18,8 +18,15 @@ namespace EMF.Tests;
 
 public sealed class VeteransBoundedEvidenceReviewConsoleServiceTests
 {
-    [Fact]
-    public async Task ReviewAsync_PromotesAuditedGroundedReceiptWithoutIntelligenceCall()
+    [Theory]
+    [InlineData("bounded-review", true)]
+    [InlineData("unrelated-artifact", false)]
+    [InlineData("bounded-review,unrelated-artifact", false)]
+    [InlineData("bounded-review,bounded-review", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public async Task ReviewAsync_RequiresAuditedInputsToMatchGroundedReceipt(
+        string? auditInputs, bool expectedSuccess)
     {
         var databasePath = Path.GetTempFileName();
         var auditPath = Path.GetTempFileName();
@@ -51,7 +58,7 @@ public sealed class VeteransBoundedEvidenceReviewConsoleServiceTests
 
             const string correlation =
                 "veterans-bounded-interpret-review-test";
-            await AddAuditAsync(auditPath, correlation);
+            await AddAuditAsync(auditPath, correlation, auditInputs);
 
             var receipt =
                 new
@@ -93,6 +100,14 @@ public sealed class VeteransBoundedEvidenceReviewConsoleServiceTests
                     store,
                     "reviewer@example.test",
                     output);
+
+            if (!expectedSuccess)
+            {
+                Assert.Equal(1, exitCode);
+                Assert.Empty(await new SqliteBoundedEvidenceInterpretationRepository(databasePath)
+                    .GetReviewedInterpretationsAsync(bounded));
+                return;
+            }
 
             Assert.Equal(0, exitCode);
             Assert.Contains("Azure Intelligence  : NOT USED", output.ToString());
@@ -210,7 +225,8 @@ public sealed class VeteransBoundedEvidenceReviewConsoleServiceTests
 
     private static async Task AddAuditAsync(
         string auditPath,
-        string correlation)
+        string correlation,
+        string? auditInputs = "bounded-review")
     {
         var sink = new SqliteSecurityAuditSink(auditPath);
         await sink.InitializeAsync();
@@ -230,6 +246,7 @@ public sealed class VeteransBoundedEvidenceReviewConsoleServiceTests
                 OccurredUtc = completed,
                 Facts = new Dictionary<string, string>
                 {
+                    ["inputArtifactIds"] = auditInputs!,
                     ["correlationId"] = correlation,
                     ["engineName"] = "gpt-4.1",
                     ["engineVersion"] = "2025-04-14",

@@ -244,7 +244,7 @@ public sealed class WorkflowRunner : IWorkflowRunner
                         ActivityId = activity.Id,
                         Status = WorkflowStatus.Failed,
                         RecordedUtc = failedUtc,
-                        Message = exception.Message
+                        Message = "Workflow activity failed."
                     },
                     cancellationToken);
 
@@ -256,7 +256,7 @@ public sealed class WorkflowRunner : IWorkflowRunner
 
                 await _workflowService.FailAsync(
                     context.WorkflowId,
-                    exception.Message,
+                    "Workflow activity failed.",
                     cancellationToken);
 
                 throw;

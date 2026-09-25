@@ -7,6 +7,16 @@ namespace EMF.Tests;
 public sealed class SqliteArtifactDiscoveryProviderTests
 {
     [Fact]
+    public async Task DiscoverAsync_RemovesPrivateWorkspaceWhenDatabaseIsMalformed()
+    {
+        var existing = Directory.GetDirectories(Path.GetTempPath(), "emf-discovery-*").ToHashSet();
+        var provider = new SqliteArtifactDiscoveryProvider(
+            new StubContentStore(System.Text.Encoding.UTF8.GetBytes("synthetic malformed database")));
+        await Assert.ThrowsAsync<SqliteException>(() => provider.DiscoverAsync(new ArtifactId("invalid-db")));
+        Assert.Empty(Directory.GetDirectories(Path.GetTempPath(), "emf-discovery-*").Except(existing));
+    }
+
+    [Fact]
     public async Task DiscoverAsync_ReturnsNullWhenContentMissing()
     {
         var provider = new SqliteArtifactDiscoveryProvider(

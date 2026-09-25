@@ -118,6 +118,7 @@ internal static class VeteransBoundedEvidenceReviewConsoleService
                 await LoadAuditAsync(
                     auditDatabasePath,
                     receipt.CorrelationId!,
+                    artifactId,
                     cancellationToken);
 
             var promotedUtc = DateTimeOffset.UtcNow;
@@ -382,6 +383,7 @@ internal static class VeteransBoundedEvidenceReviewConsoleService
     private static async Task<AuditMetadata> LoadAuditAsync(
         string auditDatabasePath,
         string correlationId,
+        ArtifactId artifactId,
         CancellationToken cancellationToken)
     {
         var rows =
@@ -428,6 +430,14 @@ internal static class VeteransBoundedEvidenceReviewConsoleService
             }
 
             return property.GetString()!;
+        }
+
+        // The receipt cannot borrow the successful execution of another source.
+        // This command interprets exactly one bounded evidence artifact per call.
+        if (!string.Equals(Required("inputArtifactIds"), artifactId.Value, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The intelligence audit inputs do not match the bounded evidence artifact.");
         }
 
         string? Optional(string propertyName) =>

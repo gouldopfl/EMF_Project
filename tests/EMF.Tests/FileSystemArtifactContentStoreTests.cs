@@ -7,6 +7,64 @@ namespace EMF.Tests;
 public sealed class FileSystemArtifactContentStoreTests
 {
 
+    [Fact]
+    public async Task WriteAsync_CreatesPrivateDirectoryAndFile()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        try
+        {
+            var store = new FileSystemArtifactContentStore(root);
+            await store.WriteAsync(new ArtifactId("artifact"), new byte[] { 1 });
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
+                File.GetUnixFileMode(root));
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite,
+                File.GetUnixFileMode(Path.Combine(root, "artifact")));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Operations_RejectSymbolicLinksIncludingDanglingLinks(bool dangling)
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(root);
+        try
+        {
+            var outside = Path.Combine(root, "outside");
+            if (!dangling) await File.WriteAllTextAsync(outside, "synthetic secret");
+            File.CreateSymbolicLink(Path.Combine(root, "artifact"), outside);
+            var store = new FileSystemArtifactContentStore(root);
+            var id = new ArtifactId("artifact");
+            await Assert.ThrowsAsync<IOException>(() => store.ReadAsync(id));
+            await Assert.ThrowsAsync<IOException>(() => store.WriteAsync(id, new byte[] { 1 }));
+            await Assert.ThrowsAsync<IOException>(() => store.DeleteAsync(id));
+            if (!dangling) Assert.Equal("synthetic secret", await File.ReadAllTextAsync(outside));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task Operations_RejectContentRootRedirectedBySymbolicLink()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var parent = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(parent);
+        try
+        {
+            var actual = Directory.CreateDirectory(Path.Combine(parent, "actual")).FullName;
+            var link = Path.Combine(parent, "link");
+            Directory.CreateSymbolicLink(link, actual);
+            var store = new FileSystemArtifactContentStore(Path.Combine(link, "content"));
+            await Assert.ThrowsAsync<IOException>(() => store.WriteAsync(new ArtifactId("artifact"), new byte[] { 1 }));
+            Assert.False(Directory.Exists(Path.Combine(actual, "content")));
+        }
+        finally { Directory.Delete(parent, true); }
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]

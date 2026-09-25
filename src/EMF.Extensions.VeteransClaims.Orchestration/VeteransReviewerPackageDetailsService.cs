@@ -158,6 +158,12 @@ public sealed class VeteransReviewerPackageDetailsService
         if (details is null)
             return null;
 
+        if (details.Package.Id != packageId || details.Artifacts.Any(row =>
+                row.EvidencePackageId != packageId || row.ContentRole is not
+                    (EvidencePackageContentRoles.UnderlyingEvidence or EvidencePackageContentRoles.GeneratedOrganizationalMaterial)) ||
+            details.Artifacts.GroupBy(row => row.ArtifactId).Any(group => group.Count() != 1))
+            throw new InvalidDataException("Persisted reviewer package identity, membership, or content roles are inconsistent.");
+
         var artifacts = new List<Artifact>();
         var artifactContents =
             new List<VeteransReviewerArtifactContent>();
@@ -345,8 +351,9 @@ public sealed class VeteransReviewerPackageDetailsService
             if (appendix == VeteransReviewerPackageAppendix.MedicalLiterature &&
                 reviewedMedicalLiteratureClassifications.Count == 0)
             {
-                artifacts.Remove(artifact);
-                continue;
+                throw new InvalidDataException(
+                    "Persisted reviewer literature no longer has an applicable reviewed classification; " +
+                    "the package must be reviewed rather than silently omitting a member.");
             }
 
             var medicalLiteratureReviewerText =

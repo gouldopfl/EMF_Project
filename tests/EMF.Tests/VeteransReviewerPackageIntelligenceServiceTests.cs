@@ -141,9 +141,8 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
     [Fact]
     public void CreateReuseKey_ChangesWhenRecognitionTermsChange()
     {
-        var details = CreateDetails();
-        var requirementId =
-            new RequirementId("requirement-reuse-recognition");
+        var details = VeteransReviewerReuseHardeningTests.Details("original");
+        var requirementId = details.Requirements[0].Requirement.Id;
 
         var existingTerm = new EvidenceRecognitionTerm
         {
@@ -187,9 +186,8 @@ public sealed class VeteransReviewerPackageIntelligenceServiceTests
     [Fact]
     public void CreateReuseKey_IsStableAcrossRecognitionTermOrderAndIds()
     {
-        var details = CreateDetails();
-        var requirementId =
-            new RequirementId("requirement-reuse-stable");
+        var details = VeteransReviewerReuseHardeningTests.Details("original");
+        var requirementId = details.Requirements[0].Requirement.Id;
 
         EvidenceRecognitionTerm CreateTerm(
             string id,

@@ -9,6 +9,48 @@ namespace EMF.Tests;
 
 public sealed class VeteransClaimsSqliteClinicalProgressionRepositoryTests
 {
+    [Theory]
+    [InlineData("SourceEndPage", "99")]
+    [InlineData("EventType", "Unsupported")]
+    [InlineData("Summary", " ")]
+    [InlineData("EventDate", "07/30/2025")]
+    public async Task Repository_RejectsMalformedPersistedState(string column, string value)
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var repository = await CreateAsync(path);
+            await repository.AddAsync(Event("event", new(2025, 7, 30), ClinicalProgressionEventTypes.TreatmentProblem, "Factual observation."));
+            await using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path}");
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            // Column names are fixed test literals, never user-provided SQL.
+            command.CommandText = $"PRAGMA ignore_check_constraints = ON; UPDATE VeteransClaims_ClinicalProgressionEvents SET {column} = $value;";
+            command.Parameters.AddWithValue("$value", value);
+            await command.ExecuteNonQueryAsync();
+            if (column == "EventDate")
+                await Assert.ThrowsAsync<FormatException>(() => repository.GetAsync(new("issue-osa")));
+            else
+                await Assert.ThrowsAnyAsync<ArgumentException>(() => repository.GetAsync(new("issue-osa")));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task Repository_TiedEventsUseFactsInsteadOfIdsForOrdering()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var repository = await CreateAsync(path);
+            await repository.AddAsync(Event("a", new(2025, 7, 30), ClinicalProgressionEventTypes.TreatmentProblem, "Zulu observation"));
+            await repository.AddAsync(Event("z", new(2025, 7, 30), ClinicalProgressionEventTypes.TreatmentProblem, "Alpha observation"));
+            var result = await repository.GetAsync(new("issue-osa"));
+            Assert.Equal(["Alpha observation", "Zulu observation"], result.Select(x => x.Summary));
+        }
+        finally { File.Delete(path); }
+    }
+
     [Fact]
     public async Task Repository_RoundTripsClinicalProgressionChronologically()
     {

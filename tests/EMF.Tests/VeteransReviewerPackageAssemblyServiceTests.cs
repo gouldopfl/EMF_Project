@@ -17,7 +17,7 @@ namespace EMF.Tests;
 public sealed class VeteransReviewerPackageAssemblyServiceTests
 {
     [Fact]
-    public async Task AssembleAsync_ComposesExistingReviewerServices()
+    public async Task AssembleAsync_ExcludesLaterClaimOnlyMedicationEvidence()
     {
         var path = Path.GetTempFileName();
 
@@ -146,11 +146,7 @@ public sealed class VeteransReviewerPackageAssemblyServiceTests
             Assert.Empty(result.Artifacts);
             Assert.Empty(result.ArtifactContents);
 
-            var currentMedication =
-                Assert.Single(result.CurrentMedications);
-
-            Assert.Equal(medication.Id, currentMedication.Id);
-            Assert.Equal("Trazodone", currentMedication.MedicationName);
+            Assert.Empty(result.CurrentMedications);
             Assert.Empty(result.MedicationProgressions);
             Assert.Empty(result.MedicationClinicalContexts);
             Assert.Empty(result.SourceClarifications);

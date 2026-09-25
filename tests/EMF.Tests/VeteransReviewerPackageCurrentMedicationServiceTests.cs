@@ -1,3 +1,4 @@
+using EMF.Tests.TestInfrastructure;
 using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Claims;
@@ -84,24 +85,41 @@ public sealed class VeteransReviewerPackageCurrentMedicationServiceTests
                     Source = "VeteranReported"
                 });
 
-            var result =
-                await new VeteransReviewerPackageCurrentMedicationService(
+            var service =
+                new VeteransReviewerPackageCurrentMedicationService(
                         new SqliteClaimIssueRepository(path),
                         new SqliteClaimRepository(path),
                         new ReconciledCurrentMedicationLedgerService(
                             new CurrentMedicationLedgerService(medications),
-                            medications))
-                    .GetAsync(
-                        new EvidencePackage
+                            medications));
+            var scope = ReviewerPackageTestScope.Create(new EvidencePackage
                         {
                             Id = new EvidencePackageId("package-1"),
                             ClaimIssueId = issue.Id,
                             Purpose = "Medical review",
                             ReviewerRole = "MedicalProfessional"
-                        });
+                        }, "blue-button");
+            var result = await service.GetAsync(scope);
 
             var entry = Assert.Single(result);
             Assert.Equal("Trazodone", entry.MedicationName);
+
+            var later = new MedicationLedger
+            {
+                Id = new("later-ledger"), VeteranId = veteran.Id, SourceArtifactId = new("later-claim-only"),
+                ReportDate = new DateOnly(2026, 10, 1), SourceStartPage = 3911, SourceEndPage = 4023,
+                ParsedEntryCount = 1, ReportedEntryCount = 1, IsComplete = true
+            };
+            var laterEntry = Entry(later, 1, "Later medication must not leak", "active");
+            await medications.AddMedicationLedgerAsync(later, [laterEntry]);
+            await medications.AddMedicationCurrentUseReconciliationAsync(new MedicationCurrentUseReconciliation
+            {
+                Id = new("later-reconciliation"), VeteranId = veteran.Id, MedicationLedgerEntryId = laterEntry.Id,
+                ReconciliationDate = new DateOnly(2026, 10, 1), CurrentUseStatus = MedicationCurrentUseStatuses.CurrentlyUsed,
+                Source = "Synthetic test"
+            });
+            var afterLaterEvidence = await service.GetAsync(scope);
+            Assert.Equal(entry.Id, Assert.Single(afterLaterEvidence).Id);
         }
         finally
         {
@@ -116,7 +134,7 @@ public sealed class VeteransReviewerPackageCurrentMedicationServiceTests
         string status) =>
         new()
         {
-            Id = new MedicationLedgerEntryId($"entry-{ordinal}"),
+            Id = new MedicationLedgerEntryId(ledger.Id.Value == "ledger-1" ? $"entry-{ordinal}" : $"later-entry-{ordinal}"),
             MedicationLedgerId = ledger.Id,
             EntryOrdinal = ordinal,
             SourceStartPage = 3911,

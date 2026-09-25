@@ -87,6 +87,14 @@ internal static class AzureOpenAIOptionsValidator
         var outputRate =
             options.OutputCostUsdPerMillionTokens;
 
+        if (options.LiveCallsEnabled &&
+            (!inputRate.HasValue || !outputRate.HasValue))
+        {
+            throw new ArgumentException(
+                "Live Azure OpenAI calls require configured input and output cost rates.",
+                nameof(options));
+        }
+
         if (inputRate.HasValue != outputRate.HasValue)
         {
             throw new ArgumentException(

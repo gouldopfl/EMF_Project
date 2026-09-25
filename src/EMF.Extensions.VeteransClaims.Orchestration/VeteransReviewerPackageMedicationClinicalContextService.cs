@@ -31,11 +31,13 @@ public sealed class VeteransReviewerPackageMedicationClinicalContextService
 
     public async Task<IReadOnlyList<VeteransReviewerMedicationClinicalContext>>
         GetAsync(
-            EvidencePackage package,
+            VeteransReviewerPackageDetails details,
             IReadOnlyCollection<VeteransReviewerMedicationProgression> progressions,
             CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(details);
+        var package = details.PackageDetails.Package;
+        var scope = new VeteransReviewerPackageEvidenceScope(details);
         ArgumentNullException.ThrowIfNull(progressions);
 
         if (progressions.Count == 0)
@@ -81,7 +83,8 @@ public sealed class VeteransReviewerPackageMedicationClinicalContextService
         return await new VeteransReviewerMedicationClinicalContextProjectionService(
                 _evidence)
             .GetAsync(
-                links,
+                links.Where(link => scope.Contains(link.Context.SourceArtifactId,
+                    link.Context.SourceStartPage, link.Context.SourceEndPage)).ToArray(),
                 cancellationToken);
     }
 }

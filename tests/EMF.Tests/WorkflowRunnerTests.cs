@@ -691,7 +691,7 @@ public sealed partial class WorkflowRunnerTests
                     [new ThrowingActivity()]));
 
         Assert.Equal(
-            "Activity failed unexpectedly.",
+            "Synthetic patient diagnosis; synthetic credential.",
             exception.Message);
 
         Assert.True(workflowService.FailCalled);
@@ -708,6 +708,8 @@ public sealed partial class WorkflowRunnerTests
         Assert.Equal(
             WorkflowStatus.Failed,
             checkpoint.Status);
+        Assert.Equal("Workflow activity failed.", checkpoint.Message);
+        Assert.Equal("Workflow activity failed.", workflowService.FailureMessage);
     }
 
 
@@ -722,7 +724,7 @@ public sealed partial class WorkflowRunnerTests
             CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException(
-                "Activity failed unexpectedly.");
+                "Synthetic patient diagnosis; synthetic credential.");
         }
     }
 
@@ -994,12 +996,15 @@ public sealed partial class WorkflowRunnerTests
             return Task.CompletedTask;
         }
 
+        public string? FailureMessage { get; private set; }
+
         public Task FailAsync(
             WorkflowId workflowId,
             string message,
             CancellationToken cancellationToken = default)
         {
             FailCalled = true;
+            FailureMessage = message;
             return Task.CompletedTask;
         }
         public Task<bool> TryClaimActivityAsync(

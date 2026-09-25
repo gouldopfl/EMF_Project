@@ -73,6 +73,14 @@ public sealed class VeteransReviewerPageSelectorTests
                 "1-2147483647"));
     }
 
+    [Fact]
+    public void Select_MaximumPageRangeDoesNotOverflow()
+    {
+        var result = VeteransReviewerPageSelector.Select(
+            [Page(int.MaxValue)], "2147483647-2147483647");
+        Assert.Equal(int.MaxValue, Assert.Single(result).PageNumber);
+    }
+
     private static PrintableArtifactPage Page(int number) =>
         new()
         {

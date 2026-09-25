@@ -1,75 +1,33 @@
+using System.Globalization;
+using EMF.Security.Auditing.Models;
+
 namespace EMF.Security.Azure.Monitoring;
 
 internal static class SecurityAlertFactSanitizer
 {
-    private static readonly string[] SensitiveTerms =
-    [
-        "password",
-        "token",
-        "secret",
-        "apikey",
-        "api-key",
-        "mfa",
-        "otp",
-        "keymaterial",
-        "encryptionkey"
-    ];
-
-    private static readonly string[] SensitiveValueMarkers =
-    [
-        "bearer ",
-        "basic ",
-        "password=",
-        "pwd=",
-        "client_secret=",
-        "clientsecret=",
-        "access_token=",
-        "apikey=",
-        "api-key=",
-        "-----begin private key-----",
-        "-----begin rsa private key-----",
-        "-----begin ec private key-----",
-        "-----begin encrypted private key-----"
-    ];
-
     public static IReadOnlyDictionary<string, string> Sanitize(
         IReadOnlyDictionary<string, string> facts)
     {
         ArgumentNullException.ThrowIfNull(facts);
 
-        return facts
-            .Where(
-                pair =>
-                    !IsSensitive(pair.Key) &&
-                    !IsSensitiveValue(pair.Value))
-            .ToDictionary(
-                pair => pair.Key,
-                pair => pair.Value,
-                StringComparer.Ordinal);
-    }
-
-    private static bool IsSensitiveValue(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return false;
-
-        return SensitiveValueMarkers.Any(
-            marker => value.Contains(
-                marker,
-                StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static bool IsSensitive(string key)
-    {
-        var normalized =
-            key.Replace("_", "", StringComparison.Ordinal)
-               .Replace("-", "", StringComparison.Ordinal)
-               .Replace(".", "", StringComparison.Ordinal)
-               .ToLowerInvariant();
-
-        return SensitiveTerms.Any(
-            term => normalized.Contains(
-                term.Replace("-", "", StringComparison.Ordinal),
-                StringComparison.Ordinal));
+        // Only the existing threshold evaluator's bounded diagnostic values
+        // cross this external boundary. A secret-name blacklist cannot identify
+        // arbitrary clinical text or PHI hidden in otherwise ordinary fields.
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var pair in facts)
+        {
+            var allowed = pair.Key switch
+            {
+                "outcome" => Enum.GetNames<SecurityAuditOutcome>()
+                    .Contains(pair.Value, StringComparer.Ordinal),
+                "threshold" => int.TryParse(pair.Value, NumberStyles.None,
+                    CultureInfo.InvariantCulture, out var threshold) && threshold > 0,
+                "chainHeadHash" => pair.Value is { Length: 64 } &&
+                    pair.Value.All(char.IsAsciiHexDigit),
+                _ => false
+            };
+            if (allowed) result.Add(pair.Key, pair.Value);
+        }
+        return result;
     }
 }

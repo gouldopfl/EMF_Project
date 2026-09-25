@@ -63,6 +63,34 @@ public sealed class AzureOpenAITextClientSafetyTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public void Constructor_RejectsLiveCallsWithoutCostRatesBeforeCreatingClient()
+    {
+        var factory = new ThrowingClientFactory();
+        Assert.Throws<ArgumentException>(() => new AzureOpenAITextClient(factory,
+            new AzureOpenAIOptions
+            {
+                Endpoint = "https://example.openai.azure.com",
+                DeploymentName = "test-deployment",
+                ProviderId = "azure.openai",
+                LiveCallsEnabled = true
+            }));
+        Assert.False(factory.CreateClientCalled);
+    }
+
+    [Fact]
+    public void ProviderException_DoesNotRetainSensitiveSdkResponse()
+    {
+        var exception = new EMF.Intelligence.AzureOpenAI.Exceptions.AzureOpenAIProviderException(
+            EMF.Intelligence.AzureOpenAI.Exceptions.AzureOpenAIFailureKind.Transport,
+            "Azure OpenAI transport failure.", 503,
+            new InvalidOperationException("PHI synthetic-patient; secret synthetic-token"));
+        Assert.Null(exception.InnerException);
+        Assert.DoesNotContain("synthetic-patient", exception.ToString());
+        Assert.DoesNotContain("synthetic-token", exception.ToString());
+        Assert.Equal(503, exception.StatusCode);
+    }
+
     private sealed class ThrowingClientFactory :
         IAzureOpenAIClientFactory
     {

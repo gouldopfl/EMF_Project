@@ -21,6 +21,14 @@ internal sealed class VeteransReviewerPrintableSourceResolver(
         // A native artifact remains authoritative in its own right. Only text
         // derivatives need their immediate parent's page-coordinate mapping.
         var extension = Extension(artifact);
+        var clinicalNote = Text(artifact, ArtifactMetadataKeys.SourceType) == "veterans-clinical-note" ||
+            artifact.ArtifactType == "veterans-clinical-note";
+        var declaresBoundary = new[] { VeteransArtifactMetadataKeys.SourceStartPage,
+            VeteransArtifactMetadataKeys.SourceEndPage, VeteransArtifactMetadataKeys.SourceStartText,
+            VeteransArtifactMetadataKeys.SourceEndText }.Any(artifact.Metadata.ContainsKey);
+        if ((clinicalNote || declaresBoundary) &&
+            extension is not (".txt" or ".md" or ".markdown" or ".html" or ".htm"))
+            throw new InvalidDataException("Bounded reviewer evidence has a contradictory or unsupported artifact format.");
         if (extension is ".pdf" or ".docx" ||
             (extension is not (".txt" or ".md" or ".markdown" or ".html" or ".htm") &&
              Text(artifact, ArtifactMetadataKeys.ContentType) != "text/plain"))
@@ -33,6 +41,8 @@ internal sealed class VeteransReviewerPrintableSourceResolver(
             r.RelationshipType == RelationshipTypes.DerivedFrom).ToArray();
         if (parents.Length > 1)
             throw new InvalidOperationException("Reviewer evidence has ambiguous source provenance.");
+        if (parents.Length == 0 && (clinicalNote || declaresBoundary))
+            throw new InvalidDataException("Bounded reviewer evidence requires explicit source provenance.");
         if (parents.Length == 0)
             return new(await renderer.RenderAsync(artifact.Id, cancellationToken));
 
@@ -44,8 +54,12 @@ internal sealed class VeteransReviewerPrintableSourceResolver(
 
         var startText = Text(artifact, VeteransArtifactMetadataKeys.SourceStartPage);
         var endText = Text(artifact, VeteransArtifactMetadataKeys.SourceEndPage);
-        if (Extension(parent) is not (".pdf" or ".docx") || (startText is null && endText is null))
+        if (Extension(parent) is not (".pdf" or ".docx"))
+        {
+            if (clinicalNote || declaresBoundary)
+                throw new InvalidDataException("Bounded reviewer evidence requires a supported native source.");
             return new(await renderer.RenderAsync(artifact.Id, cancellationToken), IsExtractedTextFallback: true);
+        }
 
         if (!int.TryParse(startText, NumberStyles.None, CultureInfo.InvariantCulture, out var start) ||
             !int.TryParse(endText, NumberStyles.None, CultureInfo.InvariantCulture, out var end) ||
@@ -63,17 +77,16 @@ internal sealed class VeteransReviewerPrintableSourceResolver(
         var previous = start - 1;
         foreach (var page in pages)
         {
-            if (page.PageNumber <= previous || page.PageNumber > end ||
+            if ((long)page.PageNumber != (long)previous + 1 || page.PageNumber > end ||
                 !string.Equals(page.ContentType, "image/png", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("Native source rendering returned invalid page order, range, or format.");
             previous = page.PageNumber;
         }
+        if (previous != end)
+            throw new InvalidDataException("Native source rendering omitted declared source pages.");
         var startAnchor = Text(artifact, VeteransArtifactMetadataKeys.SourceStartText);
         var endAnchor = Text(artifact, VeteransArtifactMetadataKeys.SourceEndText);
-        var blueButtonNote = Text(artifact, ArtifactMetadataKeys.SourceType) == "veterans-clinical-note" &&
-            parent.Name.Contains("Blue", StringComparison.OrdinalIgnoreCase) &&
-            parent.Name.Contains("Button", StringComparison.OrdinalIgnoreCase);
-        if (blueButtonNote || startAnchor is not null || endAnchor is not null)
+        if (clinicalNote || startAnchor is not null || endAnchor is not null)
         {
             if (startAnchor is null && endAnchor is null && !string.IsNullOrWhiteSpace(excerptText))
                 pages = VeteransReviewerNativeExcerpt.Match(pages, excerptText);

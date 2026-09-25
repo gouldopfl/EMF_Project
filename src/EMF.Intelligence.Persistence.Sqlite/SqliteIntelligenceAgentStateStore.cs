@@ -81,7 +81,7 @@ public sealed class SqliteIntelligenceAgentStateStore :
         ArgumentException.ThrowIfNullOrWhiteSpace(state.StateId);
         ArgumentException.ThrowIfNullOrWhiteSpace(state.Payload);
 
-        if (state.Version < 1)
+        if (state.Version < 1 || state.Revision < 0)
             throw new ArgumentOutOfRangeException(nameof(state));
 
         await using var connection = CreateConnection();
@@ -99,13 +99,10 @@ public sealed class SqliteIntelligenceAgentStateStore :
                 Payload,
                 UpdatedUtc
             )
-            VALUES (
-                $agentId,
-                $stateId,
-                $version,
-                1,
-                $payload,
-                $updatedUtc
+            SELECT $agentId, $stateId, $version, 1, $payload, $updatedUtc
+            WHERE $revision = 0 OR EXISTS (
+                SELECT 1 FROM IntelligenceAgentStates
+                WHERE AgentId = $agentId AND StateId = $stateId
             )
             ON CONFLICT (AgentId, StateId)
             DO UPDATE SET

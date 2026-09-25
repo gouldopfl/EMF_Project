@@ -40,9 +40,14 @@ public sealed class SqliteArtifactDiscoveryProvider :
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var path = Path.Combine(
+        var directory = Path.Combine(
             Path.GetTempPath(),
-            $"emf-discovery-{Guid.NewGuid():N}.sqlite");
+            $"emf-discovery-{Guid.NewGuid():N}");
+        if (OperatingSystem.IsWindows())
+            Directory.CreateDirectory(directory);
+        else
+            Directory.CreateDirectory(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var path = Path.Combine(directory, "source.sqlite");
 
         try
         {
@@ -71,7 +76,7 @@ public sealed class SqliteArtifactDiscoveryProvider :
         {
             try
             {
-                File.Delete(path);
+                Directory.Delete(directory, recursive: true);
             }
             catch
             {

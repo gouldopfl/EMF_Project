@@ -57,6 +57,7 @@ public sealed class VeteransReviewerPackageClinicalProgressionService
                 .ToArray();
 
         var result = new List<VeteransReviewerClinicalProgressionEvent>();
+        var scope = new VeteransReviewerPackageEvidenceScope(details);
 
         foreach (var progressionEvent in persisted.Where(
                      item => underlyingArtifactIds.Contains(item.SourceArtifactId)))
@@ -64,6 +65,13 @@ public sealed class VeteransReviewerPackageClinicalProgressionService
             cancellationToken.ThrowIfCancellationRequested();
 
             Validate(progressionEvent);
+
+            var selected = details.PackageDetails.Artifacts.Single(row => row.ArtifactId == progressionEvent.SourceArtifactId);
+            if (selected.ReviewerPageSelection is not null && progressionEvent.SourceStartPage is null)
+                throw new InvalidDataException("Reviewer progression requires a source range for selected evidence pages.");
+            if (progressionEvent.SourceStartPage is int start && progressionEvent.SourceEndPage is int end &&
+                !scope.Contains(progressionEvent.SourceArtifactId, start, end))
+                continue;
 
             var directMatches =
                 contents
@@ -82,7 +90,7 @@ public sealed class VeteransReviewerPackageClinicalProgressionService
                 directMatches.SingleOrDefault();
 
             if (match is null)
-                continue;
+                throw new InvalidDataException("Reviewer progression member content is missing.");
 
             var sourceName =
                 VeteransReviewerDisplayNameResolver.Resolve(
