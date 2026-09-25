@@ -1,4 +1,5 @@
 using EMF.Core.Models;
+using EMF.Core.Models.Identities;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
@@ -18,6 +19,12 @@ public sealed class VeteransReviewerArtifactContent
     { get; init; } = [];
 
     public string? ReviewerPageSelection
+    { get; init; }
+
+    public ArtifactId? PrintableSourceArtifactId
+    { get; init; }
+
+    public bool IsExtractedTextFallback
     { get; init; }
 
     public string? Appendix

@@ -2,11 +2,67 @@ using EMF.Core.Contracts;
 using EMF.Core.Contracts.Storage;
 using EMF.Core.Models.Identities;
 using EMF.Orchestration.Services;
+using EMF.Tests.TestInfrastructure;
 
 namespace EMF.Tests;
 
 public sealed class PdfArtifactPrintRenderingProviderTests
 {
+    [Theory]
+    [InlineData(90)]
+    [InlineData(180)]
+    [InlineData(270)]
+    public async Task RenderAsync_IdentifiesSidewaysNativeContentWithoutDoubleRotatingMetadata(int rotation)
+    {
+        var native = new byte[] { 1, 2, 3 };
+        var sideways = new PdfArtifactPrintRenderingProvider(
+            new StubContentStore(NativeArticlePdf.CreateSideways(rotation)), new StubPageRenderer(native));
+        var page = Assert.Single(await sideways.RenderAsync(new("sideways")));
+        Assert.Equal(rotation, page.SuggestedClockwiseRotation);
+        Assert.Null(page.TextGeometry);
+        Assert.Equal(native, page.Content.ToArray());
+        var correctlyRotated = new PdfArtifactPrintRenderingProvider(
+            new StubContentStore(NativeArticlePdf.Create((612, 792, rotation))), new StubPageRenderer(native));
+        Assert.Equal(0, Assert.Single(await correctlyRotated.RenderAsync(new("rotated"))).SuggestedClockwiseRotation);
+    }
+
+    [Fact]
+    public async Task RenderAsync_ExposesNativeGlyphGeometryInRasterCoordinates()
+    {
+        var provider = new PdfArtifactPrintRenderingProvider(
+            new StubContentStore(NativeArticlePdf.Create((612, 792, 0))), new StubPageRenderer());
+        var page = Assert.Single(await provider.RenderAsync(new("geometry")));
+        var geometry = Assert.IsType<EMF.Core.Models.PrintableArtifactTextGeometry>(page.TextGeometry);
+        Assert.Equal(612, geometry.Width);
+        Assert.Equal(792, geometry.Height);
+        Assert.True(geometry.ContainsGraphics);
+        Assert.NotEmpty(geometry.Glyphs);
+        var first = geometry.Glyphs[0];
+        Assert.Equal("S", first.Text);
+        Assert.Equal(30, first.X);
+        Assert.Equal(35, first.Baseline);
+        Assert.True(first.Top < first.Baseline && first.Bottom <= first.Baseline + 5);
+        Assert.Contains("Helvetica", first.Font);
+    }
+
+    [Fact]
+    public async Task RenderRange_RasterizesOnlyRequestedPagesWithOriginalNumbers()
+    {
+        var images = new StubPageRenderer();
+        var provider = new PdfArtifactPrintRenderingProvider(new StubContentStore(CreatePdf(5)), images);
+        var pages = await provider.RenderRangeAsync(new("parent"), 3, 4);
+        Assert.Equal(new[] { 2, 3 }, images.PageIndexes);
+        Assert.Equal(new[] { 3, 4 }, pages.Select(page => page.PageNumber));
+    }
+
+    [Fact]
+    public async Task RenderRange_RejectsOutOfSourceRangeBeforeRasterizing()
+    {
+        var images = new StubPageRenderer();
+        var provider = new PdfArtifactPrintRenderingProvider(new StubContentStore(CreatePdf(2)), images);
+        await Assert.ThrowsAsync<InvalidDataException>(() => provider.RenderRangeAsync(new("parent"), 2, 3));
+        Assert.Empty(images.PageIndexes);
+    }
     [Fact]
     public void CanRender_RecognizesPdf()
     {
@@ -241,4 +297,3 @@ public sealed class PdfArtifactPrintRenderingProviderTests
         }
     }
 }
-

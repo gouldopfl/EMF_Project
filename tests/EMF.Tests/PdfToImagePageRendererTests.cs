@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using EMF.Orchestration.Services;
+using EMF.Tests.TestInfrastructure;
 
 namespace EMF.Tests;
 
@@ -8,6 +9,23 @@ namespace EMF.Tests;
 [SupportedOSPlatform("macos")]
 public sealed class PdfToImagePageRendererTests
 {
+    [Theory]
+    [InlineData(0, 612, 792, false, true)]
+    [InlineData(90, 792, 612, false, false)]
+    [InlineData(180, 612, 792, true, false)]
+    [InlineData(270, 792, 612, true, true)]
+    public async Task RenderPageAsync_HonorsSourceRotationWithoutDistortion(
+        int rotation, int width, int height, bool right, bool bottom)
+    {
+        var pdf = NativeArticlePdf.Create((612, 792, rotation));
+        var image = await new PdfToImagePageRenderer(dpi: 72, grayscale: false).RenderPageAsync(pdf, 0);
+        using var bitmap = SkiaSharp.SKBitmap.Decode(image);
+        Assert.Equal(width, bitmap.Width);
+        Assert.Equal(height, bitmap.Height);
+        var marker = bitmap.GetPixel(right ? width - 5 : 5, bottom ? height - 5 : 5);
+        Assert.True(marker.Red > 240 && marker.Green < 20 && marker.Blue < 20);
+    }
+
     [Theory]
     [InlineData(4801, 72)]
     [InlineData(72, 4801)]

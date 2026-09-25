@@ -8,7 +8,7 @@ using EMF.Orchestration.Services;
 namespace EMF.ConsoleApplication;
 
 internal sealed class DocxArtifactPrintRenderingProvider :
-    IArtifactPrintRenderingProvider
+    IArtifactPrintRenderingProvider, IArtifactPageRangePrintRenderer
 {
     private const string DocxContentType =
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -37,9 +37,22 @@ internal sealed class DocxArtifactPrintRenderingProvider :
             DocxContentType,
             StringComparison.OrdinalIgnoreCase);
 
-    public async Task<IReadOnlyList<PrintableArtifactPage>> RenderAsync(
+    public Task<IReadOnlyList<PrintableArtifactPage>> RenderAsync(
         ArtifactId artifactId,
+        CancellationToken cancellationToken = default) =>
+        RenderCoreAsync(artifactId, null, null, cancellationToken);
+
+    public Task<IReadOnlyList<PrintableArtifactPage>> RenderRangeAsync(
+        ArtifactId artifactId, int startPage, int endPage,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(startPage, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(endPage, startPage);
+        return RenderCoreAsync(artifactId, startPage, endPage, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<PrintableArtifactPage>> RenderCoreAsync(
+        ArtifactId artifactId, int? startPage, int? endPage, CancellationToken cancellationToken)
     {
         var docx =
             await _contentStore.ReadAsync(
@@ -63,12 +76,10 @@ internal sealed class DocxArtifactPrintRenderingProvider :
                 artifactId,
                 pdf);
 
-        return await new PdfArtifactPrintRenderingProvider(
-                convertedStore,
-                _pageRenderer)
-            .RenderAsync(
-                artifactId,
-                cancellationToken);
+        var provider = new PdfArtifactPrintRenderingProvider(convertedStore, _pageRenderer);
+        return startPage is int start && endPage is int end
+            ? await provider.RenderRangeAsync(artifactId, start, end, cancellationToken)
+            : await provider.RenderAsync(artifactId, cancellationToken);
     }
 
     private sealed class ConvertedPdfContentStore :

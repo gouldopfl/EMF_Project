@@ -11,6 +11,58 @@ public sealed class DocxArtifactPrintRenderingProviderTests
     private const string DocxContentType =
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+    [Theory]
+    [InlineData(2, true)]
+    [InlineData(3, false)]
+    public async Task RenderRange_UsesConvertedSourcePageCoordinates(int end, bool valid)
+    {
+        byte[] original = [0x50, 0x4b, 0x03, 0x04];
+        var converter = new TwoPageConverter();
+        var images = new RecordingPageRenderer();
+        var provider = new DocxArtifactPrintRenderingProvider(new StubContentStore(original), converter, images);
+        if (valid)
+        {
+            var page = Assert.Single(await provider.RenderRangeAsync(new("docx"), 2, end));
+            Assert.Equal(2, page.PageNumber);
+            Assert.Equal(new[] { 1 }, images.Indexes);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => provider.RenderRangeAsync(new("docx"), 2, end));
+            Assert.Empty(images.Indexes);
+        }
+        Assert.Equal(original, converter.Input);
+    }
+
+    private sealed class RecordingPageRenderer : IPdfPageImageRenderer
+    {
+        public List<int> Indexes { get; } = [];
+        public Task<byte[]> RenderPageAsync(ReadOnlyMemory<byte> pdf, int pageIndex, CancellationToken cancellationToken = default)
+        {
+            Indexes.Add(pageIndex);
+            return Task.FromResult<byte[]>([1, 2, 3]);
+        }
+    }
+
+    private sealed class TwoPageConverter : IVeteransReviewerPackageDocumentConverter
+    {
+        public byte[]? Input { get; private set; }
+        public Task<byte[]> ConvertDocxToPdfAsync(ReadOnlyMemory<byte> docx, CancellationToken cancellationToken = default)
+        {
+            Input = docx.ToArray();
+            using var stream = new MemoryStream();
+            using var document = SkiaSharp.SKDocument.CreatePdf(stream);
+            using var paint = new SkiaSharp.SKPaint();
+            for (var i = 0; i < 2; i++)
+            {
+                document.BeginPage(72, 72).DrawRect(8, 8, 20, 20, paint);
+                document.EndPage();
+            }
+            document.Close();
+            return Task.FromResult(stream.ToArray());
+        }
+    }
+
     [Fact]
     public void CanRender_RecognizesDocxOnly()
     {

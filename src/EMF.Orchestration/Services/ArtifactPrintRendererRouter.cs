@@ -5,7 +5,7 @@ using EMF.Core.Models.Identities;
 namespace EMF.Orchestration.Services;
 
 public sealed class ArtifactPrintRendererRouter :
-    IArtifactPrintRenderer
+    IArtifactPrintRenderer, IArtifactPageRangePrintRenderer
 {
     private readonly IEvidenceRepository _repository;
     private readonly IArtifactContentTypeResolver _resolver;
@@ -29,13 +29,35 @@ public sealed class ArtifactPrintRendererRouter :
         ArtifactId artifactId,
         CancellationToken cancellationToken = default)
     {
+        var provider = await ResolveProviderAsync(artifactId, cancellationToken);
+        return provider is null ? [] : await provider.RenderAsync(artifactId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<PrintableArtifactPage>> RenderRangeAsync(
+        ArtifactId artifactId, int startPage, int endPage,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(startPage, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(endPage, startPage);
+        var provider = await ResolveProviderAsync(artifactId, cancellationToken);
+        if (provider is null)
+            return [];
+        if (provider is IArtifactPageRangePrintRenderer ranged)
+            return await ranged.RenderRangeAsync(artifactId, startPage, endPage, cancellationToken);
+        var pages = await provider.RenderAsync(artifactId, cancellationToken);
+        return pages.Where(page => page.PageNumber >= startPage && page.PageNumber <= endPage).ToArray();
+    }
+
+    private async Task<IArtifactPrintRenderingProvider?> ResolveProviderAsync(
+        ArtifactId artifactId, CancellationToken cancellationToken)
+    {
         var artifact =
             await _repository.GetArtifactAsync(
                 artifactId,
                 cancellationToken);
 
         if (artifact is null)
-            return [];
+            return null;
 
         if (artifact.Id != artifactId)
             throw new InvalidOperationException(
@@ -45,7 +67,7 @@ public sealed class ArtifactPrintRendererRouter :
             _resolver.ResolveContentType(artifact);
 
         if (string.IsNullOrWhiteSpace(contentType))
-            return [];
+            return null;
 
         var provider =
             _providers.FirstOrDefault(
@@ -57,8 +79,6 @@ public sealed class ArtifactPrintRendererRouter :
                 $"No print rendering provider supports '{contentType}'.");
         }
 
-        return await provider.RenderAsync(
-            artifactId,
-            cancellationToken);
+        return provider;
     }
 }

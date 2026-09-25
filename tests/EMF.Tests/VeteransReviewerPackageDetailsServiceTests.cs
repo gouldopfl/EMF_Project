@@ -13,6 +13,78 @@ namespace EMF.Tests;
 
 public sealed partial class VeteransReviewerPackageDetailsServiceTests
 {
+    internal static async Task<VeteransReviewerPackageDetails> AssembleNativeSourcePackageAsync(
+        Artifact child, IEvidenceRepository evidence, IArtifactPrintRenderer printer, string extractedText)
+    {
+        var packageId = new EvidencePackageId("native-source-integration");
+        var service = new VeteransReviewerPackageDetailsService(
+            new RecordingPackageService { Details = CreateDetails(packageId, child.Id) }, evidence,
+            new RecordingClassificationRepository
+            {
+                ExistingClassifications = [new EvidenceClassification
+                {
+                    Id = new("native-source-classification"), ArtifactId = child.Id,
+                    ClaimIssueId = new("issue-1"), Classification = EvidenceClassifications.MedicalEvidence
+                }]
+            },
+            new RecordingTextExtractor(extractedText), printer);
+        return (await service.GetAsync(packageId))!;
+    }
+
+    [Theory]
+    [InlineData("3", true)]
+    [InlineData("2,4", true)]
+    [InlineData("1", false)]
+    public async Task GetAsync_SelectsNativeParentPagesWithoutChangingEvidenceIdentity(string selection, bool valid)
+    {
+        var packageId = new EvidencePackageId("native-source-package");
+        var child = new Artifact
+        {
+            Id = new("derived-note"), Name = "derived-note.txt", ArtifactType = "derived-text",
+            Metadata = new Dictionary<string, object>
+            {
+                [ArtifactMetadataKeys.FileExtension] = ".txt",
+                [VeteransArtifactMetadataKeys.SourceStartPage] = "2",
+                [VeteransArtifactMetadataKeys.SourceEndPage] = "4"
+            }
+        };
+        var parent = new Artifact { Id = new("native-parent"), Name = "native-parent.pdf", ArtifactType = "file",
+            Metadata = new Dictionary<string, object> { [ArtifactMetadataKeys.FileExtension] = ".pdf" } };
+        var evidence = new InMemoryEvidenceRepository();
+        await evidence.AddArtifactAsync(child);
+        await evidence.AddArtifactAsync(parent);
+        await evidence.AddRelationshipAsync(new Relationship
+        {
+            SourceArtifactId = child.Id, TargetArtifactId = parent.Id, RelationshipType = RelationshipTypes.DerivedFrom
+        });
+        var package = CreateDetails(packageId, child.Id);
+        var details = new EvidencePackageDetails
+        {
+            Package = package.Package,
+            Artifacts = [new EvidencePackageArtifact { EvidencePackageId = packageId, ArtifactId = child.Id,
+                ContentRole = EvidencePackageContentRoles.UnderlyingEvidence, ReviewerPageSelection = selection }]
+        };
+        var printer = new RecordingPrintRenderer(Enumerable.Range(1, 5).Select(n =>
+            new PrintableArtifactPage { PageNumber = n, ContentType = "image/png", Content = new byte[] { (byte)n } }).ToArray());
+        var service = new VeteransReviewerPackageDetailsService(new RecordingPackageService { Details = details }, evidence,
+            new RecordingClassificationRepository(), new RecordingTextExtractor("b.\nc.\nform fragments"), printer);
+        if (!valid)
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => service.GetAsync(packageId));
+            return;
+        }
+        var result = (await service.GetAsync(packageId))!;
+        var content = Assert.Single(result.ArtifactContents);
+        Assert.Same(child, content.Artifact);
+        Assert.Equal(parent.Id, printer.ArtifactId);
+        Assert.Equal(parent.Id, content.PrintableSourceArtifactId);
+        Assert.Equal(selection.Split(',').Select(int.Parse), content.PrintablePages.Select(p => p.PageNumber));
+        Assert.Equal(selection, content.ReviewerPageSelection);
+        Assert.Equal("b.\nc.\nform fragments", content.Text);
+        Assert.Equal(child.Id, Assert.Single(content.Relationships).SourceArtifactId);
+        Assert.False(content.IsExtractedTextFallback);
+    }
+
     [Fact]
     public async Task GetAsync_MissingPackageReturnsNull()
     {

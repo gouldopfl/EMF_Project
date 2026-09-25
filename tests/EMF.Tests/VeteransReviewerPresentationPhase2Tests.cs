@@ -11,6 +11,8 @@ using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 using EMF.Extensions.VeteransClaims.Orchestration;
 using EMF.Orchestration.Services;
+using EMF.Persistence.Storage;
+using EMF.Tests.TestInfrastructure;
 using SkiaSharp;
 using static EMF.Tests.VeteransReviewerEvidencePresentationTests;
 
@@ -37,7 +39,11 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         using var document = Open(contents);
         var main = document.MainDocumentPart!;
         var sections = main.Document!.Descendants<SectionProperties>()
-            .Where(section => section.GetFirstChild<TitlePage>() is not null).ToArray();
+            .Where(section => section.GetFirstChild<TitlePage>() is not null &&
+                section.Elements<HeaderReference>().Any(reference => reference.Type!.Value == HeaderFooterValues.Default &&
+                    contents.Any(content => ((HeaderPart)main.GetPartById(reference.Id!)).Header!.InnerText
+                        .EndsWith(content.Artifact.Name + " — Continued", StringComparison.Ordinal))))
+            .ToArray();
         Assert.Equal(2, sections.Length);
         for (var i = 0; i < sections.Length; i++)
         {
@@ -49,6 +55,17 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             Assert.StartsWith(PackageHeader + contents[i].Artifact.Name + " — Continued",
                 Header(HeaderFooterValues.Default));
             Assert.DoesNotContain(contents[1 - i].Artifact.Name, Header(HeaderFooterValues.Default));
+            var firstTitle = main.Document.Body!.Elements<Paragraph>().First(p =>
+                p.InnerText == contents[i].Artifact.Name && p.ParagraphProperties?.ParagraphStyleId?.Val == "Heading2");
+            var continuedPart = (HeaderPart)main.GetPartById(section.Elements<HeaderReference>()
+                .Single(r => r.Type!.Value == HeaderFooterValues.Default).Id!);
+            var continuedTitle = continuedPart.Header!.Elements<Paragraph>()
+                .Single(p => p.InnerText == contents[i].Artifact.Name + " — Continued");
+            var titleColor = Assert.Single(firstTitle.Descendants<Color>()).Val!.Value;
+            Assert.Equal("365F91", titleColor);
+            Assert.All(continuedTitle.Elements<Run>(), run =>
+                Assert.Equal(titleColor, run.RunProperties!.GetFirstChild<Color>()!.Val!.Value));
+            Assert.DoesNotContain(continuedPart.Header.Elements<Paragraph>().First().Descendants<Color>(), _ => true);
             Assert.Contains(main.Document.Body!.Elements<Paragraph>(), p =>
                 p.InnerText == contents[i].Artifact.Name && p.ParagraphProperties?.ParagraphStyleId?.Val == "Heading2");
             Assert.Equal(SectionMarkValues.NextPage, section.GetFirstChild<SectionType>()!.Val!.Value);
@@ -75,6 +92,45 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         Assert.DoesNotContain("123-45-6789", document.MainDocumentPart!.Document!.Body!.InnerText);
         Assert.All(document.MainDocumentPart.HeaderParts,
             part => Assert.DoesNotContain("123-45-6789", part.Header!.InnerText));
+    }
+
+    [Fact]
+    public void Render_SourceTerminalBlanksDoNotAddSectionParagraphs()
+    {
+        const string source = "RARE\n<1\nDONE\nNEG\n\nFinal source line.\n\n  \n";
+        var content = Evidence("First evidence", source);
+        using var document = Open([content, Evidence("Next evidence", "Next body.")]);
+        var body = document.MainDocumentPart!.Document!.Body!;
+        var last = Assert.Single(body.Elements<Paragraph>().Where(p => p.InnerText == "Final source line."));
+        Assert.NotNull(last.ParagraphProperties?.GetFirstChild<SectionProperties>());
+        Assert.Equal("Next evidence", last.NextSibling<Paragraph>()!.InnerText);
+        Assert.Equal(string.Empty, last.PreviousSibling<Paragraph>()!.InnerText);
+        Assert.Equal("NEG", last.PreviousSibling<Paragraph>()!.PreviousSibling<Paragraph>()!.InnerText);
+        Assert.Equal(source, content.Text);
+        Assert.Empty(new OpenXmlValidator().Validate(document));
+    }
+
+    [ReviewerLibreOfficeFact]
+    public async Task LibreOffice_TerminalSourceBlanksDoNotCreateEmptyContinuationPages()
+    {
+        var contents = new[]
+        {
+            Evidence("First evidence", "RARE\n<1\nDONE\nNEG\n\nFinal source line." + new string('\n', 90)),
+            Evidence("Next evidence", "Next body.")
+        };
+        var output = await new VeteransReviewerPackageDocumentOutputService(
+            new LibreOfficeVeteransReviewerPackageDocumentConverter())
+            .RenderAsync(Details(contents), VeteransReviewerPackageOutputFormat.Both);
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(output.Pdf!);
+        var pages = pdf.GetPages().Select(p => p.Text).ToArray();
+        var first = Assert.Single(pages.Where(p => p.Contains("Final source line.")));
+        Assert.Contains("First evidence", first);
+        Assert.DoesNotContain(pages, p => p.Contains("First evidence — Continued"));
+        var index = Array.IndexOf(pages, first);
+        Assert.Contains("Next body.", pages[index + 1]);
+        Assert.DoesNotContain("First evidence", pages[index + 1]);
+        for (var i = 0; i < pages.Length; i++)
+            Assert.Contains($"Page {i + 1} of {pages.Length}", pages[i]);
     }
 
     [Fact]
@@ -127,6 +183,256 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         Assert.Contains(expected, document.MainDocumentPart!.Document!.Body!.InnerText);
         Assert.Contains("Reviewer transcription corrections (original source unchanged)", document.MainDocumentPart.Document.Body.InnerText);
         Assert.Equal(input, content.Text);
+    }
+
+    [Theory]
+    [InlineData("VA Blue Button Report")]
+    [InlineData("Extracted clinical form.txt")]
+    public void Render_FragmentedFormRetainsRowsAndUsesConsistentPreformattedLayout(string sourceName)
+    {
+        // Shape observed in the supplied Medical Evidence: isolated form tokens,
+        // checkboxes, and embedded label/value lines, with no cell coordinates.
+        const string form = "b.\nc.\nd.\n\"feet\"\nSelect\n[X]\n2.\ndiagnoses\n" +
+            "Other diagnosis: Source diagnosis\n  Side affected: Both\nICD code: xxx\n" +
+            "Date of diagnosis (right side): 1973\nYes [ ] No [ ] N/A";
+        const string narrative = "The patient describes stable symptoms during the recent visit.";
+        var content = Evidence("Synthetic form evidence", form + "\n\n" + narrative, sourceName: sourceName);
+        using var document = Open([content]);
+        var body = document.MainDocumentPart!.Document!.Body!;
+        var rows = body.Elements<Paragraph>().Where(p => form.Split('\n').Contains(p.InnerText)).ToArray();
+        Assert.Equal(form.Split('\n'), rows.Select(p => p.InnerText));
+        Assert.All(rows, p =>
+        {
+            Assert.Equal("Consolas", p.Descendants<RunFonts>().Single().Ascii!.Value);
+            Assert.Equal("18", p.Descendants<FontSize>().Single().Val!.Value);
+            Assert.Equal("0", p.ParagraphProperties!.GetFirstChild<SpacingBetweenLines>()!.After!.Value);
+            Assert.Null(p.ParagraphProperties.GetFirstChild<KeepNext>());
+        });
+        Assert.DoesNotContain(body.Descendants<Table>(), table => table.InnerText.Contains("Side affected"));
+        var blank = rows[^1].NextSibling<Paragraph>()!;
+        Assert.Equal(string.Empty, blank.InnerText);
+        Assert.Equal("0", blank.ParagraphProperties!.GetFirstChild<SpacingBetweenLines>()!.After!.Value);
+        Assert.Equal("18", blank.Descendants<FontSize>().Single().Val!.Value);
+        var prose = Assert.Single(body.Elements<Paragraph>().Where(p => p.InnerText == narrative));
+        Assert.Equal("Cambria", prose.Descendants<RunFonts>().Single().Ascii!.Value);
+        Assert.Equal(form + "\n\n" + narrative, content.Text);
+    }
+
+    [Fact]
+    public void Layout_FragmentedLabValuesAreNotReconstructedOrJoined()
+    {
+        const string text = "Collection DT Specimen Test Name\nResult\nRARE\n<1\nDONE\n\nClear\n\nYellow\nNEG\nUnits\n/HPF\nRef\nNONE\n0\nRef:\n-";
+        var blocks = VeteransReviewerTextLayout.Project(text);
+        Assert.Equal(text.Split('\n'), blocks.Select(block => block.Text));
+        // The title, isolated row between blank boundaries, and empty field
+        // label are not absorbed by a fragment demonstrated elsewhere.
+        Assert.Equal(VeteransReviewerTextShape.Boundary, blocks[0].Shape);
+        Assert.All(blocks.Skip(1).Take(4), block => Assert.Equal(VeteransReviewerTextShape.Preformatted, block.Shape));
+        Assert.Equal(VeteransReviewerTextShape.Boundary, blocks[6].Shape);
+        Assert.All(blocks.Skip(8).Take(7), block => Assert.Equal(VeteransReviewerTextShape.Preformatted, block.Shape));
+        Assert.Equal(VeteransReviewerTextShape.Field, blocks[^2].Shape);
+        Assert.Equal(VeteransReviewerTextShape.Boundary, blocks[^1].Shape);
+        Assert.All(blocks.Where(block => block.Text.Length == 0),
+            block => Assert.Equal(VeteransReviewerTextShape.Blank, block.Shape));
+        Assert.Equal(Enumerable.Range(1, blocks.Count), blocks.Select(block => block.SourceLine));
+    }
+
+    [Theory]
+    [InlineData("\n\n")]
+    [InlineData("\nReview Summary\n")]
+    [InlineData("\nREVIEW SUMMARY\n")]
+    [InlineData("\nreview summary\n")]
+    [InlineData("\nSummary:\n")]
+    [InlineData("\n---\n")]
+    [InlineData("\n___\n")]
+    [InlineData("\n# Review summary\n")]
+    [InlineData("\n2. Review summary\n")]
+    public void Layout_FragmentedDetectionStopsAtSectionBoundaries(string boundary)
+    {
+        const string prefix = "Review Details\nExaminer: Sample Clinician\n";
+        const string fragment = "RARE\n<1\nDONE\nNEG\nReading: 37.2 C";
+        const string suffix = "Status: Stable\nAppointment: Scheduled";
+        var text = prefix + fragment + boundary + suffix;
+        var blocks = VeteransReviewerTextLayout.Project(text);
+        Assert.Equal(text.Split('\n'), blocks.Select(block => block.Text));
+        Assert.All(blocks.Take(2), block => Assert.Equal(VeteransReviewerTextLayout.Classify(block.Text), block.Shape));
+        Assert.All(blocks.Skip(2).Take(5), block => Assert.Equal(VeteransReviewerTextShape.Preformatted, block.Shape));
+        Assert.All(blocks.Skip(7), block => Assert.Equal(VeteransReviewerTextLayout.Classify(block.Text), block.Shape));
+    }
+
+    [Fact]
+    public void Layout_SeparateShortGroupsDoNotAccumulateFragmentTokens()
+    {
+        const string text = "YES\nNO\n\nUP\nDOWN\nStatus: Stable\nA\nB\nValue: Recorded\nC\nD";
+        var blocks = VeteransReviewerTextLayout.Project(text);
+        Assert.All(blocks, block => Assert.Equal(VeteransReviewerTextLayout.Classify(block.Text), block.Shape));
+    }
+
+    [Theory]
+    [InlineData("50")]
+    [InlineData("5.85")]
+    [InlineData("99/67")]
+    [InlineData("06/22/2026 12:07")]
+    [InlineData("06/22/2026 12:07 SERUM")]
+    [InlineData("\" \" \" MICRO (U)")]
+    public void Layout_ExplicitDataRowsDoNotNeedAnAdjacentFragment(string row)
+    {
+        var blocks = VeteransReviewerTextLayout.Project("Review Summary\n\n" + row + "\n\nStatus: Stable");
+        Assert.Equal(VeteransReviewerTextShape.DataRow, blocks[2].Shape);
+        Assert.Equal(VeteransReviewerTextShape.Boundary, blocks[0].Shape);
+        Assert.Equal(VeteransReviewerTextShape.Field, blocks[4].Shape);
+        Assert.Equal(row, blocks[2].Text);
+    }
+
+    [Theory]
+    [InlineData("2. Review summary")]
+    [InlineData("06/22/2026 12:07 reviewed the result")]
+    [InlineData("\"No change\" was recorded.")]
+    public void Layout_DataRecognitionDoesNotAbsorbNumberedHeadingsOrQuotedProse(string row)
+    {
+        Assert.DoesNotContain(Assert.Single(VeteransReviewerTextLayout.Project(row)).Shape,
+            new[] { VeteransReviewerTextShape.Preformatted, VeteransReviewerTextShape.DataRow });
+    }
+
+    [ReviewerLibreOfficeFact]
+    public async Task LibreOffice_FragmentedMedicalRowsStayCompactWithoutAbsorbingFollowingSection()
+    {
+        var rowSets = new[] { new[] { "b.", "c.", "d.", "[X]" }, new[] { "RARE", "<1", "DONE", "NEG" } };
+        var contents = rowSets.Select((rows, index) => Evidence($"Fragmented Medical Evidence {index}",
+            string.Join("\n", rows) + "\nReading: 37.2 C\n\n50\n\n\" \" \" MICRO (U)\nClear\nRef:\nRef:\nRef:\nReview Summary\nStatus: Stable")).ToArray();
+        var output = await new VeteransReviewerPackageDocumentOutputService(
+            new LibreOfficeVeteransReviewerPackageDocumentConverter())
+            .RenderAsync(Details(contents), VeteransReviewerPackageOutputFormat.Both);
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(output.Pdf!);
+        foreach (var rows in rowSets)
+        {
+            var page = Assert.Single(pdf.GetPages().Where(p => p.Text.Contains(rows[0]) && p.Text.Contains("Reading:")));
+            var words = page.GetWords().ToArray();
+            var renderedRows = rows.Select(row => Assert.Single(words.Where(word => word.Text == row))).ToArray();
+            for (var i = 1; i < renderedRows.Length; i++)
+                Assert.InRange((double)(renderedRows[i - 1].Letters[0].StartBaseLine.Y -
+                    renderedRows[i].Letters[0].StartBaseLine.Y), 8.5, 13);
+            var label = Assert.Single(words.Where(word => word.Text == "Reading:"));
+            var value = Assert.Single(words.Where(word => word.Text == "37.2"));
+            Assert.InRange((double)label.Letters[0].FontSize, 8.5, 9.5);
+            Assert.InRange((double)value.Letters[0].FontSize, 8.5, 9.5);
+            Assert.InRange(Math.Abs((double)(label.Letters[0].StartBaseLine.Y - value.Letters[0].StartBaseLine.Y)), 0, 0.1);
+            // Inline monospaced label + one space; a synthesized field table
+            // instead places the value in a distant second column.
+            Assert.InRange((double)(value.BoundingBox.Left - label.BoundingBox.Left), 40, 65);
+            foreach (var token in new[] { "50", "MICRO", "Clear" })
+                Assert.InRange((double)Assert.Single(words.Where(word => word.Text == token)).Letters[0].FontSize, 8.5, 9.5);
+            var repeatedLabels = words.Where(word => word.Text == "Ref:").ToArray();
+            Assert.Equal(3, repeatedLabels.Length);
+            Assert.All(repeatedLabels, word => Assert.InRange((double)word.Letters[0].FontSize, 8.5, 9.5));
+            var status = Assert.Single(words.Where(word => word.Text == "Status:"));
+            Assert.InRange((double)status.Letters[0].FontSize, 11.5, 12.5);
+            Assert.True(status.Letters[0].StartBaseLine.Y < value.Letters[0].StartBaseLine.Y);
+            var heading = Assert.Single(words.Where(word => word.Text == "Summary"));
+            Assert.InRange((double)heading.Letters[0].FontSize, 11.5, 12.5);
+        }
+        using var docx = WordprocessingDocument.Open(new MemoryStream(output.Docx!), false);
+        Assert.DoesNotContain(docx.MainDocumentPart!.Document!.Body!.Descendants<Table>(),
+            table => table.InnerText.Contains("Reading:"));
+    }
+
+    [Fact]
+    public void Layout_RepeatedEmptyLabelsDoNotAbsorbFollowingFieldsOrOtherLabels()
+    {
+        const string source = "Ref:\nRef:\nRef:\nStatus: Stable\nSummary:\nReview:\n\nRef:\nRef:\nValue: recorded:\nValue: recorded:\nValue: recorded:";
+        var blocks = VeteransReviewerTextLayout.Project(source);
+        Assert.Equal(source.Split('\n'), blocks.Select(block => block.Text));
+        Assert.All(blocks.Take(3), block => Assert.Equal(VeteransReviewerTextShape.DataRow, block.Shape));
+        Assert.All(blocks.Skip(3), block => Assert.Equal(VeteransReviewerTextLayout.Classify(block.Text), block.Shape));
+    }
+
+    [Theory]
+    [InlineData("\" \" \" Test", "\n\n")]
+    [InlineData("\" \" \" Test", "\nReview Summary\n")]
+    [InlineData("\" \" \" Test", "\nSummary:\n")]
+    [InlineData("\" \" \" Test", "\nExaminer: Sample Clinician\n")]
+    [InlineData("06/22/2026 12:07 SERUM", "\n\n")]
+    public void Layout_ExplicitDataAnchorStylesOnlyItsLocalTokens(string anchor, string boundary)
+    {
+        var source = "Review Details\n" + anchor + "\nClear\nYellow" + boundary + "Pending\nStatus: Stable";
+        var blocks = VeteransReviewerTextLayout.Project(source);
+        Assert.Equal(source.Split('\n'), blocks.Select(block => block.Text));
+        Assert.Equal(VeteransReviewerTextShape.Boundary, blocks[0].Shape);
+        Assert.All(blocks.Skip(1).Take(3), block => Assert.Equal(VeteransReviewerTextShape.DataRow, block.Shape));
+        Assert.All(blocks.Skip(4), block => Assert.Equal(VeteransReviewerTextLayout.Classify(block.Text), block.Shape));
+    }
+
+    private static VeteransReviewerArtifactContent[] DataAnchorBoundaryContents()
+    {
+        var contents = new List<VeteransReviewerArtifactContent>();
+        foreach (var anchor in new[] { "\" \" \" Test", "06/22/2026 12:07 SERUM" })
+            foreach (var boundary in new[] { "\n\n", "\nReview Summary\n", "\nExaminer: Sample Clinician\n", "\n2. Review Summary\n" })
+                contents.Add(Evidence($"Case {contents.Count:D2}", anchor + "\nClear" + boundary + "Pending\nStatus: Stable"));
+        // An explicit source/artifact section break must reset the context too.
+        contents.Add(Evidence("Case 08", "06/22/2026 12:07 SERUM\nClear"));
+        contents.Add(Evidence("Case 09", "Pending\nStatus: Stable"));
+        return contents.ToArray();
+    }
+
+    [Fact]
+    public void Render_DataAnchorTypographyStopsAtEveryBoundary()
+    {
+        using var document = Open(DataAnchorBoundaryContents());
+        var body = document.MainDocumentPart!.Document!.Body!;
+        var paragraphs = body.Descendants<Paragraph>().ToArray();
+        foreach (var token in new[] { "\" \" \" Test", "06/22/2026 12:07 SERUM", "Clear" })
+        {
+            var rows = paragraphs.Where(p => p.InnerText == token).ToArray();
+            Assert.NotEmpty(rows);
+            Assert.All(rows, p =>
+            {
+                Assert.Equal("18", p.Descendants<FontSize>().Single().Val!.Value);
+                Assert.Equal("Consolas", p.Descendants<RunFonts>().Single().Ascii!.Value);
+                Assert.Null(p.Ancestors<Table>().FirstOrDefault());
+            });
+        }
+        foreach (var token in new[] { "Pending", "Status:", "Examiner:", "Review Summary", "2. Review Summary" })
+        {
+            var rows = paragraphs.Where(p => p.InnerText == token).ToArray();
+            Assert.NotEmpty(rows);
+            Assert.All(rows, p => Assert.Equal("24", p.Descendants<FontSize>().Single().Val!.Value));
+        }
+        Assert.Equal(9, paragraphs.Count(p => p.InnerText == "Clear"));
+        Assert.Equal(9, paragraphs.Count(p => p.InnerText == "Pending"));
+        Assert.Empty(new OpenXmlValidator().Validate(document));
+    }
+
+    [ReviewerLibreOfficeFact]
+    public async Task LibreOffice_DataAnchorTypographyStopsAtEveryBoundary()
+    {
+        var contents = DataAnchorBoundaryContents();
+        var output = await new VeteransReviewerPackageDocumentOutputService(
+            new LibreOfficeVeteransReviewerPackageDocumentConverter())
+            .RenderAsync(Details(contents), VeteransReviewerPackageOutputFormat.Both);
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(output.Pdf!);
+        var sourcePages = contents.Select((content, index) => Assert.Single(pdf.GetPages().Where(page =>
+            page.Text.Contains(content.Artifact.Name) && page.GetWords().Any(word => word.Text == (index == 9 ? "Pending" : "Clear"))))).ToArray();
+        for (var index = 0; index < sourcePages.Length; index++)
+        {
+            var words = sourcePages[index].GetWords().ToArray();
+            var following = Assert.Single(words.Where(word => word.Text == (index == 9 ? "Pending" : "Clear")));
+            Assert.InRange((double)following.Letters[0].FontSize, index == 9 ? 11.5 : 8.5, index == 9 ? 12.5 : 9.5);
+            if (index < 9)
+            {
+                var anchor = Assert.Single(words.Where(word => word.Text == (index < 4 ? "Test" : "SERUM")));
+                Assert.InRange((double)anchor.Letters[0].FontSize, 8.5, 9.5);
+                Assert.InRange((double)(anchor.Letters[0].StartBaseLine.Y - following.Letters[0].StartBaseLine.Y), 8.5, 13);
+            }
+            if (index != 8)
+            {
+                foreach (var token in new[] { "Pending", "Status:" })
+                    Assert.InRange((double)Assert.Single(words.Where(word => word.Text == token)).Letters[0].FontSize, 11.5, 12.5);
+                foreach (var word in words.Where(word => word.Text is "Summary" or "Examiner:"))
+                    Assert.InRange((double)word.Letters[0].FontSize, 11.5, 12.5);
+            }
+        }
+        Assert.Equal(sourcePages[8].Number + 1, sourcePages[9].Number);
+        Assert.DoesNotContain("Case 08", sourcePages[9].Text);
     }
 
     [Fact]
@@ -263,7 +569,11 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             return copy.ToArray();
         }).ToArray();
         for (var i = 0; i < images.Length; i++)
-            Assert.Equal(images[i], embedded[i]);
+        {
+            var crop = VeteransReviewerSourcePageCrop.Crop(images[i]);
+            VeteransReviewerSourcePageCropTests.AssertPreserved(images[i], crop with { Content = embedded[i] });
+            Assert.Equal(images[i], pages[i].Content.ToArray());
+        }
         Assert.Contains("Relevance: Synthetic reviewed relevance.", main.Document.Body.InnerText);
         Assert.DoesNotContain("Flattened text", main.Document.Body.InnerText);
         Assert.DoesNotContain("Reviewer extraction", main.Document.Body.InnerText);
@@ -349,6 +659,58 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         }
     }
 
+    private static VeteransReviewerArtifactContent[] DatedChronologyContents() =>
+        Enumerable.Range(1, 16).Select(i =>
+        {
+            var content = Evidence($"Clinical record {i:D2} with a long descriptive title for the reviewing physician", "Clinical body.");
+            ((Dictionary<string, object>)content.Artifact.Metadata)[VeteransArtifactMetadataKeys.EvidenceDate] = $"2025-01-{i:D2}";
+            return content;
+        }).ToArray();
+
+    [Fact]
+    public void Render_ChronologyEntriesDoNotChainWithoutSourceReferences()
+    {
+        using var document = Open(DatedChronologyContents());
+        var entries = document.MainDocumentPart!.Document!.Body!.Elements<Paragraph>()
+            .Where(p => p.InnerText.StartsWith("2025-01-", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(16, entries.Length);
+        Assert.All(entries, p =>
+        {
+            Assert.False(p.ParagraphProperties?.GetFirstChild<KeepNext>()?.Val?.Value ??
+                p.ParagraphProperties?.GetFirstChild<KeepNext>() is not null);
+            Assert.NotNull(p.ParagraphProperties?.GetFirstChild<KeepLines>());
+        });
+    }
+
+    [Fact]
+    public void Render_ChronologyEntryStillKeepsItsSourceReference()
+    {
+        var contents = DatedChronologyContents();
+        ((Dictionary<string, object>)contents[0].Artifact.Metadata)[VeteransArtifactMetadataKeys.SourceStartPage] = "12";
+        using var document = Open(contents);
+        var entry = Assert.Single(document.MainDocumentPart!.Document!.Body!.Elements<Paragraph>()
+            .Where(p => p.InnerText.StartsWith("2025-01-01 —", StringComparison.Ordinal)));
+        Assert.True(entry.ParagraphProperties!.GetFirstChild<KeepNext>()!.Val!.Value);
+        Assert.NotNull(entry.ParagraphProperties.GetFirstChild<KeepLines>());
+        Assert.Equal("Appendix A — Medical Evidence | Source page: 12", entry.NextSibling<Paragraph>()!.InnerText);
+    }
+
+    [ReviewerLibreOfficeFact]
+    public async Task LibreOffice_ChronologyStartsBelowItsIntroduction()
+    {
+        var output = await new VeteransReviewerPackageDocumentOutputService(
+            new LibreOfficeVeteransReviewerPackageDocumentConverter())
+            .RenderAsync(Details(DatedChronologyContents()), VeteransReviewerPackageOutputFormat.Both);
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(output.Pdf!);
+        var pages = pdf.GetPages().Select(p => p.Text).ToArray();
+        var introduction = Assert.Single(pages.Where(p => p.Contains("The chronology below uses evidence dates")));
+        Assert.Contains("2025-01-01", introduction);
+        for (var i = 1; i <= 16; i++)
+            Assert.Single(pages.Where(p => p.Contains($"2025-01-{i:D2} —")));
+        for (var i = 0; i < pages.Length; i++)
+            Assert.Contains($"Page {i + 1} of {pages.Length}", pages[i]);
+    }
+
     [ReviewerLibreOfficeFact]
     public async Task LibreOffice_PaginatesSyntheticArtifactsWithCorrectContinuationIdentity()
     {
@@ -403,15 +765,230 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         var rendered = pdf.GetPages().Select(page => page.Text).ToArray();
         foreach (var title in contents.Select(c => c.Artifact.Name))
         {
-            var evidencePages = rendered.Where(text => text.Contains(title, StringComparison.Ordinal)
-                && text.Contains("Source Page ", StringComparison.Ordinal)).ToArray();
+            var evidencePages = pdf.GetPages().Where(page => page.NumberOfImages > 0 &&
+                page.Text.Contains(title, StringComparison.Ordinal)).Select(page => page.Text).ToArray();
             Assert.True(evidencePages.Length == 2, string.Join("\n---PAGE---\n", evidencePages));
             Assert.DoesNotContain("— Continued", evidencePages[0]);
-            Assert.Contains("Source Page 1", evidencePages[0]);
+            Assert.DoesNotContain("Source Page ", evidencePages[0]);
             Assert.Contains(title + " — Continued", evidencePages[1]);
-            Assert.Contains("Source Page 2", evidencePages[1]);
+            Assert.DoesNotContain("Source Page ", evidencePages[1]);
         }
         Assert.All(rendered, text => Assert.DoesNotContain("unused extracted text", text));
+    }
+
+    [ReviewerLibreOfficeFact]
+    public async Task LibreOffice_LiteratureUsesFullPagesAndHonorsMixedSourceOrientations()
+    {
+        var source = NativeArticlePdf.Create((612, 792, 0), (792, 612, 0),
+            (612, 792, 90), (612, 792, 270), (612, 792, 180));
+        var renderer = new PdfToImagePageRenderer(dpi: 144, grayscale: false);
+        var pages = new List<PrintableArtifactPage>();
+        for (var i = 0; i < 5; i++)
+            pages.Add(new() { PageNumber = i + 1, ContentType = "image/png",
+                Content = await renderer.RenderPageAsync(source, i) });
+        var article = Evidence("Mixed orientation article", "Unusable article extraction",
+            VeteransReviewerPackageAppendix.MedicalLiterature, pages, reviewed: true);
+        var following = Evidence("ZZ Following article", "Following article fallback text.",
+            VeteransReviewerPackageAppendix.MedicalLiterature, reviewed: true);
+        var output = await new VeteransReviewerPackageDocumentOutputService(
+            new LibreOfficeVeteransReviewerPackageDocumentConverter())
+            .RenderAsync(Details([article, following]), VeteransReviewerPackageOutputFormat.Both);
+        using var docx = WordprocessingDocument.Open(new MemoryStream(output.Docx!), false);
+        Assert.Empty(new OpenXmlValidator().Validate(docx));
+        var sections = docx.MainDocumentPart!.Document!.Descendants<SectionProperties>()
+            .Where(s => s.GetFirstChild<PageMargin>()!.Left!.Value == VeteransReviewerEvidenceSections.SourceSideMargin)
+            .ToArray();
+        Assert.Equal(5, sections.Length);
+        for (var i = 0; i < pages.Count; i++)
+        {
+            var landscape = i is 1 or 2 or 3;
+            Assert.Equal(landscape ? PageOrientationValues.Landscape : PageOrientationValues.Portrait,
+                sections[i].GetFirstChild<PageSize>()!.Orient!.Value);
+            var extent = sections[i].Ancestors<Paragraph>().Single()
+                .Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent>().Single();
+            // Letter pages retain at least 89% of native physical text size.
+            Assert.InRange(extent.Cx!.Value / 914400d, landscape ? 9.8 : 7.5, landscape ? 10.3 : 7.8);
+            using var embedded = docx.MainDocumentPart.ImageParts.ElementAt(i).GetStream();
+            using var copy = new MemoryStream();
+            embedded.CopyTo(copy);
+            var crop = VeteransReviewerSourcePageCrop.Crop(pages[i].Content);
+            VeteransReviewerSourcePageCropTests.AssertPreserved(pages[i].Content,
+                crop with { Content = copy.ToArray() });
+        }
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(output.Pdf!);
+        var sourcePages = pdf.GetPages().Where(p => p.NumberOfImages > 0).ToArray();
+        Assert.Equal(5, sourcePages.Length);
+        for (var i = 0; i < sourcePages.Length; i++)
+        {
+            var page = sourcePages[i];
+            Assert.Equal(i is 1 or 2 or 3, page.Width > page.Height);
+            Assert.Contains($"Source Page {i + 1}", page.Text);
+            var image = Assert.Single(page.GetImages());
+            Assert.True(image.BoundingBox.Width > (i is 1 or 2 or 3 ? 700 : 540));
+            Assert.True(image.BoundingBox.Left >= 24 && image.BoundingBox.Right <= page.Width - 24,
+                $"Page {i}: {image.BoundingBox} within {page.Width} x {page.Height}");
+            Assert.True(image.BoundingBox.Bottom >= 21 && image.BoundingBox.Top <= page.Height - 35,
+                $"Page {i}: {image.BoundingBox} within {page.Width} x {page.Height}");
+            if (i > 0) Assert.Equal(sourcePages[i - 1].Number + 1, page.Number);
+        }
+        var followingPage = Assert.Single(pdf.GetPages().Where(p => p.Text.Contains("Following article fallback text.")));
+        Assert.True(followingPage.Height > followingPage.Width);
+        Assert.Equal(sourcePages[^1].Number + 1, followingPage.Number);
+        Assert.All(pdf.GetPages(), page =>
+        {
+            Assert.Contains($"Page {page.Number} of {pdf.NumberOfPages}", page.Text);
+            Assert.DoesNotContain("Unusable article extraction", page.Text);
+        });
+    }
+
+    [ReviewerLibreOfficeFact]
+    public async Task LibreOffice_DerivedMedicalEvidenceUsesSelectedNativeTableInsteadOfFragmentStreams()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "emf-native-source-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new FileSystemArtifactContentStore(directory);
+            var source = new Artifact { Id = new("native-source"), Name = "source.pdf", ArtifactType = "file",
+                Metadata = new Dictionary<string, object> { [ArtifactMetadataKeys.FileExtension] = ".pdf" } };
+            var child = new Artifact { Id = new("derived-excerpt"), Name = "excerpt.txt", ArtifactType = "derived-text",
+                Metadata = new Dictionary<string, object>
+                {
+                    [ArtifactMetadataKeys.FileExtension] = ".txt",
+                    [VeteransArtifactMetadataKeys.EvidenceTitle] = "Synthetic Medical Evidence",
+                    [VeteransArtifactMetadataKeys.SourceStartPage] = "2",
+                    [VeteransArtifactMetadataKeys.SourceEndPage] = "2"
+                } };
+            var repository = new InMemoryEvidenceRepository();
+            await repository.AddArtifactAsync(source);
+            await repository.AddArtifactAsync(child);
+            await repository.AddRelationshipAsync(new Relationship
+            {
+                SourceArtifactId = child.Id, TargetArtifactId = source.Id, RelationshipType = RelationshipTypes.DerivedFrom
+            });
+            var originalPdf = JournalPdf(); // Synthetic two-column table/figure, never clinical content.
+            await store.WriteAsync(source.Id, originalPdf);
+            var pageRenderer = new PdfToImagePageRenderer(dpi: 96);
+            var router = new ArtifactPrintRendererRouter(repository, new DefaultArtifactContentTypeResolver(),
+                [new PdfArtifactPrintRenderingProvider(store, pageRenderer), new TextArtifactPrintRenderingProvider(store)]);
+            const string extractedText = "UNUSABLE EXTRACTION\nb.\nc.\nResult\nRARE\nUnits\n/HPF";
+            await store.WriteAsync(child.Id, Encoding.UTF8.GetBytes(extractedText));
+            var details = await VeteransReviewerPackageDetailsServiceTests.AssembleNativeSourcePackageAsync(
+                child, repository, router, extractedText);
+            var content = Assert.Single(details.ArtifactContents);
+            Assert.Equal(VeteransReviewerPackageAppendix.MedicalEvidence, content.Appendix);
+            Assert.Equal(source.Id, content.PrintableSourceArtifactId);
+            Assert.Equal(child.Id, content.Artifact.Id);
+            Assert.Equal(extractedText, content.Text);
+            Assert.False(content.IsExtractedTextFallback);
+            var output = await new VeteransReviewerPackageDocumentOutputService(new LibreOfficeVeteransReviewerPackageDocumentConverter())
+                .RenderAsync(details, VeteransReviewerPackageOutputFormat.Both);
+            using var docx = WordprocessingDocument.Open(new MemoryStream(output.Docx!), false);
+            var main = docx.MainDocumentPart!;
+            var image = Assert.Single(main.ImageParts);
+            using var stream = image.GetStream();
+            using var bytes = new MemoryStream();
+            stream.CopyTo(bytes);
+            var nativeRaster = await pageRenderer.RenderPageAsync(originalPdf, 1);
+            var crop = VeteransReviewerSourcePageCrop.Crop(nativeRaster);
+            VeteransReviewerSourcePageCropTests.AssertPreserved(nativeRaster, crop with { Content = bytes.ToArray() });
+            Assert.DoesNotContain("UNUSABLE EXTRACTION", main.Document!.Body!.InnerText);
+            Assert.DoesNotContain("was blank", main.Document.Body.InnerText);
+            Assert.DoesNotContain("Source Page ", main.Document.Body.InnerText);
+            var provenance = Assert.Single(main.Document.Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties>());
+            Assert.Equal("Source Page 2", provenance.Name!.Value);
+            Assert.Contains("Native source page 2", provenance.Description!.Value);
+            using var pdf = UglyToad.PdfPig.PdfDocument.Open(output.Pdf!);
+            var page = Assert.Single(pdf.GetPages().Where(p => p.NumberOfImages > 0));
+            Assert.DoesNotContain("Source Page ", page.Text);
+            Assert.Equal(1, page.NumberOfImages);
+            Assert.DoesNotContain("Continued", page.Text);
+            Assert.All(pdf.GetPages(), p => Assert.DoesNotContain("UNUSABLE EXTRACTION", p.Text));
+            Assert.Equal(originalPdf, await store.ReadAsync(source.Id));
+            Assert.Equal(Encoding.UTF8.GetBytes(extractedText), await store.ReadAsync(child.Id));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [ReviewerLibreOfficeFact]
+    public async Task LibreOffice_GeneratedSubjectsContinueAndCoverUsesOpinionRequest()
+    {
+        var clinical = Evidence("Synthetic PAP titration study", "Original source record.");
+        var literature = Evidence("Synthetic literature", "Original literature.",
+            VeteransReviewerPackageAppendix.MedicalLiterature, reviewed: true);
+        var basis = Details([clinical, literature]);
+        var entries = Enumerable.Range(0, 35).Select(i => new EMF.Extensions.VeteransClaims.Models.Medications.MedicationLedgerEntry
+        {
+            Id = new("entry-" + i), MedicationLedgerId = new("ledger"), EntryOrdinal = i + 1,
+            SourceStartPage = 1, SourceEndPage = 1, MedicationName = $"Medication {i:D2}",
+            Status = "active", Strength = "10 mg", PrescribedDate = new DateOnly(2025, 1, 1).AddDays(i),
+            Directions = $"MEDROW{i:D2}: Take as prescribed with food each morning. Refills: 3. Refills left: 2"
+        }).ToArray();
+        const string opinion = "Whether the Veteran's synthetic condition is at least as likely as not secondary to the service-connected underlying condition, including aggravation.";
+        var details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = basis.PackageDetails, Artifacts = basis.Artifacts, ArtifactContents = basis.ArtifactContents,
+            VeteranDisplayName = "Robin Example", MedicalOpinionRequested = new() { OpinionText = opinion },
+            CurrentMedications = [entries[0]],
+            MedicationProgressions = entries.Select(e => new VeteransReviewerMedicationProgression
+            {
+                MedicationName = e.MedicationName, Entries = [e],
+                ServiceConnectionBasisId = new("basis"), ServiceConnectionBasisReviewerLabel = "Synthetic basis"
+            }).ToArray(),
+            ClinicalProgressionEvents = Enumerable.Range(0, 25).Select(i => new VeteransReviewerClinicalProgressionEvent
+            {
+                ReviewerArtifactId = clinical.Artifact.Id, EventDate = new DateOnly(2025, 1, 1).AddDays(i),
+                EventType = EMF.Extensions.VeteransClaims.Models.Clinical.ClinicalProgressionEventTypes.TreatmentUse,
+                Summary = $"CLINICALROW{i:D2}: PAP compliance was 98%. Documented treatment use and response remained available for review.",
+                SourceLocator = "Synthetic clinical note"
+            }).ToArray()
+        };
+        var output = await new VeteransReviewerPackageDocumentOutputService(
+            new LibreOfficeVeteransReviewerPackageDocumentConverter())
+            .RenderAsync(details, VeteransReviewerPackageOutputFormat.Both);
+        using var docx = WordprocessingDocument.Open(new MemoryStream(output.Docx!), false);
+        Assert.Empty(new OpenXmlValidator().Validate(docx));
+        var main = docx.MainDocumentPart!;
+        var paragraphs = main.Document.Body!.Elements<Paragraph>().ToArray();
+        Assert.Contains(paragraphs.TakeWhile(p => p.ParagraphProperties?.GetFirstChild<SectionProperties>() is null)
+            .Select(p => p.InnerText), text => text == "Medical Opinion Requested");
+        Assert.Contains(paragraphs, p => p.InnerText.Contains("Refills:\u00a03.\u00a0Refills\u00a0left:\u00a02"));
+        Assert.Contains(paragraphs, p => p.InnerText.Contains("Refills\u00a0left:\u00a02"));
+        foreach (var entry in entries)
+        {
+            var heading = paragraphs.First(p => p.InnerText == entry.MedicationName && p.ParagraphProperties?.ParagraphStyleId?.Val == "Heading3");
+            Assert.NotNull(heading.ParagraphProperties!.GetFirstChild<KeepNext>());
+        }
+        foreach (var subject in new[] { "Package Guide", "Clinical Progression", "Relevant Medications for Medical Opinion" })
+        {
+            var header = main.HeaderParts.SelectMany(h => h.Header!.Elements<Paragraph>())
+                .Single(p => p.InnerText == subject + " — Continued");
+            var heading = paragraphs.Single(p => p.InnerText == subject && p.ParagraphProperties?.ParagraphStyleId?.Val == "Heading1");
+            Assert.Equal(heading.Descendants<Color>().Single().Val!.Value, header.Descendants<Color>().Single().Val!.Value);
+        }
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(output.Pdf!);
+        var pages = pdf.GetPages().ToArray();
+        Assert.Contains("synthetic condition", pages[0].Text);
+        Assert.Contains("service-connected underlying condition", pages[0].Text);
+        Assert.Contains(pages, p => p.Text.Contains("Package Guide — Continued"));
+        foreach (var pair in new[] { ("CLINICALROW", "Clinical Progression"), ("MEDROW", "Relevant Medications for Medical Opinion") })
+        {
+            var sectionPages = pages.Where(p => p.Text.Contains(pair.Item1) &&
+                !p.Text.Contains("Current Medication Use — Reconciled")).ToArray();
+            Assert.True(sectionPages.Length > 1);
+            Assert.DoesNotContain(pair.Item2 + " — Continued", sectionPages[0].Text);
+            Assert.All(sectionPages.Skip(1), p => Assert.Contains(pair.Item2 + " — Continued", p.Text));
+        }
+        foreach (var entry in entries)
+        {
+            var page = Assert.Single(pages.Where(p => p.Text.Contains(entry.MedicationName) &&
+                !p.Text.Contains("Current Medication Use — Reconciled")));
+            Assert.Contains(entry.PrescribedDate!.Value.ToString("MMMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture), page.Text);
+        }
+        foreach (var page in pages)
+            Assert.Contains($"Page {page.Number} of {pages.Length}", page.Text);
     }
 
     private static WordprocessingDocument Open(VeteransReviewerArtifactContent[] contents) =>

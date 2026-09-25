@@ -944,7 +944,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             Assert.NotNull(
                 paragraphElements[headingIndex - 1]
                     .ParagraphProperties?
-                    .PageBreakBefore);
+                    .GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.SectionProperties>());
         }
 
         var reviewerFacingParagraphs =
@@ -1170,8 +1170,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             paragraphs);
 
         Assert.True(
-            Array.IndexOf(paragraphs, "Reviewer Instructions") <
-            Array.IndexOf(paragraphs, "Medical Opinion Requested"));
+            Array.IndexOf(paragraphs, "Medical Opinion Requested") <
+            Array.IndexOf(paragraphs, "Reviewer Instructions"));
 
         Assert.True(
             Array.IndexOf(paragraphs, "Medical Opinion Requested") <
@@ -1211,7 +1211,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 paragraph =>
                     paragraph.InnerText == "Medical Opinion Requested").ToArray();
 
-        Assert.Equal(2, headings.Length);
+        Assert.Equal(3, headings.Length);
 
         var regulation =
             Assert.Single(
@@ -1228,7 +1228,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                         "Determine whether the Veteran's Obstructive Sleep Apnea",
                         StringComparison.Ordinal)).ToArray();
 
-        Assert.Equal(2, opinions.Length);
+        Assert.Equal(3, opinions.Length);
         Assert.All(headings, h => Assert.NotNull(h.ParagraphProperties?.KeepNext));
         Assert.NotNull(regulation.ParagraphProperties?.KeepNext);
         Assert.All(opinions, o => Assert.NotNull(o.ParagraphProperties?.KeepLines));
@@ -1338,14 +1338,14 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.NotNull(
             regulationPageBreak
                 .ParagraphProperties?
-                .PageBreakBefore);
+                .GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.SectionProperties>());
 
         var executiveSummaryPageBreak = paragraphs[executiveSummaryIndex - 1];
 
         Assert.NotNull(
             executiveSummaryPageBreak
                 .ParagraphProperties?
-                .PageBreakBefore);
+                .GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.SectionProperties>());
 
         Assert.DoesNotContain(
             paragraphs
@@ -1603,7 +1603,8 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         var footerReference =
             Assert.Single(
                 sectionProperties.Elements<
-                    DocumentFormat.OpenXml.Wordprocessing.FooterReference>());
+                    DocumentFormat.OpenXml.Wordprocessing.FooterReference>()
+                    .Where(reference => reference.Type?.Value == DocumentFormat.OpenXml.Wordprocessing.HeaderFooterValues.Default));
 
         Assert.Equal(
             mainPart.GetIdOfPart(footerPart),
@@ -4782,7 +4783,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             element =>
                 element
                     .Descendants<
-                        DocumentFormat.OpenXml.Wordprocessing.PageBreakBefore>()
+                        DocumentFormat.OpenXml.Wordprocessing.SectionProperties>()
                     .Any());
     }
 }

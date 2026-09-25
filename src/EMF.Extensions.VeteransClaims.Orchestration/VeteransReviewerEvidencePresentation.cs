@@ -25,6 +25,7 @@ internal sealed class VeteransReviewerEvidencePresentation
     private const string HeaderNameToken = @"(?-i:\p{Lu}[\p{L}’'-]*)";
     private static readonly Regex NameToken = Pattern(@"\A" + HeaderNameToken + @"\z");
     private readonly Regex? _scrambledIdentity;
+    private readonly Regex? _footerWithIdentity;
     private static readonly Regex DobFragment = Pattern(
         @"\b(?:Date of birth|DOB):[ \t]*" + Date + @"\b");
     private readonly HashSet<string> _verifiedIdentities = new(StringComparer.Ordinal);
@@ -68,10 +69,15 @@ internal sealed class VeteransReviewerEvidencePresentation
             .OrderByDescending(pattern => pattern.Length)
             .ToArray();
         if (namePatterns.Length > 0)
-            _scrambledIdentity = Pattern(
-                @"(?m)\b" + Page + @"\b[ \t\r\n]+(?:" +
+        {
+            var pageAndIdentity = Page + @"\b[ \t\r\n]+(?:" +
                 string.Join("|", namePatterns) +
-                @")[ \t]*[""“”'‘’.,;]*[ \t]*(?=\r?$)");
+                @")[ \t]*[""“”'‘’.,;]*[ \t]*(?=\r?$)";
+            _scrambledIdentity = Pattern(
+                @"(?m)\b" + pageAndIdentity);
+            _footerWithIdentity = Pattern(
+                @"(?m)" + Generation + @"\s+" + pageAndIdentity);
+        }
     }
 
     public static VeteransReviewerEvidencePresentation Create(
@@ -95,9 +101,16 @@ internal sealed class VeteransReviewerEvidencePresentation
 
         // Only a complete producer signature permits inline removal. Standalone
         // pagination is source-specific; narrative page references are retained.
-        var cleaned = Footer.Replace(CompleteHeader.Replace(text, " "), " ");
-        cleaned = StandaloneGenerationLine.Replace(cleaned, string.Empty);
+        var cleaned = CompleteHeader.Replace(text, " ");
         cleaned = RemoveScrambledProducerFragments(cleaned);
+        // Some extracted footers place the next exact producer identity after
+        // the page counter. Remove it with its signature, never by name alone.
+        if (_footerWithIdentity is not null)
+            cleaned = _footerWithIdentity.Replace(cleaned, " ");
+        cleaned = Footer.Replace(cleaned, " ");
+        // A standalone generation line can still anchor a scrambled cluster.
+        // Consume that signature before removing any remaining isolated lines.
+        cleaned = StandaloneGenerationLine.Replace(cleaned, string.Empty);
         foreach (var identity in _verifiedIdentities)
         {
             // PDF extraction may split the same verified name/DOB across lines.

@@ -252,6 +252,7 @@ public sealed class VeteransReviewerPackageDetailsService
             }
 
             IReadOnlyList<PrintableArtifactPage> printablePages = [];
+            VeteransReviewerPrintableSource? printableSource = null;
 
             if (string.Equals(
                     packageArtifact.ContentRole,
@@ -260,17 +261,19 @@ public sealed class VeteransReviewerPackageDetailsService
                     StringComparison.Ordinal) &&
                 _printRenderer is not null)
             {
-                printablePages =
-                    isPapExport
-                        ? [new PrintableArtifactPage
+                if (isPapExport)
+                    printablePages = [new PrintableArtifactPage
                         {
                             PageNumber = 1,
                             ContentType = "text/plain",
                             Content = Encoding.UTF8.GetBytes(text!)
-                        }]
-                        : await _printRenderer.RenderAsync(
-                            artifact.Id,
-                            cancellationToken);
+                        }];
+                else
+                {
+                    printableSource = await new VeteransReviewerPrintableSourceResolver(_evidence, _printRenderer)
+                        .ResolveAsync(artifact, cancellationToken);
+                    printablePages = printableSource.Pages;
+                }
 
                 if (printablePages.Count == 0)
                 {
@@ -368,6 +371,8 @@ public sealed class VeteransReviewerPackageDetailsService
                     MedicalLiteratureReviewerText =
                         medicalLiteratureReviewerText,
                     PrintablePages = printablePages,
+                    PrintableSourceArtifactId = printableSource?.SourceArtifactId,
+                    IsExtractedTextFallback = printableSource?.IsExtractedTextFallback ?? false,
                     ReviewerPageSelection =
                         packageArtifact.ReviewerPageSelection,
                     Provenance = provenance,
