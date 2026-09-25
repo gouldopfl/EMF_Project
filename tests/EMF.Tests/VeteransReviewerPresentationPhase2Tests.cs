@@ -924,6 +924,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             Id = new("entry-" + i), MedicationLedgerId = new("ledger"), EntryOrdinal = i + 1,
             SourceStartPage = 1, SourceEndPage = 1, MedicationName = $"Medication {i:D2}",
             Status = "active", Strength = "10 mg", PrescribedDate = new DateOnly(2025, 1, 1).AddDays(i),
+            Indication = $"INDICATION{i:D2}: documented treatment indication retained from the VA ledger.",
             Directions = $"MEDROW{i:D2}: Take as prescribed with food each morning. Refills: 3. Refills left: 2"
         }).ToArray();
         const string opinion = "Whether the Veteran's synthetic condition is at least as likely as not secondary to the service-connected underlying condition, including aggravation.";
@@ -935,6 +936,8 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             MedicationProgressions = entries.Select(e => new VeteransReviewerMedicationProgression
             {
                 MedicationName = e.MedicationName, Entries = [e],
+                EntrySources = new Dictionary<EMF.Extensions.VeteransClaims.Models.Identities.MedicationLedgerEntryId, string>
+                { [e.Id] = $"SOURCE{e.EntryOrdinal - 1:D2}: VA prescription report, original source page 1." },
                 ServiceConnectionBasisId = new("basis"), ServiceConnectionBasisReviewerLabel = "Synthetic basis"
             }).ToArray(),
             ClinicalProgressionEvents = Enumerable.Range(0, 25).Select(i => new VeteransReviewerClinicalProgressionEvent
@@ -951,7 +954,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         using var docx = WordprocessingDocument.Open(new MemoryStream(output.Docx!), false);
         Assert.Empty(new OpenXmlValidator().Validate(docx));
         var main = docx.MainDocumentPart!;
-        var paragraphs = main.Document.Body!.Elements<Paragraph>().ToArray();
+        var paragraphs = main.Document!.Body!.Elements<Paragraph>().ToArray();
         Assert.Contains(paragraphs.TakeWhile(p => p.ParagraphProperties?.GetFirstChild<SectionProperties>() is null)
             .Select(p => p.InnerText), text => text == "Medical Opinion Requested");
         Assert.Contains(paragraphs, p => p.InnerText.Contains("Refills:\u00a03.\u00a0Refills\u00a0left:\u00a02"));
@@ -986,9 +989,85 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             var page = Assert.Single(pages.Where(p => p.Text.Contains(entry.MedicationName) &&
                 !p.Text.Contains("Current Medication Use — Reconciled")));
             Assert.Contains(entry.PrescribedDate!.Value.ToString("MMMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture), page.Text);
+            Assert.Contains($"MEDROW{entry.EntryOrdinal - 1:D2}", page.Text);
+            Assert.Contains($"INDICATION{entry.EntryOrdinal - 1:D2}", page.Text);
+            Assert.Contains($"SOURCE{entry.EntryOrdinal - 1:D2}", page.Text);
         }
+        Assert.All(pages, p => Assert.DoesNotContain("Medication record — Continued", p.Text));
         foreach (var page in pages)
             Assert.Contains($"Page {page.Number} of {pages.Length}", page.Text);
+    }
+
+    [ReviewerLibreOfficeFact]
+    public async Task LibreOffice_OversizedMedicationRecordPreservesOrderWithoutRecordContinuationLabels()
+    {
+        var basis = Details([Evidence("Synthetic record source", "Original source record.")]);
+        var markers = Enumerable.Range(0, 240).Select(i => $"RECORDLINE{i:D3}").ToArray();
+        var oversized = new EMF.Extensions.VeteransClaims.Models.Medications.MedicationLedgerEntry
+        {
+            Id = new("oversized"), MedicationLedgerId = new("ledger"), EntryOrdinal = 1,
+            MedicationName = "Example medication", Status = "active",
+            PrescribedDate = new DateOnly(2025, 1, 1), SourceStartPage = 1, SourceEndPage = 1,
+            Directions = string.Join(" ", markers.Select(m =>
+                m + " documents a synthetic dated medication observation with its original ordered wording."))
+        };
+        var following = new EMF.Extensions.VeteransClaims.Models.Medications.MedicationLedgerEntry
+        {
+            Id = new("following"), MedicationLedgerId = new("ledger"), EntryOrdinal = 2,
+            MedicationName = "Subsequent medication", Status = "active",
+            PrescribedDate = new DateOnly(2025, 1, 2), SourceStartPage = 2, SourceEndPage = 2,
+            Directions = "FOLLOWINGRECORD: " + string.Join(" ", Enumerable.Repeat(
+                "Normal instructions retained together with their source.", 35))
+        };
+        var details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = basis.PackageDetails, Artifacts = basis.Artifacts,
+            ArtifactContents = basis.ArtifactContents,
+            MedicationProgressions = new[] { oversized, following }.Select(e => new VeteransReviewerMedicationProgression
+            {
+                MedicationName = e.MedicationName, Entries = [e],
+                EntrySources = new Dictionary<MedicationLedgerEntryId, string>
+                { [e.Id] = e == oversized ? "OVERSIZEDSOURCEEND: synthetic VA report." : "FOLLOWINGSOURCE: synthetic VA report." }
+            }).ToArray()
+        };
+        var output = await new VeteransReviewerPackageDocumentOutputService(
+            new LibreOfficeVeteransReviewerPackageDocumentConverter())
+            .RenderAsync(details, VeteransReviewerPackageOutputFormat.Both);
+        if (Environment.GetEnvironmentVariable("EMF_REVIEWER_LAYOUT_ARTIFACTS") is { Length: > 0 } artifactDirectory)
+        {
+            Directory.CreateDirectory(artifactDirectory);
+            await File.WriteAllBytesAsync(Path.Combine(artifactDirectory, "Oversized_Record_Regression.docx"), output.Docx!);
+            await File.WriteAllBytesAsync(Path.Combine(artifactDirectory, "Oversized_Record_Regression.pdf"), output.Pdf!);
+        }
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(output.Pdf!);
+        var pages = pdf.GetPages().ToArray();
+        var first = Assert.Single(pages.Where(p => p.Text.Contains("Prescribed January 1, 2025"))).Number;
+        var last = Assert.Single(pages.Where(p => p.Text.Contains("OVERSIZEDSOURCEEND"))).Number;
+        Assert.True(last - first >= 2, "The synthetic record must span at least three pages.");
+        // Record-specific continuation labeling remains intentionally unresolved: the current
+        // DOCX/LibreOffice header approach cannot reliably distinguish a true within-record
+        // continuation from a complete record beginning on a continuation page. Preserve
+        // pagination and section headers without reviving either failed labeling prototype.
+        const string label = "Medication record — Continued";
+        Assert.All(pages, p => Assert.DoesNotContain(label, p.Text));
+        var joined = string.Join(" ", pages.Select(p => p.Text));
+        var previous = -1;
+        foreach (var marker in markers.Append("OVERSIZEDSOURCEEND").Append("FOLLOWINGRECORD").Append("FOLLOWINGSOURCE"))
+        {
+            var offset = joined.IndexOf(marker, StringComparison.Ordinal);
+            Assert.True(offset > previous, $"Missing or reordered marker: {marker}");
+            Assert.Equal(offset, joined.LastIndexOf(marker, StringComparison.Ordinal));
+            previous = offset;
+        }
+        var followingPage = Assert.Single(pages.Where(p => p.Text.Contains("FOLLOWINGRECORD")));
+        Assert.True(followingPage.Number > last, "The following intact record must begin after the oversized record ends.");
+        Assert.DoesNotContain(label, followingPage.Text);
+        Assert.Contains("Subsequent medication", followingPage.Text);
+        Assert.Contains("FOLLOWINGSOURCE", followingPage.Text);
+        Assert.All(pages.Where(p => p.Number > first && p.Number <= last), p =>
+        {
+            Assert.Contains("Relevant Medications for Medical Opinion — Continued", p.Text);
+        });
     }
 
     private static WordprocessingDocument Open(VeteransReviewerArtifactContent[] contents) =>

@@ -386,7 +386,7 @@ Raw OSCAR session records are intentionally omitted from this physician report.
         Assert.NotNull(
             paragraphs[adherenceHeadingIndex - 1]
                 .ParagraphProperties?
-                .PageBreakBefore);
+                .GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.SectionProperties>());
         Assert.Null(
             paragraphs[adherenceHeadingIndex]
                 .ParagraphProperties?

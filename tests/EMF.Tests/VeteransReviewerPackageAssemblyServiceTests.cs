@@ -87,6 +87,7 @@ public sealed class VeteransReviewerPackageAssemblyServiceTests
             var medication = new MedicationLedgerEntry
             {
                 Id = new MedicationLedgerEntryId("medication-entry-1"),
+                Facility = "Example VA Clinic", PrescriptionNumber = "RX-1",
                 MedicationLedgerId = ledger.Id,
                 EntryOrdinal = 1,
                 SourceStartPage = 1,

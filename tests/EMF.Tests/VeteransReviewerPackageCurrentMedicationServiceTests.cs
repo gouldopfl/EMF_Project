@@ -122,6 +122,7 @@ public sealed class VeteransReviewerPackageCurrentMedicationServiceTests
             SourceStartPage = 3911,
             SourceEndPage = 3911,
             MedicationName = name,
-            Status = status
+            Status = status,
+            Facility = "Example VA Clinic", PrescriptionNumber = $"RX-{ordinal}"
         };
 }

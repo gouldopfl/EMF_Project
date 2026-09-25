@@ -43,12 +43,14 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
     private readonly IClaimRepository _claims;
     private readonly IServiceConnectionRepository _connections;
     private readonly IMedicationRepository _medications;
+    private readonly VeteransMedicationSourceEvidenceService? _sourceEvidence;
 
     public VeteransReviewerPackageMedicationProgressionService(
         IClaimIssueRepository issues,
         IClaimRepository claims,
         IServiceConnectionRepository connections,
-        IMedicationRepository medications)
+        IMedicationRepository medications,
+        VeteransMedicationSourceEvidenceService? sourceEvidence = null)
     {
         ArgumentNullException.ThrowIfNull(issues);
         ArgumentNullException.ThrowIfNull(claims);
@@ -59,6 +61,7 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
         _claims = claims;
         _connections = connections;
         _medications = medications;
+        _sourceEvidence = sourceEvidence;
     }
 
     public async Task<IReadOnlyList<VeteransReviewerMedicationProgression>>
@@ -151,6 +154,11 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
             throw new InvalidOperationException(
                 "Reviewer package claim identity mismatch.");
 
+        var reconciliations = await _medications.GetMedicationIndicationReconciliationsAsync(
+            claim.VeteranId, cancellationToken);
+        if (reconciliations.Any(item => item.VeteranId != claim.VeteranId))
+            throw new InvalidDataException("Medication indication reconciliation veteran identity mismatch.");
+
         var completeLedgers =
             (await _medications.GetMedicationLedgersAsync(
                 claim.VeteranId,
@@ -177,8 +185,10 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
 
             ValidateLedgerEntries(ledger, entries);
 
-            snapshots.AddRange(
-                entries.Select(entry => (ledger, entry)));
+            var sourceEvidence = _sourceEvidence is null ? null :
+                await _sourceEvidence.GetAsync(ledger, entries, cancellationToken);
+            snapshots.AddRange(entries.Where(entry => MedicationLedgerSource.IsVaPrescription(entry,
+                sourceEvidence?.GetValueOrDefault(entry.Id))).Select(entry => (ledger, entry)));
         }
 
         var distinctSnapshots =
@@ -217,7 +227,7 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
                 continue;
 
             var reviewerEntries =
-                SelectReviewerMedicationEntries(matching);
+                SelectMeaningfulEntries(matching);
 
             if (reviewerEntries.Count == 0)
                 continue;
@@ -229,7 +239,15 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
                     ServiceConnectionBasisReviewerLabel =
                         relevantMedication.Basis.ReviewerLabel,
                     MedicationName = relevantMedication.MedicationName,
-                    Entries = reviewerEntries
+                    Entries = reviewerEntries,
+                    EntrySources = reviewerEntries.ToDictionary(entry => entry.Id, entry =>
+                    {
+                        var ledger = distinctSnapshots.Single(snapshot => snapshot.Entry.Id == entry.Id).Ledger;
+                        return $"{entry.Facility} — VA medication report dated " +
+                            ledger.ReportDate.ToString("MMMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture) +
+                            $" — source pages {entry.SourceStartPage}–{entry.SourceEndPage}; prescription {entry.PrescriptionNumber}.";
+                    }),
+                    IndicationReconciliation = LatestReconciliation(reconciliations, relevantMedication.MedicationName)
                 });
         }
 
@@ -265,66 +283,16 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
                 "Medication ledger entry identity mismatch.");
     }
 
-    private static IReadOnlyList<MedicationLedgerEntry>
-        SelectReviewerMedicationEntries(
-            IReadOnlyList<MedicationLedgerEntry> ordered)
+    private static MedicationIndicationReconciliation? LatestReconciliation(
+        IReadOnlyList<MedicationIndicationReconciliation> reconciliations, string medicationName)
     {
-        var meaningful = SelectMeaningfulEntries(ordered);
-
-        if (meaningful.Count == 0)
-            return [];
-
-        var lastStopIndex = -1;
-
-        for (var index = meaningful.Count - 1; index >= 0; index--)
-        {
-            var status = meaningful[index].Status.Trim();
-
-            if (string.Equals(
-                    status,
-                    MedicationLedgerStatuses.Discontinued,
-                    StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(
-                    status,
-                    MedicationLedgerStatuses.Expired,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                lastStopIndex = index;
-                break;
-            }
-        }
-
-        var continuityEntries =
-            meaningful
-                .Skip(lastStopIndex + 1)
-                .Where(entry =>
-                    MedicationLedgerStatuses.IsCurrent(entry.Status) ||
-                    string.Equals(
-                        entry.Status.Trim(),
-                        MedicationLedgerStatuses.Transferred,
-                        StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-
-        var currentEntries =
-            continuityEntries
-                .Where(entry =>
-                    MedicationLedgerStatuses.IsCurrent(entry.Status))
-                .ToArray();
-
-        if (currentEntries.Length > 0)
-            return currentEntries;
-
-        var latestTransferred =
-            continuityEntries
-                .LastOrDefault(entry =>
-                    string.Equals(
-                        entry.Status.Trim(),
-                        MedicationLedgerStatuses.Transferred,
-                        StringComparison.OrdinalIgnoreCase));
-
-        return latestTransferred is null
-            ? []
-            : [latestTransferred];
+        var matches = reconciliations.Where(item => MedicationNamesMatch(medicationName, item.MedicationName))
+            .OrderByDescending(item => item.ReconciliationDate).ToArray();
+        if (matches.Length == 0) return null;
+        if (matches.Where(item => item.ReconciliationDate == matches[0].ReconciliationDate)
+            .Select(item => item.Indication.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+            throw new InvalidDataException("Conflicting medication indication reconciliations on the same date.");
+        return matches[0];
     }
 
     private static IReadOnlyList<MedicationLedgerEntry>
@@ -343,12 +311,8 @@ public sealed class VeteransReviewerPackageMedicationProgressionService
                 previousTherapy is null ||
                 !SameTherapy(previousTherapy, entry);
 
-            var preserveStatusTransition =
-                string.Equals(
-                    entry.Status.Trim(),
-                    MedicationLedgerStatuses.Transferred,
-                    StringComparison.OrdinalIgnoreCase) ||
-                MedicationLedgerStatuses.IsCurrent(entry.Status);
+            var preserveStatusTransition = selected.Count > 0 && !string.Equals(
+                selected[^1].Status.Trim(), entry.Status.Trim(), StringComparison.OrdinalIgnoreCase);
 
             if (selected.Count == 0 ||
                 therapyChanged ||

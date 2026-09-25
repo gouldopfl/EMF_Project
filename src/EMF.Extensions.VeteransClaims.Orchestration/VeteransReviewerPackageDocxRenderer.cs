@@ -620,7 +620,7 @@ public static class VeteransReviewerPackageDocxRenderer
             sections.Add(
                 new PackageGuideSection(
                     MedicationProgressionSectionTitle,
-                    "Shows current prescription states for medications relevant to the medical opinion request, grouped by service-connected condition."));
+                    "Summarizes dated VA prescription history and attributed indication reconciliations relevant to the medical opinion, grouped by service-connected condition."));
         }
 
         sections.Add(
@@ -1340,15 +1340,13 @@ public static class VeteransReviewerPackageDocxRenderer
 
         body.Append(
             MedicationParagraph(
-                "This section shows current prescription states for medications identified " +
-                "as relevant to the medical opinion request. When more than one prescribed-" +
-                "medication basis is part of the same medical-review theory, medications are " +
-                "grouped by service-connected condition. Active and refill-in-process " +
-                "prescriptions are included. A transferred prescription may be retained when " +
-                "it is the latest available continuity record; transferred status is not " +
-                "treated as a medication stop. Historical non-current prescription states remain " +
-                "preserved in the underlying VA medication ledger but are omitted from this " +
-                "physician-facing section."));
+                "This section summarizes VA prescription history relevant to the medical opinion, " +
+                "grouped by service-connected condition when applicable. Dated changes in dose, " +
+                "directions and recorded status are retained. Each status is the status recorded " +
+                "in the cited report; the prescription date is not a discontinuation date or " +
+                "confirmation of current use. Non-VA and unverified-source entries are excluded " +
+                "from this assembled list. Attributed indication reconciliations are shown " +
+                "separately from the unchanged VA ledger wording."));
 
         var showBasisGroups =
             progressions.Any(item =>
@@ -1388,8 +1386,16 @@ public static class VeteransReviewerPackageDocxRenderer
                     "Heading3",
                     bold: true));
 
+            if (progression.IndicationReconciliation is { } reconciliation)
+                body.Append(MedicationParagraph(
+                    $"Indication reconciliation — {reconciliation.Source}, " +
+                    reconciliation.ReconciliationDate.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture) +
+                    $": {reconciliation.Indication}. VA ledger wording is retained below.",
+                    keepWithNext: true));
+
             foreach (var entry in progression.Entries)
             {
+                var recordParagraphs = new List<Paragraph>();
                 var eventDate =
                     entry.PrescribedDate ??
                     entry.LastFilledDate;
@@ -1397,23 +1403,34 @@ public static class VeteransReviewerPackageDocxRenderer
                 var summary = new List<string>();
 
                 if (eventDate is not null)
-                    summary.Add(eventDate.Value.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture));
+                    summary.Add((entry.PrescribedDate is not null ? "Prescribed " : "Last filled ") +
+                        eventDate.Value.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture));
 
-                summary.Add(MedicationLedgerStatusDisplayName(entry.Status));
+                summary.Add("VA ledger status: " + MedicationLedgerStatusDisplayName(entry.Status));
 
                 if (!string.IsNullOrWhiteSpace(entry.Strength))
                     summary.Add(entry.Strength.Trim());
 
-                body.Append(
+                recordParagraphs.Add(
                     MedicationParagraph(
                         string.Join(" — ", summary)));
 
                 if (!string.IsNullOrWhiteSpace(entry.Directions))
                 {
-                    body.Append(
+                    recordParagraphs.Add(
                         MedicationParagraph(
-                            $"Directions: {entry.Directions.Trim()}"));
+                            $"VA ledger directions: {entry.Directions.Trim()}" +
+                            (entry.RefillsLeft is not null && !entry.Directions.Contains("Refills left:", StringComparison.OrdinalIgnoreCase)
+                                ? $" Refills left: {entry.RefillsLeft}" : string.Empty)));
                 }
+
+                if (!string.IsNullOrWhiteSpace(entry.Indication) &&
+                    !entry.Indication.Equals("None recorded", StringComparison.OrdinalIgnoreCase))
+                    recordParagraphs.Add(MedicationParagraph($"VA ledger indication: {entry.Indication.Trim()}"));
+                if (entry.RefillsLeft is not null && string.IsNullOrWhiteSpace(entry.Directions))
+                    recordParagraphs.Add(MedicationParagraph($"Refills left: {entry.RefillsLeft}"));
+                if (progression.EntrySources.TryGetValue(entry.Id, out var entrySource))
+                    recordParagraphs.Add(MedicationParagraph("Source: " + entrySource));
 
                 if (!string.IsNullOrWhiteSpace(entry.PrescriptionNumber))
                 {
@@ -1428,14 +1445,20 @@ public static class VeteransReviewerPackageDocxRenderer
 
                     foreach (var context in contexts)
                     {
-                        body.Append(
+                        recordParagraphs.Add(
                             MedicationParagraph(
                                 $"Documented clinical context: {context.Summary}"));
-                        body.Append(
+                        recordParagraphs.Add(
                             MedicationParagraph(
                                 $"Source: {context.SourceLocator}"));
                     }
                 }
+
+                // A dated record is one reading unit, including its attribution and context.
+                // Leave the final paragraph unlinked so separate records can paginate freely.
+                foreach (var paragraph in recordParagraphs.Take(recordParagraphs.Count - 1))
+                    paragraph.ParagraphProperties!.AddChild(new KeepNext(), true);
+                body.Append(recordParagraphs);
             }
         }
     }
@@ -1527,9 +1550,9 @@ public static class VeteransReviewerPackageDocxRenderer
         }
     }
 
-    private static Paragraph MedicationParagraph(string text) => ContentParagraph(
+    private static Paragraph MedicationParagraph(string text, bool keepWithNext = false) => ContentParagraph(
         Regex.Replace(text, @"\bRefills:\s*\d+\.(?:\s+Refills left:\s*\d+)?|\bRefills(?: left)?:\s*\d+\.?", match =>
-            Regex.Replace(match.Value, @"\s+", "\u00a0"), RegexOptions.IgnoreCase));
+            Regex.Replace(match.Value, @"\s+", "\u00a0"), RegexOptions.IgnoreCase), keepWithNext: keepWithNext);
 
     private static string MedicationLedgerStatusDisplayName(string status) =>
         status.Trim().ToLowerInvariant() switch

@@ -40,8 +40,8 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
 
             var progression = Assert.Single(result);
             Assert.Equal("Isosorbide Mononitrate", progression.MedicationName);
-            Assert.Single(progression.Entries);
-            Assert.Equal("refillinprocess", progression.Entries[0].Status);
+            Assert.Equal(2, progression.Entries.Count);
+            Assert.Equal("refillinprocess", progression.Entries[^1].Status);
             Assert.DoesNotContain(
                 progression.Entries,
                 entry => entry.MedicationName.Contains("allopurinol", StringComparison.OrdinalIgnoreCase));
@@ -78,7 +78,7 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
                     await CreateService(path).GetAsync(
                         Package(seeded.IssueId, seeded.BasisId)));
 
-            var current = Assert.Single(progression.Entries);
+            var current = progression.Entries[^1];
             Assert.StartsWith("traZODone", current.MedicationName);
             Assert.Equal("active", current.Status);
         }
@@ -89,7 +89,7 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
     }
 
     [Fact]
-    public async Task GetAsync_ShowsCurrentStatusAndOmitsHistoricalStopAndSupersededTransferEntries()
+    public async Task GetAsync_PreservesDatedTherapyAndRecordedStatusChanges()
     {
         var path = Path.GetTempFileName();
         try
@@ -117,7 +117,8 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
                     await CreateService(path).GetAsync(
                         Package(seeded.IssueId, seeded.BasisId)));
 
-            var current = Assert.Single(progression.Entries);
+            var current = progression.Entries[^1];
+            Assert.Equal(5, progression.Entries.Count);
             Assert.Equal(5, current.EntryOrdinal);
             Assert.Equal("refillinprocess", current.Status);
         }
@@ -128,7 +129,7 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
     }
 
     [Fact]
-    public async Task GetAsync_OmitsMedicationWhenLatestContinuityStateIsStopped()
+    public async Task GetAsync_RetainsHistoricalEntriesWhenLatestRecordedStateIsStopped()
     {
         var path = Path.GetTempFileName();
         try
@@ -149,7 +150,8 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
                 await CreateService(path).GetAsync(
                     Package(seeded.IssueId, seeded.BasisId));
 
-            Assert.Empty(result);
+            Assert.Equal(2, Assert.Single(result).Entries.Count);
+            Assert.Contains(Assert.Single(result).Entries, entry => entry.Status is "discontinued" or "expired");
         }
         finally
         {
@@ -223,7 +225,8 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
                     await CreateService(path).GetAsync(
                         Package(seeded.IssueId, seeded.BasisId)));
 
-            var current = Assert.Single(progression.Entries);
+            var current = progression.Entries[^1];
+            Assert.Equal(3, progression.Entries.Count);
             Assert.Equal("RX-CURRENT", current.PrescriptionNumber);
             Assert.Equal(
                 "ledger-current",
@@ -236,7 +239,7 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
     }
 
     [Fact]
-    public async Task GetAsync_LaterStoppedStatusSuppressesEarlierCurrentSnapshot()
+    public async Task GetAsync_LaterStoppedStatusRemainsDistinctFromEarlierCurrentSnapshot()
     {
         var path = Path.GetTempFileName();
         try
@@ -284,7 +287,8 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
                 await CreateService(path).GetAsync(
                     Package(seeded.IssueId, seeded.BasisId));
 
-            Assert.Empty(result);
+            Assert.Equal(2, Assert.Single(result).Entries.Count);
+            Assert.Contains(Assert.Single(result).Entries, entry => entry.Status is "discontinued" or "expired");
         }
         finally
         {
@@ -329,7 +333,8 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
                     await CreateService(path).GetAsync(
                         Package(seeded.IssueId, seeded.BasisId)));
 
-            var transferred = Assert.Single(progression.Entries);
+            var transferred = progression.Entries[^1];
+            Assert.Equal(2, progression.Entries.Count);
             Assert.Equal("transferred", transferred.Status);
             Assert.Equal(2, transferred.EntryOrdinal);
         }
@@ -418,6 +423,37 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_ExcludesExplicitNonVaAndProjectsAttributedReconciliationWithoutReplacingLedger()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var seeded = await SeedAsync(path);
+            await AddRelevantAsync(new SqliteServiceConnectionRepository(path), seeded.BasisId, "Examplemed");
+            await AddLedgerAsync(path, seeded.VeteranId, [
+                Entry(1, "Examplemed 10MG TAB", "10MG", "active", new(2026, 1, 1), "TAKE DAILY FOR MOOD"),
+                Entry(2, "Non-VA Examplemed 20MG TAB", "20MG", "active", new(2026, 2, 1))]);
+            var medications = new SqliteMedicationRepository(path);
+            await medications.AddMedicationIndicationReconciliationAsync(new()
+            {
+                Id = "clarification", VeteranId = seeded.VeteranId, MedicationName = "Examplemed",
+                ReconciliationDate = new(2026, 9, 24), Indication = "anxiety",
+                Source = "Veteran statement — Robin Example"
+            });
+            var progression = Assert.Single(await CreateService(path).GetAsync(Package(seeded.IssueId, seeded.BasisId)));
+            var entry = Assert.Single(progression.Entries);
+            Assert.Equal("TAKE DAILY FOR MOOD", entry.Directions);
+            Assert.Equal("anxiety", progression.IndicationReconciliation!.Indication);
+            Assert.Equal("Veteran statement — Robin Example", progression.IndicationReconciliation.Source);
+            Assert.Contains("Example VA Clinic", progression.EntrySources[entry.Id]);
+            Assert.Contains("September 9, 2026", progression.EntrySources[entry.Id]);
+            Assert.Contains("3911", progression.EntrySources[entry.Id]);
+            Assert.Equal(2, (await medications.GetMedicationLedgerEntriesAsync(new("ledger-1"))).Count);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task GetAsync_NoPersistedBasisReturnsEmpty()
     {
         var path = Path.GetTempFileName();
@@ -490,7 +526,8 @@ public sealed class VeteransReviewerPackageMedicationProgressionServiceTests
             Status = status,
             PrescriptionNumber = prescriptionNumber ?? $"RX-{ordinal}",
             PrescribedDate = prescribed,
-            Directions = directions
+            Directions = directions,
+            Facility = "Example VA Clinic"
         };
 
     private static async Task AddLedgerAsync(

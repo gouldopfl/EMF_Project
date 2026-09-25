@@ -25,6 +25,56 @@ public sealed class SqliteMedicationRepository :
         new VeteransClaimsSqliteSchema(_databasePath)
             .InitializeAsync(cancellationToken);
 
+    public async Task AddMedicationIndicationReconciliationAsync(
+        MedicationIndicationReconciliation reconciliation, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(reconciliation);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reconciliation.Id);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reconciliation.MedicationName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reconciliation.Indication);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reconciliation.Source);
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO VeteransClaims_MedicationIndicationReconciliations
+                (Id, VeteranId, MedicationName, ReconciliationDate, Indication, Source)
+            VALUES ($id, $veteran, $name, $date, $indication, $source);
+            """;
+        command.Parameters.AddWithValue("$id", reconciliation.Id.Trim());
+        command.Parameters.AddWithValue("$veteran", reconciliation.VeteranId.Value);
+        command.Parameters.AddWithValue("$name", reconciliation.MedicationName.Trim());
+        command.Parameters.AddWithValue("$date", reconciliation.ReconciliationDate.ToString("yyyy-MM-dd"));
+        command.Parameters.AddWithValue("$indication", reconciliation.Indication.Trim());
+        command.Parameters.AddWithValue("$source", reconciliation.Source.Trim());
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MedicationIndicationReconciliation>> GetMedicationIndicationReconciliationsAsync(
+        VeteranId veteranId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT Id, MedicationName, ReconciliationDate, Indication, Source
+            FROM VeteransClaims_MedicationIndicationReconciliations WHERE VeteranId = $veteran
+            ORDER BY ReconciliationDate, Id;
+            """;
+        command.Parameters.AddWithValue("$veteran", veteranId.Value);
+        var result = new List<MedicationIndicationReconciliation>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            result.Add(new MedicationIndicationReconciliation
+            {
+                Id = reader.GetString(0), VeteranId = veteranId, MedicationName = reader.GetString(1),
+                ReconciliationDate = DateOnly.ParseExact(reader.GetString(2), "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture),
+                Indication = reader.GetString(3), Source = reader.GetString(4)
+            });
+        return result;
+    }
+
     public async Task AddMedicationRecordAsync(
         MedicationRecord medicationRecord,
         CancellationToken cancellationToken = default)

@@ -12,4 +12,9 @@ public sealed class VeteransReviewerMedicationProgression
     public required string MedicationName { get; init; }
 
     public required IReadOnlyList<MedicationLedgerEntry> Entries { get; init; }
+
+    public IReadOnlyDictionary<MedicationLedgerEntryId, string> EntrySources { get; init; } =
+        new Dictionary<MedicationLedgerEntryId, string>();
+
+    public MedicationIndicationReconciliation? IndicationReconciliation { get; init; }
 }

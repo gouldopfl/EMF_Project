@@ -2945,6 +2945,21 @@ internal static class VeteransClaimsSqliteMigrations
                 CREATE INDEX
                     IX_VeteransClaims_MedicalLiteratureReviewerText_Artifact
                 ON VeteransClaims_MedicalLiteratureReviewerText (ArtifactId);
+                """),
+            new VeteransClaimsSqliteMigration(
+                89,
+                "AddMedicationIndicationReconciliation",
+                """
+                CREATE TABLE VeteransClaims_MedicationIndicationReconciliations (
+                    Id TEXT PRIMARY KEY,
+                    VeteranId TEXT NOT NULL,
+                    MedicationName TEXT NOT NULL COLLATE NOCASE,
+                    ReconciliationDate TEXT NOT NULL,
+                    Indication TEXT NOT NULL,
+                    Source TEXT NOT NULL,
+                    FOREIGN KEY (VeteranId) REFERENCES VeteransClaims_Veterans(Id),
+                    UNIQUE (VeteranId, MedicationName, ReconciliationDate)
+                );
                 """)
         };
 }

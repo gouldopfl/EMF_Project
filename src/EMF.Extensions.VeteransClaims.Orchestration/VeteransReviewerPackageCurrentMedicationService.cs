@@ -10,11 +10,13 @@ public sealed class VeteransReviewerPackageCurrentMedicationService
     private readonly IClaimIssueRepository _issues;
     private readonly IClaimRepository _claims;
     private readonly ReconciledCurrentMedicationLedgerService _currentMedications;
+    private readonly VeteransMedicationSourceEvidenceService? _sourceEvidence;
 
     public VeteransReviewerPackageCurrentMedicationService(
         IClaimIssueRepository issues,
         IClaimRepository claims,
-        ReconciledCurrentMedicationLedgerService currentMedications)
+        ReconciledCurrentMedicationLedgerService currentMedications,
+        VeteransMedicationSourceEvidenceService? sourceEvidence = null)
     {
         ArgumentNullException.ThrowIfNull(issues);
         ArgumentNullException.ThrowIfNull(claims);
@@ -23,6 +25,7 @@ public sealed class VeteransReviewerPackageCurrentMedicationService
         _issues = issues;
         _claims = claims;
         _currentMedications = currentMedications;
+        _sourceEvidence = sourceEvidence;
     }
 
     public async Task<IReadOnlyList<MedicationLedgerEntry>> GetAsync(
@@ -58,6 +61,10 @@ public sealed class VeteransReviewerPackageCurrentMedicationService
                 claim.VeteranId,
                 cancellationToken);
 
-        return snapshot?.Entries ?? [];
+        if (snapshot is null) return [];
+        var sourceEvidence = _sourceEvidence is null ? null :
+            await _sourceEvidence.GetAsync(snapshot.Ledger, snapshot.Entries, cancellationToken);
+        return snapshot.Entries.Where(entry => MedicationLedgerSource.IsVaPrescription(entry,
+            sourceEvidence?.GetValueOrDefault(entry.Id))).ToArray();
     }
 }

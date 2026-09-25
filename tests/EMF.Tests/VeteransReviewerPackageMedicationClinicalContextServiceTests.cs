@@ -213,6 +213,7 @@ public sealed class VeteransReviewerPackageMedicationClinicalContextServiceTests
             Strength = strength,
             Status = "active",
             PrescriptionNumber = prescriptionNumber,
+            Facility = "Example VA Clinic",
             PrescribedDate = new DateOnly(2025, 1, ordinal),
             Directions = "TAKE ONE TABLET ORALLY EVERY DAY"
         };

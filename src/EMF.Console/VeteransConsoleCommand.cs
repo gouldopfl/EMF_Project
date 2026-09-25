@@ -934,6 +934,18 @@ public static class VeteransConsoleCommand
                 global::System.Console.Out);
         }
 
+        if (args.Length == 9 && args[0] == "evidence" && args[1] == "medication" && args[2] == "indication")
+        {
+            if (!File.Exists(args[3]) || !DateOnly.TryParseExact(args[5], "yyyy-MM-dd", out var indicationDate))
+            {
+                global::System.Console.Error.WriteLine("Medication indication requires an existing database and yyyy-MM-dd date.");
+                return 2;
+            }
+            return await RunEvidenceMedicationIndicationReconciliationAsync(
+                Path.GetFullPath(args[3]), new VeteranId(args[4]), indicationDate,
+                args[6], args[7], args[8], global::System.Console.Out);
+        }
+
         if ((args.Length == 13 || args.Length == 14) &&
             args[0] == "evidence" &&
             args[1] == "medication" &&
@@ -4173,6 +4185,37 @@ public static class VeteransConsoleCommand
         }
     }
 
+    internal static async Task<int> RunEvidenceMedicationIndicationReconciliationAsync(
+        string databasePath, VeteranId veteranId, DateOnly date, string medicationName,
+        string indication, string source, TextWriter output)
+    {
+        if (string.IsNullOrWhiteSpace(medicationName) || string.IsNullOrWhiteSpace(indication) ||
+            string.IsNullOrWhiteSpace(source)) return 2;
+        var repository = new SqliteMedicationRepository(databasePath);
+        await repository.InitializeAsync();
+        if (await new SqliteVeteranRepository(databasePath).GetVeteranAsync(veteranId) is null)
+            return 2;
+        var existing = (await repository.GetMedicationIndicationReconciliationsAsync(veteranId))
+            .SingleOrDefault(item => item.ReconciliationDate == date &&
+                item.MedicationName.Equals(medicationName.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            if (existing.Indication != indication.Trim() || existing.Source != source.Trim())
+            {
+                await output.WriteLineAsync("A different attributed indication already exists for this medication and date.");
+                return 2;
+            }
+        }
+        else
+            await repository.AddMedicationIndicationReconciliationAsync(new()
+            {
+                Id = Guid.NewGuid().ToString("N"), VeteranId = veteranId, ReconciliationDate = date,
+                MedicationName = medicationName.Trim(), Indication = indication.Trim(), Source = source.Trim()
+            });
+        await output.WriteLineAsync($"Indication reconciliation: {medicationName.Trim()} — {indication.Trim()}; {source.Trim()}, {date:yyyy-MM-dd}. Original ledger unchanged.");
+        return 0;
+    }
+
     internal static async Task<int>
         RunEvidenceMedicationReconciliationAsync(
             string databasePath,
@@ -6607,6 +6650,12 @@ public static class VeteransConsoleCommand
 
         await clinicalProgressionRepository.InitializeAsync();
 
+        var medicationSourceEvidence = contentStore is null ? null :
+            new VeteransMedicationSourceEvidenceService(
+                evidenceRepository,
+                contentStore,
+                new PdfArtifactTextExtractionProvider(contentStore));
+
         var assemblyService =
             new VeteransReviewerPackageAssemblyService(
                 detailsService,
@@ -6616,12 +6665,14 @@ public static class VeteransConsoleCommand
                     new ReconciledCurrentMedicationLedgerService(
                         new CurrentMedicationLedgerService(
                             medicationRepository),
-                        medicationRepository)),
+                        medicationRepository),
+                    medicationSourceEvidence),
                 new VeteransReviewerPackageMedicationProgressionService(
                     claimIssueRepository,
                     claimRepository,
                     serviceConnectionRepository,
-                    medicationRepository),
+                    medicationRepository,
+                    medicationSourceEvidence),
                 new VeteransReviewerPackageMedicationClinicalContextService(
                     claimIssueRepository,
                     claimRepository,
@@ -7164,6 +7215,10 @@ public static class VeteransConsoleCommand
         global::System.Console.WriteLine(
             "       emf veterans evidence medication ledger import " +
             "<database-path> <veteran-id> <source-artifact-id>");
+
+        global::System.Console.WriteLine(
+            "       emf veterans evidence medication indication " +
+            "<database-path> <veteran-id> <yyyy-MM-dd> <medication-name> <indication> <attributed-source>");
 
         global::System.Console.WriteLine(
             "       emf veterans evidence medication reconcile " +

@@ -5,6 +5,14 @@ namespace EMF.Extensions.VeteransClaims.Contracts;
 
 public interface IMedicationRepository
 {
+    Task AddMedicationIndicationReconciliationAsync(
+        MedicationIndicationReconciliation reconciliation,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    Task<IReadOnlyList<MedicationIndicationReconciliation>> GetMedicationIndicationReconciliationsAsync(
+        VeteranId veteranId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<MedicationIndicationReconciliation>>([]);
+
     Task AddMedicationRecordAsync(
         MedicationRecord medicationRecord,
         CancellationToken cancellationToken = default);

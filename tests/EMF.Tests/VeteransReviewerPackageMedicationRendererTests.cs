@@ -100,7 +100,7 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
                 "Relevant Medications for Medical Opinion",
                 StringComparison.Ordinal));
         Assert.Contains(
-            "Historical non-current prescription states remain preserved in the underlying VA medication ledger",
+            "Dated changes in dose, directions and recorded status are retained.",
             text);
     }
 
@@ -236,7 +236,7 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
 
         var currentIndex =
             text.IndexOf(
-                "August 21, 2026 — Refill in process — 30 mg/24 hour",
+                "Prescribed August 21, 2026 — VA ledger status: Refill in process — 30 mg/24 hour",
                 StringComparison.Ordinal);
         var contextIndex =
             text.IndexOf(
@@ -249,6 +249,36 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
             "Source: VA Blue Button Report — Cardiology Follow-up — August 21, 2026",
             text);
         Assert.DoesNotContain("3211-50014120", text);
+    }
+
+    [Fact]
+    public void Render_AttributedIndicationDoesNotReplaceVaDirectionsOrImplyCurrentUse()
+    {
+        var entry = new MedicationLedgerEntry
+        {
+            Id = new("entry"), MedicationLedgerId = new("ledger"), EntryOrdinal = 1,
+            SourceStartPage = 2, SourceEndPage = 2, MedicationName = "Examplemed",
+            Status = "discontinued", Directions = "TAKE DAILY FOR MOOD. Refills: 3.",
+            RefillsLeft = 2, PrescribedDate = new(2025, 1, 1)
+        };
+        var text = RenderText(entry, [new VeteransReviewerMedicationProgression
+        {
+            MedicationName = "Examplemed", Entries = [entry],
+            EntrySources = new Dictionary<MedicationLedgerEntryId, string> { [entry.Id] = "Example VA Clinic — source page 2" },
+            IndicationReconciliation = new()
+            {
+                Id = "statement", VeteranId = new("veteran"), MedicationName = "Examplemed",
+                ReconciliationDate = new(2026, 9, 24), Indication = "anxiety",
+                Source = "Veteran statement — Robin Example"
+            }
+        }]);
+        Assert.Contains("Indication reconciliation — Veteran statement — Robin Example, September 24, 2026: anxiety", text);
+        Assert.Contains("VA ledger directions: TAKE DAILY FOR MOOD.", text);
+        Assert.Contains("Prescribed January 1, 2025 — VA ledger status: Discontinued", text);
+        Assert.Contains("Refills:\u00a03.\u00a0Refills\u00a0left:\u00a02", text);
+        Assert.Contains("Source: Example VA Clinic — source page 2", text);
+        Assert.Contains("prescription date is not a discontinuation date", text);
+        Assert.DoesNotContain("TAKE DAILY FOR ANXIETY", text);
     }
 
     private static string RenderText(
