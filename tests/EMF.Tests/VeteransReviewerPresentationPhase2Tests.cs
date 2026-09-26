@@ -964,7 +964,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             var heading = paragraphs.First(p => p.InnerText == entry.MedicationName && p.ParagraphProperties?.ParagraphStyleId?.Val == "Heading3");
             Assert.NotNull(heading.ParagraphProperties!.GetFirstChild<KeepNext>());
         }
-        foreach (var subject in new[] { "Package Guide", "Clinical Progression", "Relevant Medications for Medical Opinion" })
+        foreach (var subject in new[] { "Clinical Progression", "Relevant Medications for Medical Opinion" })
         {
             var header = main.HeaderParts.SelectMany(h => h.Header!.Elements<Paragraph>())
                 .Single(p => p.InnerText == subject + " — Continued");
@@ -975,7 +975,12 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         var pages = pdf.GetPages().ToArray();
         Assert.Contains("synthetic condition", pages[0].Text);
         Assert.Contains("service-connected underlying condition", pages[0].Text);
-        Assert.Contains(pages, p => p.Text.Contains("Package Guide — Continued"));
+        // A stored default header is only used if the section actually continues.
+        // Check pagination, including the last guide entry, in the rendered output.
+        var guidePage = Assert.Single(pages.Where(p => p.Text.Contains("Package Guide")));
+        Assert.Contains("Appendix F", guidePage.Text);
+        Assert.Contains("Issues Presented for Medical Review", pages[guidePage.Number].Text);
+        Assert.DoesNotContain(pages, p => p.Text.Contains("Package Guide — Continued"));
         foreach (var pair in new[] { ("CLINICALROW", "Clinical Progression"), ("MEDROW", "Relevant Medications for Medical Opinion") })
         {
             var sectionPages = pages.Where(p => p.Text.Contains(pair.Item1) &&
@@ -1070,18 +1075,132 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         });
     }
 
+    [Theory]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(12)]
+    public void Render_PartialClinicalPageUsesSourceScaleAndPreservesProportions(double sourceSize)
+    {
+        using var fixture = new VeteransReviewerNativeEvidencePageTests.NativePage(2550, 3300, 612, 792);
+        fixture.Line("SLEEP MED TELEPHONE NOTE", 552, font: "Bitter-Bold", size: 16, x: 16);
+        fixture.Line("Date entered: April 17, 2025", 616, font: "SourceSansPro", size: sourceSize, x: 45);
+        fixture.Line("Location: SOURCE MEDICAL CENTER", 634, font: "SourceSansPro", size: sourceSize, x: 45);
+        fixture.Line("Written by: SOURCE CLINICIAN", 652, font: "SourceSansPro", size: sourceSize, x: 45);
+        fixture.Line("Signed by: SOURCE CLINICIAN", 670, font: "SourceSansPro", size: sourceSize, x: 45);
+        var page = fixture.Page();
+        using var document = Open([Evidence("Short native clinical page", "", pages: [page])]);
+        var inline = Assert.Single(document.MainDocumentPart!.Document!.Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.Inline>());
+        var extent = inline.GetFirstChild<DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent>()!;
+        var prepared = VeteransReviewerNativeEvidencePage.Prepare(page, true);
+        using var bitmap = SKBitmap.Decode(prepared.Content.Span);
+        var scale = extent.Cx!.Value / (double)bitmap.Width / (12700 * 612d / 2550);
+        Assert.InRange(sourceSize * scale, Math.Min(sourceSize, 10) - .01, Math.Min(sourceSize, 10) + .01);
+        Assert.InRange(extent.Cx!.Value / (double)extent.Cy!.Value,
+            bitmap.Width / (double)bitmap.Height - .00001, bitmap.Width / (double)bitmap.Height + .00001);
+    }
+
+    [Fact]
+    public void Render_BlueButtonTitleSuppressionReachesEmbeddedImageAndKeepsContinuationTitle()
+    {
+        const string title = "SLEEP MED TELEPHONE NOTE";
+        using var fixture = new VeteransReviewerNativeEvidencePageTests.NativePage(2550, 3300, 612, 792);
+        fixture.Line(title, 60, font: "Bitter-Bold", size: 16);
+        fixture.Line("LOCAL TITLE: SLEEP MED TELEPHONE NOTE", 100, size: 12);
+        fixture.Line("The original clinical text remains unchanged.", 140, size: 12);
+        var first = fixture.Page(pageNumber: 10);
+        var second = fixture.Page(pageNumber: 11);
+        using var document = Open([Evidence(title, "", pages: [first, second])]);
+        var properties = document.MainDocumentPart!.Document!
+            .Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties>().ToArray();
+        Assert.Contains("Suppressed duplicate opening", properties[0].Description!.Value);
+        Assert.DoesNotContain("Suppressed duplicate opening", properties[1].Description!.Value);
+        var images = document.MainDocumentPart.ImageParts.Select(p =>
+        {
+            using var stream = p.GetStream();
+            using var bytes = new MemoryStream(); stream.CopyTo(bytes); return bytes.ToArray();
+        }).ToArray();
+        Assert.Contains(images, bytes => bytes.SequenceEqual(
+            VeteransReviewerNativeEvidencePage.Prepare(first, true, title).Content.ToArray()));
+        Assert.Contains(images, bytes => bytes.SequenceEqual(
+            VeteransReviewerNativeEvidencePage.Prepare(second, true).Content.ToArray()));
+    }
+
+    [Fact]
+    public void Render_CurrentPrescriptionSupplementReplacesHistoricalPresentationWithDatedSource()
+    {
+        using var fixture = new VeteransReviewerNativeEvidencePageTests.NativePage(1224, 1584);
+        fixture.Line("Clinical material before the historical section.", 50, size: 12);
+        fixture.Line("MEDICATIONS:", 86, size: 12);
+        fixture.Line("Active Outpatient Medications (including Supplies):", 104, size: 12);
+        fixture.Line("1) HISTORICAL MEDICATION TAKE AS DIRECTED ACTIVE", 122, size: 12);
+        fixture.Line("C-SSRS screener: Negative", 158, size: 12);
+        var details = Details([Evidence("Historical clinical note", "", pages: [fixture.Page()], artifactType: "veterans-clinical-note")]);
+        var presentation = VeteransReviewerPackagePrescriptionPresentationTests.DeriveFor(details);
+        var captured = VeteransReviewerPackageSnapshot.Capture(VeteransReviewerPackagePrescriptionPresentation.Attach(details, presentation), []);
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(VeteransReviewerPackageSnapshot.Restore(captured).Details,
+            sourceReviewDate: new DateOnly(2026, 9, 26));
+        using var stream = new MemoryStream(bytes);
+        using var document = WordprocessingDocument.Open(stream, false);
+        var text = document.MainDocumentPart!.Document!.Body!.InnerText;
+        Assert.Contains("VA Prescription List — September 9, 2026", text);
+        Assert.Contains("as of September 9, 2026", text);
+        Assert.Contains("Historical clinical note; original pages 10–20", text);
+        Assert.Contains("Trazodone 100 mg", text);
+        Assert.Contains("TAKE THREE TABLETS ORALLY AT BEDTIME FOR INSOMNIA.", text);
+        Assert.Contains("recorded non-use reconciliations", text);
+        Assert.Contains("2026-09-26", text);
+        Assert.Contains("no positive current-use reconciliation", text);
+        Assert.True(text.IndexOf("Trazodone 100 mg", StringComparison.Ordinal) < text.IndexOf("Allopurinol 300 mg", StringComparison.Ordinal));
+        Assert.DoesNotContain("Reported non-use medication", text);
+        Assert.DoesNotContain("Historical Medication List —", text);
+        Assert.DoesNotContain("Historical medication table omitted", text);
+        Assert.DoesNotContain("Transferred medication", text);
+        Assert.DoesNotContain("Discontinued medication", text);
+        var prepared = VeteransReviewerNativeEvidencePage.SuppressHistoricalMedications([fixture.Page()], out var removed);
+        Assert.Equal(3, removed);
+        using var expected = SKBitmap.Decode(VeteransReviewerNativeEvidencePage.Prepare(prepared[0], true).Content.Span);
+        using var imageStream = Assert.Single(document.MainDocumentPart.ImageParts).GetStream();
+        using var actual = SKBitmap.Decode(imageStream);
+        Assert.Equal(expected.Pixels, actual.Pixels);
+    }
+
+    [Fact]
+    public void Render_NativeHistoricalMedicationExclusionChangesEmbeddedPixelsAndDisclosesOmission()
+    {
+        using var fixture = new VeteransReviewerNativeEvidencePageTests.NativePage(1224, 1584);
+        fixture.Line("Clinical material before the historical section.", 50, size: 12, x: 45);
+        fixture.Line("MEDICATIONS:", 86, size: 12, x: 45);
+        fixture.Line("Active Outpatient Medications (including Supplies):", 104, size: 12, x: 45);
+        fixture.Line("1) HISTORICAL MEDICATION TAKE AS DIRECTED ACTIVE", 122, size: 12, x: 45);
+        fixture.Line("C-SSRS screener: Negative", 158, size: 12, x: 45);
+        fixture.Line("PHYSICAL EXAM:", 194, size: 12, x: 45);
+        fixture.Line("General: no acute distress", 212, size: 12, x: 45);
+        var page = fixture.Page();
+        using var document = Open([Evidence("Historical clinical note", "", pages: [page], artifactType: "veterans-clinical-note")]);
+        Assert.Contains("Historical medication table omitted", document.MainDocumentPart!.Document!.Body!.InnerText);
+        var expectedPages = VeteransReviewerNativeEvidencePage.SuppressHistoricalMedications([page], out var removed);
+        Assert.Equal(3, removed);
+        var expected = VeteransReviewerNativeEvidencePage.Prepare(Assert.Single(expectedPages), true);
+        using var stream = Assert.Single(document.MainDocumentPart!.ImageParts).GetStream();
+        using var actual = new MemoryStream(); stream.CopyTo(actual);
+        Assert.Equal(expected.Content.ToArray(), actual.ToArray());
+        Assert.Contains(expected.Regions.SelectMany(r => r.RenderedLines), l => l.Contains("Clinical material before"));
+        Assert.Contains(expected.Regions.SelectMany(r => r.RenderedLines), l => l.Contains("C-SSRS"));
+        Assert.Contains(expected.Regions.SelectMany(r => r.RenderedLines), l => l.Contains("no acute distress"));
+    }
+
     private static WordprocessingDocument Open(VeteransReviewerArtifactContent[] contents) =>
         WordprocessingDocument.Open(new MemoryStream(VeteransReviewerPackageDocxRenderer.Render(Details(contents))), false);
 
     private static VeteransReviewerArtifactContent Evidence(string title, string text,
         string appendix = VeteransReviewerPackageAppendix.MedicalEvidence,
         IReadOnlyList<PrintableArtifactPage>? pages = null, string? reviewerText = null, bool reviewed = false,
-        string? sourceName = "VA Blue Button Report")
+        string? sourceName = "VA Blue Button Report", string artifactType = "medical-record")
     {
         var id = new ArtifactId(title);
         return new()
         {
-            Artifact = new Artifact { Id = id, Name = title, ArtifactType = "medical-record",
+            Artifact = new Artifact { Id = id, Name = title, ArtifactType = artifactType,
                 Metadata = new Dictionary<string, object> { [VeteransArtifactMetadataKeys.EvidenceTitle] = title } },
             Text = text, Appendix = appendix, SourceName = sourceName, PrintablePages = pages ?? [],
             MedicalLiteratureReviewerText = reviewerText,

@@ -93,6 +93,58 @@ public sealed class VeteransReviewerMedicalOpinionRequestServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_ConditionBasisKeepsConditionsAsOpinionTargetWhenMedicationsAreEvidence()
+    {
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            await new VeteransClaimsSqliteSchema(path).InitializeAsync();
+
+            var seeded =
+                await SeedAsync(
+                    path,
+                    "condition-basis-medications",
+                    ServiceConnectionTheoryTypes.Secondary,
+                    "Obstructive sleep apnea",
+                    ["PTSD / Anxiety / Major Depression"]);
+
+            var connections =
+                new SqliteServiceConnectionRepository(path);
+
+            await connections.AddBasisPrescribedMedicationAsync(
+                new ServiceConnectionBasisPrescribedMedication
+                {
+                    ServiceConnectionBasisId = seeded.BasisId,
+                    MedicationName = "Sertraline HCl"
+                });
+
+            var result =
+                await CreateService(path).GetAsync(
+                    Package(seeded.IssueId, seeded.BasisId));
+
+            Assert.NotNull(result);
+            Assert.Equal(
+                "Determine whether the Veteran's Obstructive sleep apnea is at least as likely as not " +
+                "(50 percent or greater probability) proximately due to or the result of the Veteran's " +
+                "service-connected PTSD, Anxiety, and Major Depression. If causation is not established, " +
+                "determine whether the Veteran's Obstructive sleep apnea is at least as likely as not " +
+                "aggravated by those service-connected mental health conditions. In addressing causation " +
+                "and aggravation, consider the Veteran's prescribed psychiatric medications and other " +
+                "medically relevant mechanisms and evidence, and provide supporting medical rationale.",
+                result.OpinionText);
+            Assert.DoesNotContain(
+                "proximately due to or the result of one or more medications",
+                result.OpinionText,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task GetAsync_SecondaryUsesReviewerBasisLabelWhenPresent()
     {
         var path = Path.GetTempFileName();

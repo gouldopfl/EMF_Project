@@ -142,7 +142,8 @@ public sealed class VeteransReviewerMedicalOpinionRequestService
             }
         }
 
-        var targets = new List<string>();
+        var targets = new List<(string Text, bool MedicationBasis, bool MentalHealthGroup)>();
+        var hasConditionBasisMedicationEvidence = false;
 
         foreach (var opinionBasis in opinionBases)
         {
@@ -188,10 +189,32 @@ public sealed class VeteransReviewerMedicalOpinionRequestService
                     "Reviewer medical opinion basis label is invalid.");
             }
 
-            targets.Add(
-                opinionBasis.MedicationNames.Count > 0
-                    ? MedicationOpinionTarget(serviceConnectedNames)
-                    : $"the Veteran's service-connected {serviceConnectedNames}");
+            var medicationBasis =
+                IsMedicationBasisReviewerLabel(
+                    opinionBasis.Basis.ReviewerLabel);
+
+            if (medicationBasis)
+            {
+                targets.Add((
+                    MedicationOpinionTarget(serviceConnectedNames),
+                    true,
+                    false));
+            }
+            else
+            {
+                var reviewerConditionNames =
+                    FormatReviewerConditionNames(serviceConnectedNames);
+                var mentalHealthGroup =
+                    IsMentalHealthConditionGroup(reviewerConditionNames);
+
+                targets.Add((
+                    $"the Veteran's service-connected {reviewerConditionNames}",
+                    false,
+                    mentalHealthGroup));
+
+                if (opinionBasis.MedicationNames.Count > 0)
+                    hasConditionBasisMedicationEvidence = true;
+            }
         }
 
         var claimedNames =
@@ -199,8 +222,31 @@ public sealed class VeteransReviewerMedicalOpinionRequestService
                 claimedConditions.Select(x => x.Name));
 
         var verb = claimedConditions.Count == 1 ? "is" : "are";
-        var targetText = FormatOpinionTargets(targets);
-        var medicationOpinion = selectedMedicationNames.Count > 0;
+        var targetTexts = targets.Select(target => target.Text).ToArray();
+        var targetText = FormatOpinionTargets(targetTexts);
+        var medicationOnlyOpinion = targets.All(target => target.MedicationBasis);
+        var mentalHealthConditionOpinion =
+            targets.Count == 1 &&
+            !targets[0].MedicationBasis &&
+            targets[0].MentalHealthGroup;
+
+        var aggravationTarget =
+            medicationOnlyOpinion
+                ? "one or more of those medications"
+                : mentalHealthConditionOpinion
+                    ? "those service-connected mental health conditions"
+                    : AggravationOpinionTargets(targetTexts);
+
+        var rationaleText =
+            hasConditionBasisMedicationEvidence
+                ? mentalHealthConditionOpinion
+                    ? ". In addressing causation and aggravation, consider the Veteran's " +
+                      "prescribed psychiatric medications and other medically relevant mechanisms " +
+                      "and evidence, and provide supporting medical rationale."
+                    : ". In addressing causation and aggravation, consider the Veteran's " +
+                      "prescribed medications and other medically relevant mechanisms and evidence, " +
+                      "and provide supporting medical rationale."
+                : ", with supporting medical rationale.";
 
         var citations =
             await GetApplicableRegulatoryCitationsAsync(
@@ -215,10 +261,8 @@ public sealed class VeteransReviewerMedicalOpinionRequestService
                 $"or the result of {targetText}. " +
                 "If causation is not established, determine whether the Veteran's " +
                 $"{claimedNames} {verb} at least as likely as not aggravated by " +
-                (medicationOpinion
-                    ? "one or more of those medications"
-                    : AggravationOpinionTargets(targets)) +
-                ", with supporting medical rationale.",
+                aggravationTarget +
+                rationaleText,
             ApplicableRegulatoryCitations = citations
         };
     }
@@ -280,6 +324,38 @@ public sealed class VeteransReviewerMedicalOpinionRequestService
             .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
+
+    private static bool IsMedicationBasisReviewerLabel(
+        string? reviewerLabel) =>
+        !string.IsNullOrWhiteSpace(reviewerLabel) &&
+        reviewerLabel.Trim().StartsWith(
+            "Secondary to medications used for service-connected ",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatReviewerConditionNames(string names)
+    {
+        var values =
+            names.Split(
+                    '/',
+                    StringSplitOptions.RemoveEmptyEntries |
+                    StringSplitOptions.TrimEntries)
+                .Where(value => value.Length > 0)
+                .ToArray();
+
+        return values.Length switch
+        {
+            0 => names.Trim(),
+            1 => values[0],
+            2 => $"{values[0]} and {values[1]}",
+            _ => string.Join(", ", values[..^1]) + $", and {values[^1]}"
+        };
+    }
+
+    private static bool IsMentalHealthConditionGroup(string names) =>
+        names.Contains("PTSD", StringComparison.OrdinalIgnoreCase) &&
+        names.Contains("Anxiety", StringComparison.OrdinalIgnoreCase) &&
+        (names.Contains("Major Depression", StringComparison.OrdinalIgnoreCase) ||
+         names.Contains("Major Depressive", StringComparison.OrdinalIgnoreCase));
 
     private static string MedicationOpinionTarget(string reviewerLabel)
     {

@@ -16,7 +16,106 @@ internal sealed record VeteransReviewerNativeEvidencePage(
 {
     public IReadOnlyList<VeteransReviewerNativeRegionPlacement> Regions { get; init; } = [];
 
-    public static VeteransReviewerNativeEvidencePage Prepare(PrintableArtifactPage page, bool isBlueButton)
+    // Plan exclusions over the complete selected note before modifying any
+    // reviewer pixels. A section can span pages; an unbounded or interrupted
+    // section is left intact. Persisted pages and source artifacts are immutable.
+    public static IReadOnlyList<PrintableArtifactPage> SuppressHistoricalMedications(
+        IReadOnlyList<PrintableArtifactPage> pages, out int omittedRows)
+    {
+        omittedRows = 0;
+        var rows = new List<(int Page, Row Row)>();
+        for (var i = 0; i < pages.Count; i++)
+        {
+            var page = pages[i];
+            if (page.ContentType != "image/png" || page.SuggestedClockwiseRotation != 0 ||
+                page.TextGeometry is not { ContainsGraphics: false, Width: > 0, Height: > 0 } geometry)
+                continue;
+            rows.AddRange(geometry.Glyphs.Where(g => !string.IsNullOrWhiteSpace(g.Text))
+                .GroupBy(g => Math.Round(g.Baseline, 1)).OrderBy(g => g.Key)
+                .Select(g => new Row(g.OrderBy(x => x.X).ToArray()))
+                .Where(r => !PageFurniture(r, geometry.Height)).Select(r => (i, r)));
+        }
+        var excluded = new HashSet<Row>();
+        for (var i = 0; i < rows.Count; i++)
+        {
+            if (!Regex.IsMatch(rows[i].Row.Text,
+                    @"^(?:MEDICATIONS:|Active Outpatient Medications.*)$", RegexOptions.IgnoreCase)) continue;
+            var end = i + 1;
+            while (end < rows.Count && !MedicationEnd(rows[end].Row.Text)) end++;
+            if (end == rows.Count) continue;
+            var span = rows.Skip(i).Take(end - i).ToArray();
+            if (!span.Any(r => r.Row.Text.StartsWith("Active Outpatient Medications", StringComparison.OrdinalIgnoreCase)) ||
+                !span.Any(r => Regex.IsMatch(r.Row.Text, @"^\d+\)\s"))) continue;
+            var firstPage = rows[i].Page;
+            var lastPage = rows[end].Page;
+            if (Enumerable.Range(firstPage, lastPage - firstPage + 1).Any(p =>
+                    pages[p].TextGeometry is not { ContainsGraphics: false, Width: > 0, Height: > 0 } ||
+                    pages[p].ContentType != "image/png" || pages[p].SuggestedClockwiseRotation != 0 ||
+                    (p > firstPage && pages[p].PageNumber != pages[p - 1].PageNumber + 1))) continue;
+            foreach (var item in span) excluded.Add(item.Row);
+            i = end - 1;
+        }
+        if (excluded.Count == 0) return pages;
+
+        var output = new List<PrintableArtifactPage>();
+        for (var i = 0; i < pages.Count; i++)
+        {
+            var removed = rows.Where(r => r.Page == i && excluded.Contains(r.Row)).Select(r => r.Row).ToArray();
+            if (removed.Length == 0) { output.Add(pages[i]); continue; }
+            var page = pages[i];
+            var geometry = page.TextGeometry!;
+            using var bitmap = SKBitmap.Decode(page.Content.Span)
+                ?? throw new InvalidDataException("Native evidence image could not be decoded.");
+            var pixels = bitmap.Pixels;
+            var removedGlyphs = removed.SelectMany(r => r.Glyphs).ToHashSet();
+            foreach (var row in removed)
+            {
+                var box = Bounds(row.Glyphs, bitmap.Width / geometry.Width, bitmap.Height / geometry.Height,
+                    bitmap.Width, bitmap.Height);
+                // Only the excluded glyph band is blanked; adjacent note rows,
+                // repeated patient headers and other source marks are retained.
+                for (var y = box.Top; y < box.Bottom; y++)
+                    Array.Fill(pixels, SKColors.White, y * bitmap.Width + box.Left, box.Width);
+            }
+            omittedRows += removed.Length;
+            var retainedGlyphs = geometry.Glyphs.Where(g => !removedGlyphs.Contains(g)).ToArray();
+            if (rows.Where(r => r.Page == i).All(r => excluded.Contains(r.Row)))
+            {
+                // Drop a medication-only page only if no unexplained source ink
+                // remains after accounting for its repeating header and footer.
+                var check = (SKColor[])pixels.Clone();
+                var furniture = retainedGlyphs.Where(g => !string.IsNullOrWhiteSpace(g.Text))
+                    .GroupBy(g => Math.Round(g.Baseline, 1));
+                foreach (var group in furniture)
+                {
+                    var box = Bounds(group, bitmap.Width / geometry.Width, bitmap.Height / geometry.Height,
+                        bitmap.Width, bitmap.Height);
+                    for (var y = box.Top; y < box.Bottom; y++)
+                        Array.Fill(check, SKColors.White, y * bitmap.Width + box.Left, box.Width);
+                }
+                if (!HasInk(check, bitmap.Width, 0, bitmap.Height)) continue;
+            }
+            bitmap.Pixels = pixels;
+            using var image = SKImage.FromBitmap(bitmap);
+            using var png = image.Encode(SKEncodedImageFormat.Png, 100);
+            output.Add(new() { PageNumber = page.PageNumber, ContentType = page.ContentType,
+                Content = png.ToArray(), TextGeometry = geometry with { Glyphs = retainedGlyphs } });
+        }
+        return output;
+    }
+
+    private static bool PageFurniture(Row row, double height) =>
+        (row.Baseline < height * .05 && row.Text.Contains("Date of birth:", StringComparison.Ordinal)) ||
+        (row.Baseline > height * .95 && Regex.IsMatch(row.Text,
+            @"^Report generated by My HealtheVet on VA\.gov on .+\s?Page \d+ of \d+$"));
+
+    private static bool MedicationEnd(string text) => Regex.IsMatch(text,
+        @"^(?:Columbia Suicide Severity Rating Scale|C-SSRS|PHYSICAL EXAM:|ASSESSMENT(?:/PLAN)?:|REVIEW OF SYSTEMS|ROS:|OBJECTIVE:|EXAM:|PLAN:|VITAL SIGNS:|ALLERGIES:|/es/|Signed:|\d{2}/\d{2}/\d{4} ADDENDUM)",
+        RegexOptions.IgnoreCase) ||
+        (Regex.IsMatch(text, @"^[A-Z][A-Z /()-]{2,54}:$") &&
+         !text.Contains("MEDICATION", StringComparison.Ordinal));
+
+    public static VeteransReviewerNativeEvidencePage Prepare(PrintableArtifactPage page, bool isBlueButton, string? artifactTitle = null)
     {
         if (!isBlueButton || page.TextGeometry is not { } geometry || geometry.ContainsGraphics ||
             page.SuggestedClockwiseRotation != 0 || geometry.Width <= 0 || geometry.Height <= 0)
@@ -44,6 +143,7 @@ internal sealed record VeteransReviewerNativeEvidencePage(
             changes.Add($"Removed native Blue Button footer at y={row.Baseline:F1}pt.");
         }
 
+        MarkProseContinuations(rows);
         var regions = DetectRegions(rows, sx, sy, width, height);
         // Any ink not explained by native glyph bounds is a protected region.
         // This also retains marks on pages with incomplete glyph information.
@@ -122,11 +222,103 @@ internal sealed record VeteransReviewerNativeEvidencePage(
         using var image = SKImage.FromBitmap(result);
         using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
         var crop = VeteransReviewerSourcePageCrop.Crop(encoded.ToArray());
-        return new(crop.Content, changes)
+        var presented = PresentSourceHeadings(crop, rows, placements, sx, sy, width, height,
+            geometry.Height, artifactTitle, changes);
+        return new(presented, changes)
         {
             Regions = placements.Select(r => r with { TargetTop = r.TargetTop - crop.Top,
                 TargetBottom = r.TargetBottom - crop.Top, HorizontalOffset = -crop.Left }).ToArray()
         };
+    }
+
+    // Apply presentation changes after reconstruction and its crop have been
+    // fixed. Keeping those dimensions prevents title removal from magnifying
+    // the remaining clinical text in Word's fit-to-page layout.
+    private static ReadOnlyMemory<byte> PresentSourceHeadings(
+        VeteransReviewerSourcePageCrop crop, IReadOnlyList<Row> rows,
+        List<VeteransReviewerNativeRegionPlacement> placements,
+        double sx, double sy, int width, int height, double sourceHeight,
+        string? artifactTitle, List<string> changes)
+    {
+        var bodySizes = rows.Where(r => r.IsMono && r.Text.Any(char.IsLower))
+            .SelectMany(r => r.Glyphs).Select(g => g.FontSize).Order().ToArray();
+        if (bodySizes.Length == 0)
+            bodySizes = rows.Where(r => r.Text.Any(char.IsLower)).SelectMany(r => r.Glyphs)
+                .Where(g => !g.Font.Contains("Bold", StringComparison.OrdinalIgnoreCase))
+                .Select(g => g.FontSize).Order().ToArray();
+        if (bodySizes.Length == 0) return crop.Content;
+        var bodySize = bodySizes[bodySizes.Length / 2];
+        var opening = rows.Where(r => !PageFurniture(r, sourceHeight)).FirstOrDefault();
+        var duplicate = new HashSet<Row>();
+        if (!string.IsNullOrWhiteSpace(artifactTitle) && opening is not null &&
+            opening.Size > bodySize * 1.1 && opening.Font.Contains("Bold", StringComparison.OrdinalIgnoreCase))
+        {
+            // A wrapped opening title is one title. Never search further down
+            // the note or consume metadata / a clinical section to get a match.
+            var candidates = rows.SkipWhile(r => r != opening).TakeWhile((r, index) =>
+                r.Font == opening.Font && Math.Abs(r.Size - opening.Size) < .1 &&
+                r.Baseline - opening.Baseline <= index * opening.Size * 1.75 &&
+                !r.Text.Contains(':')).Take(3).ToArray();
+            for (var count = 1; count <= candidates.Length; count++)
+                if (EquivalentTitle(string.Join(" ", candidates.Take(count).Select(r => r.Text)), artifactTitle))
+                {
+                    duplicate.UnionWith(candidates.Take(count));
+                    break;
+                }
+        }
+        using var bitmap = SKBitmap.Decode(crop.Content.Span)!;
+        using var canvas = new SKCanvas(bitmap);
+        foreach (var row in rows)
+        {
+            var remove = duplicate.Contains(row);
+            var section = MajorHeading(row) || row.Text is "Details" or "Note";
+            if (!remove && (!section || row.Size <= bodySize * 1.1)) continue;
+            // Structured strips preserve each row's original local coordinates.
+            // Ambiguous or reflowed rows are deliberately left untouched.
+            var box = Bounds(row.Glyphs, sx, sy, width, height);
+            var placement = placements.FirstOrDefault(p => p.Kind == "Structured" &&
+                box.Top >= p.SourceTop && box.Bottom <= p.SourceBottom);
+            if (placement is null) continue;
+            var target = SKRectI.Create(box.Left - crop.Left,
+                box.Top + placement.TargetTop - placement.SourceTop - crop.Top, box.Width, box.Height);
+            using var tile = new SKBitmap();
+            if (!bitmap.ExtractSubset(tile, target)) continue;
+            using var preserved = tile.Copy();
+            using var white = new SKPaint { Color = SKColors.White };
+            canvas.DrawRect(target, white);
+            if (!remove)
+            {
+                var scale = bodySize / row.Size;
+                using var image = SKImage.FromBitmap(preserved);
+                canvas.DrawImage(image, new SKRect(target.Left, target.Top,
+                    target.Left + (float)(target.Width * scale), target.Top + (float)(target.Height * scale)),
+                    new SKSamplingOptions(SKFilterMode.Linear));
+                changes.Add($"Restrained native section heading '{row.Text}' from {row.Size:F1}pt to {bodySize:F1}pt; source words retained.");
+            }
+            else
+            {
+                changes.Add($"Suppressed duplicate opening source title '{row.Text}'; equivalent to reviewer artifact title.");
+                var index = placements.IndexOf(placement);
+                placements[index] = placement with { RenderedLines = placement.RenderedLines.Where(l => l != row.Text).ToArray() };
+            }
+        }
+        canvas.Flush();
+        using var finalImage = SKImage.FromBitmap(bitmap);
+        using var encoded = finalImage.Encode(SKEncodedImageFormat.Png, 100);
+        return encoded.ToArray();
+    }
+
+    private static bool EquivalentTitle(string source, string artifact)
+    {
+        static string Normalize(string value)
+        {
+            value = Regex.Replace(value.Trim(), @"\s*[—–-]\s*Continued\s*$", "", RegexOptions.IgnoreCase);
+            // Punctuation separates words; never concatenate distinct source words
+            // into an apparent match (for example TELE PHONE versus TELEPHONE).
+            return Regex.Replace(value.ToUpperInvariant(), @"[^\p{L}\p{N}]+", " ").Trim();
+        }
+        var normalized = Normalize(source);
+        return normalized.Length >= 12 && normalized == Normalize(artifact);
     }
 
     private static bool HasInk(SKColor[] pixels, int width, int top, int bottom)
@@ -138,19 +330,33 @@ internal sealed record VeteransReviewerNativeEvidencePage(
 
     // A local prose label is not a fixed-layout section. Its original pixels
     // stay with the narrative. No particular clinician or source page is special.
-    private static bool NarrativeLead(Row row) => Regex.IsMatch(row.Text, @"^[A-Za-z][A-Za-z /()-]{0,39}:\s") &&
-        row.Text.Count(char.IsLower) > 15 && row.Words.Count >= 5;
+    private static bool NarrativeLead(Row row)
+    {
+        if (row.ProseContinuation || !Regex.IsMatch(row.Text, @"^[A-Za-z][A-Za-z /()-]{0,39}:\s")) return false;
+        var value = row.Text[(row.Text.IndexOf(':') + 1)..].Trim();
+        // Sentence-like values may flow with prose. A lengthy label cannot
+        // turn a numeric result or short code value into a narrative lead.
+        return value.Length > 0 && char.IsLetter(value[0]) &&
+            value.Count(char.IsLower) > 15 &&
+            value.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 5;
+    }
     private static bool ListOrRule(Row row) => Regex.IsMatch(row.Text, @"^(?:[-*•]|\d+[.)]\s|[=_]{3,}|/es/)");
-    private static bool Field(Row row) => Regex.IsMatch(row.Text, @"^[A-Za-z][A-Za-z /()-]{0,39}:") && !NarrativeLead(row);
-    private static bool MajorHeading(Row row) => Regex.IsMatch(row.Text, @"^[A-Za-z][A-Za-z0-9 ()/–-]{0,54}:$");
+    private static bool Field(Row row) => !row.ProseContinuation && Regex.IsMatch(row.Text, @"^[A-Za-z][A-Za-z /()-]{0,39}:") && !NarrativeLead(row);
+    private static bool MajorHeading(Row row) => !row.ProseContinuation && Regex.IsMatch(row.Text, @"^[A-Za-z][A-Za-z0-9 ()/–-]{0,54}:$");
     private static bool NarrativeSection(Row row) => Regex.IsMatch(row.Text, @"^(?:[SAP]|HPI|Attending|History|Assessment|Plan):\s", RegexOptions.IgnoreCase);
     private static bool FixedSectionHeading(Row row) => MajorHeading(row) && Regex.IsMatch(row.Text,
         @"^(?:PHYSICAL EXAM|MENTAL STATUS.*|OBJECTIVE|O|VITAL.*|LAB.*|RESULTS.*|.*MEDICATION.*|.*ALLERG.*|RX TODAY|GOALS.*|SOCIAL|.*SIGNATURE.*):$",
         RegexOptions.IgnoreCase);
     private static bool TableHeader(Row row) => Regex.Matches(row.Text,
         @"\b(?:Result|Units?|Reference|Range|Specimen|Collection|Ref)\b", RegexOptions.IgnoreCase).Count >= 3;
+    private static bool AddendumHeader(Row row) =>
+        Regex.IsMatch(row.Text, @"^\d{2}/\d{2}/\d{4} ADDENDUM\b");
     private static bool ProseStart(Row row) => row.IsMono && !ListOrRule(row) && !Field(row) &&
         !TableHeader(row) && row.Words.Count >= 5 && row.Text.Count(char.IsLower) > 15;
+    private static bool NarrativeDashListStart(Row row) => row.IsMono &&
+        Regex.IsMatch(row.Text, @"^-\s?[A-Za-z]") &&
+        row.Words.Count >= 5 && row.Text.Count(char.IsLower) > 15 &&
+        !Field(row) && !TableHeader(row);
 
     // A sentence-like field label does not make its stacked code values prose.
     // Keep their explicit rows intact; mixed-case narrative remains eligible.
@@ -159,6 +365,35 @@ internal sealed record VeteransReviewerNativeEvidencePage(
         rows.Skip(1).All(r => UppercaseValue(r.Text));
 
     private static bool UppercaseValue(string text) => text.Any(char.IsLetter) && !text.Any(char.IsLower);
+
+    private static void MarkProseContinuations(IReadOnlyList<Row> rows)
+    {
+        for (var i = 1; i + 1 < rows.Count; i++)
+        {
+            var row = rows[i];
+            var previous = rows[i - 1];
+            var next = rows[i + 1];
+            if (!ProseStart(previous) || !row.IsMono || row.Font != previous.Font ||
+                Math.Abs(row.Size - previous.Size) > .1 || Math.Abs(row.X - previous.X) > 1 ||
+                row.Baseline - previous.Baseline <= row.Size ||
+                row.Baseline - previous.Baseline >= row.Size * 1.75) continue;
+
+            // A short metric label after a comma in running prose, followed by
+            // its numeric value, is a line wrap, not a new clinical section.
+            var inlineMetric = previous.Text.EndsWith(',') &&
+                Regex.IsMatch(row.Text, @"^[A-Z]{2,5}:$") &&
+                Regex.IsMatch(next.Text, @"^\d+(?:\.\d+)?[,;] ") &&
+                next.Font == row.Font && Math.Abs(next.Size - row.Size) < .1 &&
+                Math.Abs(next.X - row.X) < 1 &&
+                next.Baseline - row.Baseline > row.Size &&
+                next.Baseline - row.Baseline < row.Size * 1.75;
+            var inlineLowercaseLabel = char.IsLower(row.Text[0]) &&
+                Regex.IsMatch(row.Text, @"^[a-z]+:\S") &&
+                row.Words.Count >= 5 && row.Text.Count(char.IsLower) > 15 &&
+                Regex.IsMatch(previous.Text, @"\b(?:the|as|is|was|were|are|with|and|of)$");
+            row.ProseContinuation = inlineMetric || inlineLowercaseLabel;
+        }
+    }
 
     private static bool AlignedColumns(IReadOnlyList<Row> rows)
     {
@@ -185,9 +420,13 @@ internal sealed record VeteransReviewerNativeEvidencePage(
                 var protectedFlow = protectedSection || current.Any(r => Field(r) || ListOrRule(r)) || AlignedColumns(current);
                 var objectiveSubheading = row.Text == "VITAL SIGNS:" && current.Any(r => r.Text is "OBJECTIVE:" or "O:");
                 split = row.Font != previous.Font || Math.Abs(row.Size - previous.Size) > .1 ||
-                    (NarrativeLead(row) && (!protectedSection || NarrativeSection(row))) ||
-                    (current.Count == 1 && MajorHeading(current[0]) && !protectedSection && ProseStart(row)) ||
-                    ((ListOrRule(row) || TableHeader(row)) && ProseStart(current[0])) || (MajorHeading(row) && !objectiveSubheading) ||
+                    ((NarrativeLead(row) || (Field(row) && current.Count == 1 && UppercaseValue(current[0].Text))) &&
+                     (!protectedSection || NarrativeSection(row))) ||
+                    (NarrativeDashListStart(row) && current.Count > 0) ||
+                    (current.Count == 1 && (MajorHeading(current[0]) || AddendumHeader(current[0])) && !protectedSection && ProseStart(row)) ||
+                    ((ListOrRule(row) || TableHeader(row)) && (ProseStart(current[0]) || NarrativeDashListStart(current[0]))) ||
+                    (MajorHeading(row) && !objectiveSubheading) ||
+                    AddendumHeader(row) ||
                     (gap > Math.Max(row.Size, previous.Size) * 1.75 && (!protectedFlow || (ProseStart(row) && !protectedSection)));
             }
             if (split) groups.Add([row]); else current!.Add(row);
@@ -196,9 +435,26 @@ internal sealed record VeteransReviewerNativeEvidencePage(
         foreach (var group in groups)
         {
             var first = group[0];
-            var narrative = ProseStart(first) && !StackedFieldValues(group) && !AlignedColumns(group) && group.All(r => r.IsMono && r.Font == first.Font &&
-                Math.Abs(r.Size - first.Size) < .1 && Math.Abs(r.X - first.X) < 1 &&
-                !ListOrRule(r) && !Field(r) && !TableHeader(r)) &&
+            var narrativeDashList = NarrativeDashListStart(first);
+            var continuationIndentTolerance =
+                narrativeDashList
+                    ? Math.Max(18, first.Size * 2.5)
+                    : 1;
+            var narrative = (ProseStart(first) || narrativeDashList) &&
+                !StackedFieldValues(group) && !AlignedColumns(group) &&
+                group.All(r => r.IsMono && r.Font == first.Font &&
+                    Math.Abs(r.Size - first.Size) < .1 &&
+                    (Math.Abs(r.X - first.X) < continuationIndentTolerance ||
+                     // Blue Button sometimes places a wrapped fragment back at
+                     // the left margin inside otherwise consistently indented
+                     // prose. Do not generalize this to deeper indents, fields,
+                     // tables, or lists.
+                     (!narrativeDashList && r.Words.Count <= 2 && r.X < first.X &&
+                      first.X - r.X <= first.Size * 2.5)) &&
+                    !Field(r) && !TableHeader(r)) &&
+                (narrativeDashList
+                    ? group.Skip(1).All(r => !ListOrRule(r))
+                    : group.All(r => !ListOrRule(r))) &&
                 group.Skip(1).Select((r, i) => r.Baseline - group[i].Baseline).All(g => g > first.Size && g < first.Size * 1.75);
             var box = Bounds(group.SelectMany(r => r.Glyphs), sx, sy, width, height);
             var region = new Region(group.ToArray(), narrative, box.Top, box.Bottom);
@@ -326,6 +582,7 @@ internal sealed record VeteransReviewerNativeEvidencePage(
             Font.Contains("Courier", StringComparison.OrdinalIgnoreCase)) &&
             Glyphs.All(g => g.Font == Font && Math.Abs(g.FontSize - Size) < .1);
         public List<double> ColumnAnchors { get; } = [];
+        public bool ProseContinuation { get; set; }
         public Row(PrintableArtifactGlyph[] glyphs)
         {
             Glyphs = glyphs;
