@@ -6703,6 +6703,26 @@ public static class VeteransConsoleCommand
             }
         }
 
+        await new VeteransClaimsSqliteSchema(fullDatabasePath).InitializeAsync(cancellationToken);
+        var snapshotRepository = new SqliteEvidencePackageRepository(fullDatabasePath);
+        if (await snapshotRepository.GetEvidencePackageAsync(evidencePackageId, cancellationToken) is null)
+            return 1;
+        VeteransReviewerPackageSnapshot? historical;
+        try
+        {
+            var stored = await snapshotRepository.GetReviewerSnapshotAsync(evidencePackageId, cancellationToken);
+            historical = stored is null ? null : VeteransReviewerPackageSnapshot.Restore(stored);
+        }
+        catch (InvalidDataException ex)
+        {
+            global::System.Console.Error.WriteLine(ConsoleTextSanitizer.Sanitize(ex.Message));
+            return 2;
+        }
+        // Historical output has no dependency on current evidence, clinical repositories,
+        // environment identity values, source content stores, or regulatory providers.
+        if (historical is not null)
+            return await RenderAndPublishAsync(historical.Details);
+
         var packageService =
             new EvidencePackageService(
                 new SqliteEvidencePackageRepository(
@@ -6811,20 +6831,30 @@ public static class VeteransConsoleCommand
                 new VeteransReviewerMedicalOpinionRequestService(
                     serviceConnectionRepository,
                     new SqliteConditionRepository(fullDatabasePath),
-                    new SqliteRegulatoryRepository(fullDatabasePath)));
+                    new SqliteRegulatoryRepository(fullDatabasePath)),
+                snapshotRepository);
 
-        var details =
-            await assemblyService.AssembleAsync(
+        VeteransReviewerPackageDetails? details;
+        try
+        {
+            details = await assemblyService.AssembleAsync(
                 evidencePackageId,
                 Environment.GetEnvironmentVariable(
                     "EMF_PACKAGE_PREPARED_BY"),
                 Environment.GetEnvironmentVariable(
-                    "EMF_VETERAN_DISPLAY_NAME"));
+                    "EMF_VETERAN_DISPLAY_NAME"), cancellationToken);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException)
+        {
+            global::System.Console.Error.WriteLine(ConsoleTextSanitizer.Sanitize(ex.Message));
+            return 2;
+        }
 
         if (details is null)
             return 1;
 
         if (contentStore is null &&
+            await snapshotRepository.GetReviewerSnapshotAsync(evidencePackageId, cancellationToken) is null &&
             details.PackageDetails.Artifacts.Any(
                 artifact =>
                     string.Equals(
@@ -6839,63 +6869,69 @@ public static class VeteransConsoleCommand
             return 2;
         }
 
-        IVeteransReviewerPackageDocumentConverter? converter =
-            suppliedConverter;
+        return await RenderAndPublishAsync(details);
 
-        if (outputRequest.RequiresPdf && converter is null)
+        async Task<int> RenderAndPublishAsync(VeteransReviewerPackageDetails details)
         {
-            converter =
-                new LibreOfficeVeteransReviewerPackageDocumentConverter();
+            IVeteransReviewerPackageDocumentConverter? converter =
+                suppliedConverter;
+
+            if (outputRequest.RequiresPdf && converter is null)
+            {
+                converter =
+                    new LibreOfficeVeteransReviewerPackageDocumentConverter();
+            }
+
+            VeteransReviewerPackageDocumentOutput content;
+
+            try
+            {
+                content =
+                    await new VeteransReviewerPackageDocumentOutputService(
+                            converter,
+                            suppliedRegulatoryTextProvider ??
+                                new EcfrVeteransReviewerRegulatoryTextProvider(),
+                            snapshotRepository)
+                        .RenderAsync(
+                            details,
+                            outputRequest.Format,
+                            cancellationToken);
+            }
+            catch (Exception ex) when (ex is
+                InvalidOperationException or
+                InvalidDataException or
+                HttpRequestException or
+                TimeoutException)
+            {
+                global::System.Console.Error.WriteLine(
+                    ConsoleTextSanitizer.Sanitize(ex.Message));
+                return 2;
+            }
+
+            if (outputRequest.DocxPath is not null)
+            {
+                if (content.Docx is null)
+                    throw new InvalidOperationException(
+                        "DOCX reviewer-package output was requested but not rendered.");
+
+                await WriteFileAtomicallyAsync(
+                    outputRequest.DocxPath,
+                    content.Docx);
+            }
+
+            if (outputRequest.PdfPath is not null)
+            {
+                if (content.Pdf is null)
+                    throw new InvalidOperationException(
+                        "PDF reviewer-package output was requested but not rendered.");
+
+                await WriteFileAtomicallyAsync(
+                    outputRequest.PdfPath,
+                    content.Pdf);
+            }
+
+            return 0;
         }
-
-        VeteransReviewerPackageDocumentOutput content;
-
-        try
-        {
-            content =
-                await new VeteransReviewerPackageDocumentOutputService(
-                        converter,
-                        suppliedRegulatoryTextProvider ??
-                            new EcfrVeteransReviewerRegulatoryTextProvider())
-                    .RenderAsync(
-                        details,
-                        outputRequest.Format,
-                        cancellationToken);
-        }
-        catch (Exception ex) when (ex is
-            InvalidOperationException or
-            InvalidDataException or
-            HttpRequestException or
-            TimeoutException)
-        {
-            global::System.Console.Error.WriteLine(
-                ConsoleTextSanitizer.Sanitize(ex.Message));
-            return 2;
-        }
-
-        if (outputRequest.DocxPath is not null)
-        {
-            if (content.Docx is null)
-                throw new InvalidOperationException(
-                    "DOCX reviewer-package output was requested but not rendered.");
-
-            await WriteFileAtomicallyAsync(
-                outputRequest.DocxPath,
-                content.Docx);
-        }
-
-        if (outputRequest.PdfPath is not null)
-        {
-            if (content.Pdf is null)
-                throw new InvalidOperationException(
-                    "PDF reviewer-package output was requested but not rendered.");
-
-            await WriteFileAtomicallyAsync(
-                outputRequest.PdfPath,
-                content.Pdf);
-        }
-
-        return 0;
     }
 
     private static async Task WriteFileAtomicallyAsync(

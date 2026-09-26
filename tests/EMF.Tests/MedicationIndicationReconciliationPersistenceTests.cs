@@ -17,7 +17,11 @@ public sealed class MedicationIndicationReconciliationPersistenceTests
         try
         {
             var schema = new VeteransClaimsSqliteSchema(path);
-            await schema.InitializeAsync();
+            // Start from the actual v88 schema instead of deleting a migration
+            // from the latest ledger, which leaves a hole once newer versions exist.
+            await new VeteransClaimsSqliteMigrator(path,
+                VeteransClaimsSqliteMigrations.All.Where(migration => migration.Version <= 88).ToArray())
+                .MigrateAsync();
             var veteran = new VeteranId("veteran-example");
             await new SqliteVeteranRepository(path).AddVeteranAsync(new Veteran { Id = veteran });
             var repository = new SqliteMedicationRepository(path);
@@ -33,14 +37,6 @@ public sealed class MedicationIndicationReconciliationPersistenceTests
                 SourceStartPage = 1, SourceEndPage = 1, MedicationName = "Example medication",
                 Status = "active", Directions = "TAKE DAILY FOR MOOD", Indication = "FOR MOOD"
             }]);
-            // Reproduce the v88 schema, retaining the pre-existing ledger and migration history.
-            await using (var connection = new SqliteConnection($"Data Source={path}"))
-            {
-                await connection.OpenAsync();
-                var command = connection.CreateCommand();
-                command.CommandText = "DROP TABLE VeteransClaims_MedicationIndicationReconciliations; DELETE FROM VeteransClaims_SchemaMigrations WHERE Version = 89;";
-                await command.ExecuteNonQueryAsync();
-            }
             await schema.InitializeAsync();
             await schema.InitializeAsync();
             var clarification = new MedicationIndicationReconciliation

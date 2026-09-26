@@ -1,9 +1,11 @@
+using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
 public sealed class VeteransReviewerPackageAssemblyService
 {
+    private readonly IEvidencePackageRepository? _snapshotRepository;
     private readonly VeteransReviewerPackageDetailsService _details;
     private readonly VeteransReviewerPackageCurrentMedicationService _currentMedications;
     private readonly VeteransReviewerPackageMedicationProgressionService _medicationProgressions;
@@ -19,7 +21,8 @@ public sealed class VeteransReviewerPackageAssemblyService
         VeteransReviewerPackageMedicationClinicalContextService medicationClinicalContexts,
         VeteransReviewerPackageSourceClarificationService sourceClarifications,
         VeteransReviewerPackageClinicalProgressionService clinicalProgression,
-        VeteransReviewerMedicalOpinionRequestService medicalOpinionRequest)
+        VeteransReviewerMedicalOpinionRequestService medicalOpinionRequest,
+        IEvidencePackageRepository? snapshotRepository = null)
     {
         ArgumentNullException.ThrowIfNull(details);
         ArgumentNullException.ThrowIfNull(currentMedications);
@@ -29,6 +32,7 @@ public sealed class VeteransReviewerPackageAssemblyService
         ArgumentNullException.ThrowIfNull(clinicalProgression);
         ArgumentNullException.ThrowIfNull(medicalOpinionRequest);
 
+        _snapshotRepository = snapshotRepository;
         _details = details;
         _currentMedications = currentMedications;
         _medicationProgressions = medicationProgressions;
@@ -63,6 +67,12 @@ public sealed class VeteransReviewerPackageAssemblyService
         string? veteranDisplayName,
         CancellationToken cancellationToken = default)
     {
+        if (_snapshotRepository is not null)
+        {
+            var snapshot = await _snapshotRepository.GetReviewerSnapshotAsync(packageId, cancellationToken);
+            if (snapshot is not null)
+                return VeteransReviewerPackageSnapshot.Restore(snapshot).Details;
+        }
         var details = await _details.GetAsync(packageId, cancellationToken);
 
         if (details is null)

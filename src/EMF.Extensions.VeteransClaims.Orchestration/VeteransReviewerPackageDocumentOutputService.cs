@@ -1,14 +1,19 @@
+using EMF.Extensions.VeteransClaims.Contracts;
+
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
 public sealed class VeteransReviewerPackageDocumentOutputService
 {
+    private readonly IEvidencePackageRepository? _snapshotRepository;
     private readonly IVeteransReviewerPackageDocumentConverter? _converter;
     private readonly IVeteransReviewerRegulatoryTextProvider? _regulatoryTextProvider;
 
     public VeteransReviewerPackageDocumentOutputService(
         IVeteransReviewerPackageDocumentConverter? converter = null,
-        IVeteransReviewerRegulatoryTextProvider? regulatoryTextProvider = null)
+        IVeteransReviewerRegulatoryTextProvider? regulatoryTextProvider = null,
+        IEvidencePackageRepository? snapshotRepository = null)
     {
+        _snapshotRepository = snapshotRepository;
         _converter = converter;
         _regulatoryTextProvider = regulatoryTextProvider;
     }
@@ -20,21 +25,30 @@ public sealed class VeteransReviewerPackageDocumentOutputService
     {
         ArgumentNullException.ThrowIfNull(details);
         cancellationToken.ThrowIfCancellationRequested();
+        if (!Enum.IsDefined(format)) throw new InvalidOperationException("Unsupported reviewer-package output format.");
 
-        var regulations =
-            await GetApplicableRegulationsAsync(
-                details,
-                cancellationToken);
-
-        var docx =
-            VeteransReviewerPackageDocxRenderer.Render(
-                details,
-                regulations);
+        var stored = _snapshotRepository is null ? null :
+            await _snapshotRepository.GetReviewerSnapshotAsync(details.PackageDetails.Package.Id, cancellationToken);
+        var restored = stored is null ? null : VeteransReviewerPackageSnapshot.Restore(stored);
+        if (restored is not null) details = restored.Details;
+        var regulations = restored?.Regulations ?? await GetApplicableRegulationsAsync(details, cancellationToken);
+        var captured = _snapshotRepository is not null && stored is null
+            ? VeteransReviewerPackageSnapshot.Capture(details, regulations) : null;
+        // Render the deserialized copy so the first output and later outputs use
+        // identical types (including metadata JsonElements) and frozen inputs.
+        if (captured is not null)
+        {
+            restored = VeteransReviewerPackageSnapshot.Restore(captured);
+            details = restored.Details;
+            regulations = restored.Regulations;
+        }
+        var docx = VeteransReviewerPackageDocxRenderer.Render(details, regulations);
 
         cancellationToken.ThrowIfCancellationRequested();
 
         if (format == VeteransReviewerPackageOutputFormat.Docx)
         {
+            await SealAsync();
             return new VeteransReviewerPackageDocumentOutput(
                 docx,
                 null);
@@ -52,6 +66,7 @@ public sealed class VeteransReviewerPackageDocumentOutputService
                 cancellationToken);
 
         ValidatePdf(pdf);
+        await SealAsync();
 
         return format switch
         {
@@ -66,6 +81,12 @@ public sealed class VeteransReviewerPackageDocumentOutputService
             _ => throw new InvalidOperationException(
                 "Unsupported reviewer-package output format.")
         };
+        async Task SealAsync()
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (captured is not null)
+                await _snapshotRepository!.SaveReviewerSnapshotAsync(captured, details.PackageDetails, cancellationToken);
+        }
     }
 
     private async Task<IReadOnlyList<VeteransReviewerApplicableRegulation>>

@@ -25,6 +25,105 @@ public sealed class SqliteEvidencePackageRepository :
             .Create(_databasePath);
     }
 
+    public async Task<ReviewerPackageSnapshot?> GetReviewerSnapshotAsync(
+        EvidencePackageId packageId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT p.ReviewerSnapshotVersion, s.Version, s.Payload, s.Sha256, p.ReviewerSnapshotSealed
+            FROM VeteransClaims_EvidencePackages p
+            LEFT JOIN VeteransClaims_ReviewerPackageSnapshots s ON s.EvidencePackageId = p.Id
+            WHERE p.Id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", packageId.Value);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+            throw new InvalidOperationException("Reviewer package not found.");
+        if (reader.GetInt32(0) != 1)
+            throw new InvalidDataException("Legacy reviewer package has no historical snapshot; immutable historical reconstruction is unavailable. Create a new package from reviewed current inputs.");
+        var sealedState = reader.GetInt32(4) == 1;
+        if (sealedState == reader.IsDBNull(1))
+            throw new InvalidDataException("Reviewer snapshot sealed state and manifest row are inconsistent; historical reconstruction is unavailable.");
+        if (!sealedState) return null;
+        var snapshot = new ReviewerPackageSnapshot(packageId, reader.GetInt32(1), reader.GetString(2), reader.GetString(3));
+        snapshot.ValidateIntegrity();
+        return snapshot;
+    }
+
+    public async Task SaveReviewerSnapshotAsync(ReviewerPackageSnapshot snapshot,
+        EvidencePackageDetails expectedMembership, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(expectedMembership);
+        snapshot.ValidateMembership(expectedMembership);
+        if (snapshot.PackageId != expectedMembership.Package.Id ||
+            expectedMembership.Artifacts.Any(x => x.EvidencePackageId != snapshot.PackageId) ||
+            expectedMembership.Artifacts.GroupBy(x => x.ArtifactId).Any(g => g.Count() != 1))
+            throw new InvalidDataException("Reviewer snapshot membership identity mismatch.");
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = connection.BeginTransaction(deferred: false);
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT ClaimIssueId, Purpose, ReviewerRole, ServiceConnectionBasisId, ReviewerSnapshotVersion, ReviewerSnapshotSealed
+            FROM VeteransClaims_EvidencePackages WHERE Id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", snapshot.PackageId.Value);
+        var sealedState = false;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            var p = expectedMembership.Package;
+            if (!await reader.ReadAsync(cancellationToken) || reader.GetInt32(4) != 1 ||
+                reader.GetString(0) != p.ClaimIssueId.Value || reader.GetString(1) != p.Purpose ||
+                reader.GetString(2) != p.ReviewerRole ||
+                (reader.IsDBNull(3) ? null : reader.GetString(3)) != p.ServiceConnectionBasisId?.Value)
+                throw new InvalidDataException("Reviewer snapshot package changed or is legacy.");
+            sealedState = reader.GetInt32(5) == 1;
+        }
+        command.CommandText = """
+            SELECT ArtifactId, ContentRole, ReviewerPageSelection
+            FROM VeteransClaims_EvidencePackageArtifacts WHERE EvidencePackageId = $id ORDER BY ArtifactId;
+            """;
+        var actual = new List<(string, string, string?)>();
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            while (await reader.ReadAsync(cancellationToken))
+                actual.Add((reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2)));
+        var expected = expectedMembership.Artifacts.OrderBy(x => x.ArtifactId.Value, StringComparer.Ordinal)
+            .Select(x => (x.ArtifactId.Value, x.ContentRole, x.ReviewerPageSelection));
+        if (!actual.OrderBy(x => x.Item1, StringComparer.Ordinal).SequenceEqual(expected))
+            throw new InvalidDataException("Reviewer package membership or page selections changed during snapshot capture.");
+
+        // Check under the write transaction: an identical retry is a no-op, and
+        // direct INSERT OR REPLACE is forbidden by database triggers.
+        command.CommandText = "SELECT Version, Payload, Sha256 FROM VeteransClaims_ReviewerPackageSnapshots WHERE EvidencePackageId = $id;";
+        var exists = false;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            exists = await reader.ReadAsync(cancellationToken);
+            if (exists != sealedState)
+                throw new InvalidDataException("Reviewer snapshot sealed state and manifest row are inconsistent.");
+            if (exists && (reader.GetInt32(0) != snapshot.Version ||
+                reader.GetString(1) != snapshot.Payload || reader.GetString(2) != snapshot.Sha256))
+                throw new InvalidDataException("Conflicting reviewer snapshot already exists for this package.");
+        }
+        if (!exists)
+        {
+            command.CommandText = """
+                INSERT INTO VeteransClaims_ReviewerPackageSnapshots(EvidencePackageId, Version, Payload, Sha256)
+                VALUES ($id, $version, $payload, $hash);
+                """;
+            command.Parameters.AddWithValue("$version", snapshot.Version);
+            command.Parameters.AddWithValue("$payload", snapshot.Payload);
+            command.Parameters.AddWithValue("$hash", snapshot.Sha256);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     public async Task AddEvidencePackageAsync(
         EvidencePackage evidencePackage,
         CancellationToken cancellationToken = default)
@@ -100,6 +199,7 @@ public sealed class SqliteEvidencePackageRepository :
                 Purpose,
                 ReviewerRole,
                 ServiceConnectionBasisId,
+                ReviewerSnapshotVersion,
                 CreationOrdinal
             )
             VALUES (
@@ -108,6 +208,7 @@ public sealed class SqliteEvidencePackageRepository :
                 $purpose,
                 $reviewerRole,
                 $serviceConnectionBasisId,
+                1,
                 (
                     SELECT
                         COALESCE(MAX(CreationOrdinal), 0) + 1

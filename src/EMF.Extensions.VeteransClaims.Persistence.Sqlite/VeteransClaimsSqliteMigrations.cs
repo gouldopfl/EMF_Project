@@ -2960,6 +2960,61 @@ internal static class VeteransClaimsSqliteMigrations
                     FOREIGN KEY (VeteranId) REFERENCES VeteransClaims_Veterans(Id),
                     UNIQUE (VeteranId, MedicationName, ReconciliationDate)
                 );
+                """),
+            new VeteransClaimsSqliteMigration(
+                90,
+                "AddReviewerPackageSnapshots",
+                """
+                ALTER TABLE VeteransClaims_EvidencePackages
+                    ADD COLUMN ReviewerSnapshotVersion INTEGER NOT NULL DEFAULT 0
+                    CHECK (ReviewerSnapshotVersion IN (0, 1));
+                ALTER TABLE VeteransClaims_EvidencePackages
+                    ADD COLUMN ReviewerSnapshotSealed INTEGER NOT NULL DEFAULT 0
+                    CHECK (ReviewerSnapshotSealed IN (0, 1));
+
+                CREATE TABLE VeteransClaims_ReviewerPackageSnapshots (
+                    EvidencePackageId TEXT PRIMARY KEY NOT NULL,
+                    Version INTEGER NOT NULL CHECK (Version = 1),
+                    Payload TEXT NOT NULL CHECK (length(Payload) > 0),
+                    Sha256 TEXT NOT NULL CHECK (length(Sha256) = 64),
+                    FOREIGN KEY (EvidencePackageId) REFERENCES VeteransClaims_EvidencePackages(Id)
+                );
+
+                CREATE TRIGGER ReviewerSnapshot_NoReplace BEFORE INSERT ON VeteransClaims_ReviewerPackageSnapshots
+                WHEN EXISTS (SELECT 1 FROM VeteransClaims_ReviewerPackageSnapshots WHERE EvidencePackageId = NEW.EvidencePackageId)
+                BEGIN SELECT RAISE(ABORT, 'Reviewer snapshot already exists'); END;
+                CREATE TRIGGER ReviewerSnapshot_PackageNoReplace BEFORE INSERT ON VeteransClaims_EvidencePackages
+                WHEN EXISTS (SELECT 1 FROM VeteransClaims_EvidencePackages WHERE Id = NEW.Id)
+                BEGIN SELECT RAISE(ABORT, 'Reviewer package already exists'); END;
+                CREATE TRIGGER ReviewerSnapshot_NoUpdate BEFORE UPDATE ON VeteransClaims_ReviewerPackageSnapshots
+                BEGIN SELECT RAISE(ABORT, 'Reviewer snapshot is immutable'); END;
+                CREATE TRIGGER ReviewerSnapshot_NoDelete BEFORE DELETE ON VeteransClaims_ReviewerPackageSnapshots
+                BEGIN SELECT RAISE(ABORT, 'Reviewer snapshot is immutable'); END;
+                CREATE TRIGGER ReviewerSnapshot_OnlyNew BEFORE INSERT ON VeteransClaims_ReviewerPackageSnapshots
+                WHEN NOT EXISTS (SELECT 1 FROM VeteransClaims_EvidencePackages WHERE Id = NEW.EvidencePackageId AND ReviewerSnapshotVersion = 1 AND ReviewerSnapshotSealed = 0)
+                BEGIN SELECT RAISE(ABORT, 'Legacy package cannot be snapshotted'); END;
+                CREATE TRIGGER ReviewerSnapshot_MarkSealed AFTER INSERT ON VeteransClaims_ReviewerPackageSnapshots
+                BEGIN
+                    UPDATE VeteransClaims_EvidencePackages SET ReviewerSnapshotSealed = 1 WHERE Id = NEW.EvidencePackageId;
+                END;
+                CREATE TRIGGER ReviewerSnapshot_PackageUpdate BEFORE UPDATE ON VeteransClaims_EvidencePackages
+                WHEN OLD.Id != NEW.Id OR OLD.ReviewerSnapshotVersion != NEW.ReviewerSnapshotVersion OR OLD.ReviewerSnapshotSealed = 1
+                    OR (OLD.ReviewerSnapshotSealed != NEW.ReviewerSnapshotSealed AND NOT
+                        (OLD.ReviewerSnapshotSealed = 0 AND NEW.ReviewerSnapshotSealed = 1 AND EXISTS
+                            (SELECT 1 FROM VeteransClaims_ReviewerPackageSnapshots WHERE EvidencePackageId = OLD.Id)))
+                BEGIN SELECT RAISE(ABORT, 'Reviewer snapshot package is immutable'); END;
+                CREATE TRIGGER ReviewerSnapshot_PackageDelete BEFORE DELETE ON VeteransClaims_EvidencePackages
+                WHEN OLD.ReviewerSnapshotSealed = 1
+                BEGIN SELECT RAISE(ABORT, 'Reviewer snapshot package is immutable'); END;
+                CREATE TRIGGER ReviewerSnapshot_MemberInsert BEFORE INSERT ON VeteransClaims_EvidencePackageArtifacts
+                WHEN EXISTS (SELECT 1 FROM VeteransClaims_EvidencePackages WHERE Id = NEW.EvidencePackageId AND ReviewerSnapshotSealed = 1)
+                BEGIN SELECT RAISE(ABORT, 'Reviewer snapshot members are immutable'); END;
+                CREATE TRIGGER ReviewerSnapshot_MemberUpdate BEFORE UPDATE ON VeteransClaims_EvidencePackageArtifacts
+                WHEN EXISTS (SELECT 1 FROM VeteransClaims_EvidencePackages WHERE Id IN (OLD.EvidencePackageId, NEW.EvidencePackageId) AND ReviewerSnapshotSealed = 1)
+                BEGIN SELECT RAISE(ABORT, 'Reviewer snapshot members are immutable'); END;
+                CREATE TRIGGER ReviewerSnapshot_MemberDelete BEFORE DELETE ON VeteransClaims_EvidencePackageArtifacts
+                WHEN EXISTS (SELECT 1 FROM VeteransClaims_EvidencePackages WHERE Id = OLD.EvidencePackageId AND ReviewerSnapshotSealed = 1)
+                BEGIN SELECT RAISE(ABORT, 'Reviewer snapshot members are immutable'); END;
                 """)
         };
 }
