@@ -6,6 +6,10 @@ namespace EMF.Extensions.VeteransClaims.Contracts;
 
 public interface IEvidencePackageRepository
 {
+    Task<ReviewerPackageSnapshotRead> ReadReviewerSnapshotAsync(
+        EvidencePackageId packageId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Reviewer snapshot state reads are not supported.");
+
     // Null means a new, not-yet-sealed package. Legacy packages fail closed.
     Task<ReviewerPackageSnapshot?> GetReviewerSnapshotAsync(
         EvidencePackageId packageId, CancellationToken cancellationToken = default) =>

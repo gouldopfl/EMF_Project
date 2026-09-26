@@ -158,7 +158,17 @@ public sealed class VeteransReviewerPackageDetailsService
         if (details is null)
             return null;
 
-        if (details.Package.Id != packageId || details.Artifacts.Any(row =>
+        if (details.Package.Id != packageId)
+            throw new InvalidDataException("Reviewer package identity mismatch.");
+        return await GetCurrentAsync(details, cancellationToken);
+    }
+
+    public async Task<VeteransReviewerPackageDetails> GetCurrentAsync(
+        EvidencePackageDetails details, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+        var packageId = details.Package.Id;
+        if (details.Artifacts.Any(row =>
                 row.EvidencePackageId != packageId || row.ContentRole is not
                     (EvidencePackageContentRoles.UnderlyingEvidence or EvidencePackageContentRoles.GeneratedOrganizationalMaterial)) ||
             details.Artifacts.GroupBy(row => row.ArtifactId).Any(group => group.Count() != 1))

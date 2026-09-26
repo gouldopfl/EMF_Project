@@ -28,6 +28,15 @@ public sealed class SqliteEvidencePackageRepository :
     public async Task<ReviewerPackageSnapshot?> GetReviewerSnapshotAsync(
         EvidencePackageId packageId, CancellationToken cancellationToken = default)
     {
+        var read = await ReadReviewerSnapshotAsync(packageId, cancellationToken);
+        if (read.IsLegacy)
+            throw new InvalidDataException("Legacy reviewer package has no historical snapshot; immutable historical reconstruction is unavailable. Create a new package from reviewed current inputs.");
+        return read.Snapshot;
+    }
+
+    public async Task<ReviewerPackageSnapshotRead> ReadReviewerSnapshotAsync(
+        EvidencePackageId packageId, CancellationToken cancellationToken = default)
+    {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
@@ -41,15 +50,18 @@ public sealed class SqliteEvidencePackageRepository :
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
             throw new InvalidOperationException("Reviewer package not found.");
-        if (reader.GetInt32(0) != 1)
-            throw new InvalidDataException("Legacy reviewer package has no historical snapshot; immutable historical reconstruction is unavailable. Create a new package from reviewed current inputs.");
+        var version = reader.GetInt32(0);
+        if (version == 0 && reader.GetInt32(4) == 0 && reader.IsDBNull(1))
+            return new(true, null);
+        if (version != 1)
+            throw new InvalidDataException("Unsupported or inconsistent reviewer snapshot eligibility.");
         var sealedState = reader.GetInt32(4) == 1;
         if (sealedState == reader.IsDBNull(1))
             throw new InvalidDataException("Reviewer snapshot sealed state and manifest row are inconsistent; historical reconstruction is unavailable.");
-        if (!sealedState) return null;
+        if (!sealedState) return new(false, null);
         var snapshot = new ReviewerPackageSnapshot(packageId, reader.GetInt32(1), reader.GetString(2), reader.GetString(3));
         snapshot.ValidateIntegrity();
-        return snapshot;
+        return new(false, snapshot);
     }
 
     public async Task SaveReviewerSnapshotAsync(ReviewerPackageSnapshot snapshot,

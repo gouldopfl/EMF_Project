@@ -65,6 +65,20 @@ public sealed class EvidencePackageService :
         ServiceConnectionBasisId? serviceConnectionBasisId,
         CancellationToken cancellationToken = default)
     {
+        var preview = await PrepareDetailsAsync(claimIssueId, purpose, reviewerRole,
+            underlyingEvidenceArtifactIds, generatedOrganizationalMaterialArtifactIds,
+            serviceConnectionBasisId, cancellationToken);
+        await _repository.AddEvidencePackageAsync(preview.Package, preview.Artifacts.ToArray(), cancellationToken);
+        return preview.Package;
+    }
+
+    public async Task<EvidencePackageDetails> PrepareDetailsAsync(
+        ClaimIssueId claimIssueId, string purpose, string reviewerRole,
+        IReadOnlyCollection<ArtifactId> underlyingEvidenceArtifactIds,
+        IReadOnlyCollection<ArtifactId> generatedOrganizationalMaterialArtifactIds,
+        ServiceConnectionBasisId? serviceConnectionBasisId,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
         ArgumentException.ThrowIfNullOrWhiteSpace(reviewerRole);
         ArgumentNullException.ThrowIfNull(
@@ -140,12 +154,11 @@ public sealed class EvidencePackageService :
                                 }))
                 .ToArray();
 
-        await _repository.AddEvidencePackageAsync(
-            package,
-            artifacts,
-            cancellationToken);
-
-        return package;
+        return new EvidencePackageDetails
+        {
+            Package = package,
+            Artifacts = artifacts.OrderBy(x => x.ArtifactId.Value, StringComparer.Ordinal).ToArray()
+        };
     }
 
     private async Task<IReadOnlyDictionary<ArtifactId, string?>>

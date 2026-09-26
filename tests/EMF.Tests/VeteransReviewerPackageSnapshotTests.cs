@@ -423,7 +423,7 @@ public sealed class VeteransReviewerPackageSnapshotTests
         return doc.MainDocumentPart!.Document!.InnerText;
     }
 
-    private static VeteransReviewerPackageDetails Details(string state = "original", Dictionary<string, object>? metadata = null, bool literature = false)
+    internal static VeteransReviewerPackageDetails Details(string state = "original", Dictionary<string, object>? metadata = null, bool literature = false)
     {
         var artifact = new Artifact { Id = new("source"), Name = "source " + state, ArtifactType = "file", CreatedUtc = DateTimeOffset.UnixEpoch,
             Metadata = metadata ?? new() { [EMF.Extensions.VeteransClaims.Models.VeteransArtifactMetadataKeys.EvidenceTitle] = "title " + state } };
@@ -456,7 +456,7 @@ public sealed class VeteransReviewerPackageSnapshotTests
         };
     }
 
-    private static IReadOnlyList<VeteransReviewerApplicableRegulation> Regulations() =>
+    internal static IReadOnlyList<VeteransReviewerApplicableRegulation> Regulations() =>
         [new() { Citation = "38 C.F.R. § 3.310(a)", Text = "Synthetic regulatory text", SourceUri = "https://example.invalid/regulation", UpToDateAsOf = new(2026, 1, 1), RetrievedUtc = DateTimeOffset.UnixEpoch, SourceSha256 = new string('A', 64) }];
 
     private sealed class RegulatoryProvider : IVeteransReviewerRegulatoryTextProvider

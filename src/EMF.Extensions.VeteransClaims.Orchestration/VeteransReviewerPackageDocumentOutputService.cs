@@ -1,4 +1,5 @@
 using EMF.Extensions.VeteransClaims.Contracts;
+using EMF.Extensions.VeteransClaims.Models.Adjudication;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
 
@@ -21,7 +22,8 @@ public sealed class VeteransReviewerPackageDocumentOutputService
     public async Task<VeteransReviewerPackageDocumentOutput> RenderAsync(
         VeteransReviewerPackageDetails details,
         VeteransReviewerPackageOutputFormat format,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ReviewerPackageSnapshot? preparedSnapshot = null)
     {
         ArgumentNullException.ThrowIfNull(details);
         cancellationToken.ThrowIfCancellationRequested();
@@ -29,19 +31,19 @@ public sealed class VeteransReviewerPackageDocumentOutputService
 
         var stored = _snapshotRepository is null ? null :
             await _snapshotRepository.GetReviewerSnapshotAsync(details.PackageDetails.Package.Id, cancellationToken);
-        var restored = stored is null ? null : VeteransReviewerPackageSnapshot.Restore(stored);
+        if (preparedSnapshot is not null)
+        {
+            preparedSnapshot.ValidateIntegrity();
+            if (preparedSnapshot.PackageId != details.PackageDetails.Package.Id ||
+                (stored is not null && stored != preparedSnapshot))
+                throw new InvalidDataException("Prepared reviewer output no longer matches the package snapshot.");
+        }
+        var captured = stored is null && _snapshotRepository is not null
+            ? preparedSnapshot ?? await CaptureCurrentAsync(details, cancellationToken) : null;
+        var selected = stored ?? preparedSnapshot ?? captured;
+        var restored = selected is null ? null : VeteransReviewerPackageSnapshot.Restore(selected);
         if (restored is not null) details = restored.Details;
         var regulations = restored?.Regulations ?? await GetApplicableRegulationsAsync(details, cancellationToken);
-        var captured = _snapshotRepository is not null && stored is null
-            ? VeteransReviewerPackageSnapshot.Capture(details, regulations) : null;
-        // Render the deserialized copy so the first output and later outputs use
-        // identical types (including metadata JsonElements) and frozen inputs.
-        if (captured is not null)
-        {
-            restored = VeteransReviewerPackageSnapshot.Restore(captured);
-            details = restored.Details;
-            regulations = restored.Regulations;
-        }
         var docx = VeteransReviewerPackageDocxRenderer.Render(details, regulations);
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -88,6 +90,11 @@ public sealed class VeteransReviewerPackageDocumentOutputService
                 await _snapshotRepository!.SaveReviewerSnapshotAsync(captured, details.PackageDetails, cancellationToken);
         }
     }
+
+    public async Task<ReviewerPackageSnapshot> CaptureCurrentAsync(
+        VeteransReviewerPackageDetails details, CancellationToken cancellationToken = default) =>
+        VeteransReviewerPackageSnapshot.Capture(details,
+            await GetApplicableRegulationsAsync(details, cancellationToken));
 
     private async Task<IReadOnlyList<VeteransReviewerApplicableRegulation>>
         GetApplicableRegulationsAsync(

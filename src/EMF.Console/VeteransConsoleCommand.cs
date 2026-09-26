@@ -2075,7 +2075,7 @@ public static class VeteransConsoleCommand
 
         static void WriteReviewerAiCostSummary(
             IReadOnlyList<IntelligenceExecutionMetadata> executions,
-            bool reusedPackage)
+            bool reusedSummary, bool reusedPackage = false)
         {
             var inputTokens =
                 executions.Sum(
@@ -2124,9 +2124,9 @@ public static class VeteransConsoleCommand
                     "0.00000",
                     System.Globalization.CultureInfo.InvariantCulture));
             global::System.Console.WriteLine(
-                $"Reused summaries       : {(reusedPackage ? 1 : 0)}");
+                $"Reused summaries       : {(reusedSummary ? 1 : 0)}");
             global::System.Console.WriteLine(
-                $"New AI summaries       : {(reusedPackage ? 0 : 1)}");
+                $"New AI summaries       : {(reusedSummary ? 0 : 1)}");
             global::System.Console.WriteLine(
                 $"Reused package         : {(reusedPackage ? "Yes" : "No")}");
             global::System.Console.WriteLine(
@@ -2353,10 +2353,11 @@ public static class VeteransConsoleCommand
             sourceArtifactIds.ToHashSet();
 
         EvidencePackageId? reusablePackageId = null;
+        ArtifactId? reusableSummaryId = null;
 
         foreach (var package in
-                 await packageRepository
-                     .GetEvidencePackagesAsync(claimIssueId))
+                 (await packageRepository
+                     .GetEvidencePackagesAsync(claimIssueId)).Reverse())
         {
             if (!string.Equals(
                     package.Purpose,
@@ -2441,6 +2442,7 @@ public static class VeteransConsoleCommand
                     continue;
 
                 reusablePackageId = package.Id;
+                reusableSummaryId = generatedArtifact.ArtifactId;
                 break;
             }
 
@@ -2450,46 +2452,40 @@ public static class VeteransConsoleCommand
 
         if (reusablePackageId.HasValue)
         {
-            OperatorStatus(
-                "REUSE",
-                "Reusing reviewed reviewer package; Azure OpenAI not invoked");
-
-            global::System.Console.WriteLine(
-                $"Package ID          : {reusablePackageId.Value.Value}");
-
-            WriteReviewerAiCostSummary(
-                Array.Empty<IntelligenceExecutionMetadata>(),
-                reusedPackage: true);
-
+            OperatorStatus("REUSE", "Reusing reviewed summary; Azure OpenAI not invoked");
+            var requested = await new EvidencePackageService(packageRepository, new GuidIdGenerator())
+                .PrepareDetailsAsync(claimIssueId, "Physician reviewer package", "MedicalProfessional",
+                    sourceArtifactIds, [reusableSummaryId!.Value], requestedBasisId);
+            VeteransReviewerPackageReuseSelection selection;
+            try
+            {
+                selection = await new VeteransReviewerPackageReuseService(packageRepository).SelectAsync(
+                    reusablePackageId.Value, requested,
+                    async (package, ct) => await (await CreateReviewerAssemblyAsync(databasePath, contentStore))
+                        .AssembleCurrentAsync(package, Environment.GetEnvironmentVariable("EMF_PACKAGE_PREPARED_BY"),
+                            Environment.GetEnvironmentVariable("EMF_VETERAN_DISPLAY_NAME"), ct),
+                    new EcfrVeteransReviewerRegulatoryTextProvider(), outputRequest is not null);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or HttpRequestException or TimeoutException)
+            {
+                global::System.Console.Error.WriteLine(ConsoleTextSanitizer.Sanitize(ex.Message));
+                return 2;
+            }
+            OperatorStatus("PACKAGE", selection.Reason);
+            global::System.Console.WriteLine($"Summary Artifact ID : {reusableSummaryId.Value.Value}");
+            global::System.Console.WriteLine($"Package ID          : {selection.PackageId.Value}");
+            WriteReviewerAiCostSummary(Array.Empty<IntelligenceExecutionMetadata>(),
+                reusedSummary: true, reusedPackage: selection.ReusedSealedPackage);
             if (outputRequest is null)
             {
-                OperatorStatus(
-                    "COMPLETE",
-                    "Reviewer package complete");
-
+                OperatorStatus("COMPLETE", "Reviewer package pending; summary reused");
                 return 0;
             }
-
-            OperatorStatus(
-                "EXPORT",
-                $"Creating reviewer document output ({outputRequest.Format}) from reviewed package");
-
-            var reusedExportExitCode =
-                await RunEvidencePackageDocumentAsync(
-                    databasePath,
-                    reusablePackageId.Value,
-                    outputRequest,
-                    contentStore);
-
-            if (reusedExportExitCode != 0)
-                return reusedExportExitCode;
-
+            var reusedExportExitCode = await RunEvidencePackageDocumentAsync(databasePath,
+                selection.PackageId, outputRequest, contentStore, preparedSnapshot: selection.OutputSnapshot);
+            if (reusedExportExitCode != 0) return reusedExportExitCode;
             WriteReviewerOutputPaths(outputRequest);
-
-            OperatorStatus(
-                "COMPLETE",
-                "Reviewer document output created");
-
+            OperatorStatus("COMPLETE", "Reviewer document output created");
             return 0;
         }
 
@@ -2545,7 +2541,7 @@ public static class VeteransConsoleCommand
 
         WriteReviewerAiCostSummary(
             result.CapabilityExecutions,
-            reusedPackage: false);
+            reusedSummary: false);
 
         if (!result.Success)
         {
@@ -6674,7 +6670,8 @@ public static class VeteransConsoleCommand
         Func<IArtifactContentStore?>? contentStoreFactory = null,
         IVeteransReviewerPackageDocumentConverter? suppliedConverter = null,
         IVeteransReviewerRegulatoryTextProvider? suppliedRegulatoryTextProvider = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ReviewerPackageSnapshot? preparedSnapshot = null)
     {
         ArgumentNullException.ThrowIfNull(outputRequest);
 
@@ -6720,119 +6717,17 @@ public static class VeteransConsoleCommand
         }
         // Historical output has no dependency on current evidence, clinical repositories,
         // environment identity values, source content stores, or regulatory providers.
+        if (preparedSnapshot is not null)
+        {
+            if (preparedSnapshot.PackageId != evidencePackageId)
+                throw new InvalidDataException("Prepared output package identity mismatch.");
+            return await RenderAndPublishAsync(VeteransReviewerPackageSnapshot.Restore(preparedSnapshot).Details);
+        }
         if (historical is not null)
             return await RenderAndPublishAsync(historical.Details);
 
-        var packageService =
-            new EvidencePackageService(
-                new SqliteEvidencePackageRepository(
-                    fullDatabasePath),
-                new GuidIdGenerator());
-
-        var evidenceRepository =
-            new SqliteEvidenceRepository(fullDatabasePath);
-
-        await evidenceRepository.InitializeAsync();
-
-        var classifications =
-            new SqliteEvidenceClassificationRepository(
-                fullDatabasePath);
-
-        var medicalLiterature =
-            new SqliteMedicalLiteratureRepository(fullDatabasePath);
-
-        await medicalLiterature.InitializeAsync();
-
-        contentStoreFactory ??=
-            ArtifactContentStoreFactory.Create;
-
-        var contentStore =
-            suppliedContentStore ??
-            contentStoreFactory();
-
-        var adjudicationDetailsService =
-            CreateAdjudicationDetailsService(fullDatabasePath);
-
-        var detailsService =
-            contentStore is null
-                ? new VeteransReviewerPackageDetailsService(
-                    packageService,
-                    evidenceRepository,
-                    classifications,
-                    medicalLiterature,
-                    adjudicationDetailsService)
-                : new VeteransReviewerPackageDetailsService(
-                    packageService,
-                    evidenceRepository,
-                    classifications,
-                    ArtifactTextExtractionFactory.Create(
-                        evidenceRepository,
-                        contentStore),
-                    ArtifactPrintRenderingFactory.Create(
-                        evidenceRepository,
-                        contentStore),
-                    medicalLiterature,
-                    adjudicationDetailsService);
-
-        var medicationRepository =
-            new SqliteMedicationRepository(fullDatabasePath);
-
-        var claimIssueRepository =
-            new SqliteClaimIssueRepository(fullDatabasePath);
-
-        var claimRepository =
-            new SqliteClaimRepository(fullDatabasePath);
-
-        var serviceConnectionRepository =
-            new SqliteServiceConnectionRepository(fullDatabasePath);
-
-        var sourceClarificationRepository =
-            new SqliteSourceClarificationRepository(fullDatabasePath);
-
-        await sourceClarificationRepository.InitializeAsync();
-
-        var clinicalProgressionRepository =
-            new SqliteClinicalProgressionRepository(fullDatabasePath);
-
-        await clinicalProgressionRepository.InitializeAsync();
-
-        var medicationSourceEvidence = contentStore is null ? null :
-            new VeteransMedicationSourceEvidenceService(
-                evidenceRepository,
-                contentStore,
-                new PdfArtifactTextExtractionProvider(contentStore));
-
-        var assemblyService =
-            new VeteransReviewerPackageAssemblyService(
-                detailsService,
-                new VeteransReviewerPackageCurrentMedicationService(
-                    claimIssueRepository,
-                    claimRepository,
-                    new ReconciledCurrentMedicationLedgerService(
-                        new CurrentMedicationLedgerService(
-                            medicationRepository),
-                        medicationRepository),
-                    medicationSourceEvidence),
-                new VeteransReviewerPackageMedicationProgressionService(
-                    claimIssueRepository,
-                    claimRepository,
-                    serviceConnectionRepository,
-                    medicationRepository,
-                    medicationSourceEvidence),
-                new VeteransReviewerPackageMedicationClinicalContextService(
-                    claimIssueRepository,
-                    claimRepository,
-                    medicationRepository,
-                    evidenceRepository),
-                new VeteransReviewerPackageSourceClarificationService(
-                    sourceClarificationRepository),
-                new VeteransReviewerPackageClinicalProgressionService(
-                    clinicalProgressionRepository),
-                new VeteransReviewerMedicalOpinionRequestService(
-                    serviceConnectionRepository,
-                    new SqliteConditionRepository(fullDatabasePath),
-                    new SqliteRegulatoryRepository(fullDatabasePath)),
-                snapshotRepository);
+        var contentStore = suppliedContentStore ?? (contentStoreFactory ?? ArtifactContentStoreFactory.Create)();
+        var assemblyService = await CreateReviewerAssemblyAsync(fullDatabasePath, contentStore);
 
         VeteransReviewerPackageDetails? details;
         try
@@ -6895,7 +6790,7 @@ public static class VeteransConsoleCommand
                         .RenderAsync(
                             details,
                             outputRequest.Format,
-                            cancellationToken);
+                            cancellationToken, preparedSnapshot);
             }
             catch (Exception ex) when (ex is
                 InvalidOperationException or
@@ -6932,6 +6827,115 @@ public static class VeteransConsoleCommand
 
             return 0;
         }
+    }
+
+    private static async Task<VeteransReviewerPackageAssemblyService> CreateReviewerAssemblyAsync(
+        string fullDatabasePath, IArtifactContentStore? contentStore)
+    {
+        var packageService =
+            new EvidencePackageService(
+                new SqliteEvidencePackageRepository(
+                    fullDatabasePath),
+                new GuidIdGenerator());
+
+        var evidenceRepository =
+            new SqliteEvidenceRepository(fullDatabasePath);
+
+        await evidenceRepository.InitializeAsync();
+
+        var classifications =
+            new SqliteEvidenceClassificationRepository(
+                fullDatabasePath);
+
+        var medicalLiterature =
+            new SqliteMedicalLiteratureRepository(fullDatabasePath);
+
+        await medicalLiterature.InitializeAsync();
+
+        var adjudicationDetailsService =
+            CreateAdjudicationDetailsService(fullDatabasePath);
+
+        var detailsService =
+            contentStore is null
+                ? new VeteransReviewerPackageDetailsService(
+                    packageService,
+                    evidenceRepository,
+                    classifications,
+                    medicalLiterature,
+                    adjudicationDetailsService)
+                : new VeteransReviewerPackageDetailsService(
+                    packageService,
+                    evidenceRepository,
+                    classifications,
+                    ArtifactTextExtractionFactory.Create(
+                        evidenceRepository,
+                        contentStore),
+                    ArtifactPrintRenderingFactory.Create(
+                        evidenceRepository,
+                        contentStore),
+                    medicalLiterature,
+                    adjudicationDetailsService);
+
+        var medicationRepository =
+            new SqliteMedicationRepository(fullDatabasePath);
+
+        var claimIssueRepository =
+            new SqliteClaimIssueRepository(fullDatabasePath);
+
+        var claimRepository =
+            new SqliteClaimRepository(fullDatabasePath);
+
+        var serviceConnectionRepository =
+            new SqliteServiceConnectionRepository(fullDatabasePath);
+
+        var sourceClarificationRepository =
+            new SqliteSourceClarificationRepository(fullDatabasePath);
+
+        await sourceClarificationRepository.InitializeAsync();
+
+        var clinicalProgressionRepository =
+            new SqliteClinicalProgressionRepository(fullDatabasePath);
+
+        await clinicalProgressionRepository.InitializeAsync();
+
+        var medicationSourceEvidence = contentStore is null ? null :
+            new VeteransMedicationSourceEvidenceService(
+                evidenceRepository,
+                contentStore,
+                new PdfArtifactTextExtractionProvider(contentStore));
+
+        return
+            new VeteransReviewerPackageAssemblyService(
+                detailsService,
+                new VeteransReviewerPackageCurrentMedicationService(
+                    claimIssueRepository,
+                    claimRepository,
+                    new ReconciledCurrentMedicationLedgerService(
+                        new CurrentMedicationLedgerService(
+                            medicationRepository),
+                        medicationRepository),
+                    medicationSourceEvidence),
+                new VeteransReviewerPackageMedicationProgressionService(
+                    claimIssueRepository,
+                    claimRepository,
+                    serviceConnectionRepository,
+                    medicationRepository,
+                    medicationSourceEvidence),
+                new VeteransReviewerPackageMedicationClinicalContextService(
+                    claimIssueRepository,
+                    claimRepository,
+                    medicationRepository,
+                    evidenceRepository),
+                new VeteransReviewerPackageSourceClarificationService(
+                    sourceClarificationRepository),
+                new VeteransReviewerPackageClinicalProgressionService(
+                    clinicalProgressionRepository),
+                new VeteransReviewerMedicalOpinionRequestService(
+                    serviceConnectionRepository,
+                    new SqliteConditionRepository(fullDatabasePath),
+                    new SqliteRegulatoryRepository(fullDatabasePath)),
+                new SqliteEvidencePackageRepository(fullDatabasePath));
+
     }
 
     private static async Task WriteFileAtomicallyAsync(

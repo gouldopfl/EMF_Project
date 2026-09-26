@@ -126,7 +126,7 @@ public sealed class VeteransReviewerPackageSnapshot
         return options;
     }
 
-    private static string Canonical(JsonElement value)
+    internal static string Canonical(JsonElement value)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream)) Write(writer, value);

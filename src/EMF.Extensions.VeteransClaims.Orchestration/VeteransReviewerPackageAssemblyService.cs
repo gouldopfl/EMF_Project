@@ -1,4 +1,5 @@
 using EMF.Extensions.VeteransClaims.Contracts;
+using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
@@ -78,6 +79,19 @@ public sealed class VeteransReviewerPackageAssemblyService
         if (details is null)
             return null;
 
+        return await CompleteCurrentAsync(details, packagePreparedBy, veteranDisplayName, cancellationToken);
+    }
+
+    public async Task<VeteransReviewerPackageDetails> AssembleCurrentAsync(
+        EvidencePackageDetails package, string? packagePreparedBy, string? veteranDisplayName,
+        CancellationToken cancellationToken = default) =>
+        await CompleteCurrentAsync(await _details.GetCurrentAsync(package, cancellationToken),
+            packagePreparedBy, veteranDisplayName, cancellationToken);
+
+    private async Task<VeteransReviewerPackageDetails> CompleteCurrentAsync(
+        VeteransReviewerPackageDetails details, string? packagePreparedBy, string? veteranDisplayName,
+        CancellationToken cancellationToken)
+    {
         var package = details.PackageDetails.Package;
 
         var currentMedications =
