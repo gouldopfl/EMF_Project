@@ -15,7 +15,6 @@ public static class VeteransReviewerPackageSectionCatalog
     public const string PapTitration = "pap-titration";
     public const string ClinicalProgression = "clinical-progression";
     public const string MedicationProgression = "medication-progression";
-    public const string CurrentMedications = "current-medications";
     public const string KeyEvidenceChronology = "key-evidence-chronology";
     public const string MedicalLiterature = "medical-literature";
     public const string ReviewerQuestions = "reviewer-questions";
@@ -51,9 +50,6 @@ public static class VeteransReviewerPackageSectionCatalog
             new VeteransReviewerPackageSection(
                 MedicationProgression,
                 "Relevant Medication Progression / History"),
-            new VeteransReviewerPackageSection(
-                CurrentMedications,
-                "Current Medication Use — Reconciled"),
             new VeteransReviewerPackageSection(
                 KeyEvidenceChronology,
                 "Key Evidence and Chronology"),

@@ -52,8 +52,9 @@ public static class VeteransReviewerPackagePrescriptionPresentation
         var current = rows.Where(e => MedicationLedgerStatuses.IsCurrent(e.Status)).ToArray();
         if (current.Any(e => !scope.Contains(ledger.SourceArtifactId, e.SourceStartPage, e.SourceEndPage)))
             throw new InvalidDataException("The package does not include the source pages supporting its prescription list.");
-        var selected = current.Where(e => !applied.Any(r => r.MedicationLedgerEntryId == e.Id &&
-            !MedicationCurrentUseStatuses.IsCurrentlyUsed(r.CurrentUseStatus))).ToArray();
+        // Current-use reconciliations remain package-internal historical evidence.
+        // Physician-facing prescription presentation follows the dated VA ledger itself.
+        var selected = current;
         int Priority(MedicationLedgerEntry entry)
         {
             for (var i = 0; i < priorityMedicationNames.Count; i++)
@@ -68,13 +69,9 @@ public static class VeteransReviewerPackagePrescriptionPresentation
             $"Source: {source.Name}; original pages {ledger.SourceStartPage}–{ledger.SourceEndPage}. Package evidence cutoff: {evidenceCutoff.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}.",
             $"This section reflects prescriptions VA listed as active or refill-in-process as of {date}. " +
             "Prescription status does not establish actual use on the package preparation date." };
-        if (!selected.Any(e => applied.Any(r => r.MedicationLedgerEntryId == e.Id && MedicationCurrentUseStatuses.IsCurrentlyUsed(r.CurrentUseStatus))))
-            lines.Add("The available evidence contains no positive current-use reconciliation confirming use of the listed medications on the package preparation date.");
-        if (current.Length != selected.Length)
-            lines.Add($"{current.Length - selected.Length} prescription(s) excluded based on recorded non-use reconciliations available by the package cutoff; the source evidence is unchanged.");
         foreach (var group in selected.GroupBy(e => Priority(e) != int.MaxValue))
         {
-            lines.Add(group.Key ? "Claim-relevant psychiatric prescriptions" : "Other VA prescriptions");
+            lines.Add(group.Key ? "Claim-relevant prescriptions" : "Other VA prescriptions");
             foreach (var entry in group)
             {
                 lines.Add(entry.MedicationName);

@@ -17,9 +17,6 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 
 public static class VeteransReviewerPackageDocxRenderer
 {
-    private const string CurrentMedicationSectionTitle =
-        "Current Medication Use — Reconciled";
-
     private const string MedicationProgressionSectionTitle =
         "Relevant Medications for Medical Opinion";
 
@@ -124,7 +121,7 @@ public static class VeteransReviewerPackageDocxRenderer
 
             if (details.MedicalOpinionRequested is not null)
             {
-                body.Append(ReviewerSubsectionHeading("Medical Opinion Requested"));
+                body.Append(ReviewerSubsectionHeading("Medical Opinion Requested", "480"));
                 body.Append(ContentParagraph(details.MedicalOpinionRequested.OpinionText));
             }
 
@@ -146,8 +143,6 @@ public static class VeteransReviewerPackageDocxRenderer
                 section => AppendSleepStudyPapTitrationResults(section, details));
             AppendGeneratedSection(body, evidenceSections, "Clinical Progression",
                 section => AppendClinicalProgression(section, details));
-            AppendGeneratedSection(body, evidenceSections, CurrentMedicationSectionTitle,
-                section => AppendPrescribedMedications(section, details));
             AppendGeneratedSection(body, evidenceSections, MedicationProgressionSectionTitle,
                 section => AppendMedicationProgressions(section, details));
             AppendGeneratedSection(body, evidenceSections, "Key Evidence and Chronology",
@@ -416,16 +411,20 @@ public static class VeteransReviewerPackageDocxRenderer
                                 StringComparison.Ordinal)))
             .ToArray();
 
-    private static Paragraph ReviewerSubsectionHeading(string text) =>
-        WithReviewerSubsectionSpacing(StyledParagraph(text, "Heading2"));
+    private static Paragraph ReviewerSubsectionHeading(
+        string text,
+        string before = "240") =>
+        WithReviewerSubsectionSpacing(StyledParagraph(text, "Heading2"), before);
 
-    private static Paragraph WithReviewerSubsectionSpacing(Paragraph paragraph)
+    private static Paragraph WithReviewerSubsectionSpacing(
+        Paragraph paragraph,
+        string before = "240")
     {
         var properties = paragraph.ParagraphProperties ??= new ParagraphProperties();
         var spacing = properties.GetFirstChild<SpacingBetweenLines>();
         if (spacing is null)
             properties.Append(spacing = new SpacingBetweenLines());
-        spacing.Before = "240"; // One 12-point line, without an empty content paragraph.
+        spacing.Before = before;
         return paragraph;
     }
 
@@ -611,14 +610,6 @@ public static class VeteransReviewerPackageDocxRenderer
                     "Summarizes source-grounded treatment use, problems, adjustments, transitions, findings, and responses relevant to the medical review."));
         }
 
-        if (details.CurrentMedications.Count > 0)
-        {
-            sections.Add(
-                new PackageGuideSection(
-                    CurrentMedicationSectionTitle,
-                    "Lists only medications explicitly confirmed as currently used through medication reconciliation; VA prescription status alone is not treated as verified current use."));
-        }
-
         if (details.MedicationProgressions.Count > 0)
         {
             sections.Add(
@@ -645,11 +636,17 @@ public static class VeteransReviewerPackageDocxRenderer
                 "Questions for the Reviewing Physician",
                 "Lists the medical questions the reviewing physician is asked to address."));
 
+        var prescriptionSourceArtifactId =
+            GetPrescriptionSourceArtifactId(details);
+
         IReadOnlyList<string> appendices =
             GetRoleContents(
                     details,
                     EvidencePackageContentRoles.UnderlyingEvidence)
-                .Any(content => content.Appendix is not null)
+                .Any(content =>
+                    GetPresentationAppendix(
+                        content,
+                        prescriptionSourceArtifactId) is not null)
                 ? AllReviewerAppendices
                 : Array.Empty<string>();
 
@@ -698,7 +695,6 @@ public static class VeteransReviewerPackageDocxRenderer
         var references =
             new[]
             {
-                CurrentMedicationSectionTitle,
                 MedicationProgressionSectionTitle
             }
             .Where(availableSections.Contains)
@@ -1362,9 +1358,9 @@ public static class VeteransReviewerPackageDocxRenderer
                 "grouped by service-connected condition when applicable. Dated changes in dose, " +
                 "directions and recorded status are retained. Each status is the status recorded " +
                 "in the cited report; the prescription date is not a discontinuation date or " +
-                "confirmation of current use. Non-VA and unverified-source entries are excluded " +
-                "from this assembled list. Attributed indication reconciliations are shown " +
-                "separately from the unchanged VA ledger wording."));
+                "confirmation of current use. Non-VA and unverified-source entries are excluded from " +
+                "this assembled list. Attributed indication " +
+                "reconciliations are shown separately from the unchanged VA ledger wording."));
 
         var showBasisGroups =
             progressions.Any(item =>
@@ -1506,68 +1502,6 @@ public static class VeteransReviewerPackageDocxRenderer
         return label;
     }
 
-    private static void AppendPrescribedMedications(
-        Body body,
-        VeteransReviewerPackageDetails details)
-    {
-        var medications =
-            details.CurrentMedications
-                .OrderBy(
-                    item => item.MedicationName,
-                    StringComparer.OrdinalIgnoreCase)
-                .ThenBy(item => item.EntryOrdinal)
-                .ToArray();
-
-        if (medications.Length == 0)
-            return;
-
-        body.Append(
-            StyledParagraph(
-                CurrentMedicationSectionTitle,
-                "Heading1"));
-
-        body.Append(
-            MedicationParagraph(
-                "Only medications explicitly confirmed as currently used through " +
-                "medication reconciliation are listed here. VA prescription " +
-                "status alone is not treated as verified current use. The underlying " +
-                "VA medication ledger remains preserved unchanged."));
-
-        foreach (var medication in medications)
-        {
-            body.Append(
-                StyledParagraph(
-                    medication.MedicationName,
-                    "Heading3"));
-
-            if (!string.IsNullOrWhiteSpace(medication.Strength))
-                body.Append(MedicationParagraph(
-                    $"Strength: {medication.Strength.Trim()}"));
-
-            if (!string.IsNullOrWhiteSpace(medication.Directions))
-                body.Append(MedicationParagraph(
-                    $"Directions: {medication.Directions.Trim()}"));
-
-            if (!string.IsNullOrWhiteSpace(medication.Indication) &&
-                !string.Equals(
-                    medication.Indication.Trim(),
-                    "None recorded",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                body.Append(MedicationParagraph(
-                    $"Documented indication: {medication.Indication.Trim()}"));
-            }
-
-            body.Append(
-                MedicationParagraph(
-                    $"VA prescription status: {MedicationLedgerStatusDisplayName(medication.Status)}"));
-
-            body.Append(
-                MedicationParagraph(
-                    "Current use: Confirmed during medication reconciliation"));
-        }
-    }
-
     private static void AppendPackagePrescriptionList(Body body, VeteransReviewerArtifactContent presentation)
     {
         var lines = presentation.Text.Split('\n');
@@ -1576,7 +1510,9 @@ public static class VeteransReviewerPackageDocxRenderer
         var entry = new List<Paragraph>();
         foreach (var line in lines.Skip(1))
         {
-            if (line is "Claim-relevant psychiatric prescriptions" or "Other VA prescriptions")
+            if (line is "Claim-relevant prescriptions" or
+                "Claim-relevant psychiatric prescriptions" or
+                "Other VA prescriptions")
             {
                 body.Append(StyledParagraph(line, "Heading2"));
                 inMedicationGroup = true;
@@ -1917,6 +1853,44 @@ public static class VeteransReviewerPackageDocxRenderer
         }
     }
 
+    private static string? GetPrescriptionSourceArtifactId(
+        VeteransReviewerPackageDetails details)
+    {
+        var presentation =
+            GetRoleContents(
+                    details,
+                    EvidencePackageContentRoles.GeneratedOrganizationalMaterial)
+                .SingleOrDefault(content =>
+                    content.Artifact.ArtifactType ==
+                    VeteransReviewerPackagePrescriptionPresentation.ArtifactType);
+
+        if (presentation is null)
+            return null;
+
+        if (!presentation.Artifact.Metadata.TryGetValue(
+                "sourceArtifactId",
+                out var sourceArtifactId) ||
+            string.IsNullOrWhiteSpace(sourceArtifactId?.ToString()))
+        {
+            throw new InvalidDataException(
+                "Prescription presentation source artifact identity is missing.");
+        }
+
+        return sourceArtifactId.ToString()!.Trim();
+    }
+
+    private static string? GetPresentationAppendix(
+        VeteransReviewerArtifactContent content,
+        string? prescriptionSourceArtifactId) =>
+        content.Appendix ??
+        (prescriptionSourceArtifactId is not null &&
+         string.Equals(
+             content.Artifact.Id.Value,
+             prescriptionSourceArtifactId,
+             StringComparison.Ordinal)
+            ? VeteransReviewerPackageAppendix.MedicalEvidence
+            : null);
+
     private static void AppendEvidenceAppendices(
         MainDocumentPart mainPart,
         Body body,
@@ -1937,13 +1911,23 @@ public static class VeteransReviewerPackageDocxRenderer
         if (contents.Count == 0)
             return;
 
+        var prescriptionSourceArtifactId =
+            GetPrescriptionSourceArtifactId(details);
+
         var appendixGroups =
             contents
-                .Where(content => content.Appendix is not null)
-                .GroupBy(content => content.Appendix!)
+                .Select(content => new
+                {
+                    Content = content,
+                    Appendix = GetPresentationAppendix(
+                        content,
+                        prescriptionSourceArtifactId)
+                })
+                .Where(item => item.Appendix is not null)
+                .GroupBy(item => item.Appendix!)
                 .ToDictionary(
                     group => group.Key,
-                    group => group.ToArray(),
+                    group => group.Select(item => item.Content).ToArray(),
                     StringComparer.Ordinal);
 
         if (prescriptionList is not null && !contents.Any(c => BuildHistoricalMedicationTitle(c) is not null))
@@ -2003,13 +1987,17 @@ public static class VeteransReviewerPackageDocxRenderer
                     content,
                     sections,
                     sourceReviewDate,
-                    prescriptionListRendered);
+                    prescriptionListRendered,
+                    appendix);
             }
         }
 
         var additionalEvidence =
             contents
-                .Where(content => content.Appendix is null)
+                .Where(content =>
+                    GetPresentationAppendix(
+                        content,
+                        prescriptionSourceArtifactId) is null)
                 .OrderBy(
                     content =>
                         string.IsNullOrWhiteSpace(GetEvidenceDate(content))
@@ -2052,7 +2040,8 @@ public static class VeteransReviewerPackageDocxRenderer
         VeteransReviewerArtifactContent content,
         VeteransReviewerEvidenceSections sections,
         DateOnly sourceReviewDate,
-        bool hasPackagePrescriptionList = false)
+        bool hasPackagePrescriptionList = false,
+        string? presentationAppendix = null)
     {
         var storedSelection = details.PackageDetails.Artifacts
             .Single(item => item.ArtifactId == content.Artifact.Id).ReviewerPageSelection;
@@ -2130,7 +2119,8 @@ public static class VeteransReviewerPackageDocxRenderer
                 "Extracted-text fallback: authoritative native source pages are not available for this excerpt. " +
                 "The text may not preserve the original form, table, or column layout."));
 
-        var medicalLiterature = string.Equals(content.Appendix,
+        var effectiveAppendix = presentationAppendix ?? content.Appendix;
+        var medicalLiterature = string.Equals(effectiveAppendix,
             VeteransReviewerPackageAppendix.MedicalLiterature, StringComparison.Ordinal);
         // Reviewed summaries/relevance remain in the package's literature section.
         // A publication's extracted reviewer text must never displace source pages.
@@ -2147,8 +2137,8 @@ public static class VeteransReviewerPackageDocxRenderer
                 clarifications, storedSelection is not null || content.PrintableSourceArtifactId is not null, medicalLiterature,
                 presentation, historicalMedicationTitle, historicalMedicationOmissionMessage,
                 allowLargerSinglePageImage:
-                    content.Appendix == VeteransReviewerPackageAppendix.LayEvidence,
-                medicalEvidence: content.Appendix == VeteransReviewerPackageAppendix.MedicalEvidence,
+                    effectiveAppendix == VeteransReviewerPackageAppendix.LayEvidence,
+                medicalEvidence: effectiveAppendix == VeteransReviewerPackageAppendix.MedicalEvidence,
                 artifactTitle: GetDisplayName(content),
                 hasPackagePrescriptionList: hasPackagePrescriptionList);
         }
@@ -4487,7 +4477,7 @@ public static class VeteransReviewerPackageDocxRenderer
         const long maxWidth = 5_943_600;
         const long standardMaxHeight = 7_772_400;
         const long firstSourcePageMaxHeight = 6_400_800;
-        const long medicalFirstPageMaxHeight = 6_858_000; // 7.5 inches; no redundant source label.
+        const long medicalFirstPageMaxHeight = 6_400_800; // 7.0 inches; reserves room for the artifact preamble.
         const long largerSinglePageMaxHeight = 7_000_000;
 
         var maxHeight =

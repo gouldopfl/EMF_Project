@@ -10,7 +10,7 @@ namespace EMF.Tests;
 public sealed class VeteransReviewerPackageMedicationRendererTests
 {
     [Fact]
-    public void Render_ShowsCompleteCurrentMedicationEntry()
+    public void Render_DoesNotSurfaceStandaloneCurrentUseReconciliation()
     {
         var text = RenderText(
             new MedicationLedgerEntry
@@ -27,22 +27,15 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
                 Indication = "None recorded"
             });
 
-        Assert.Contains("Current Medication Use — Reconciled", text);
-        Assert.Contains("traZODone (traZODone 100 mg tablet)", text);
-        Assert.Contains("Strength: 100 mg", text);
-        Assert.Contains("TAKE THREE TABLETS ORALLY AT BEDTIME FOR INSOMNIA", text);
-        Assert.Contains("VA prescription status: Active", text);
-        Assert.Contains(
-            "Current use: Confirmed during medication reconciliation",
-            text);
-        Assert.DoesNotContain("Documented indication: None recorded", text);
-        Assert.DoesNotContain("Earliest documented VA release:", text);
+        Assert.DoesNotContain("Medication Use Reconciliation", text);
+        Assert.DoesNotContain("Current use:", text);
+        Assert.DoesNotContain("traZODone (traZODone 100 mg tablet)", text);
     }
 
     [Fact]
     public void Render_HumanizesRefillInProcessStatus()
     {
-        var text = RenderText(
+        var medication =
             new MedicationLedgerEntry
             {
                 Id = new MedicationLedgerEntryId("entry-2"),
@@ -54,14 +47,25 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
                 Strength = "30 mg/24 hour",
                 Status = "refillinprocess",
                 Directions = "TAKE ONE TABLET ORALLY EVERY DAY WITH BREAKFAST FOR PREVENTING CHEST PAIN"
-            });
+            };
 
-        Assert.Contains("isosorbide mononitrate", text);
-        Assert.Contains("VA prescription status: Refill in process", text);
+        var progression =
+            new VeteransReviewerMedicationProgression
+            {
+                MedicationName = "Isosorbide Mononitrate",
+                Entries = [medication]
+            };
+
+        var text = RenderText(medication, [progression]);
+
+        Assert.Contains("Relevant Medications for Medical Opinion", text);
+        Assert.Contains("Isosorbide Mononitrate", text);
+        Assert.Contains("VA ledger status: Refill in process", text);
+        Assert.DoesNotContain("Medication Use Reconciliation", text);
     }
 
     [Fact]
-    public void Render_ShowsRelevantProgressionSeparatelyFromCurrentList()
+    public void Render_KeepsCurrentUseReconciliationInternalWhenRelevantProgressionRenders()
     {
         var current =
             new MedicationLedgerEntry
@@ -89,16 +93,10 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
         Assert.Contains("Relevant Medications for Medical Opinion", text);
         Assert.Contains("Isosorbide Mononitrate", text);
         Assert.DoesNotContain("Discontinued", text);
-        Assert.Contains("Current Medication Use — Reconciled", text);
-        Assert.Contains("VA prescription status: Refill in process", text);
-
-        Assert.True(
-            text.IndexOf(
-                "Current Medication Use — Reconciled",
-                StringComparison.Ordinal) <
-            text.IndexOf(
-                "Relevant Medications for Medical Opinion",
-                StringComparison.Ordinal));
+        Assert.DoesNotContain("Medication Use Reconciliation", text);
+        Assert.Contains("VA ledger status: Refill in process", text);
+        Assert.DoesNotContain("Current use:", text);
+        Assert.DoesNotContain("Medication Use Reconciliation", text);
         Assert.Contains(
             "Dated changes in dose, directions and recorded status are retained.",
             text);

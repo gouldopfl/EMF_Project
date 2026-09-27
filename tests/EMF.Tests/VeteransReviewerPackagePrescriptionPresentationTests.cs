@@ -98,9 +98,9 @@ public sealed class VeteransReviewerPackagePrescriptionPresentationTests
             .Select(x => text.IndexOf(x, StringComparison.Ordinal)).ToArray();
         Assert.Equal(positions.Order().ToArray(), positions);
         Assert.All(positions, p => Assert.True(p >= 0));
-        Assert.Contains("no positive current-use reconciliation", text);
+        Assert.DoesNotContain("current-use reconciliation", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Current Medication List", text);
-        Assert.DoesNotContain("Reported non-use medication", text);
+        Assert.Contains("Reported non-use medication", text);
         Assert.DoesNotContain("Historical medication", text);
         Assert.Contains("Missing documented fields\nVA status: active", text);
         Assert.Contains("TAKE THREE TABLETS ORALLY AT BEDTIME FOR INSOMNIA.", text);
@@ -181,6 +181,38 @@ public sealed class VeteransReviewerPackagePrescriptionPresentationTests
     }
 
     [Fact]
+    public void CurrentUseReconciliationRemainsInternalToPrescriptionPresentation()
+    {
+        var reconciliations =
+            new[]
+            {
+                new MedicationCurrentUseReconciliation
+                {
+                    Id = new("current-use"),
+                    VeteranId = new("veteran"),
+                    MedicationLedgerEntryId = new("ledger-5"),
+                    ReconciliationDate = new(2026, 9, 26),
+                    CurrentUseStatus = MedicationCurrentUseStatuses.CurrentlyUsed,
+                    Source = "VeteranReported"
+                }
+            };
+
+        var result = Derive(
+            Details(),
+            new(2026, 9, 26),
+            [Ledger()],
+            Entries(),
+            reconciliations,
+            ["Lamotrigine"]);
+
+        Assert.Contains("Claim-relevant prescriptions", result.Text);
+        Assert.DoesNotContain("Claim-relevant psychiatric prescriptions", result.Text);
+        Assert.DoesNotContain("Current-use reconciliation", result.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Veteran report", result.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"Reconciliations\"", result.Artifact.Metadata["prescriptionEvidence"].ToString());
+    }
+
+    [Fact]
     public async Task SeptemberSourcePagesAndDerivedRowsAreFrozenMembersAndRerenderWithoutLiveEvidenceAccess()
     {
         var original = Details("osa-v4");
@@ -220,6 +252,10 @@ public sealed class VeteransReviewerPackagePrescriptionPresentationTests
         var after = await output.RenderAsync(poisoned, VeteransReviewerPackageOutputFormat.Docx);
         var text = DocumentText(after.Docx!);
         Assert.Equal(DocumentText(before.Docx!), text);
+        Assert.DoesNotContain("Additional Evidence", text);
+        Assert.True(
+            text.IndexOf("Appendix A — Medical Evidence", StringComparison.Ordinal) <
+            text.IndexOf("VA source page 3911. Original source wording.", StringComparison.Ordinal));
         Assert.Equal(2, repository.Reads);
         Assert.Contains("VA source page 3911. Original source wording.", text);
         Assert.Contains("VA source page 3923. Original source wording.", text);

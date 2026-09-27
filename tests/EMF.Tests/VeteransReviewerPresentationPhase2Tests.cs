@@ -625,7 +625,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
     }
 
     [Fact]
-    public void Render_OpeningSubsectionsHaveOneLineOfSeparation()
+    public void Render_OpeningSubsectionsUseCoverSpecificSeparation()
     {
         var empty = Details([]);
         var details = new VeteransReviewerPackageDetails
@@ -646,12 +646,21 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             }).ToArray();
         using var document = WordprocessingDocument.Open(new MemoryStream(
             VeteransReviewerPackageDocxRenderer.Render(details, regulations)), false);
-        var targets = new[] { "Medical Opinion Requested", "How to Use This Package", "Reviewer Guidance",
+        var body = document.MainDocumentPart!.Document!.Body!;
+        var opinionHeadings = body.Elements<Paragraph>()
+            .Where(p => p.InnerText == "Medical Opinion Requested").ToArray();
+        Assert.Equal(3, opinionHeadings.Length);
+        Assert.Equal("480",
+            opinionHeadings[0].ParagraphProperties!.GetFirstChild<SpacingBetweenLines>()!.Before!.Value);
+        Assert.All(opinionHeadings.Skip(1), p => Assert.Equal("240",
+            p.ParagraphProperties!.GetFirstChild<SpacingBetweenLines>()!.Before!.Value));
+
+        var targets = new[] { "How to Use This Package", "Reviewer Guidance",
             "Purpose of This Document", "38 CFR 3.310(a)", "38 CFR 3.310(b)",
             "Applicable VA Regulation: 38 CFR 3.310(a); 38 CFR 3.310(b)" };
         foreach (var target in targets)
         {
-            var paragraphs = document.MainDocumentPart!.Document!.Body!.Elements<Paragraph>()
+            var paragraphs = body.Elements<Paragraph>()
                 .Where(p => p.InnerText == target).ToArray();
             Assert.NotEmpty(paragraphs);
             Assert.All(paragraphs, p => Assert.Equal("240",
@@ -774,6 +783,35 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             Assert.DoesNotContain("Source Page ", evidencePages[1]);
         }
         Assert.All(rendered, text => Assert.DoesNotContain("unused extracted text", text));
+    }
+
+    [ReviewerLibreOfficeFact]
+    public async Task LibreOffice_MedicalEvidenceArtifactPreambleStaysWithFirstNativePage()
+    {
+        using var fixture = new VeteransReviewerNativeEvidencePageTests.NativePage(1224, 1584);
+        for (var i = 0; i < 35; i++)
+            fixture.Line(
+                $"Clinical narrative row {i:D2} remains part of the native source page.",
+                55 + i * 20,
+                size: 12,
+                x: 45);
+
+        const string title = "Tall Clinical Source";
+        var content = Evidence(
+            title,
+            "",
+            pages: [fixture.Page(pageNumber: 1)],
+            artifactType: "veterans-clinical-note");
+        var output = await new VeteransReviewerPackageDocumentOutputService(
+            new LibreOfficeVeteransReviewerPackageDocumentConverter())
+            .RenderAsync(Details([content]), VeteransReviewerPackageOutputFormat.Both);
+
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(output.Pdf!);
+        var sourcePage = Assert.Single(pdf.GetPages().Where(page =>
+            page.Text.Contains(title, StringComparison.Ordinal) &&
+            page.Text.Contains("Source: VA Blue Button Report", StringComparison.Ordinal)));
+
+        Assert.True(sourcePage.NumberOfImages > 0, sourcePage.Text);
     }
 
     [ReviewerLibreOfficeFact]
@@ -983,16 +1021,14 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         Assert.DoesNotContain(pages, p => p.Text.Contains("Package Guide — Continued"));
         foreach (var pair in new[] { ("CLINICALROW", "Clinical Progression"), ("MEDROW", "Relevant Medications for Medical Opinion") })
         {
-            var sectionPages = pages.Where(p => p.Text.Contains(pair.Item1) &&
-                !p.Text.Contains("Current Medication Use — Reconciled")).ToArray();
+            var sectionPages = pages.Where(p => p.Text.Contains(pair.Item1)).ToArray();
             Assert.True(sectionPages.Length > 1);
             Assert.DoesNotContain(pair.Item2 + " — Continued", sectionPages[0].Text);
             Assert.All(sectionPages.Skip(1), p => Assert.Contains(pair.Item2 + " — Continued", p.Text));
         }
         foreach (var entry in entries)
         {
-            var page = Assert.Single(pages.Where(p => p.Text.Contains(entry.MedicationName) &&
-                !p.Text.Contains("Current Medication Use — Reconciled")));
+            var page = Assert.Single(pages.Where(p => p.Text.Contains(entry.MedicationName)));
             Assert.Contains(entry.PrescribedDate!.Value.ToString("MMMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture), page.Text);
             Assert.Contains($"MEDROW{entry.EntryOrdinal - 1:D2}", page.Text);
             Assert.Contains($"INDICATION{entry.EntryOrdinal - 1:D2}", page.Text);
@@ -1147,11 +1183,10 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         Assert.Contains("Historical clinical note; original pages 10–20", text);
         Assert.Contains("Trazodone 100 mg", text);
         Assert.Contains("TAKE THREE TABLETS ORALLY AT BEDTIME FOR INSOMNIA.", text);
-        Assert.Contains("recorded non-use reconciliations", text);
-        Assert.Contains("2026-09-26", text);
-        Assert.Contains("no positive current-use reconciliation", text);
+        Assert.DoesNotContain("reconciliation", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Package evidence cutoff: 2026-09-26", text);
         Assert.True(text.IndexOf("Trazodone 100 mg", StringComparison.Ordinal) < text.IndexOf("Allopurinol 300 mg", StringComparison.Ordinal));
-        Assert.DoesNotContain("Reported non-use medication", text);
+        Assert.Contains("Reported non-use medication", text);
         Assert.DoesNotContain("Historical Medication List —", text);
         Assert.DoesNotContain("Historical medication table omitted", text);
         Assert.DoesNotContain("Transferred medication", text);

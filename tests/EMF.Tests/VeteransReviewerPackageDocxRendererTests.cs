@@ -1212,6 +1212,20 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                     paragraph.InnerText == "Medical Opinion Requested").ToArray();
 
         Assert.Equal(3, headings.Length);
+        Assert.Equal(
+            "480",
+            headings[0].ParagraphProperties?
+                .SpacingBetweenLines?
+                .Before?
+                .Value);
+        Assert.All(
+            headings.Skip(1),
+            heading => Assert.Equal(
+                "240",
+                heading.ParagraphProperties?
+                    .SpacingBetweenLines?
+                    .Before?
+                    .Value));
 
         var regulation =
             Assert.Single(
@@ -2936,6 +2950,38 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
     }
 
     [Fact]
+    public void Render_ReservesArtifactPreambleSpaceOnFirstMedicalEvidenceImage()
+    {
+        var details =
+            CreatePrintableDetails(
+            [
+                new PrintableArtifactPage
+                {
+                    PageNumber = 1,
+                    ContentType = "image/png",
+                    Content = TallPng()
+                }
+            ],
+            "",
+            appendix: VeteransReviewerPackageAppendix.MedicalEvidence);
+
+        var bytes =
+            VeteransReviewerPackageDocxRenderer.Render(details);
+
+        using var stream = new MemoryStream(bytes);
+        using var document = WordprocessingDocument.Open(stream, false);
+
+        var extent =
+            Assert.Single(
+                document.MainDocumentPart!
+                    .Document!
+                    .Descendants<
+                        DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent>());
+
+        Assert.Equal(6_400_800L, extent.Cy?.Value);
+    }
+
+    [Fact]
     public void Render_UsesLargerSinglePageImageForLayEvidence()
     {
         var details =
@@ -4615,7 +4661,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "Historical medication table omitted from this reviewer copy",
             text);
         Assert.DoesNotContain(
-            "See Current Medication Use — Reconciled",
+            "See Medication Use Reconciliation",
             text);
         Assert.Contains(
             "See Relevant Medications for Medical Opinion.",

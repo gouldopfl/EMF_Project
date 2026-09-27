@@ -520,6 +520,35 @@ public sealed class VeteransReviewerNativeEvidencePageTests
     }
 
     [Fact]
+    public void DeeplyOutdentedShortNarrativeFragmentsRejoinProseWithoutChangingWordsOrInk()
+    {
+        using var fixture = new NativePage(1224, 1584);
+        var sourceLines = new[]
+        {
+            "The reviewing clinician discussed the procedure with the Veteran and",
+            "and",
+            "performed the examination using the documented technique and",
+            "correct",
+            "vision findings were recorded in the same narrative sequence."
+        };
+        fixture.Line(sourceLines[0], 70, size: 12, x: 120);
+        fixture.Line(sourceLines[1], 88, size: 12, x: 45);
+        fixture.Line(sourceLines[2], 106, size: 12, x: 120);
+        fixture.Line(sourceLines[3], 124, size: 12, x: 45);
+        fixture.Line(sourceLines[4], 142, size: 12, x: 120);
+        var page = fixture.Page();
+
+        var result = VeteransReviewerNativeEvidencePage.Prepare(page, true);
+
+        var prose = Assert.Single(result.Regions.Where(region => region.Kind == "Narrative"));
+        Assert.Equal(Words(sourceLines), Words(prose.RenderedLines));
+        Assert.DoesNotContain("and", prose.RenderedLines);
+        Assert.DoesNotContain("correct", prose.RenderedLines);
+        AssertStructuredGeometry(page, result);
+        AssertAllInk(page, result);
+    }
+
+    [Fact]
     public void Page42_PhysicalExamAndLabsKeepNativeResultUnitAndReferenceRelationships()
     {
         using var fixture = new NativePage(1224, 1584);

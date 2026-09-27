@@ -113,6 +113,111 @@ public sealed class VeteransBlueButtonMedicationLedgerParserTests
     }
 
     [Fact]
+    public void Parse_ReadsReportDateFromDocumentLastUpdatedHeaderWhenMedicationFooterIsUnavailable()
+    {
+        var result =
+            new VeteransBlueButtonMedicationLedgerParser()
+                .Parse(
+                [
+                    Page(
+                        1,
+                        """
+                        VA Blue Button® report
+                        This report contains information from your VA medical records.
+                        Last updated at 7:35 a.m. on September 27, 2026
+                        Records in this report
+                        Medications
+                        My HealtheVet account summary
+                        """),
+                    Page(
+                        3,
+                        """
+                        Medications
+                        This is a list of prescriptions and other medications in your VA medical records.
+                        Showing 1 medications, alphabetically by name
+
+                        atorvastatin (atorvastatin 80 mg tablet)
+                        About your prescription
+                        Last filled on: September 16, 2026
+                        Status: active
+                        Refills left: 3
+                        Request refills by this prescription expiration date: September 9, 2027
+                        Prescription number: 3211-50459506
+                        Prescribed on: September 10, 2026
+                        Prescribed by: NATARAJAN, LEKSHMI K, MD
+                        Facility: Richard L. Roudebush Veterans' Administration Medical Center
+                        Pharmacy phone number: (317)988-4370
+                        About this medication or supply
+                        Instructions: 1 tabs Oral (given by mouth) every evening. for cholesterol. Refills: 3.
+                        Reason for use: None recorded
+                        Quantity: 90
+
+                        My HealtheVet account summary
+                        """)
+                ]);
+
+        Assert.Equal(new DateOnly(2026, 9, 27), result.ReportDate);
+        Assert.Equal(3, result.SourceStartPage);
+        Assert.Equal(3, result.SourceEndPage);
+        Assert.Equal(1, result.ReportedEntryCount);
+        Assert.True(result.IsComplete);
+        Assert.Equal(
+            "atorvastatin (atorvastatin 80 mg tablet)",
+            Assert.Single(result.Entries).MedicationName);
+    }
+
+    [Fact]
+    public void Parse_StripsEmbeddedPageFurnitureFromFieldValueAtPageBoundary()
+    {
+        var result =
+            new VeteransBlueButtonMedicationLedgerParser()
+                .Parse(
+                [
+                    Page(
+                        1,
+                        """
+                        VA Blue Button® report
+                        Last updated at 7:35 a.m. on September 27, 2026
+                        """),
+                    Page(
+                        6,
+                        """
+                        Medications
+                        This is a list of prescriptions and other medications in your VA medical records.
+                        Showing 1 medications, alphabetically by name
+
+                        isosorbide mononitrate (isosorbide mononitrate ER 30 mg/24 hour tablet)
+                        About your prescription
+                        Last filled on: September 10, 2026
+                        Status: active
+                        Refills left: 3
+                        Request refills by this prescription expiration date: August 17, 2027
+                        Prescription number: 3211-50014120 Page 6 of 17 Gould, Michael Allen
+                        """),
+                    Page(
+                        7,
+                        """
+                        Prescribed on: August 21, 2026
+                        Prescribed by: POWELL, LYNN M, NP
+                        Facility: Richard L. Roudebush Veterans' Administration Medical Center
+                        Pharmacy phone number: (317)988-4370
+                        About this medication or supply
+                        Instructions: TAKE ONE TABLET ORALLY EVERY DAY WITH BREAKFAST FOR PREVENTING CHEST PAIN. Refills: 3.
+                        Reason for use: None recorded
+                        Quantity: 90
+
+                        My HealtheVet account summary
+                        """)
+                ]);
+
+        var entry = Assert.Single(result.Entries);
+        Assert.Equal("3211-50014120", entry.PrescriptionNumber);
+        Assert.Equal(new DateOnly(2026, 8, 21), entry.PrescribedDate);
+        Assert.Equal(6, entry.SourceStartPage);
+        Assert.Equal(7, entry.SourceEndPage);
+    }
+
+    [Fact]
     public void Parse_PreservesTransferredLegacyPrescriptionAcrossPageBreak()
     {
         var result =

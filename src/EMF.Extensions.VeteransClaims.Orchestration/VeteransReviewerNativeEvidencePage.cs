@@ -445,12 +445,11 @@ internal sealed record VeteransReviewerNativeEvidencePage(
                 group.All(r => r.IsMono && r.Font == first.Font &&
                     Math.Abs(r.Size - first.Size) < .1 &&
                     (Math.Abs(r.X - first.X) < continuationIndentTolerance ||
-                     // Blue Button sometimes places a wrapped fragment back at
-                     // the left margin inside otherwise consistently indented
-                     // prose. Do not generalize this to deeper indents, fields,
-                     // tables, or lists.
-                     (!narrativeDashList && r.Words.Count <= 2 && r.X < first.X &&
-                      first.X - r.X <= first.Size * 2.5)) &&
+                     // Blue Button sometimes places a short wrapped prose fragment
+                     // back at the left margin inside otherwise consistently indented
+                     // narrative. Accept only tightly constrained lowercase fragments;
+                     // fields, tables and lists remain protected.
+                     (!narrativeDashList && NarrativeMarginFragment(r, first))) &&
                     !Field(r) && !TableHeader(r)) &&
                 (narrativeDashList
                     ? group.Skip(1).All(r => !ListOrRule(r))
@@ -468,6 +467,14 @@ internal sealed record VeteransReviewerNativeEvidencePage(
         }
         return regions;
     }
+
+    private static bool NarrativeMarginFragment(Row row, Row first) =>
+        row.Words.Count <= 2 &&
+        row.X < first.X &&
+        first.X - row.X <= first.Size * 8 &&
+        row.Text.Any(char.IsLower) &&
+        !row.Text.EndsWith(':') &&
+        !Regex.IsMatch(row.Text, @"^\d");
 
     private static IReadOnlyList<Row[]> ProseRuns(Row[] rows)
     {
