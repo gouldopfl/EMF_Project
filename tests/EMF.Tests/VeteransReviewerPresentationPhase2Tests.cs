@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Runtime.Versioning;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
@@ -1171,6 +1172,25 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         fixture.Line("1) HISTORICAL MEDICATION TAKE AS DIRECTED ACTIVE", 122, size: 12);
         fixture.Line("C-SSRS screener: Negative", 158, size: 12);
         var details = Details([Evidence("Historical clinical note", "", pages: [fixture.Page()], artifactType: "veterans-clinical-note")]);
+        details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = details.PackageDetails,
+            Artifacts = details.Artifacts,
+            ArtifactContents = details.ArtifactContents,
+            ClinicalProgressionEvents =
+            [
+                new VeteransReviewerClinicalProgressionEvent
+                {
+                    ReviewerArtifactId = details.Artifacts[0].Id,
+                    EventDate = new DateOnly(2026, 9, 27),
+                    EventType = EMF.Extensions.VeteransClaims.Models.Clinical.ClinicalProgressionEventTypes.TreatmentUse,
+                    SourceLocator =
+                        "VA Health and Benefits app — VA App — Calcium Carbonate Refill Status — September 27, 2026",
+                    Summary =
+                        "VA app shows calcium carbonate 500 mg chew tablet as Active: Submitted. VA received the refill request on September 27, 2026."
+                }
+            ]
+        };
         var presentation = VeteransReviewerPackagePrescriptionPresentationTests.DeriveFor(details);
         var captured = VeteransReviewerPackageSnapshot.Capture(VeteransReviewerPackagePrescriptionPresentation.Attach(details, presentation), []);
         var bytes = VeteransReviewerPackageDocxRenderer.Render(VeteransReviewerPackageSnapshot.Restore(captured).Details,
@@ -1185,6 +1205,17 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         Assert.Contains("TAKE THREE TABLETS ORALLY AT BEDTIME FOR INSOMNIA.", text);
         Assert.DoesNotContain("reconciliation", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Package evidence cutoff: 2026-09-26", text);
+        Assert.Contains("Additional Current VA Medication Evidence", text);
+        Assert.Contains("calcium carbonate 500 mg chew tablet as Active: Submitted", text);
+        Assert.Contains("submitted refill request does not establish that a refill was dispensed", text);
+        Assert.Single(Regex.Matches(text, "calcium carbonate 500 mg chew tablet as Active: Submitted").Cast<Match>());
+        var prescriptionListIndex = text.IndexOf("VA Prescription List — September 9, 2026", StringComparison.Ordinal);
+        Assert.True(prescriptionListIndex >= 0);
+        var additionalEvidenceIndex = text.IndexOf(
+            "Additional Current VA Medication Evidence",
+            prescriptionListIndex,
+            StringComparison.Ordinal);
+        Assert.True(additionalEvidenceIndex > prescriptionListIndex);
         Assert.True(text.IndexOf("Trazodone 100 mg", StringComparison.Ordinal) < text.IndexOf("Allopurinol 300 mg", StringComparison.Ordinal));
         Assert.Contains("Reported non-use medication", text);
         Assert.DoesNotContain("Historical Medication List —", text);

@@ -20,6 +20,9 @@ public static class VeteransReviewerPackageDocxRenderer
     private const string MedicationProgressionSectionTitle =
         "Relevant Medications for Medical Opinion";
 
+    private const string AdditionalCurrentVaMedicationEvidenceSectionTitle =
+        "Additional Current VA Medication Evidence";
+
     private const string MedicalLiteratureSectionTitle =
         "Medical / Scientific Literature Considered";
 
@@ -602,12 +605,21 @@ public static class VeteransReviewerPackageDocxRenderer
         }
 
         if (details.ClinicalProgressionEvents.Any(
-                item => !IsPapTitrationFinding(item)))
+                item => !IsPapTitrationFinding(item) &&
+                        !IsAdditionalCurrentVaMedicationEvidence(item)))
         {
             sections.Add(
                 new PackageGuideSection(
                     "Clinical Progression",
                     "Summarizes source-grounded treatment use, problems, adjustments, transitions, findings, and responses relevant to the medical review."));
+        }
+
+        if (details.ClinicalProgressionEvents.Any(IsAdditionalCurrentVaMedicationEvidence))
+        {
+            sections.Add(
+                new PackageGuideSection(
+                    AdditionalCurrentVaMedicationEvidenceSectionTitle,
+                    "Presents current medication-status evidence from a VA app separately from the dated VA Prescription List, without changing the source ledger."));
         }
 
         if (details.MedicationProgressions.Count > 0)
@@ -1265,7 +1277,8 @@ public static class VeteransReviewerPackageDocxRenderer
     {
         var progression =
             details.ClinicalProgressionEvents
-                .Where(item => !IsPapTitrationFinding(item))
+                .Where(item => !IsPapTitrationFinding(item) &&
+                               !IsAdditionalCurrentVaMedicationEvidence(item))
                 .OrderBy(item => item.EventDate)
                 .ThenBy(item => item.SourceLocator, StringComparer.Ordinal)
                 .ThenBy(item => item.EventType, StringComparer.Ordinal)
@@ -1303,6 +1316,71 @@ public static class VeteransReviewerPackageDocxRenderer
                 ContentParagraph(
                     $"Source: {item.SourceLocator}"));
         }
+    }
+
+
+    private static bool IsAdditionalCurrentVaMedicationEvidence(
+        VeteransReviewerClinicalProgressionEvent item) =>
+        string.Equals(
+            item.EventType,
+            ClinicalProgressionEventTypes.TreatmentUse,
+            StringComparison.Ordinal) &&
+        item.SourceLocator.Contains(
+            "VA App —",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static void AppendAdditionalCurrentVaMedicationEvidence(
+        Body body,
+        VeteransReviewerPackageDetails details)
+    {
+        var items =
+            details.ClinicalProgressionEvents
+                .Where(IsAdditionalCurrentVaMedicationEvidence)
+                .OrderBy(item => item.EventDate)
+                .ThenBy(item => item.SourceLocator, StringComparer.Ordinal)
+                .ThenBy(item => item.Summary, StringComparer.Ordinal)
+                .ToArray();
+
+        if (items.Length == 0)
+            return;
+
+        body.Append(
+            StyledParagraph(
+                AdditionalCurrentVaMedicationEvidenceSectionTitle,
+                "Heading1"));
+
+        body.Append(
+            ContentParagraph(
+                "This section presents current VA app medication-status evidence separately from the dated VA Prescription List. " +
+                "It does not alter the Blue Button medication ledger, and a submitted refill request does not establish that a refill was dispensed."));
+
+        foreach (var item in items)
+        {
+            body.Append(
+                StyledParagraph(
+                    $"{item.EventDate.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture)} — VA Medication Status",
+                    "Heading2"));
+            body.Append(ContentParagraph(item.Summary));
+            body.Append(ContentParagraph($"Source: {item.SourceLocator}"));
+        }
+    }
+
+    private static void AppendPrescriptionPresentationSections(
+        Body body,
+        VeteransReviewerEvidenceSections sections,
+        VeteransReviewerPackageDetails details,
+        VeteransReviewerArtifactContent prescriptionList)
+    {
+        AppendGeneratedSection(
+            body,
+            sections,
+            prescriptionList.Artifact.Name,
+            section => AppendPackagePrescriptionList(section, prescriptionList));
+        AppendGeneratedSection(
+            body,
+            sections,
+            AdditionalCurrentVaMedicationEvidenceSectionTitle,
+            section => AppendAdditionalCurrentVaMedicationEvidence(section, details));
     }
 
     private static string ClinicalProgressionEventTypeDisplayName(
@@ -1932,8 +2010,11 @@ public static class VeteransReviewerPackageDocxRenderer
 
         if (prescriptionList is not null && !contents.Any(c => BuildHistoricalMedicationTitle(c) is not null))
         {
-            AppendGeneratedSection(body, sections, prescriptionList.Artifact.Name,
-                section => AppendPackagePrescriptionList(section, prescriptionList));
+            AppendPrescriptionPresentationSections(
+                body,
+                sections,
+                details,
+                prescriptionList);
             prescriptionListRendered = true;
         }
         foreach (var appendix in AllReviewerAppendices)
@@ -1974,8 +2055,11 @@ public static class VeteransReviewerPackageDocxRenderer
                 if (!prescriptionListRendered && prescriptionList is not null &&
                     BuildHistoricalMedicationTitle(content) is not null)
                 {
-                    AppendGeneratedSection(body, sections, prescriptionList.Artifact.Name,
-                        section => AppendPackagePrescriptionList(section, prescriptionList));
+                    AppendPrescriptionPresentationSections(
+                        body,
+                        sections,
+                        details,
+                        prescriptionList);
                     prescriptionListRendered = true;
                 }
                 sections.Start(body, SanitizeXmlText(GetDisplayName(content)));
