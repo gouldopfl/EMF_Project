@@ -341,9 +341,12 @@ internal sealed record VeteransReviewerNativeEvidencePage(
             value.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 5;
     }
     private static bool ListOrRule(Row row) => Regex.IsMatch(row.Text, @"^(?:[-*•]|\d+[.)]\s|[=_]{3,}|/es/)");
-    private static bool Field(Row row) => !row.ProseContinuation && Regex.IsMatch(row.Text, @"^[A-Za-z][A-Za-z /()-]{0,39}:") && !NarrativeLead(row);
+    private static bool Field(Row row) => !row.ProseContinuation && Regex.IsMatch(row.Text, @"^[A-Za-z][A-Za-z /()-]{0,39}:") &&
+        !NarrativeLead(row) && !NarrativeSection(row);
     private static bool MajorHeading(Row row) => !row.ProseContinuation && Regex.IsMatch(row.Text, @"^[A-Za-z][A-Za-z0-9 ()/–-]{0,54}:$");
-    private static bool NarrativeSection(Row row) => Regex.IsMatch(row.Text, @"^(?:[SAP]|HPI|Attending|History|Assessment|Plan):\s", RegexOptions.IgnoreCase);
+    private static bool NarrativeSection(Row row) => Regex.IsMatch(row.Text,
+        @"^(?:[SAP]|HPI|Attending|History|Assessment|Plan|Mental Status(?: Examination)?):\s",
+        RegexOptions.IgnoreCase);
     private static bool FixedSectionHeading(Row row) => MajorHeading(row) && Regex.IsMatch(row.Text,
         @"^(?:PHYSICAL EXAM|MENTAL STATUS.*|OBJECTIVE|O|VITAL.*|LAB.*|RESULTS.*|.*MEDICATION.*|.*ALLERG.*|RX TODAY|GOALS.*|SOCIAL|.*SIGNATURE.*):$",
         RegexOptions.IgnoreCase);
@@ -422,6 +425,7 @@ internal sealed record VeteransReviewerNativeEvidencePage(
                 split = row.Font != previous.Font || Math.Abs(row.Size - previous.Size) > .1 ||
                     ((NarrativeLead(row) || (Field(row) && current.Count == 1 && UppercaseValue(current[0].Text))) &&
                      (!protectedSection || NarrativeSection(row))) ||
+                    (previous.Text.EndsWith('?') && ProseStart(row) && row.X > previous.X) ||
                     (NarrativeDashListStart(row) && current.Count > 0) ||
                     (current.Count == 1 && (MajorHeading(current[0]) || AddendumHeader(current[0])) && !protectedSection && ProseStart(row)) ||
                     ((ListOrRule(row) || TableHeader(row)) && (ProseStart(current[0]) || NarrativeDashListStart(current[0]))) ||
@@ -445,11 +449,12 @@ internal sealed record VeteransReviewerNativeEvidencePage(
                 group.All(r => r.IsMono && r.Font == first.Font &&
                     Math.Abs(r.Size - first.Size) < .1 &&
                     (Math.Abs(r.X - first.X) < continuationIndentTolerance ||
-                     // Blue Button sometimes places a short wrapped prose fragment
+                     // Blue Button sometimes places short wrapped prose fragments
                      // back at the left margin inside otherwise consistently indented
-                     // narrative. Accept only tightly constrained lowercase fragments;
-                     // fields, tables and lists remain protected.
-                     (!narrativeDashList && NarrativeMarginFragment(r, first))) &&
+                     // narrative, including ProVation-style dash-led procedure text.
+                     // Accept only tightly constrained short word fragments; fields,
+                     // tables and lists remain protected.
+                     NarrativeMarginFragment(r, first)) &&
                     !Field(r) && !TableHeader(r)) &&
                 (narrativeDashList
                     ? group.Skip(1).All(r => !ListOrRule(r))
@@ -471,7 +476,7 @@ internal sealed record VeteransReviewerNativeEvidencePage(
     private static bool NarrativeMarginFragment(Row row, Row first) =>
         row.Words.Count <= 2 &&
         row.X < first.X &&
-        first.X - row.X <= first.Size * 8 &&
+        first.X - row.X <= first.Size * 12 &&
         row.Text.Any(char.IsLower) &&
         !row.Text.EndsWith(':') &&
         !Regex.IsMatch(row.Text, @"^\d");
@@ -480,6 +485,7 @@ internal sealed record VeteransReviewerNativeEvidencePage(
     {
         var result = new List<Row[]>();
         var start = 0;
+        var dashLedNarrative = rows.Length > 0 && NarrativeDashListStart(rows[0]);
         for (var i = 0; i < rows.Length; i++)
         {
             // Keep explicit complete-sentence source lines as boundaries. An
@@ -487,7 +493,9 @@ internal sealed record VeteransReviewerNativeEvidencePage(
             var text = rows[i].Text;
             var complete = Regex.IsMatch(text, "[.!?][\\\"')]*$") &&
                 !Regex.IsMatch(text, @"^(?:Dr|Mr|Mrs|Ms|Prof|vs|etc)\.$", RegexOptions.IgnoreCase);
-            if (i == rows.Length - 1 || complete)
+            var trailingMarginContinuation = complete && dashLedNarrative &&
+                i + 1 < rows.Length && NarrativeMarginFragment(rows[i + 1], rows[start]);
+            if (i == rows.Length - 1 || (complete && !trailingMarginContinuation))
             { result.Add(rows[start..(i + 1)]); start = i + 1; }
         }
         return result;

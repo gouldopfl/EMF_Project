@@ -96,6 +96,73 @@ public sealed class VeteransReviewerPresentationPhase2Tests
     }
 
     [Fact]
+    public void Render_MasksNativeAndTextEvidenceWithoutChangingInputs()
+    {
+        using var fixture = new VeteransReviewerNativeEvidencePageTests.NativePage(1224, 1584);
+        fixture.Line("MRN: 123-45-5668", 50);
+        fixture.Line("SSN: 123-45-5668", 65);
+        fixture.Line("Clinical findings remain preserved.", 90);
+        var page = fixture.Page();
+        var sourceBytes = page.Content.ToArray();
+        var content = Evidence("Record SSN: 123-45-5668", "SSN: 123-45-5668", pages: [page]);
+        using var document = Open([content]);
+        var masked = VeteransReviewerPagePrivacy.Mask(page);
+        var expected = VeteransReviewerNativeEvidencePage.Prepare(masked, true, content.Artifact.Name);
+        using var actual = new MemoryStream();
+        Assert.Single(document.MainDocumentPart!.ImageParts).GetStream().CopyTo(actual);
+        Assert.Equal(expected.Content.ToArray(), actual.ToArray());
+        Assert.DoesNotContain("123-45-5668", document.MainDocumentPart.Document!.InnerText);
+        Assert.Contains("***-**-5668", document.MainDocumentPart.Document.InnerText);
+        Assert.All(document.MainDocumentPart.HeaderParts, h => Assert.DoesNotContain("123-45-5668", h.Header!.InnerText));
+        Assert.Equal(sourceBytes, page.Content.ToArray());
+        Assert.Equal("SSN: 123-45-5668", content.Text);
+    }
+
+    [ReviewerLibreOfficeFact]
+    public async Task LibreOffice_ReconstructedProseMasksSsnAndFlowsAcrossSourcePages()
+    {
+        using var first = new VeteransReviewerNativeEvidencePageTests.NativePage(1224, 1584);
+        first.Line("Synthetic procedure", 25);
+        first.Line("MRN: 123-45-5668", 35);
+        first.Line("SSN: 123-45-5668", 50);
+        first.Line("The risks and benefits were discussed", 80, x: 150);
+        first.Line("and", 95);
+        first.Line("informed consent was obtained from the patient.", 110, x: 150);
+        first.Line("Patient", 125);
+        using var second = new VeteransReviewerNativeEvidencePageTests.NativePage(1224, 1584);
+        second.Line("identification and procedure were verified", 50, x: 150);
+        second.Line("by", 65);
+        second.Line("the physician and the nurse in the procedure room.", 80, x: 150);
+        var pages = new[] { first.Page(pageNumber: 100), second.Page(pageNumber: 101) };
+        var original = pages.Select(p => p.Content.ToArray()).ToArray();
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([Evidence("Synthetic procedure", "", pages: pages)]));
+        using (var docx = WordprocessingDocument.Open(new MemoryStream(bytes), false))
+        {
+            var text = docx.MainDocumentPart!.Document!.InnerText;
+            Assert.DoesNotContain("123-45-5668", text);
+            Assert.Contains("Patient identifier: 5668", text);
+            Assert.DoesNotContain("MRN:", text);
+            Assert.DoesNotContain("SSN:", text);
+            Assert.Contains("Patient identification and procedure were verified by the physician", text);
+            Assert.Empty(docx.MainDocumentPart.ImageParts);
+            var bodyParagraphs = docx.MainDocumentPart.Document.Body!.Elements<Paragraph>().ToArray();
+            var titleIndex = Array.FindIndex(bodyParagraphs, p => p.InnerText == "Synthetic procedure" &&
+                p.ParagraphProperties?.ParagraphStyleId?.Val == "Heading2");
+            Assert.True(titleIndex >= 0);
+            Assert.DoesNotContain(bodyParagraphs.Skip(titleIndex + 1), p => p.InnerText == "Synthetic procedure");
+        }
+        var output = await new LibreOfficeVeteransReviewerPackageDocumentConverter().ConvertDocxToPdfAsync(bytes);
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(output);
+        var pdfText = string.Join(" ", pdf.GetPages().Select(p => p.Text));
+        Assert.DoesNotContain("123-45-5668", pdfText);
+        Assert.Contains("Patient identifier: 5668", pdfText);
+        Assert.DoesNotContain("MRN:", pdfText);
+        Assert.DoesNotContain("SSN:", pdfText);
+        Assert.Single(pdf.GetPages().Where(p => p.Text.Contains("informed consent") || p.Text.Contains("identification and procedure")));
+        for (var i = 0; i < pages.Length; i++) Assert.Equal(original[i], pages[i].Content.ToArray());
+    }
+
+    [Fact]
     public void Render_SourceTerminalBlanksDoNotAddSectionParagraphs()
     {
         const string source = "RARE\n<1\nDONE\nNEG\n\nFinal source line.\n\n  \n";
@@ -1228,6 +1295,44 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         using var imageStream = Assert.Single(document.MainDocumentPart.ImageParts).GetStream();
         using var actual = SKBitmap.Decode(imageStream);
         Assert.Equal(expected.Pixels, actual.Pixels);
+    }
+
+    [Fact]
+    public void Render_CurrentVaMedicationEvidenceRendersWithoutPrescriptionPresentation()
+    {
+        var details = Details([Evidence("Current VA app medication status", "Source evidence")]);
+        details = new VeteransReviewerPackageDetails
+        {
+            PackageDetails = details.PackageDetails,
+            Artifacts = details.Artifacts,
+            ArtifactContents = details.ArtifactContents,
+            ClinicalProgressionEvents =
+            [
+                new VeteransReviewerClinicalProgressionEvent
+                {
+                    ReviewerArtifactId = details.Artifacts[0].Id,
+                    EventDate = new DateOnly(2026, 9, 27),
+                    EventType = EMF.Extensions.VeteransClaims.Models.Clinical.ClinicalProgressionEventTypes.TreatmentUse,
+                    SourceLocator =
+                        "VA Health and Benefits app — VA App — Calcium Carbonate Refill Status — September 27, 2026",
+                    Summary =
+                        "VA app shows calcium carbonate 500 mg chew tablet as Active: Submitted. VA received the refill request on September 27, 2026."
+                }
+            ]
+        };
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details,
+            sourceReviewDate: new DateOnly(2026, 9, 27));
+        using var stream = new MemoryStream(bytes);
+        using var document = WordprocessingDocument.Open(stream, false);
+        var text = document.MainDocumentPart!.Document!.Body!.InnerText;
+
+        Assert.DoesNotContain("VA Prescription List —", text);
+        Assert.Contains("Additional Current VA Medication Evidence", text);
+        Assert.Contains("current VA app medication-status evidence as a distinct reviewer section", text);
+        Assert.Contains("calcium carbonate 500 mg chew tablet as Active: Submitted", text);
+        Assert.Contains("submitted refill request does not establish that a refill was dispensed", text);
+        Assert.Single(Regex.Matches(text, "calcium carbonate 500 mg chew tablet as Active: Submitted").Cast<Match>());
     }
 
     [Fact]

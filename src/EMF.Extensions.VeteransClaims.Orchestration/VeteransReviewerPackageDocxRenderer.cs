@@ -146,6 +146,11 @@ public static class VeteransReviewerPackageDocxRenderer
                 section => AppendSleepStudyPapTitrationResults(section, details));
             AppendGeneratedSection(body, evidenceSections, "Clinical Progression",
                 section => AppendClinicalProgression(section, details));
+            if (!HasPrescriptionPresentation(details))
+            {
+                AppendGeneratedSection(body, evidenceSections, AdditionalCurrentVaMedicationEvidenceSectionTitle,
+                    section => AppendAdditionalCurrentVaMedicationEvidence(section, details));
+            }
             AppendGeneratedSection(body, evidenceSections, MedicationProgressionSectionTitle,
                 section => AppendMedicationProgressions(section, details));
             AppendGeneratedSection(body, evidenceSections, "Key Evidence and Chronology",
@@ -161,6 +166,9 @@ public static class VeteransReviewerPackageDocxRenderer
 
             mainPart.Document =
                 new Document(body);
+            VeteransReviewerDocumentPrivacy.Mask(mainPart.Document);
+            foreach (var header in mainPart.HeaderParts) VeteransReviewerDocumentPrivacy.Mask(header.Header!);
+            foreach (var footer in mainPart.FooterParts) VeteransReviewerDocumentPrivacy.Mask(footer.Footer!);
         }
 
         return stream.ToArray();
@@ -619,7 +627,9 @@ public static class VeteransReviewerPackageDocxRenderer
             sections.Add(
                 new PackageGuideSection(
                     AdditionalCurrentVaMedicationEvidenceSectionTitle,
-                    "Presents current medication-status evidence from a VA app separately from the dated VA Prescription List, without changing the source ledger."));
+                    HasPrescriptionPresentation(details)
+                        ? "Presents current medication-status evidence from a VA app separately from the dated VA Prescription List, without changing the source ledger."
+                        : "Presents current medication-status evidence from a VA app as a distinct reviewer section without changing the source ledger."));
         }
 
         if (details.MedicationProgressions.Count > 0)
@@ -724,6 +734,31 @@ public static class VeteransReviewerPackageDocxRenderer
             _ =>
                 $"{message} See {string.Join(" and ", references)}."
         };
+    }
+
+    private static void AppendHistoricalMedicationOmission(
+        Body body,
+        string message)
+    {
+        const string crossReferenceMarker = ". See ";
+        var markerIndex =
+            message.LastIndexOf(
+                crossReferenceMarker,
+                StringComparison.Ordinal);
+
+        if (markerIndex < 0)
+        {
+            body.Append(ContentParagraph(message));
+            return;
+        }
+
+        body.Append(
+            ContentParagraph(
+                message[..(markerIndex + 1)],
+                keepWithNext: true));
+        body.Append(
+            ContentParagraph(
+                message[(markerIndex + 2)..]));
     }
 
     private static void AppendPackageGuideEntry(
@@ -1349,9 +1384,13 @@ public static class VeteransReviewerPackageDocxRenderer
                 AdditionalCurrentVaMedicationEvidenceSectionTitle,
                 "Heading1"));
 
+        var introduction = HasPrescriptionPresentation(details)
+            ? "This section presents current VA app medication-status evidence separately from the dated VA Prescription List. "
+            : "This section presents current VA app medication-status evidence as a distinct reviewer section. ";
+
         body.Append(
             ContentParagraph(
-                "This section presents current VA app medication-status evidence separately from the dated VA Prescription List. " +
+                introduction +
                 "It does not alter the Blue Button medication ledger, and a submitted refill request does not establish that a refill was dispensed."));
 
         foreach (var item in items)
@@ -1522,7 +1561,7 @@ public static class VeteransReviewerPackageDocxRenderer
                 if (entry.RefillsLeft is not null && string.IsNullOrWhiteSpace(entry.Directions))
                     recordParagraphs.Add(MedicationParagraph($"Refills left: {entry.RefillsLeft}"));
                 if (progression.EntrySources.TryGetValue(entry.Id, out var entrySource))
-                    recordParagraphs.Add(MedicationParagraph("Source: " + entrySource));
+                    recordParagraphs.Add(MedicationParagraph("Source: " + MedicationSourceForReviewer(entrySource)));
 
                 if (!string.IsNullOrWhiteSpace(entry.PrescriptionNumber))
                 {
@@ -1542,7 +1581,7 @@ public static class VeteransReviewerPackageDocxRenderer
                                 $"Documented clinical context: {context.Summary}"));
                         recordParagraphs.Add(
                             MedicationParagraph(
-                                $"Source: {context.SourceLocator}"));
+                                $"Source: {MedicationSourceForReviewer(context.SourceLocator)}"));
                     }
                 }
 
@@ -1930,6 +1969,22 @@ public static class VeteransReviewerPackageDocxRenderer
                     $"retrieved {regulation.RetrievedUtc:MMMM d, yyyy} UTC."));
         }
     }
+
+    // Source page selection remains in the ledger and EntrySources. Only the
+    // physician's medication attribution omits the internal navigation clause.
+    private static string MedicationSourceForReviewer(string source) =>
+        Regex.Replace(source,
+            @"(?:\s*[—–-]\s*)?\bsource pages?\s+\d+(?:\s*[-–—]\s*\d+)?\s*;?\s*",
+            "; ", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Trim(';', ' ');
+
+    private static bool HasPrescriptionPresentation(
+        VeteransReviewerPackageDetails details) =>
+        GetRoleContents(
+                details,
+                EvidencePackageContentRoles.GeneratedOrganizationalMaterial)
+            .Any(content =>
+                content.Artifact.ArtifactType ==
+                VeteransReviewerPackagePrescriptionPresentation.ArtifactType);
 
     private static string? GetPrescriptionSourceArtifactId(
         VeteransReviewerPackageDetails details)
@@ -3320,12 +3375,12 @@ public static class VeteransReviewerPackageDocxRenderer
                         historicalMedicationTitle,
                         "Heading3"));
 
-                body.Append(
-                    ContentParagraph(
-                        historicalMedicationOmissionMessage ??
-                        "Historical medication table omitted from this reviewer copy because " +
-                        "it reflects a point-in-time source-record list rather than verified " +
-                        "current medication use. The original source remains preserved."));
+                AppendHistoricalMedicationOmission(
+                    body,
+                    historicalMedicationOmissionMessage ??
+                    "Historical medication table omitted from this reviewer copy because " +
+                    "it reflects a point-in-time source-record list rather than verified " +
+                    "current medication use. The original source remains preserved.");
 
                 historicalMedicationTitleRendered = true;
                 suppressHistoricalMedicationSection = true;
@@ -4266,7 +4321,7 @@ public static class VeteransReviewerPackageDocxRenderer
         }
         foreach (var page in pages)
         {
-            var orientedContent = VeteransReviewerSourcePageOrientation.Orient(page);
+            var orientedContent = VeteransReviewerSourcePageOrientation.Orient(VeteransReviewerPagePrivacy.Mask(page));
             var (sourceWidth, sourceHeight) = GetPngDimensions(orientedContent);
             // The rasterizer has already applied the PDF's rotation. Its output
             // dimensions, rather than the unrotated MediaBox, determine layout.
@@ -4329,11 +4384,32 @@ public static class VeteransReviewerPackageDocxRenderer
                 else
                 {
                     body.Append(ContentParagraph(historicalMedicationTitle, keepWithNext: true));
-                    body.Append(ContentParagraph(historicalMedicationOmissionMessage!));
+                    AppendHistoricalMedicationOmission(body, historicalMedicationOmissionMessage!);
                 }
                 reviewerPageSelectionApplied = true;
             }
         }
+        if (medicalEvidence && presentation.IsBlueButton &&
+            VeteransReviewerNativeProse.Reconstruct(pages) is { } paragraphs)
+        {
+            foreach (var (text, index) in paragraphs.Select((text, index) => (text, index)))
+            {
+                // The artifact heading already carries an identical opening title.
+                if (index == 0 && string.Equals(text, artifactTitle, StringComparison.Ordinal)) continue;
+                var paragraph = ContentParagraph(text);
+                paragraph.ParagraphProperties!.SpacingBetweenLines = new SpacingBetweenLines
+                    { Before = "0", After = text.Length > 120 ? "80" : "20", Line = "240", LineRule = LineSpacingRuleValues.Auto };
+                foreach (var run in paragraph.Elements<Run>())
+                {
+                    run.RunProperties!.RunFonts = new RunFonts
+                        { Ascii = VeteransReviewerFonts.Monospace, HighAnsi = VeteransReviewerFonts.Monospace };
+                    run.RunProperties.FontSize = new FontSize { Val = "20" };
+                }
+                body.Append(paragraph);
+            }
+            return;
+        }
+        pages = pages.Select(VeteransReviewerPagePrivacy.Mask).ToArray();
         var reviewerPageCount = pages.Count;
 
         foreach (var page in pages)

@@ -192,7 +192,7 @@ public sealed partial class EvidencePackageServiceTests
             artifact.ReviewerPageSelection);
 
         Assert.Equal(
-            1,
+            2,
             repository.ArtifactQueryCount);
     }
 
@@ -288,8 +288,213 @@ public sealed partial class EvidencePackageServiceTests
             artifact.ReviewerPageSelection);
 
         Assert.Equal(
-            1,
+            2,
             repository.ArtifactQueryCount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_CarriesForwardExplicitlySelectedUnderlyingEvidence()
+    {
+        var claimIssueId =
+            new ClaimIssueId("issue-sticky-pages");
+
+        var basisId =
+            new ServiceConnectionBasisId("basis-sticky-pages");
+
+        var curatedArtifactId =
+            new ArtifactId("artifact-curated-medications");
+
+        var newSummarySourceId =
+            new ArtifactId("artifact-new-summary-source");
+
+        var olderPackage =
+            new EvidencePackage
+            {
+                Id = new EvidencePackageId("package-curated"),
+                ClaimIssueId = claimIssueId,
+                Purpose = "Physician reviewer package",
+                ReviewerRole = "MedicalProfessional",
+                ServiceConnectionBasisId = basisId
+            };
+
+        var newerPackage =
+            new EvidencePackage
+            {
+                Id = new EvidencePackageId("package-summary-refresh"),
+                ClaimIssueId = claimIssueId,
+                Purpose = "Physician reviewer package",
+                ReviewerRole = "MedicalProfessional",
+                ServiceConnectionBasisId = basisId
+            };
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingPackages =
+                [
+                    olderPackage,
+                    newerPackage
+                ],
+                ExistingArtifactsByPackageId =
+                    new Dictionary<
+                        EvidencePackageId,
+                        IReadOnlyList<EvidencePackageArtifact>>
+                    {
+                        [olderPackage.Id] =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = olderPackage.Id,
+                                ArtifactId = curatedArtifactId,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence,
+                                ReviewerPageSelection = "3911-3926"
+                            }
+                        ],
+                        [newerPackage.Id] =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = newerPackage.Id,
+                                ArtifactId = newSummarySourceId,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence
+                            }
+                        ]
+                    }
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        await service.CreateAsync(
+            claimIssueId,
+            "Physician reviewer package",
+            "MedicalProfessional",
+            [newSummarySourceId],
+            [],
+            basisId);
+
+        Assert.Collection(
+            repository.InitialArtifacts
+                .OrderBy(item => item.ArtifactId.Value, StringComparer.Ordinal),
+            artifact =>
+            {
+                Assert.Equal(curatedArtifactId, artifact.ArtifactId);
+                Assert.Equal("3911-3926", artifact.ReviewerPageSelection);
+            },
+            artifact =>
+            {
+                Assert.Equal(newSummarySourceId, artifact.ArtifactId);
+                Assert.Null(artifact.ReviewerPageSelection);
+            });
+    }
+
+    [Fact]
+    public async Task CreateAsync_DoesNotResurrectExplicitlyClearedOmittedEvidence()
+    {
+        var claimIssueId =
+            new ClaimIssueId("issue-cleared-sticky-pages");
+
+        var basisId =
+            new ServiceConnectionBasisId("basis-cleared-sticky-pages");
+
+        var curatedArtifactId =
+            new ArtifactId("artifact-curated-medications");
+
+        var newSummarySourceId =
+            new ArtifactId("artifact-new-summary-source");
+
+        var olderPackage =
+            new EvidencePackage
+            {
+                Id = new EvidencePackageId("package-selected"),
+                ClaimIssueId = claimIssueId,
+                Purpose = "Physician reviewer package",
+                ReviewerRole = "MedicalProfessional",
+                ServiceConnectionBasisId = basisId
+            };
+
+        var newerPackage =
+            new EvidencePackage
+            {
+                Id = new EvidencePackageId("package-selection-cleared"),
+                ClaimIssueId = claimIssueId,
+                Purpose = "Physician reviewer package",
+                ReviewerRole = "MedicalProfessional",
+                ServiceConnectionBasisId = basisId
+            };
+
+        var repository =
+            new RecordingRepository
+            {
+                ExistingPackages =
+                [
+                    olderPackage,
+                    newerPackage
+                ],
+                ExistingArtifactsByPackageId =
+                    new Dictionary<
+                        EvidencePackageId,
+                        IReadOnlyList<EvidencePackageArtifact>>
+                    {
+                        [olderPackage.Id] =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = olderPackage.Id,
+                                ArtifactId = curatedArtifactId,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence,
+                                ReviewerPageSelection = "3911-3926"
+                            }
+                        ],
+                        [newerPackage.Id] =
+                        [
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = newerPackage.Id,
+                                ArtifactId = curatedArtifactId,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence,
+                                ReviewerPageSelection = null
+                            },
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = newerPackage.Id,
+                                ArtifactId = newSummarySourceId,
+                                ContentRole =
+                                    EvidencePackageContentRoles
+                                        .UnderlyingEvidence
+                            }
+                        ]
+                    }
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        await service.CreateAsync(
+            claimIssueId,
+            "Physician reviewer package",
+            "MedicalProfessional",
+            [newSummarySourceId],
+            [],
+            basisId);
+
+        var artifact =
+            Assert.Single(repository.InitialArtifacts);
+
+        Assert.Equal(newSummarySourceId, artifact.ArtifactId);
+        Assert.Null(artifact.ReviewerPageSelection);
     }
 
     [Fact]
@@ -430,6 +635,19 @@ public sealed partial class EvidencePackageServiceTests
 
         public int ReviewerPageSelectionUpdateCount
         { get; private set; }
+
+        public ReviewerPackageSnapshotRead? ReviewerSnapshotRead
+        { get; set; }
+
+        public Task<ReviewerPackageSnapshotRead> ReadReviewerSnapshotAsync(
+            EvidencePackageId packageId,
+            CancellationToken cancellationToken = default)
+        {
+            if (ReviewerSnapshotRead is null)
+                throw new NotSupportedException();
+
+            return Task.FromResult(ReviewerSnapshotRead);
+        }
 
         public Task AddEvidencePackageAsync(
             EvidencePackage evidencePackage,
@@ -1034,6 +1252,99 @@ public sealed partial class EvidencePackageServiceTests
             "11,13-17",
             repository.UpdatedReviewerPageSelection);
         Assert.Equal(1, repository.ReviewerPageSelectionUpdateCount);
+    }
+
+
+    [Fact]
+    public async Task SetReviewerPageSelectionAsync_ForksSealedReviewerPackage()
+    {
+        var packageId = new EvidencePackageId("package-sealed-pages");
+        var artifactId = new ArtifactId("artifact-pages");
+        var summaryId = new ArtifactId("artifact-summary");
+
+        var existingPackage =
+            new EvidencePackage
+            {
+                Id = packageId,
+                ClaimIssueId = new ClaimIssueId("issue-sealed-pages"),
+                Purpose = "Physician reviewer package",
+                ReviewerRole = "MedicalProfessional",
+                ServiceConnectionBasisId =
+                    new ServiceConnectionBasisId("basis-sealed-pages")
+            };
+
+        const string payload = "{}";
+        var repository =
+            new RecordingRepository
+            {
+                ExistingPackage = existingPackage,
+                ExistingArtifacts =
+                [
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = artifactId,
+                        ContentRole = EvidencePackageContentRoles.UnderlyingEvidence,
+                        ReviewerPageSelection = "11-17"
+                    },
+                    new EvidencePackageArtifact
+                    {
+                        EvidencePackageId = packageId,
+                        ArtifactId = summaryId,
+                        ContentRole =
+                            EvidencePackageContentRoles.GeneratedOrganizationalMaterial
+                    }
+                ],
+                ReviewerSnapshotRead =
+                    new ReviewerPackageSnapshotRead(
+                        false,
+                        new ReviewerPackageSnapshot(
+                            packageId,
+                            1,
+                            payload,
+                            ReviewerPackageSnapshot.ComputeHash(payload)))
+            };
+
+        var service =
+            new EvidencePackageService(
+                repository,
+                new GuidIdGenerator());
+
+        var result =
+            await service.SetReviewerPageSelectionAsync(
+                packageId,
+                artifactId,
+                "11-20");
+
+        Assert.NotEqual(packageId, result.EvidencePackageId);
+        Assert.Equal("11-20", result.ReviewerPageSelection);
+        Assert.Equal(0, repository.ReviewerPageSelectionUpdateCount);
+
+        Assert.NotNull(repository.Package);
+        Assert.Equal(result.EvidencePackageId, repository.Package.Id);
+        Assert.Equal(existingPackage.ClaimIssueId, repository.Package.ClaimIssueId);
+        Assert.Equal(existingPackage.Purpose, repository.Package.Purpose);
+        Assert.Equal(existingPackage.ReviewerRole, repository.Package.ReviewerRole);
+        Assert.Equal(
+            existingPackage.ServiceConnectionBasisId,
+            repository.Package.ServiceConnectionBasisId);
+
+        Assert.Equal(2, repository.InitialArtifacts.Count);
+        Assert.All(
+            repository.InitialArtifacts,
+            revised => Assert.Equal(result.EvidencePackageId, revised.EvidencePackageId));
+
+        var revisedEvidence =
+            Assert.Single(
+                repository.InitialArtifacts,
+                revised => revised.ArtifactId == artifactId);
+        Assert.Equal("11-20", revisedEvidence.ReviewerPageSelection);
+
+        var revisedSummary =
+            Assert.Single(
+                repository.InitialArtifacts,
+                revised => revised.ArtifactId == summaryId);
+        Assert.Null(revisedSummary.ReviewerPageSelection);
     }
 
     [Fact]

@@ -6466,11 +6466,20 @@ public static class VeteransConsoleCommand
                 reviewerPageSelection);
 
         output.WriteLine(
+            $"Evidence package     : {result.EvidencePackageId.Value}");
+
+        output.WriteLine(
             $"Artifact             : {result.ArtifactId.Value}");
 
         output.WriteLine(
             $"Reviewer source pages: " +
             $"{result.ReviewerPageSelection ?? "all"}");
+
+        if (result.EvidencePackageId != evidencePackageId)
+        {
+            output.WriteLine(
+                "Revision             : Created successor; sealed package unchanged");
+        }
 
         return 0;
     }

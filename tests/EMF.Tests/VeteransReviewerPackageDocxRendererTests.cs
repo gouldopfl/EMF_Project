@@ -4666,6 +4666,17 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.Contains(
             "See Relevant Medications for Medical Opinion.",
             text);
+        var omissionParagraphs =
+            document.MainDocumentPart!.Document!.Body!
+                .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+                .Select(paragraph => paragraph.InnerText)
+                .Where(value =>
+                    value.Contains("Historical medication table omitted", StringComparison.Ordinal) ||
+                    value.Contains("See Relevant Medications for Medical Opinion.", StringComparison.Ordinal))
+                .ToArray();
+        Assert.Equal(2, omissionParagraphs.Length);
+        Assert.DoesNotContain("See Relevant Medications for Medical Opinion.", omissionParagraphs[0]);
+        Assert.Equal("See Relevant Medications for Medical Opinion.", omissionParagraphs[1]);
         Assert.DoesNotContain("GABAPENTIN 400MG CAP", text);
         Assert.DoesNotContain("Non-VA BUPROPION", text);
         Assert.DoesNotContain("Non-VA Medications Status", text);

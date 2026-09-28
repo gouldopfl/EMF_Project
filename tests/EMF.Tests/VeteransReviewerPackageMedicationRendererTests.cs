@@ -9,6 +9,35 @@ namespace EMF.Tests;
 
 public sealed class VeteransReviewerPackageMedicationRendererTests
 {
+    [Theory]
+    [InlineData(3911, 3912)]
+    [InlineData(3925, 3926)]
+    public void Render_SuppressesSourcePagesOnlyInPhysicianAttribution(int first, int last)
+    {
+        var entry = new MedicationLedgerEntry
+        {
+            Id = new("entry-lineage"), MedicationLedgerId = new("ledger-lineage"), EntryOrdinal = 1,
+            SourceStartPage = first, SourceEndPage = last, MedicationName = "Example medication",
+            Strength = "20 mg", Status = "active", Directions = "TAKE ONE TABLET DAILY",
+            Indication = "Documented indication", PrescriptionNumber = "RX-123"
+        };
+        var attribution = $"Example VA Facility — VA medication report dated September 9, 2026 — source pages {first}–{last}; prescription RX-123.";
+        var progression = new VeteransReviewerMedicationProgression
+        {
+            MedicationName = "Example medication", Entries = [entry],
+            EntrySources = new Dictionary<MedicationLedgerEntryId, string> { [entry.Id] = attribution }
+        };
+        var text = RenderText(entry, [progression]);
+        Assert.DoesNotContain("source pages", text);
+        Assert.DoesNotContain($"{first}–{last}", text);
+        foreach (var retained in new[] { "Example VA Facility", "September 9, 2026", "RX-123", "20 mg", "Active", "TAKE ONE TABLET DAILY", "Documented indication" })
+            Assert.Contains(retained, text);
+        Assert.Equal(first, entry.SourceStartPage);
+        Assert.Equal(last, entry.SourceEndPage);
+        Assert.Equal(attribution, progression.EntrySources[entry.Id]);
+        Assert.Equal(new MedicationLedgerId("ledger-lineage"), entry.MedicationLedgerId);
+    }
+
     [Fact]
     public void Render_DoesNotSurfaceStandaloneCurrentUseReconciliation()
     {
@@ -274,7 +303,8 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
         Assert.Contains("VA ledger directions: TAKE DAILY FOR MOOD.", text);
         Assert.Contains("Prescribed January 1, 2025 — VA ledger status: Discontinued", text);
         Assert.Contains("Refills:\u00a03.\u00a0Refills\u00a0left:\u00a02", text);
-        Assert.Contains("Source: Example VA Clinic — source page 2", text);
+        Assert.Contains("Source: Example VA Clinic", text);
+        Assert.DoesNotContain("source page", text);
         Assert.Contains("prescription date is not a discontinuation date", text);
         Assert.DoesNotContain("TAKE DAILY FOR ANXIETY", text);
     }

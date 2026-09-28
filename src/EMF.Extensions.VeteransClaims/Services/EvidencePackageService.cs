@@ -86,8 +86,29 @@ public sealed class EvidencePackageService :
         ArgumentNullException.ThrowIfNull(
             generatedOrganizationalMaterialArtifactIds);
 
-        var conflictingArtifactIds =
+        var reviewerPageSelections =
+            await GetReviewerPageSelectionsAsync(
+                claimIssueId,
+                purpose,
+                reviewerRole,
+                serviceConnectionBasisId,
+                underlyingEvidenceArtifactIds,
+                cancellationToken);
+
+        // Reviewer page selections are explicit curation. Keep selected evidence in
+        // later packages of the same reviewer scope even when a regenerated
+        // intelligence summary does not cite that artifact. A later package that
+        // contains the artifact with a cleared selection remains authoritative.
+        var effectiveUnderlyingEvidenceArtifactIds =
             underlyingEvidenceArtifactIds
+                .Concat(reviewerPageSelections
+                    .Where(pair => pair.Value is not null)
+                    .Select(pair => pair.Key))
+                .Distinct()
+                .ToArray();
+
+        var conflictingArtifactIds =
+            effectiveUnderlyingEvidenceArtifactIds
                 .Intersect(
                     generatedOrganizationalMaterialArtifactIds)
                 .ToArray();
@@ -98,15 +119,6 @@ public sealed class EvidencePackageService :
                 $"Artifact '{conflictingArtifactIds[0].Value}' cannot be " +
                 "both underlying evidence and generated organizational material.");
         }
-
-        var reviewerPageSelections =
-            await GetReviewerPageSelectionsAsync(
-                claimIssueId,
-                purpose,
-                reviewerRole,
-                serviceConnectionBasisId,
-                underlyingEvidenceArtifactIds,
-                cancellationToken);
 
         var package =
             new EvidencePackage
@@ -121,8 +133,7 @@ public sealed class EvidencePackageService :
             };
 
         var artifacts =
-            underlyingEvidenceArtifactIds
-                .Distinct()
+            effectiveUnderlyingEvidenceArtifactIds
                 .Select(
                     artifactId =>
                         new EvidencePackageArtifact
@@ -170,16 +181,16 @@ public sealed class EvidencePackageService :
             IReadOnlyCollection<ArtifactId> underlyingEvidenceArtifactIds,
             CancellationToken cancellationToken)
     {
-        var remainingArtifactIds =
+        var requestedArtifactIds =
             underlyingEvidenceArtifactIds
                 .Distinct()
                 .ToHashSet();
 
+        var seenArtifactIds =
+            new HashSet<ArtifactId>();
+
         var selections =
             new Dictionary<ArtifactId, string?>();
-
-        if (remainingArtifactIds.Count == 0)
-            return selections;
 
         var existingPackages =
             await _repository.GetEvidencePackagesAsync(
@@ -214,7 +225,7 @@ public sealed class EvidencePackageService :
                 .ToArray();
 
         for (var index = applicablePackages.Length - 1;
-             index >= 0 && remainingArtifactIds.Count != 0;
+             index >= 0;
              index--)
         {
             var existingPackage =
@@ -235,14 +246,17 @@ public sealed class EvidencePackageService :
                         existingArtifact.ContentRole,
                         EvidencePackageContentRoles.UnderlyingEvidence,
                         StringComparison.Ordinal) ||
-                    !remainingArtifactIds.Remove(
-                        existingArtifact.ArtifactId))
+                    !seenArtifactIds.Add(existingArtifact.ArtifactId))
                 {
                     continue;
                 }
 
-                selections[existingArtifact.ArtifactId] =
-                    existingArtifact.ReviewerPageSelection;
+                if (requestedArtifactIds.Contains(existingArtifact.ArtifactId) ||
+                    existingArtifact.ReviewerPageSelection is not null)
+                {
+                    selections[existingArtifact.ArtifactId] =
+                        existingArtifact.ReviewerPageSelection;
+                }
             }
         }
 
@@ -339,6 +353,64 @@ public sealed class EvidencePackageService :
 
         var normalized =
             reviewerPageSelection?.Trim();
+
+        ReviewerPackageSnapshotRead? snapshotRead = null;
+        try
+        {
+            snapshotRead = await _repository.ReadReviewerSnapshotAsync(
+                evidencePackageId,
+                cancellationToken);
+        }
+        catch (NotSupportedException)
+        {
+            // Repositories without snapshot support retain the legacy mutable
+            // package behavior. Snapshot-aware repositories fork sealed history.
+        }
+
+        if (snapshotRead?.Snapshot is not null)
+        {
+            var existingPackage =
+                await _repository.GetEvidencePackageAsync(
+                    evidencePackageId,
+                    cancellationToken)
+                ?? throw new InvalidOperationException(
+                    $"Evidence package '{evidencePackageId.Value}' was not found.");
+
+            var revisedPackage =
+                new EvidencePackage
+                {
+                    Id = new EvidencePackageId(_idGenerator.Generate()),
+                    ClaimIssueId = existingPackage.ClaimIssueId,
+                    Purpose = existingPackage.Purpose,
+                    ReviewerRole = existingPackage.ReviewerRole,
+                    ServiceConnectionBasisId =
+                        existingPackage.ServiceConnectionBasisId
+                };
+
+            var revisedArtifacts =
+                artifacts
+                    .Select(
+                        existing =>
+                            new EvidencePackageArtifact
+                            {
+                                EvidencePackageId = revisedPackage.Id,
+                                ArtifactId = existing.ArtifactId,
+                                ContentRole = existing.ContentRole,
+                                ReviewerPageSelection =
+                                    existing.ArtifactId == artifactId
+                                        ? normalized
+                                        : existing.ReviewerPageSelection
+                            })
+                    .ToArray();
+
+            await _repository.AddEvidencePackageAsync(
+                revisedPackage,
+                revisedArtifacts,
+                cancellationToken);
+
+            return revisedArtifacts.Single(
+                revised => revised.ArtifactId == artifactId);
+        }
 
         await _repository.SetReviewerPageSelectionAsync(
             evidencePackageId,

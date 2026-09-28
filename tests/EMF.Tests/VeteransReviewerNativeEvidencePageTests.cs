@@ -549,6 +549,106 @@ public sealed class VeteransReviewerNativeEvidencePageTests
     }
 
     [Fact]
+    public void WideOutdentedProcedureFragmentsRejoinNarrativeWithoutChangingWordsOrInk()
+    {
+        using var fixture = new NativePage(1224, 1584);
+        var sourceLines = new[]
+        {
+            "- Prior to the procedure, a History and Physical was",
+            "performed, and patient medications and allergies were",
+            "reviewed. The patient is competent. The risks and benefits of the procedure and the sedation options",
+            "and",
+            "risks were discussed with the patient. All questions were answered and informed consent was obtained.",
+            "Patient"
+        };
+        fixture.Line(sourceLines[0], 70, size: 12, x: 180);
+        fixture.Line(sourceLines[1], 88, size: 12, x: 180);
+        fixture.Line(sourceLines[2], 106, size: 12, x: 180);
+        fixture.Line(sourceLines[3], 124, size: 12, x: 45);
+        fixture.Line(sourceLines[4], 142, size: 12, x: 180);
+        fixture.Line(sourceLines[5], 160, size: 12, x: 45);
+        var page = fixture.Page();
+
+        var result = VeteransReviewerNativeEvidencePage.Prepare(page, true);
+
+        var prose = Assert.Single(result.Regions.Where(region => region.Kind == "Narrative"));
+        Assert.Equal(Words(sourceLines), Words(prose.RenderedLines));
+        Assert.DoesNotContain("and", prose.RenderedLines);
+        Assert.DoesNotContain("Patient", prose.RenderedLines);
+        Assert.Contains(result.Changes, change => change.StartsWith("Joined native prose"));
+        AssertStructuredGeometry(page, result);
+        AssertAllInk(page, result);
+    }
+
+    [Fact]
+    public void WideOutdentedContinuationWordsRejoinProseInsteadOfFormingFalseColumns()
+    {
+        using var fixture = new NativePage(1224, 1584);
+        var sourceLines = new[]
+        {
+            "identification and proposed procedure were verified",
+            "by",
+            "the physician and the nurse in the procedure room.",
+            "Mental Status Examination: alert and oriented. ASA",
+            "Grade",
+            "Assessment: III - A patient with severe systemic disease. After reviewing the risks and benefits, the",
+            "patient was deemed in satisfactory condition to",
+            "undergo",
+            "the procedure. The anesthesia plan was to use",
+            "moderate",
+            "sedation / analgesia (conscious sedation)."
+        };
+        for (var i = 0; i < sourceLines.Length; i++)
+            fixture.Line(sourceLines[i], 70 + i * 18, size: 12,
+                x: sourceLines[i] is "by" or "Grade" or "undergo" or "moderate" ? 45 : 180);
+        var page = fixture.Page();
+
+        var result = VeteransReviewerNativeEvidencePage.Prepare(page, true);
+
+        var prose = result.Regions.Where(region => region.Kind == "Narrative").ToArray();
+        Assert.NotEmpty(prose);
+        Assert.Equal(Words(sourceLines), Words(prose.SelectMany(region => region.RenderedLines)));
+        var rendered = prose.SelectMany(region => region.RenderedLines).ToArray();
+        foreach (var fragment in new[] { "by", "Grade", "undergo", "moderate" })
+            Assert.DoesNotContain(fragment, rendered);
+        Assert.Contains(result.Changes, change => change.StartsWith("Joined native prose"));
+        AssertStructuredGeometry(page, result);
+        AssertAllInk(page, result);
+    }
+
+    [Fact]
+    public void QuestionFollowedByIndentedNarrativeAnswerReflowsLeftMarginOrphanWithoutChangingWordsOrInk()
+    {
+        using var fixture = new NativePage(1224, 1584);
+        var sourceLines = new[]
+        {
+            "Is the patient on suboxone or methadone?",
+            "Pt not receiving pain medication, narcotics, suboxone or methadone from",
+            "the",
+            "VA."
+        };
+        fixture.Line("NO.", 34, size: 12, x: 60);
+        fixture.Line("============================================================", 52, size: 12, x: 45);
+        fixture.Line(sourceLines[0], 70, size: 12, x: 45);
+        fixture.Line(sourceLines[1], 88, size: 12, x: 60);
+        fixture.Line(sourceLines[2], 106, size: 12, x: 45);
+        fixture.Line(sourceLines[3], 124, size: 12, x: 60);
+        fixture.Line("============================================================", 142, size: 12, x: 45);
+        var page = fixture.Page();
+
+        var result = VeteransReviewerNativeEvidencePage.Prepare(page, true);
+
+        var prose = Assert.Single(result.Regions.Where(region =>
+            region.Kind == "Narrative" &&
+            region.SourceLines.Contains(sourceLines[1])));
+        Assert.Equal(Words(sourceLines.Skip(1)), Words(prose.RenderedLines));
+        Assert.DoesNotContain("the", prose.RenderedLines);
+        Assert.Contains(prose.RenderedLines, line => line.Contains("the VA.", StringComparison.Ordinal));
+        AssertStructuredGeometry(page, result);
+        AssertAllInk(page, result);
+    }
+
+    [Fact]
     public void Page42_PhysicalExamAndLabsKeepNativeResultUnitAndReferenceRelationships()
     {
         using var fixture = new NativePage(1224, 1584);
