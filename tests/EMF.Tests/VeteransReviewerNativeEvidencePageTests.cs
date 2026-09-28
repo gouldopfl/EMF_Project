@@ -42,6 +42,23 @@ public sealed class VeteransReviewerNativeEvidencePageTests
         Assert.Equal(original, page.Content.ToArray());
     }
 
+
+    [Fact]
+    public void CodedOpeningTitleAlreadyRepresentedByArtifactHeadingIsSuppressed()
+    {
+        using var fixture = new NativePage(2550, 3300, 612, 792);
+        fixture.Line("CCC: CLINICAL TRIAGE", 60, font: "Bitter-Bold", size: 16, x: 16);
+        fixture.Line("Details", 100, font: "Bitter-Bold", size: 14, x: 45);
+        fixture.Line("Date entered: June 22, 2026", 125, size: 12, x: 45);
+        fixture.Line("The Veteran reports worsening back pain and leg symptoms.", 160, size: 12, x: 45);
+        var result = VeteransReviewerNativeEvidencePage.Prepare(fixture.Page(), true,
+            "Clinical Triage - Worsening Back Pain with Positive Leg-or-Foot Weakness Screen");
+        Assert.Contains(result.Changes, change => change.StartsWith("Suppressed duplicate opening"));
+        Assert.DoesNotContain("CCC: CLINICAL TRIAGE", result.Regions.SelectMany(region => region.RenderedLines));
+        Assert.Contains("The Veteran reports worsening back pain and leg symptoms.",
+            result.Regions.SelectMany(region => region.RenderedLines));
+    }
+
     [Fact]
     public void ShortMetadataOnlyOpeningUsesRegularValueGlyphsForBodySize()
     {

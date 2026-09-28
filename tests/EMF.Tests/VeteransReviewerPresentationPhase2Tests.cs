@@ -118,6 +118,61 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         Assert.Equal("SSN: 123-45-5668", content.Text);
     }
 
+
+    [Fact]
+    public void Render_OrdinaryNarrativeMedicalEvidenceUsesReviewerBodyTypography()
+    {
+        using var first = new VeteransReviewerNativeEvidencePageTests.NativePage(1224, 1584);
+        first.Line("CCC: CLINICAL TRIAGE", 30);
+        first.Line("The Veteran reports chronic low back pain that worsens with prolonged standing", 70, x: 45);
+        first.Line("and walking and improves somewhat with rest.", 85, x: 45);
+        first.Line("He reports recurrent falls while using the prescribed ankle brace", 115, x: 45);
+        first.Line("and continues to use a cane for stability.", 130, x: 45);
+        using var second = new VeteransReviewerNativeEvidencePageTests.NativePage(1224, 1584);
+        second.Line("The clinician reviewed gait safety and the home exercise program", 70, x: 45);
+        second.Line("and recommended continued physical therapy.", 85, x: 45);
+        second.Line("No new red flag symptoms were reported during this visit.", 115, x: 45);
+        second.Line("The Veteran will return after the brace fit is reassessed.", 130, x: 45);
+        using var document = Open([Evidence(
+            "Clinical Triage - Worsening Back Pain with Positive Leg-or-Foot Weakness Screen",
+            "", pages: [first.Page(), second.Page(pageNumber: 2)])]);
+        Assert.Empty(document.MainDocumentPart!.ImageParts);
+        var body = document.MainDocumentPart.Document!.Body!;
+        Assert.DoesNotContain("CCC: CLINICAL TRIAGE", body.InnerText);
+        var paragraph = Assert.Single(body.Descendants<Paragraph>().Where(item =>
+            item.InnerText.Contains("prolonged standing and walking", StringComparison.Ordinal)));
+        var run = Assert.Single(paragraph.Elements<Run>());
+        Assert.Equal(VeteransReviewerFonts.Body, run.RunProperties!.RunFonts!.Ascii!.Value);
+        Assert.Equal("24", run.RunProperties.FontSize!.Val!.Value);
+    }
+
+
+    [Fact]
+    public void Render_ReconstructedProseNeutralizesAdjacentMrnAndSsnBeforeFieldLayout()
+    {
+        using var first = new VeteransReviewerNativeEvidencePageTests.NativePage(1224, 1584);
+        first.Line("Synthetic procedure", 25);
+        first.Line("MRN: 123-45-5668", 35);
+        first.Line("SSN: 123-45-5668", 50);
+        first.Line("The risks and benefits were discussed", 80, x: 150);
+        first.Line("and", 95);
+        first.Line("informed consent was obtained from the patient.", 110, x: 150);
+        first.Line("Patient", 125);
+        using var second = new VeteransReviewerNativeEvidencePageTests.NativePage(1224, 1584);
+        second.Line("identification and procedure were verified", 50, x: 150);
+        second.Line("by", 65);
+        second.Line("the physician and the nurse in the procedure room.", 80, x: 150);
+        using var document = Open([Evidence("Synthetic procedure", "",
+            pages: [first.Page(pageNumber: 100), second.Page(pageNumber: 101)])]);
+        var text = document.MainDocumentPart!.Document!.InnerText;
+        Assert.Contains("Patient identifier: 5668", text);
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(
+            text, "Patient identifier: 5668").Count);
+        Assert.DoesNotContain("MRN:", text);
+        Assert.DoesNotContain("SSN:", text);
+        Assert.DoesNotContain("123-45-5668", text);
+    }
+
     [ReviewerLibreOfficeFact]
     public async Task LibreOffice_ReconstructedProseMasksSsnAndFlowsAcrossSourcePages()
     {
@@ -1227,6 +1282,53 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             VeteransReviewerNativeEvidencePage.Prepare(first, true, title).Content.ToArray()));
         Assert.Contains(images, bytes => bytes.SequenceEqual(
             VeteransReviewerNativeEvidencePage.Prepare(second, true).Content.ToArray()));
+    }
+
+    [Fact]
+    public void Render_PrescriptionPresentationPrecedesMedicalEvidenceEvenWhenHistoricalMedicationSourceExists()
+    {
+        using var fixture = new VeteransReviewerNativeEvidencePageTests.NativePage(1224, 1584);
+        fixture.Line("Clinical material before the historical section.", 50, size: 12);
+        fixture.Line("MEDICATIONS:", 86, size: 12);
+        fixture.Line("Active Outpatient Medications (including Supplies):", 104, size: 12);
+        fixture.Line("1) HISTORICAL MEDICATION TAKE AS DIRECTED ACTIVE", 122, size: 12);
+        fixture.Line("C-SSRS screener: Negative", 158, size: 12);
+        var details = Details([Evidence("Historical clinical note", "", pages: [fixture.Page()], artifactType: "veterans-clinical-note")]);
+        var presentation = VeteransReviewerPackagePrescriptionPresentationTests.DeriveFor(details);
+        var renderedDetails = VeteransReviewerPackagePrescriptionPresentation.Attach(details, presentation);
+        using var document = WordprocessingDocument.Open(
+            new MemoryStream(VeteransReviewerPackageDocxRenderer.Render(renderedDetails)),
+            false);
+        var text = document.MainDocumentPart!.Document!.Body!.InnerText;
+
+        var body = document.MainDocumentPart!.Document!.Body!;
+        var elements = body.ChildElements.ToList();
+
+        var prescription = elements.FindIndex(element =>
+            element is Paragraph paragraph &&
+            paragraph.InnerText == "VA Prescription List — September 9, 2026" &&
+            paragraph.ParagraphProperties?.ParagraphStyleId?.Val == "Heading1");
+
+        var medicalEvidence = elements.FindIndex(element =>
+            element is Paragraph paragraph &&
+            paragraph.InnerText == "Appendix A — Medical Evidence" &&
+            paragraph.ParagraphProperties?.ParagraphStyleId?.Val == "Heading1");
+
+        var clinical = elements.FindIndex(element =>
+            element is Paragraph paragraph &&
+            paragraph.InnerText == "Historical clinical note" &&
+            paragraph.ParagraphProperties?.ParagraphStyleId?.Val == "Heading2");
+
+        Assert.True(prescription >= 0, $"Prescription heading not found. Index: {prescription}");
+        Assert.True(medicalEvidence >= 0, $"Medical Evidence appendix heading not found. Index: {medicalEvidence}");
+        Assert.True(clinical >= 0, $"Clinical evidence heading not found. Index: {clinical}");
+        Assert.True(
+            prescription < medicalEvidence,
+            $"Expected prescription section before Appendix A. Prescription={prescription}, Appendix={medicalEvidence}");
+        Assert.True(
+            medicalEvidence < clinical,
+            $"Expected Appendix A before clinical evidence. Appendix={medicalEvidence}, Clinical={clinical}");
+        Assert.Single(Regex.Matches(text, "VA Prescription List — September 9, 2026").Cast<Match>());
     }
 
     [Fact]

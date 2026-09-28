@@ -39,7 +39,8 @@ public sealed class VeteransReviewerNativeProseTests
         Assert.Contains(paragraphs, p => System.Text.RegularExpressions.Regex.IsMatch(p, @"^Result {2,}Units$"));
         Assert.Contains(paragraphs, p => System.Text.RegularExpressions.Regex.IsMatch(p, @"^Glucose 100 {2,}mg/dL$"));
         Assert.Contains("Patient identification and proposed procedure were verified by the physician", text);
-        Assert.Contains(paragraphs, p => p.Contains("ASA Grade Assessment: III"));
+        Assert.Contains(paragraphs, p => p.EndsWith("ASA Grade"));
+        Assert.Contains(paragraphs, p => p.StartsWith("Assessment: III"));
         Assert.Contains(paragraphs, p => p.Contains("parameters were monitored: heart rate"));
         Assert.Contains(paragraphs, p => p.Contains("Example Clinician Surname ADVANCED MSA"));
         Assert.DoesNotContain("MSA", paragraphs);
@@ -90,6 +91,32 @@ public sealed class VeteransReviewerNativeProseTests
         Assert.DoesNotContain("123", text);
         Assert.NotEqual(original, result.Content.ToArray());
         Assert.Equal(original, source.Content.ToArray());
+    }
+
+    [Fact]
+    public void Reconstruct_JoinsDetachedPainScaleLineAndValueWithExplicitPainLabel()
+    {
+        using var fixture = new NativePage(1224, 1584);
+        fixture.Line("The patient reports pain that continues through the day and", 50, x: 150);
+        fixture.Line("night", 65);
+        fixture.Line("despite treatment and activity modification.", 80, x: 150);
+        fixture.Line("During the past 24 hours, how much has your pain interfered with your usual activity?", 110, x: 150);
+        fixture.Line("number from 0-10:", 125, x: 150);
+        fixture.Line("6", 140, x: 150);
+        fixture.Line("Post treatment Numeric Pain Rating Scale:", 170, x: 150);
+        fixture.Line("number from 0-10: 5", 185, x: 150);
+        fixture.Line("The patient reports improvement after treatment and", 215, x: 150);
+        fixture.Line("rest", 230);
+        fixture.Line("with activity modification continuing.", 245, x: 150);
+
+        var paragraphs = Assert.IsAssignableFrom<IReadOnlyList<string>>(
+            VeteransReviewerNativeProse.Reconstruct([fixture.Page()]));
+        var text = string.Join(" ", paragraphs);
+
+        Assert.Contains("pain interfered with your usual activity? Pain number from 0-10: 6", text);
+        Assert.Contains("Post treatment Numeric Pain Rating Scale: Pain number from 0-10: 5", text);
+        Assert.DoesNotContain("number from 0-10:", paragraphs);
+        Assert.DoesNotContain("6", paragraphs);
     }
 
     [Fact]
@@ -169,4 +196,26 @@ public sealed class VeteransReviewerNativeProseTests
         Assert.Equal(original, page.Content.ToArray());
         Assert.Equal(originalGlyphs, page.TextGeometry.Glyphs);
     }
+    [Fact]
+    public void Reconstruct_OrdinaryNarrativeClinicalNoteWithoutMarginFragments()
+    {
+        using var first = new NativePage(1224, 1584);
+        first.Line("SUBJECTIVE:", 40);
+        first.Line("The Veteran reports chronic low back pain that worsens with prolonged standing", 70, x: 45);
+        first.Line("and walking and improves somewhat with rest.", 85, x: 45);
+        first.Line("He reports recurrent falls while using the prescribed ankle brace", 115, x: 45);
+        first.Line("and continues to use a cane for stability.", 130, x: 45);
+        using var second = new NativePage(1224, 1584);
+        second.Line("The clinician reviewed gait safety and the home exercise program", 70, x: 45);
+        second.Line("and recommended continued physical therapy.", 85, x: 45);
+        second.Line("No new red flag symptoms were reported during this visit.", 115, x: 45);
+        second.Line("The Veteran will return after the brace fit is reassessed.", 130, x: 45);
+        var paragraphs = VeteransReviewerNativeProse.Reconstruct([first.Page(), second.Page(pageNumber: 2)]);
+        Assert.NotNull(paragraphs);
+        var text = string.Join(" ", paragraphs!);
+        Assert.Contains("prolonged standing and walking", text);
+        Assert.Contains("ankle brace and continues to use a cane", text);
+        Assert.Contains("home exercise program and recommended continued physical therapy", text);
+    }
+
 }

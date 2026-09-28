@@ -111,4 +111,57 @@ public sealed class VeteransReviewerPackagePrivacySanitizerTests
             text,
             VeteransReviewerPackagePrivacySanitizer.Redact(text));
     }
+    [Theory]
+    [InlineData("MRN: 116732263000001", "")]
+    [InlineData("FIN: 219435629", "")]
+    [InlineData("DOD ID (EDIPI): 1207832630", "")]
+    [InlineData("Veterans ID (ICN): 1022399772V106425", "")]
+    public void Redact_NeutralizesAdditionalPatientIdentifiers(string original, string expected)
+    {
+        var result = VeteransReviewerPackagePrivacySanitizer.Redact(original);
+        Assert.Equal(expected, result);
+        Assert.Equal(result, VeteransReviewerPackagePrivacySanitizer.Redact(result));
+    }
+
+    [Fact]
+    public void Redact_MasksIcnWhenFixedLayoutPlacesValueBeforeItsLabel()
+    {
+        const string text = "DOD ID (EDIPI): 1207832630 1022399772V106425Veterans ID (ICN):";
+        var result = VeteransReviewerPackagePrivacySanitizer.Redact(text);
+        Assert.DoesNotContain("1207832630", result);
+        Assert.DoesNotContain("1022399772V106425", result);
+        Assert.Equal("", result.Trim());
+        Assert.DoesNotContain("6425", result);
+    }
+
+    [Theory]
+    [InlineData("MRN: 123-45-5668", "Patient identifier: 5668")]
+    [InlineData("SSN: 123-45-5668", "Patient identifier: 5668")]
+    public void StandaloneIdentifierLine_UsesNeutralReviewerPresentation(string original, string expected)
+    {
+        Assert.True(VeteransReviewerPackagePrivacySanitizer.TryNeutralizeStandalonePatientIdentifier(
+            original, out var neutral));
+        Assert.Equal(expected, neutral);
+    }
+
+    [Fact]
+    public void NarrativeIdentifierReference_IsNotCollapsedIntoStandalonePatientIdentifier()
+    {
+        Assert.False(VeteransReviewerPackagePrivacySanitizer.TryNeutralizeStandalonePatientIdentifier(
+            "Narrative SSN: 123-45-5668; finding retained.", out _));
+    }
+
+    [Theory]
+    [InlineData("fingernails")]
+    [InlineData("Examine fingernails and fingertips.")]
+    [InlineData("FINancial history reviewed.")]
+    public void Redact_RequiresRealIdentifierField(string text) =>
+        Assert.Equal(text, VeteransReviewerPackagePrivacySanitizer.Redact(text));
+
+    [Fact]
+    public void Redact_SuppressesReorderedPowerFormIdentifiersWithoutFragmentingLabels()
+    {
+        const string text = "1207832630 Veterans ID (ICN): 1022399772V106425DOD ID (EDIPI):";
+        Assert.Equal("", VeteransReviewerPackagePrivacySanitizer.Redact(text));
+    }
 }

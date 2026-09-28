@@ -1,9 +1,6 @@
 using System.Text;
 using EMF.Core.Models;
-using OpenCvSharp;
-using Sdcb.PaddleInference;
-using Sdcb.PaddleOCR;
-using Sdcb.PaddleOCR.Models.Local;
+using EMF.Orchestration.Services;
 using SkiaSharp;
 
 namespace EMF.Extensions.VeteransClaims.Orchestration;
@@ -12,9 +9,6 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 // geometry to the source content store or the persisted package snapshot.
 internal static class VeteransReviewerPagePrivacy
 {
-    private static readonly object OcrLock = new();
-    private static PaddleOcrAll? _ocr;
-
     public static PrintableArtifactPage Mask(PrintableArtifactPage page)
     {
         if (!page.ContentType.Equals("image/png", StringComparison.OrdinalIgnoreCase)) return page;
@@ -72,60 +66,180 @@ internal static class VeteransReviewerPagePrivacy
         // engine as well; never send reviewer content to an external service.
         if (geometry is null || geometry.ContainsGraphics)
         {
-            using var source = Cv2.ImDecode(page.Content.ToArray(), ImreadModes.Color);
-            lock (OcrLock)
+            // Package-specific OCR stays in platform orchestration,
+            // which owns the OpenCV/Paddle implementation dependencies.
+            // Reviewer-specific redaction policy remains here and
+            // consumes only package-neutral text-region coordinates.
+            var maskedBoxes = new List<SKRect>();
+
+            foreach (var group in
+                     PaddleImageTextRegionDetector
+                         .Detect(page.Content)
+                         .GroupBy(
+                             region =>
+                                 region.QuarterTurnsClockwise)
+                         .OrderBy(
+                             group =>
+                                 group.Key))
             {
-                // Keep scan inspection local, with a serialized CPU predictor.
-                _ocr ??= new PaddleOcrAll(LocalFullModels.EnglishV5, PaddleDevice.OneDnn(cpuMathThreadCount: 2))
-                    { AllowRotateDetection = false, Enable180Classification = false };
-                // The bundled legacy 180-degree classifier has incompatible
-                // predictor layouts on some CPU runtimes. Inspect both directions
-                // explicitly, including quarter-turn text regions.
-                var maskedBoxes = new List<SKRect>();
-                for (var turn = 0; turn < 4; turn++)
+                var turn = group.Key;
+                var regions = group.ToArray();
+
+                canvas.Save();
+
+                if (turn == 1)
                 {
-                    using var oriented = new Mat();
-                    if (turn == 0) source.CopyTo(oriented);
-                    else Cv2.Rotate(source, oriented, turn switch
-                    { 1 => RotateFlags.Rotate90Clockwise, 2 => RotateFlags.Rotate180, _ => RotateFlags.Rotate90Counterclockwise });
-                    var result = _ocr.Run(oriented);
-                    canvas.Save();
-                    if (turn == 1) { canvas.Translate(0, bitmap.Height); canvas.RotateDegrees(-90); }
-                    if (turn == 2) { canvas.Translate(bitmap.Width, bitmap.Height); canvas.RotateDegrees(180); }
-                    if (turn == 3) { canvas.Translate(bitmap.Width, 0); canvas.RotateDegrees(90); }
-                    var regions = result.Regions.OrderBy(r => r.Rect.Center.Y).ThenBy(r => r.Rect.Center.X).ToArray();
-                    var text = string.Join("\n", regions.Select(r => r.Text));
-                    var spans = VeteransReviewerPackagePrivacySanitizer.Redactions(text);
-                    var start = 0;
-                    foreach (var region in regions)
+                    canvas.Translate(
+                        0,
+                        bitmap.Height);
+                    canvas.RotateDegrees(-90);
+                }
+
+                if (turn == 2)
+                {
+                    canvas.Translate(
+                        bitmap.Width,
+                        bitmap.Height);
+                    canvas.RotateDegrees(180);
+                }
+
+                if (turn == 3)
+                {
+                    canvas.Translate(
+                        bitmap.Width,
+                        0);
+                    canvas.RotateDegrees(90);
+                }
+
+                var text =
+                    string.Join(
+                        "\n",
+                        regions.Select(
+                            region =>
+                                region.Text));
+
+                var spans =
+                    VeteransReviewerPackagePrivacySanitizer
+                        .Redactions(text);
+
+                var textStart = 0;
+
+                foreach (var region in regions)
+                {
+                    var redacted =
+                        new StringBuilder(
+                            region.Text);
+
+                    foreach (var span in
+                             spans
+                                 .Where(
+                                     span =>
+                                         span.Start <
+                                             textStart +
+                                             region.Text.Length &&
+                                         span.Start +
+                                             span.Length >
+                                             textStart)
+                                 .Reverse())
                     {
-                        var redacted = new StringBuilder(region.Text);
-                        foreach (var span in spans.Where(s => s.Start < start + region.Text.Length && s.Start + s.Length > start).Reverse())
+                        var begin =
+                            Math.Max(
+                                0,
+                                span.Start -
+                                textStart);
+
+                        var length =
+                            Math.Min(
+                                textStart +
+                                    region.Text.Length,
+                                span.Start +
+                                    span.Length) -
+                            textStart -
+                            begin;
+
+                        redacted
+                            .Remove(
+                                begin,
+                                length)
+                            .Insert(
+                                begin,
+                                span.Start >=
+                                    textStart
+                                    ? span.Replacement
+                                    : "");
+                    }
+
+                    textStart +=
+                        region.Text.Length + 1;
+
+                    if (redacted.ToString() ==
+                        region.Text)
+                    {
+                        continue;
+                    }
+
+                    var rect =
+                        new SKRect(
+                            region.Left - 2,
+                            region.Top - 2,
+                            region.Right + 2,
+                            region.Bottom + 2);
+
+                    var originalRect =
+                        turn switch
                         {
-                            var begin = Math.Max(0, span.Start - start);
-                            var length = Math.Min(start + region.Text.Length, span.Start + span.Length) - start - begin;
-                            redacted.Remove(begin, length).Insert(begin, span.Start >= start ? span.Replacement : "");
-                        }
-                        start += region.Text.Length + 1;
-                        if (redacted.ToString() == region.Text) continue;
-                        var box = region.Rect.BoundingRect();
-                        var rect = new SKRect(box.Left - 2, box.Top - 2, box.Right + 2, box.Bottom + 2);
-                        var originalRect = turn switch
-                        {
-                            1 => new SKRect(rect.Top, bitmap.Height - rect.Right, rect.Bottom, bitmap.Height - rect.Left),
-                            2 => new SKRect(bitmap.Width - rect.Right, bitmap.Height - rect.Bottom, bitmap.Width - rect.Left, bitmap.Height - rect.Top),
-                            3 => new SKRect(bitmap.Width - rect.Bottom, rect.Left, bitmap.Width - rect.Top, rect.Right),
+                            1 =>
+                                new SKRect(
+                                    rect.Top,
+                                    bitmap.Height -
+                                        rect.Right,
+                                    rect.Bottom,
+                                    bitmap.Height -
+                                        rect.Left),
+
+                            2 =>
+                                new SKRect(
+                                    bitmap.Width -
+                                        rect.Right,
+                                    bitmap.Height -
+                                        rect.Bottom,
+                                    bitmap.Width -
+                                        rect.Left,
+                                    bitmap.Height -
+                                        rect.Top),
+
+                            3 =>
+                                new SKRect(
+                                    bitmap.Width -
+                                        rect.Bottom,
+                                    rect.Left,
+                                    bitmap.Width -
+                                        rect.Top,
+                                    rect.Right),
+
                             _ => rect
                         };
-                        // A second orientation must not overwrite a replacement
-                        // already painted in the first orientation.
-                        if (maskedBoxes.Any(b => b.IntersectsWith(originalRect))) continue;
-                        Paint(canvas, rect, redacted.ToString());
-                        maskedBoxes.Add(originalRect);
-                        changed = true;
+
+                    if (maskedBoxes.Any(
+                            box =>
+                                box.IntersectsWith(
+                                    originalRect)))
+                    {
+                        continue;
                     }
-                    canvas.Restore();
+
+                    Paint(
+                        canvas,
+                        rect,
+                        redacted.ToString());
+
+                    maskedBoxes.Add(
+                        originalRect);
+
+                    changed = true;
                 }
+
+                canvas.Restore();
             }
         }
         if (!changed) return page;

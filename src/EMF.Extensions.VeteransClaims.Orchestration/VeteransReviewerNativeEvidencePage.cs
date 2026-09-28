@@ -39,12 +39,12 @@ internal sealed record VeteransReviewerNativeEvidencePage(
         for (var i = 0; i < rows.Count; i++)
         {
             if (!Regex.IsMatch(rows[i].Row.Text,
-                    @"^(?:MEDICATIONS:|Active Outpatient Medications.*)$", RegexOptions.IgnoreCase)) continue;
+                    @"^(?:MEDICATIONS:|(?:MEDS:\s*)?Active Outpatient Medications.*)$", RegexOptions.IgnoreCase)) continue;
             var end = i + 1;
             while (end < rows.Count && !MedicationEnd(rows[end].Row.Text)) end++;
             if (end == rows.Count) continue;
             var span = rows.Skip(i).Take(end - i).ToArray();
-            if (!span.Any(r => r.Row.Text.StartsWith("Active Outpatient Medications", StringComparison.OrdinalIgnoreCase)) ||
+            if (!span.Any(r => Regex.IsMatch(r.Row.Text, @"^(?:MEDS:\s*)?Active Outpatient Medications\b", RegexOptions.IgnoreCase)) ||
                 !span.Any(r => Regex.IsMatch(r.Row.Text, @"^\d+\)\s"))) continue;
             var firstPage = rows[i].Page;
             var lastPage = rows[end].Page;
@@ -258,9 +258,11 @@ internal sealed record VeteransReviewerNativeEvidencePage(
             var candidates = rows.SkipWhile(r => r != opening).TakeWhile((r, index) =>
                 r.Font == opening.Font && Math.Abs(r.Size - opening.Size) < .1 &&
                 r.Baseline - opening.Baseline <= index * opening.Size * 1.75 &&
-                !r.Text.Contains(':')).Take(3).ToArray();
+                (!r.Text.Contains(':') ||
+                 (index == 0 && Regex.IsMatch(r.Text, @"^[A-Z]{2,5}\s*:\s*[A-Z]")))).Take(3).ToArray();
             for (var count = 1; count <= candidates.Length; count++)
-                if (EquivalentTitle(string.Join(" ", candidates.Take(count).Select(r => r.Text)), artifactTitle))
+                if (VeteransReviewerNativeProse.EquivalentOpeningTitle(
+                        string.Join(" ", candidates.Take(count).Select(r => r.Text)), artifactTitle))
                 {
                     duplicate.UnionWith(candidates.Take(count));
                     break;
@@ -306,19 +308,6 @@ internal sealed record VeteransReviewerNativeEvidencePage(
         using var finalImage = SKImage.FromBitmap(bitmap);
         using var encoded = finalImage.Encode(SKEncodedImageFormat.Png, 100);
         return encoded.ToArray();
-    }
-
-    private static bool EquivalentTitle(string source, string artifact)
-    {
-        static string Normalize(string value)
-        {
-            value = Regex.Replace(value.Trim(), @"\s*[—–-]\s*Continued\s*$", "", RegexOptions.IgnoreCase);
-            // Punctuation separates words; never concatenate distinct source words
-            // into an apparent match (for example TELE PHONE versus TELEPHONE).
-            return Regex.Replace(value.ToUpperInvariant(), @"[^\p{L}\p{N}]+", " ").Trim();
-        }
-        var normalized = Normalize(source);
-        return normalized.Length >= 12 && normalized == Normalize(artifact);
     }
 
     private static bool HasInk(SKColor[] pixels, int width, int top, int bottom)

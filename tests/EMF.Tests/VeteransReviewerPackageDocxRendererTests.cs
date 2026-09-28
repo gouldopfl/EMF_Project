@@ -3014,6 +3014,30 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         Assert.Equal(7_000_000L, extent.Cy?.Value);
     }
 
+
+    [Fact]
+    public void Render_MedicalEvidenceNativePagesUseNaturalPagination()
+    {
+        var details = CreatePrintableDetails(
+        [
+            new PrintableArtifactPage { PageNumber = 1, ContentType = "image/png", Content = TinyPng() },
+            new PrintableArtifactPage { PageNumber = 2, ContentType = "image/png", Content = TinyPng() }
+        ], "", appendix: VeteransReviewerPackageAppendix.MedicalEvidence);
+
+        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        using var document = WordprocessingDocument.Open(new MemoryStream(bytes), false);
+        var paragraphs = document.MainDocumentPart!.Document!.Body!
+            .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>().ToArray();
+        var imageParagraphs = paragraphs.Where(paragraph =>
+            paragraph.Descendants<DocumentFormat.OpenXml.Wordprocessing.Drawing>().Any()).ToArray();
+        Assert.Equal(2, imageParagraphs.Length);
+        var first = Array.IndexOf(paragraphs, imageParagraphs[0]);
+        var second = Array.IndexOf(paragraphs, imageParagraphs[1]);
+        Assert.True(second > first);
+        Assert.DoesNotContain(paragraphs.Skip(first + 1).Take(second - first - 1), paragraph =>
+            paragraph.ParagraphProperties?.PageBreakBefore is not null);
+    }
+
     [Fact]
     public void Render_PreservesPrintableSourcePageOrder()
     {

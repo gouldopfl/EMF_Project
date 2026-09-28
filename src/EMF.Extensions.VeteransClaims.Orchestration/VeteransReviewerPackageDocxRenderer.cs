@@ -124,6 +124,15 @@ public static class VeteransReviewerPackageDocxRenderer
 
             if (details.MedicalOpinionRequested is not null)
             {
+                var scope = Regex.Match(details.MedicalOpinionRequested.OpinionText,
+                    @"^Determine whether the Veteran's (?<condition>.+?) is at least as likely as not .*?proximately due to or the result of the Veteran's service-connected (?<basis>.+?)\. If causation",
+                    RegexOptions.CultureInvariant);
+                if (scope.Success)
+                {
+                    body.Append(ContentParagraph("Claim type: Secondary service connection"));
+                    body.Append(ContentParagraph("Claimed condition: " + scope.Groups["condition"].Value));
+                    body.Append(ContentParagraph("Basis: " + scope.Groups["basis"].Value));
+                }
                 body.Append(ReviewerSubsectionHeading("Medical Opinion Requested", "480"));
                 body.Append(ContentParagraph(details.MedicalOpinionRequested.OpinionText));
             }
@@ -408,8 +417,9 @@ public static class VeteransReviewerPackageDocxRenderer
 
     private static IReadOnlyList<VeteransReviewerArtifactContent> GetRoleContents(
         VeteransReviewerPackageDetails details,
-        string contentRole) =>
-        details.ArtifactContents
+        string contentRole)
+    {
+        var contents = details.ArtifactContents
             .Where(
                 content =>
                     details.PackageDetails.Artifacts.Any(
@@ -421,6 +431,9 @@ public static class VeteransReviewerPackageDocxRenderer
                                 contentRole,
                                 StringComparison.Ordinal)))
             .ToArray();
+        return contentRole == EvidencePackageContentRoles.UnderlyingEvidence
+            ? VeteransReviewerSourceMembership.Select(details, contents) : contents;
+    }
 
     private static Paragraph ReviewerSubsectionHeading(
         string text,
@@ -2015,7 +2028,7 @@ public static class VeteransReviewerPackageDocxRenderer
     private static string? GetPresentationAppendix(
         VeteransReviewerArtifactContent content,
         string? prescriptionSourceArtifactId) =>
-        content.Appendix ??
+        VeteransReviewerSourceMembership.Appendix(content) ??
         (prescriptionSourceArtifactId is not null &&
          string.Equals(
              content.Artifact.Id.Value,
@@ -2063,7 +2076,24 @@ public static class VeteransReviewerPackageDocxRenderer
                     group => group.Select(item => item.Content).ToArray(),
                     StringComparer.Ordinal);
 
-        if (prescriptionList is not null && !contents.Any(c => BuildHistoricalMedicationTitle(c) is not null))
+        // Associate only the explicitly identified lay clarification and PT encounter.
+        // Ambiguous/missing matches retain the ordinary Additional Evidence fallback.
+        var ptMatches = contents.Where(c =>
+            GetPresentationAppendix(c, prescriptionSourceArtifactId) == VeteransReviewerPackageAppendix.MedicalEvidence &&
+            GetDisplayName(c).Equals("PT Outpatient Rehab Progress Note/Re-Eval", StringComparison.OrdinalIgnoreCase) &&
+            (GetEvidenceDate(c) == "2026-09-25" ||
+             c.Artifact.Name.Equals("PT Outpatient Rehab Progress Note_09252026.txt", StringComparison.OrdinalIgnoreCase))).ToArray();
+        var layMatches = contents.Where(c => c.Appendix == VeteransReviewerPackageAppendix.LayEvidence &&
+            (c.Artifact.Name.Equals("Veteran Lay Clarification_AFO Fit and Falls_09252026.txt", StringComparison.OrdinalIgnoreCase) ||
+             GetDisplayName(c).Replace('_', ' ').Equals(
+                "Veteran Lay Clarification AFO Fit and Falls September 25, 2026", StringComparison.OrdinalIgnoreCase))).ToArray();
+        var associatedLay = ptMatches.Length == 1 && layMatches.Length == 1 ? layMatches[0] : null;
+
+        // The package prescription presentation is a package-level reviewer section, not
+        // part of any individual clinical source. Render it once before the evidence
+        // appendices so encountering a historical-medication source can never splice the
+        // medication list into the middle of a clinical chronology.
+        if (prescriptionList is not null)
         {
             AppendPrescriptionPresentationSections(
                 body,
@@ -2072,6 +2102,7 @@ public static class VeteransReviewerPackageDocxRenderer
                 prescriptionList);
             prescriptionListRendered = true;
         }
+
         foreach (var appendix in AllReviewerAppendices)
         {
             sections.Start(body, null);
@@ -2107,16 +2138,6 @@ public static class VeteransReviewerPackageDocxRenderer
                         content => GetDisplayName(content),
                         StringComparer.OrdinalIgnoreCase))
             {
-                if (!prescriptionListRendered && prescriptionList is not null &&
-                    BuildHistoricalMedicationTitle(content) is not null)
-                {
-                    AppendPrescriptionPresentationSections(
-                        body,
-                        sections,
-                        details,
-                        prescriptionList);
-                    prescriptionListRendered = true;
-                }
                 sections.Start(body, SanitizeXmlText(GetDisplayName(content)));
 
                 AppendSourceContent(
@@ -2128,13 +2149,21 @@ public static class VeteransReviewerPackageDocxRenderer
                     sourceReviewDate,
                     prescriptionListRendered,
                     appendix);
+
+                if (associatedLay is not null && content.Artifact.Id == ptMatches[0].Artifact.Id)
+                {
+                    const string heading = "Associated Veteran Lay Clarification — AFO Fit and Falls";
+                    sections.Start(body, heading);
+                    AppendSourceContent(mainPart, body, details, associatedLay, sections, sourceReviewDate,
+                        displayHeading: heading);
+                }
             }
         }
 
         var additionalEvidence =
             contents
                 .Where(content =>
-                    GetPresentationAppendix(
+                    content != associatedLay && GetPresentationAppendix(
                         content,
                         prescriptionSourceArtifactId) is null)
                 .OrderBy(
@@ -2151,16 +2180,14 @@ public static class VeteransReviewerPackageDocxRenderer
         if (additionalEvidence.Length == 0)
             return;
 
-        sections.Start(body, null);
-
-        body.Append(
-            StyledParagraph(
-                "Additional Evidence",
-                "Heading1"));
-
-        foreach (var content in additionalEvidence)
+        // Start the first evidence section before its group heading so a
+        // next-page section break cannot strand Additional Evidence by itself.
+        for (var index = 0; index < additionalEvidence.Length; index++)
         {
+            var content = additionalEvidence[index];
             sections.Start(body, SanitizeXmlText(GetDisplayName(content)));
+            if (index == 0)
+                body.Append(StyledParagraph("Additional Evidence", "Heading1"));
 
             AppendSourceContent(
                 mainPart,
@@ -2180,7 +2207,8 @@ public static class VeteransReviewerPackageDocxRenderer
         VeteransReviewerEvidenceSections sections,
         DateOnly sourceReviewDate,
         bool hasPackagePrescriptionList = false,
-        string? presentationAppendix = null)
+        string? presentationAppendix = null,
+        string? displayHeading = null)
     {
         var storedSelection = details.PackageDetails.Artifacts
             .Single(item => item.ArtifactId == content.Artifact.Id).ReviewerPageSelection;
@@ -2226,7 +2254,7 @@ public static class VeteransReviewerPackageDocxRenderer
                 .Select(page => DecodePrintableText(page.Content)),
             details.VeteranDisplayName);
 
-        AppendSourcePreamble(body, displayName, sourceReference, sourceName, clarifications,
+        AppendSourcePreamble(body, displayHeading ?? displayName, sourceReference, sourceName, clarifications,
             includeDisplayHeading: true);
 
         var sourceChecks = VeteransReviewerSourceReasonablenessReview.Review(content, pages, sourceReviewDate)
@@ -2292,11 +2320,41 @@ public static class VeteransReviewerPackageDocxRenderer
                 presentation, historicalMedicationTitle, historicalMedicationOmissionMessage);
         }
 
+        if (VeteransReviewerLayTextSupplement.Get(content) is { } storedStatementText)
+        {
+            body.Append(StyledParagraph(GetDisplayName(content) + " — Text Supplement", "Heading3"));
+            body.Append(ContentParagraph("Source: Independently stored text rendition of the same statement", keepWithNext: true));
+            foreach (var paragraph in storedStatementText) body.Append(ContentParagraph(paragraph));
+            body.Append(ContentParagraph(
+                "Reviewer note: The source-document image is preserved unchanged. The supplement reproduces " +
+                "verified typed text available in the stored text rendition that is clipped in the source DOCX rendering. " +
+                "The signature and handwritten date are not reconstructed."));
+        }
+
         if (presentation.Corrections.Count > 0)
             body.Append(ContentParagraph(
                 "Reviewer transcription corrections (original source unchanged): " +
                 string.Join("; ", presentation.Corrections.Select(c =>
                     $"“{c.Original}” → “{c.Replacement}”").Distinct(StringComparer.Ordinal)) + "."));
+    }
+
+    private static void KeepOpeningMetadataWithNote(Body body, OpenXmlElement? before)
+    {
+        var elements = before is null ? body.ChildElements.ToArray() :
+            body.ChildElements.SkipWhile(e => e != before).Skip(1).ToArray();
+        foreach (var element in elements)
+        {
+            var text = element.InnerText.Trim();
+            var metadata = Regex.IsMatch(text,
+                @"^(?:Details$|Note$|Date entered:|Location:|Written by:|Signed by:|Date signed:|LOCAL TITLE:|STANDARD TITLE:|DATE OF NOTE:|AUTHOR:|URGENCY:|COMPLETED$|\d{4}@\d{2}:\d{2})",
+                RegexOptions.IgnoreCase);
+            if (!metadata) break;
+            foreach (var paragraph in element is Paragraph p ? new[] { p } : element.Descendants<Paragraph>())
+            {
+                paragraph.ParagraphProperties ??= new ParagraphProperties();
+                paragraph.ParagraphProperties.AddChild(new KeepNext(), true);
+            }
+        }
     }
 
     private static void AppendSourcePreamble(
@@ -2586,6 +2644,9 @@ public static class VeteransReviewerPackageDocxRenderer
             }
         }
 
+        if (VeteransReviewerEncounterHeader.Read(content) is { } encounterHeader)
+            return encounterHeader.Title;
+
         var derivedDisplayName =
             GetReviewerDerivedDisplayName(content);
 
@@ -2723,10 +2784,12 @@ public static class VeteransReviewerPackageDocxRenderer
         if (!string.IsNullOrWhiteSpace(evidenceDate))
             return evidenceDate;
 
-        return GetMetadataText(
+        var noteDate = GetMetadataText(
             content.Artifact.Metadata,
             EMF.Extensions.VeteransClaims.Models
-                .VeteransArtifactMetadataKeys.NoteDate) ?? string.Empty;
+                .VeteransArtifactMetadataKeys.NoteDate);
+        return !string.IsNullOrWhiteSpace(noteDate) ? noteDate :
+            VeteransReviewerEncounterHeader.Read(content)?.Date ?? string.Empty;
     }
 
     private static string GetSourcePageReference(
@@ -3318,10 +3381,28 @@ public static class VeteransReviewerPackageDocxRenderer
         string? historicalMedicationTitle = null,
         string? historicalMedicationOmissionMessage = null)
     {
+        text = VeteransReviewerDateOfBirth.Reconstruct(text);
+        if (VeteransReviewerPowerForm.IsTextualRendition(text))
+        {
+            body.Append(ContentParagraph("Source form text: column geometry is unavailable; field order is preserved without inferring column associations.", keepWithNext: true));
+            foreach (var line in VeteransReviewerPowerForm.Lines(text))
+            {
+                var paragraph = ContentParagraph(line);
+                paragraph.ParagraphProperties!.SpacingBetweenLines = new SpacingBetweenLines
+                    { Before = "0", After = "20", Line = "240", LineRule = LineSpacingRuleValues.Auto };
+                body.Append(paragraph);
+            }
+            return;
+        }
+        var sourceStart = body.LastChild;
         var historicalMedicationTitleRendered = false;
         var suppressHistoricalMedicationSection = false;
         var protectedClinicalSection = false;
-        var sourceText = presentation.Normalize(text);
+        string? previousPatientIdentifier = null;
+        var sourceText = VeteransReviewerDateOfBirth.KeepTogether(
+            VeteransReviewerPackagePrivacySanitizer.Redact(presentation.Normalize(text)));
+        var prepared = VeteransReviewerClinicalLayout.PrepareNarrative(sourceText);
+        sourceText = prepared.Text;
         var blocks = VeteransReviewerTextLayout.Project(sourceText);
         // A standalone scalar can occur inside wrapped ordinary prose. Its
         // typography must not disable the existing non-source-specific reflow.
@@ -3334,6 +3415,8 @@ public static class VeteransReviewerPackageDocxRenderer
         // Terminal line delimiters are not an empty continuation page. Keep
         // every interior blank row, but do not render trailing blank paragraphs
         // after this source page's last content. Stored source text is unchanged.
+        var scoreBlocks = VeteransReviewerClinicalLayout.FindScoreBlocks(
+            layoutBlocks.Select(block => block.Text).ToArray());
         var contentEnd = layoutBlocks.Count;
         while (contentEnd > 0 && layoutBlocks[contentEnd - 1].Shape == VeteransReviewerTextShape.Blank)
             contentEnd--;
@@ -3365,6 +3448,16 @@ public static class VeteransReviewerPackageDocxRenderer
                 }
                 continue;
             }
+
+            if (VeteransReviewerPackagePrivacySanitizer.TryNeutralizeStandalonePatientIdentifier(
+                    line, out var patientIdentifier))
+            {
+                if (!string.Equals(previousPatientIdentifier, patientIdentifier, StringComparison.Ordinal))
+                    body.Append(ContentParagraph(patientIdentifier));
+                previousPatientIdentifier = patientIdentifier;
+                continue;
+            }
+            previousPatientIdentifier = null;
 
             if (!historicalMedicationTitleRendered &&
                 !string.IsNullOrWhiteSpace(historicalMedicationTitle) &&
@@ -3402,6 +3495,15 @@ public static class VeteransReviewerPackageDocxRenderer
                     continue;
             }
 
+            if (scoreBlocks.TryGetValue(lineIndex, out var scoreRows))
+            {
+                if (body.LastChild is Table) body.Append(ReviewerScoreTableSeparator());
+                body.Append(ReviewerScoreTable(scoreRows));
+                body.Append(ReviewerScoreTableSeparator());
+                lineIndex += scoreRows.Count - 1;
+                continue;
+            }
+
             if (Regex.IsMatch(line.TrimStart(),
                     @"^(?:medications?\b|active outpatient medications\b|diagnos\w*\b|assessment\b|problem list\b)",
                     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)))
@@ -3413,7 +3515,7 @@ public static class VeteransReviewerPackageDocxRenderer
                     block with { Text = line },
                     presentation.Corrections);
 
-            if (!preformatted && TryParseReviewerField(
+            if (!preformatted && !prepared.RejoinedNarratives.Contains(block.Text.Trim()) && TryParseReviewerField(
                     line,
                     out var fieldLabel,
                     out var fieldValue) &&
@@ -3422,6 +3524,7 @@ public static class VeteransReviewerPackageDocxRenderer
                     fieldValue))
             {
                 while (!presentation.IsBlueButton && lineIndex + 1 < layoutBlocks.Count &&
+                       !scoreBlocks.ContainsKey(lineIndex + 1) &&
                        layoutBlocks[lineIndex + 1].Shape is not (VeteransReviewerTextShape.Preformatted or VeteransReviewerTextShape.DataRow) &&
                        ShouldAppendReviewerFieldContinuation(
                            fieldValue,
@@ -3441,6 +3544,7 @@ public static class VeteransReviewerPackageDocxRenderer
             if (!preformatted && !presentation.IsBlueButton && IsReviewerListLine(line))
             {
                 while (lineIndex + 1 < layoutBlocks.Count &&
+                       !scoreBlocks.ContainsKey(lineIndex + 1) &&
                        layoutBlocks[lineIndex + 1].Shape is not (VeteransReviewerTextShape.Preformatted or VeteransReviewerTextShape.DataRow) &&
                        ShouldAppendReviewerListContinuation(
                            line,
@@ -3486,6 +3590,72 @@ public static class VeteransReviewerPackageDocxRenderer
                                 SpaceProcessingModeValues.Preserve
                         })));
         }
+        CompactReceiptAcknowledgements(body, sourceStart);
+    }
+
+    private static Table ReviewerScoreTable(IReadOnlyList<VeteransReviewerClinicalLayout.ScoreRow> rows)
+    {
+        var table = new Table(new TableProperties(
+            new TableWidth { Type = TableWidthUnitValues.Pct, Width = "5000" },
+            new TableBorders(
+                new TopBorder { Val = BorderValues.Nil },
+                new LeftBorder { Val = BorderValues.Nil },
+                new BottomBorder { Val = BorderValues.Nil },
+                new RightBorder { Val = BorderValues.Nil },
+                new InsideHorizontalBorder { Val = BorderValues.Nil },
+                new InsideVerticalBorder { Val = BorderValues.Nil }),
+            new TableLayout { Type = TableLayoutValues.Fixed },
+            new TableCellMarginDefault(
+                new TopMargin { Width = "0", Type = TableWidthUnitValues.Dxa },
+                new TableCellLeftMargin { Width = 0, Type = TableWidthValues.Dxa },
+                new BottomMargin { Width = "0", Type = TableWidthUnitValues.Dxa },
+                new TableCellRightMargin { Width = 0, Type = TableWidthValues.Dxa })),
+            new TableGrid(new GridColumn { Width = "2700" }, new GridColumn { Width = "6300" }));
+        foreach (var row in rows)
+        {
+            var label = ReviewerFieldCell(row.Label, "1500", bold: false);
+            var score = ReviewerFieldCell(row.Score, "3500", bold: false);
+            foreach (var cell in new[] { label, score })
+                cell.GetFirstChild<Paragraph>()!.ParagraphProperties!.SpacingBetweenLines =
+                    new SpacingBetweenLines { Before = "0", After = "60" };
+            // Pairing survives pagination; do not force a long questionnaire onto
+            // one page or reduce its original twelve-point body typography.
+            table.Append(new TableRow(new TableRowProperties(new CantSplit()), label, score));
+        }
+        return table;
+    }
+
+    private static Paragraph ReviewerScoreTableSeparator() => new(
+        new ParagraphProperties(new SpacingBetweenLines
+        {
+            Before = "0", After = "0", Line = "1", LineRule = LineSpacingRuleValues.Exact
+        }));
+
+    internal static void CompactReceiptAcknowledgements(Body body, OpenXmlElement? sourceStart)
+    {
+        var elements = (sourceStart is null ? body.ChildElements :
+            body.ChildElements.SkipWhile(e => e != sourceStart).Skip(1)).ToArray();
+        var start = Array.FindLastIndex(elements, e => e.InnerText.Trim() == "Receipt Acknowledged By:");
+        if (start < 1 || elements.Length - start > 9) return;
+        var receipts = elements.Skip(start + 1).ToArray();
+        // A small terminal receipt block after a signed record only. Clinical
+        // continuations or uncertain structures retain their existing layout.
+        if (!elements[start - 1].InnerText.TrimStart().StartsWith("Signed:", StringComparison.Ordinal) ||
+            receipts.Length == 0 || receipts.Any(e => e is not Paragraph _) ||
+            !receipts.Any(e => Regex.IsMatch(e.InnerText, @"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}\s+/es/")) ||
+            receipts.Any(e => !Regex.IsMatch(e.InnerText,
+                @"^(?:\d{2}/\d{2}/\d{4} \d{2}:\d{2}\s+/es/[^\r\n]+|[A-Za-z ,.-]{1,80})$"))) return;
+        foreach (var element in elements.Skip(start - 1))
+        foreach (var paragraph in element is Paragraph p ? new[] { p } : element.Descendants<Paragraph>())
+        {
+            paragraph.ParagraphProperties ??= new ParagraphProperties();
+            paragraph.ParagraphProperties.SpacingBetweenLines = new SpacingBetweenLines
+                { Before = "0", After = "0", Line = "240", LineRule = LineSpacingRuleValues.Auto };
+        }
+        // Keep the label with the first receipt, without forcing the whole signed
+        // record onto a new page or preventing a necessary continuation.
+        if (elements[start] is Paragraph label)
+            label.ParagraphProperties!.AddChild(new KeepNext(), true);
     }
 
     private static string ExpandReviewerTabs(string line)
@@ -3522,7 +3692,12 @@ public static class VeteransReviewerPackageDocxRenderer
     private static bool ShouldRenderReviewerField(
         string label,
         string value) =>
-        value.Length > 0 ||
+        // These source labels are full-width note metadata or question prompts,
+        // not compact key/value cells. A narrow label column re-fragments them.
+        !label.Equals("STANDARD TITLE", StringComparison.OrdinalIgnoreCase) &&
+        !label.Equals("The patient was asked the following questions", StringComparison.OrdinalIgnoreCase) &&
+        !label.Contains("Numeric Pain Rating Scale", StringComparison.OrdinalIgnoreCase) &&
+        (value.Length > 0 ||
         label.Equals(
             "Requesting Provider",
             StringComparison.OrdinalIgnoreCase) ||
@@ -3531,7 +3706,7 @@ public static class VeteransReviewerPackageDocxRenderer
             StringComparison.OrdinalIgnoreCase) ||
         label.Equals(
             "Referring Provider",
-            StringComparison.OrdinalIgnoreCase);
+            StringComparison.OrdinalIgnoreCase));
 
     private static bool ShouldAppendReviewerFieldContinuation(
         string currentValue,
@@ -4050,6 +4225,7 @@ public static class VeteransReviewerPackageDocxRenderer
 
     private static bool IsHistoricalMedicationSectionHeading(
         string line) =>
+        Regex.IsMatch(line, @"^MEDS:\s*Active Outpatient Medications\b", RegexOptions.IgnoreCase) ||
         line.Equals(
             "MEDICATIONS:",
             StringComparison.OrdinalIgnoreCase) ||
@@ -4114,17 +4290,9 @@ public static class VeteransReviewerPackageDocxRenderer
             if (geometry is null)
                 continue;
 
-            var rows =
-                geometry.Glyphs
-                    .Where(glyph => !string.IsNullOrWhiteSpace(glyph.Text))
-                    .GroupBy(glyph => Math.Round(glyph.Baseline, 1))
-                    .OrderBy(group => group.Key)
-                    .Select(group =>
-                        string.Concat(
-                            group
-                                .OrderBy(glyph => glyph.X)
-                                .Select(glyph => glyph.Text))
-                            .Trim());
+            // Native glyph streams need geometric word spacing, just like the
+            // exclusion pass; concatenating glyphs can erase the MEDS heading.
+            var rows = VeteransReviewerNativeProse.Lines(page).Select(row => row.Text);
 
             if (rows.Any(IsHistoricalMedicationSectionHeading))
                 return true;
@@ -4156,9 +4324,19 @@ public static class VeteransReviewerPackageDocxRenderer
             paragraph.Clear();
         }
 
-        foreach (var rawLine in normalized.Split('\n'))
+        var sourceLines = normalized.Split('\n');
+        var scoreBlocks = VeteransReviewerClinicalLayout.FindScoreBlocks(sourceLines);
+        for (var sourceIndex = 0; sourceIndex < sourceLines.Length; sourceIndex++)
         {
-            var line = rawLine.Trim();
+            if (scoreBlocks.TryGetValue(sourceIndex, out var scoreRows))
+            {
+                FlushParagraph();
+                for (var offset = 0; offset < scoreRows.Count; offset++)
+                    output.Add(sourceLines[sourceIndex + offset].Trim());
+                sourceIndex += scoreRows.Count - 1;
+                continue;
+            }
+            var line = sourceLines[sourceIndex].Trim();
 
             if (line.Length == 0)
             {
@@ -4379,7 +4557,7 @@ public static class VeteransReviewerPackageDocxRenderer
             if (omittedRows > 0)
             {
                 if (hasPackagePrescriptionList)
-                    body.Append(ContentParagraph("See the separately dated VA Prescription List immediately preceding this note. " +
+                    body.Append(ContentParagraph("See the separately dated VA Prescription List preceding the evidence appendices. " +
                         "The historical medication table within this note is excluded from the reviewer copy; the original source is preserved."));
                 else
                 {
@@ -4392,20 +4570,17 @@ public static class VeteransReviewerPackageDocxRenderer
         if (medicalEvidence && presentation.IsBlueButton &&
             VeteransReviewerNativeProse.Reconstruct(pages) is { } paragraphs)
         {
-            foreach (var (text, index) in paragraphs.Select((text, index) => (text, index)))
+            var openingTitleIndex = paragraphs.TakeWhile(VeteransReviewerPatientHeader.IsIdentity).Count();
+            var reviewerParagraphs = paragraphs
+                .Where((text, index) => index != openingTitleIndex || string.IsNullOrWhiteSpace(artifactTitle) ||
+                    !VeteransReviewerNativeProse.EquivalentOpeningTitle(text, artifactTitle))
+                .ToArray();
+            if (reviewerParagraphs.Length > 0)
             {
-                // The artifact heading already carries an identical opening title.
-                if (index == 0 && string.Equals(text, artifactTitle, StringComparison.Ordinal)) continue;
-                var paragraph = ContentParagraph(text);
-                paragraph.ParagraphProperties!.SpacingBetweenLines = new SpacingBetweenLines
-                    { Before = "0", After = text.Length > 120 ? "80" : "20", Line = "240", LineRule = LineSpacingRuleValues.Auto };
-                foreach (var run in paragraph.Elements<Run>())
-                {
-                    run.RunProperties!.RunFonts = new RunFonts
-                        { Ascii = VeteransReviewerFonts.Monospace, HighAnsi = VeteransReviewerFonts.Monospace };
-                    run.RunProperties.FontSize = new FontSize { Val = "20" };
-                }
-                body.Append(paragraph);
+                var before = body.LastChild;
+                AppendReviewerText(body, string.Join(Environment.NewLine, reviewerParagraphs),
+                    presentation, historicalMedicationTitle, historicalMedicationOmissionMessage);
+                KeepOpeningMetadataWithNote(body, before);
             }
             return;
         }
@@ -4421,7 +4596,11 @@ public static class VeteransReviewerPackageDocxRenderer
                     "Printable artifact pages must be in strictly increasing order.");
             }
 
-            if (renderedPageCount > 0)
+            // Reviewer medical evidence should paginate naturally. If two
+            // compact source-page images fit on one reviewer page, Word may
+            // place them together; non-medical appendices retain explicit
+            // source-page boundaries.
+            if (renderedPageCount > 0 && !medicalEvidence)
                 body.Append(PageBreakParagraph());
 
             if (!reviewerPageSelectionApplied &&
@@ -4446,7 +4625,7 @@ public static class VeteransReviewerPackageDocxRenderer
                     "text/plain",
                     StringComparison.OrdinalIgnoreCase))
             {
-                if (!medicalEvidence) body.Append(
+                if (!medicalEvidence && !allowLargerSinglePageImage) body.Append(
                     ContentParagraph(
                         $"Source Page {page.PageNumber}",
                         keepWithNext: true));
@@ -4557,7 +4736,7 @@ public static class VeteransReviewerPackageDocxRenderer
             var drawingId =
                 checked((uint)mainPart.ImageParts.Count());
 
-            if (!medicalEvidence) body.Append(
+            if (!medicalEvidence && !allowLargerSinglePageImage) body.Append(
                 ContentParagraph(
                     $"Source Page {page.PageNumber}",
                     keepWithNext: true));
@@ -4731,7 +4910,7 @@ public static class VeteransReviewerPackageDocxRenderer
     private static string SanitizeXmlText(string text)
     {
         text =
-            VeteransReviewerPackagePrivacySanitizer.Redact(text);
+            VeteransReviewerDateOfBirth.KeepTogether(VeteransReviewerPackagePrivacySanitizer.Redact(text));
 
         var sanitized = new StringBuilder(text.Length);
 
