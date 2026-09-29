@@ -20,6 +20,9 @@ public static class ConsoleCommandRouter
             "security" =>
                 SecurityConsoleCommand.RunAsync(args[1..]),
 
+            "build" =>
+                BuildConsoleCommand.RunAsync(args[1..]),
+
             "veterans" =>
                 VeteransConsoleCommand.RunAsync(args[1..]),
 
@@ -79,6 +82,8 @@ public static class ConsoleCommandRouter
             "Usage:");
         global::System.Console.WriteLine(
             "  emf inventory [source-path] [workflow-id]");
+        global::System.Console.WriteLine(
+            "  emf build identity");
         global::System.Console.WriteLine(
             "  emf security audit verify <database-path>");
         global::System.Console.WriteLine(

@@ -13,6 +13,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EMF.Tests;
 
+[Collection(ReviewerDeploymentEnvironmentCollection.Name)]
 public sealed class VeteransReviewerPackageSnapshotTests
 {
     [Fact]
@@ -90,7 +91,7 @@ public sealed class VeteransReviewerPackageSnapshotTests
         var original = Details(literature: true);
         await db.Repository.AddEvidencePackageAsync(original.PackageDetails.Package, original.PackageDetails.Artifacts.ToArray());
         var provider = new RegulatoryProvider();
-        var service = new VeteransReviewerPackageDocumentOutputService(regulatoryTextProvider: provider, snapshotRepository: db.Repository);
+        var service = ReviewerDeploymentTestSupport.CreateService(regulatoryTextProvider: provider, snapshotRepository: db.Repository);
         var first = await service.RenderAsync(original, VeteransReviewerPackageOutputFormat.Docx);
         provider.Throw = true;
         var later = Details("later changed", literature: true);
@@ -153,10 +154,10 @@ public sealed class VeteransReviewerPackageSnapshotTests
         await using var db = await Database.Create();
         var d = Details();
         await db.Repository.AddEvidencePackageAsync(d.PackageDetails.Package, d.PackageDetails.Artifacts.ToArray());
-        await Assert.ThrowsAsync<InvalidDataException>(() => new VeteransReviewerPackageDocumentOutputService(
+        await Assert.ThrowsAsync<InvalidDataException>(() => ReviewerDeploymentTestSupport.CreateService(
             new InvalidConverter(), new RegulatoryProvider(), db.Repository).RenderAsync(d, VeteransReviewerPackageOutputFormat.Pdf));
         Assert.Null(await db.Repository.GetReviewerSnapshotAsync(new("package")));
-        await new VeteransReviewerPackageDocumentOutputService(regulatoryTextProvider: new RegulatoryProvider(), snapshotRepository: db.Repository)
+        await ReviewerDeploymentTestSupport.CreateService(regulatoryTextProvider: new RegulatoryProvider(), snapshotRepository: db.Repository)
             .RenderAsync(d, VeteransReviewerPackageOutputFormat.Docx);
         Assert.NotNull(await db.Repository.GetReviewerSnapshotAsync(new("package")));
     }
@@ -185,10 +186,11 @@ public sealed class VeteransReviewerPackageSnapshotTests
     [Fact]
     public async Task PublicationFailureAfterSeal_RetryPublishesSnapshotWithoutConsultingMutableInputs()
     {
+        using var deployment = new ExpectedReviewerDeployment();
         await using var db = await Database.Create();
         var d = Details();
         await db.Repository.AddEvidencePackageAsync(d.PackageDetails.Package, d.PackageDetails.Artifacts.ToArray());
-        var original = await new VeteransReviewerPackageDocumentOutputService(
+        var original = await ReviewerDeploymentTestSupport.CreateService(
             regulatoryTextProvider: new RegulatoryProvider(), snapshotRepository: db.Repository)
             .RenderAsync(d, VeteransReviewerPackageOutputFormat.Docx);
         var sealedRow = await db.Repository.GetReviewerSnapshotAsync(new("package"));
@@ -261,7 +263,7 @@ public sealed class VeteransReviewerPackageSnapshotTests
         await db.Repository.AddEvidencePackageAsync(d.PackageDetails.Package, d.PackageDetails.Artifacts.ToArray());
         await db.Sql("INSERT INTO VeteransClaims_ReviewerPackageSnapshots VALUES ('package',1,'{}','" + ReviewerPackageSnapshot.ComputeHash("{}") + "');");
         var provider = new RegulatoryProvider { Throw = true };
-        await Assert.ThrowsAsync<InvalidDataException>(() => new VeteransReviewerPackageDocumentOutputService(
+        await Assert.ThrowsAsync<InvalidDataException>(() => ReviewerDeploymentTestSupport.CreateService(
             regulatoryTextProvider: provider, snapshotRepository: db.Repository).RenderAsync(d, VeteransReviewerPackageOutputFormat.Docx));
         Assert.Equal(0, provider.Calls);
     }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Globalization;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
@@ -12,6 +13,7 @@ public sealed class SqliteEvidencePackageRepository :
     private readonly string _databasePath;
 
     public bool SupportsReviewerOutputProvenance => true;
+    public bool SupportsReviewerOutputBuildProvenance => true;
 
     public SqliteEvidencePackageRepository(
         string databasePath)
@@ -282,6 +284,633 @@ public sealed class SqliteEvidencePackageRepository :
         await command.ExecuteNonQueryAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<ReviewerPackageOutputBuildProvenance>>
+        GetReviewerOutputBuildProvenanceAsync(
+            string provenanceId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT LinkId, ProvenanceId, Version, BuildId,
+                   SourceRevisionId, LinkedUtc
+            FROM VeteransClaims_ReviewerPackageOutputBuildProvenance
+            WHERE ProvenanceId = $id
+            ORDER BY LinkedUtc, LinkId;
+            """;
+        command.Parameters.AddWithValue("$id", provenanceId);
+
+        var rows = new List<ReviewerPackageOutputBuildProvenance>();
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var row = ReadReviewerOutputBuildProvenance(reader);
+            row.ValidateIntegrity();
+            rows.Add(row);
+        }
+
+        return rows;
+    }
+
+    public async Task<ReviewerBuildManifestDocument?> GetBuildManifestAsync(
+        string buildId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(buildId);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT ManifestJson
+            FROM VeteransClaims_ReviewerBuildManifests
+            WHERE BuildId = $buildId;
+            """;
+        command.Parameters.AddWithValue("$buildId", buildId);
+
+        var json = await command.ExecuteScalarAsync(cancellationToken) as string;
+        if (json is null)
+            return null;
+
+        ReviewerBuildManifestDocument manifest;
+        try
+        {
+            manifest =
+                ReviewerBuildManifestDocument.Parse(json)
+                ?? throw new InvalidDataException(
+                    "Archived reviewer build manifest is invalid.");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException(
+                "Archived reviewer build manifest is invalid.",
+                ex);
+        }
+
+        manifest.ValidateIntegrity();
+
+        if (!string.Equals(
+                manifest.BuildId,
+                buildId,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "Archived reviewer build manifest identity does not match its key.");
+        }
+
+        return manifest;
+    }
+
+    public async Task SaveBuildManifestAsync(
+        ReviewerBuildManifestDocument manifest,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        manifest.ValidateIntegrity();
+
+        var json = manifest.Json;
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction =
+            connection.BeginTransaction(deferred: false);
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+
+        command.CommandText = """
+            SELECT ManifestJson
+            FROM VeteransClaims_ReviewerBuildManifests
+            WHERE BuildId = $buildId;
+            """;
+        command.Parameters.AddWithValue("$buildId", manifest.BuildId);
+
+        var existingJson =
+            await command.ExecuteScalarAsync(cancellationToken) as string;
+
+        if (existingJson is not null)
+        {
+            ReviewerBuildManifestDocument existing;
+            try
+            {
+                existing =
+                    ReviewerBuildManifestDocument.Parse(existingJson)
+                    ?? throw new InvalidDataException(
+                        "Archived reviewer build manifest is invalid.");
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidDataException(
+                    "Archived reviewer build manifest is invalid.",
+                    ex);
+            }
+
+            existing.ValidateIntegrity();
+
+            if (!string.Equals(
+                    existing.BuildId,
+                    manifest.BuildId,
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "Conflicting reviewer build manifest already exists.");
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            return;
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = """
+            INSERT INTO VeteransClaims_ReviewerBuildManifests (
+                BuildId,
+                ManifestJson,
+                ArchivedUtc)
+            VALUES (
+                $buildId,
+                $manifestJson,
+                $archivedUtc);
+            """;
+
+        command.Parameters.AddWithValue("$buildId", manifest.BuildId);
+        command.Parameters.AddWithValue("$manifestJson", json);
+        command.Parameters.AddWithValue(
+            "$archivedUtc",
+            DateTimeOffset.UtcNow.ToString(
+                "O",
+                CultureInfo.InvariantCulture));
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task SaveReviewerOutputBuildProvenanceAsync(
+        ReviewerPackageOutputBuildProvenance provenance,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(provenance);
+        provenance.ValidateIntegrity();
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction =
+            connection.BeginTransaction(deferred: false);
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+
+        command.CommandText = """
+            SELECT 1
+            FROM VeteransClaims_ReviewerPackageOutputProvenance
+            WHERE ProvenanceId = $provenanceId;
+            """;
+        command.Parameters.AddWithValue(
+            "$provenanceId",
+            provenance.ProvenanceId);
+
+        if (await command.ExecuteScalarAsync(cancellationToken) is null)
+            throw new InvalidDataException(
+                "Reviewer output build provenance requires existing output provenance.");
+
+        command.CommandText = """
+            SELECT LinkId, ProvenanceId, Version, BuildId,
+                   SourceRevisionId, LinkedUtc
+            FROM VeteransClaims_ReviewerPackageOutputBuildProvenance
+            WHERE LinkId = $linkId;
+            """;
+        command.Parameters.AddWithValue("$linkId", provenance.LinkId);
+
+        ReviewerPackageOutputBuildProvenance? existing = null;
+        await using (var reader =
+            await command.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                existing = ReadReviewerOutputBuildProvenance(reader);
+                existing.ValidateIntegrity();
+            }
+        }
+
+        if (existing is not null)
+        {
+            if (existing !=
+                (provenance with { LinkedUtc = existing.LinkedUtc }))
+            {
+                throw new InvalidDataException(
+                    "Conflicting reviewer output build provenance already exists.");
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            return;
+        }
+
+        command.CommandText = """
+            INSERT INTO VeteransClaims_ReviewerPackageOutputBuildProvenance (
+                LinkId, ProvenanceId, Version, BuildId,
+                SourceRevisionId, LinkedUtc)
+            VALUES (
+                $linkId, $provenanceId, $version, $buildId,
+                $sourceRevisionId, $linkedUtc);
+            """;
+
+        command.Parameters.AddWithValue("$version", provenance.Version);
+        command.Parameters.AddWithValue("$buildId", provenance.BuildId);
+        command.Parameters.AddWithValue(
+            "$sourceRevisionId",
+            provenance.SourceRevisionId);
+        command.Parameters.AddWithValue(
+            "$linkedUtc",
+            provenance.LinkedUtc.ToString(
+                "O",
+                CultureInfo.InvariantCulture));
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+
+    public Task SaveReviewerOutputWithBuildProvenanceAsync(
+        ReviewerPackageOutputProvenance outputProvenance,
+        ReviewerPackageOutputBuildProvenance buildProvenance,
+        CancellationToken cancellationToken = default) =>
+        SaveReviewerOutputWithBuildProvenanceCoreAsync(
+            outputProvenance,
+            buildProvenance,
+            buildManifestJson: null,
+            cancellationToken);
+
+    public Task SaveReviewerOutputWithBuildProvenanceAndManifestAsync(
+        ReviewerPackageOutputProvenance outputProvenance,
+        ReviewerPackageOutputBuildProvenance buildProvenance,
+        string buildManifestJson,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(buildManifestJson);
+
+        return SaveReviewerOutputWithBuildProvenanceCoreAsync(
+            outputProvenance,
+            buildProvenance,
+            buildManifestJson,
+            cancellationToken);
+    }
+
+    private async Task SaveReviewerOutputWithBuildProvenanceCoreAsync(
+        ReviewerPackageOutputProvenance outputProvenance,
+        ReviewerPackageOutputBuildProvenance buildProvenance,
+        string? buildManifestJson,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(outputProvenance);
+        ArgumentNullException.ThrowIfNull(buildProvenance);
+        outputProvenance.ValidateIntegrity();
+        buildProvenance.ValidateIntegrity();
+
+        ReviewerBuildManifestDocument? buildManifest = null;
+        if (buildManifestJson is not null)
+        {
+            try
+            {
+                buildManifest =
+                    ReviewerBuildManifestDocument.Parse(
+                        buildManifestJson)
+                    ?? throw new InvalidDataException(
+                        "Reviewer build manifest is invalid.");
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidDataException(
+                    "Reviewer build manifest is invalid.",
+                    ex);
+            }
+
+            buildManifest.ValidateIntegrity();
+
+            if (!string.Equals(
+                    buildManifest.BuildId,
+                    buildProvenance.BuildId,
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    buildManifest.SourceRevisionId,
+                    buildProvenance.SourceRevisionId,
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "Reviewer build manifest does not match build provenance.");
+            }
+        }
+
+        if (!string.Equals(
+            outputProvenance.ProvenanceId,
+            buildProvenance.ProvenanceId,
+            StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "Reviewer output and build provenance identities do not match.");
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction =
+            connection.BeginTransaction(deferred: false);
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+
+        if (buildManifest is not null)
+        {
+            command.CommandText = """
+                SELECT ManifestJson
+                FROM VeteransClaims_ReviewerBuildManifests
+                WHERE BuildId = $buildId;
+                """;
+            command.Parameters.AddWithValue(
+                "$buildId",
+                buildManifest.BuildId);
+
+            var existingManifestJson =
+                await command.ExecuteScalarAsync(cancellationToken) as string;
+
+            if (existingManifestJson is not null)
+            {
+                ReviewerBuildManifestDocument existingManifest;
+                try
+                {
+                    existingManifest =
+                        ReviewerBuildManifestDocument.Parse(
+                            existingManifestJson)
+                        ?? throw new InvalidDataException(
+                            "Archived reviewer build manifest is invalid.");
+                }
+                catch (JsonException ex)
+                {
+                    throw new InvalidDataException(
+                        "Archived reviewer build manifest is invalid.",
+                        ex);
+                }
+
+                existingManifest.ValidateIntegrity();
+
+                if (!string.Equals(
+                        existingManifest.BuildId,
+                        buildManifest.BuildId,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(
+                        existingManifest.SourceRevisionId,
+                        buildManifest.SourceRevisionId,
+                        StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException(
+                        "Conflicting reviewer build manifest already exists.");
+                }
+            }
+            else
+            {
+                command.Parameters.Clear();
+                command.CommandText = """
+                    INSERT INTO VeteransClaims_ReviewerBuildManifests (
+                        BuildId,
+                        ManifestJson,
+                        ArchivedUtc)
+                    VALUES (
+                        $buildId,
+                        $manifestJson,
+                        $archivedUtc);
+                    """;
+
+                command.Parameters.AddWithValue(
+                    "$buildId",
+                    buildManifest.BuildId);
+                command.Parameters.AddWithValue(
+                    "$manifestJson",
+                    buildManifestJson);
+                command.Parameters.AddWithValue(
+                    "$archivedUtc",
+                    DateTimeOffset.UtcNow.ToString(
+                        "O",
+                        CultureInfo.InvariantCulture));
+
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            command.Parameters.Clear();
+        }
+
+        command.CommandText = """
+            SELECT s.Sha256
+            FROM VeteransClaims_EvidencePackages p
+            JOIN VeteransClaims_ReviewerPackageSnapshots s
+                ON s.EvidencePackageId = p.Id
+            WHERE p.Id = $id
+              AND p.ReviewerSnapshotVersion = 1
+              AND p.ReviewerSnapshotSealed = 1
+              AND s.Version = 1;
+            """;
+        command.Parameters.AddWithValue(
+            "$id",
+            outputProvenance.PackageId.Value);
+
+        var snapshotHash =
+            await command.ExecuteScalarAsync(cancellationToken) as string;
+
+        if (snapshotHash is null ||
+            !string.Equals(
+                snapshotHash,
+                outputProvenance.SnapshotSha256,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "Reviewer output provenance requires the matching sealed reviewer snapshot.");
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = """
+            SELECT ProvenanceId, EvidencePackageId, Version, Format, SnapshotSha256,
+                   RendererContract, RendererBuild, ConverterIdentity, ConverterVersion,
+                   SourceReviewDate, OutputSha256, ByteLength, GeneratedUtc
+            FROM VeteransClaims_ReviewerPackageOutputProvenance
+            WHERE ProvenanceId = $provenanceId;
+            """;
+        command.Parameters.AddWithValue(
+            "$provenanceId",
+            outputProvenance.ProvenanceId);
+
+        ReviewerPackageOutputProvenance? existingOutput = null;
+        await using (var reader =
+            await command.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                existingOutput = ReadReviewerOutputProvenance(reader);
+                existingOutput.ValidateIntegrity();
+            }
+        }
+
+        if (existingOutput is not null)
+        {
+            if (existingOutput !=
+                (outputProvenance with
+                {
+                    GeneratedUtc = existingOutput.GeneratedUtc
+                }))
+            {
+                throw new InvalidDataException(
+                    "Conflicting reviewer output provenance already exists.");
+            }
+        }
+        else
+        {
+            command.Parameters.Clear();
+            command.CommandText = """
+                INSERT INTO VeteransClaims_ReviewerPackageOutputProvenance (
+                    ProvenanceId, EvidencePackageId, Version, Format, SnapshotSha256,
+                    RendererContract, RendererBuild, ConverterIdentity, ConverterVersion,
+                    SourceReviewDate, OutputSha256, ByteLength, GeneratedUtc)
+                VALUES (
+                    $provenanceId, $id, $version, $format, $snapshotHash,
+                    $rendererContract, $rendererBuild, $converterIdentity, $converterVersion,
+                    $sourceReviewDate, $outputHash, $byteLength, $generatedUtc);
+                """;
+
+            command.Parameters.AddWithValue(
+                "$provenanceId",
+                outputProvenance.ProvenanceId);
+            command.Parameters.AddWithValue(
+                "$id",
+                outputProvenance.PackageId.Value);
+            command.Parameters.AddWithValue(
+                "$version",
+                outputProvenance.Version);
+            command.Parameters.AddWithValue(
+                "$format",
+                outputProvenance.Format);
+            command.Parameters.AddWithValue(
+                "$snapshotHash",
+                outputProvenance.SnapshotSha256);
+            command.Parameters.AddWithValue(
+                "$rendererContract",
+                outputProvenance.RendererContract);
+            command.Parameters.AddWithValue(
+                "$rendererBuild",
+                outputProvenance.RendererBuild);
+            command.Parameters.AddWithValue(
+                "$converterIdentity",
+                outputProvenance.ConverterIdentity is null
+                    ? DBNull.Value
+                    : outputProvenance.ConverterIdentity);
+            command.Parameters.AddWithValue(
+                "$converterVersion",
+                outputProvenance.ConverterVersion is null
+                    ? DBNull.Value
+                    : outputProvenance.ConverterVersion);
+            command.Parameters.AddWithValue(
+                "$sourceReviewDate",
+                outputProvenance.SourceReviewDate.ToString(
+                    "yyyy-MM-dd",
+                    CultureInfo.InvariantCulture));
+            command.Parameters.AddWithValue(
+                "$outputHash",
+                outputProvenance.OutputSha256);
+            command.Parameters.AddWithValue(
+                "$byteLength",
+                outputProvenance.ByteLength);
+            command.Parameters.AddWithValue(
+                "$generatedUtc",
+                outputProvenance.GeneratedUtc.ToString(
+                    "O",
+                    CultureInfo.InvariantCulture));
+
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        command.Parameters.Clear();
+        command.CommandText = """
+            SELECT LinkId, ProvenanceId, Version, BuildId,
+                   SourceRevisionId, LinkedUtc
+            FROM VeteransClaims_ReviewerPackageOutputBuildProvenance
+            WHERE LinkId = $linkId;
+            """;
+        command.Parameters.AddWithValue(
+            "$linkId",
+            buildProvenance.LinkId);
+
+        ReviewerPackageOutputBuildProvenance? existingBuild = null;
+        await using (var reader =
+            await command.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                existingBuild =
+                    ReadReviewerOutputBuildProvenance(reader);
+                existingBuild.ValidateIntegrity();
+            }
+        }
+
+        if (existingBuild is not null)
+        {
+            if (existingBuild !=
+                (buildProvenance with
+                {
+                    LinkedUtc = existingBuild.LinkedUtc
+                }))
+            {
+                throw new InvalidDataException(
+                    "Conflicting reviewer output build provenance already exists.");
+            }
+        }
+        else
+        {
+            command.Parameters.Clear();
+            command.CommandText = """
+                INSERT INTO VeteransClaims_ReviewerPackageOutputBuildProvenance (
+                    LinkId, ProvenanceId, Version, BuildId,
+                    SourceRevisionId, LinkedUtc)
+                VALUES (
+                    $linkId, $provenanceId, $version, $buildId,
+                    $sourceRevisionId, $linkedUtc);
+                """;
+
+            command.Parameters.AddWithValue(
+                "$linkId",
+                buildProvenance.LinkId);
+            command.Parameters.AddWithValue(
+                "$provenanceId",
+                buildProvenance.ProvenanceId);
+            command.Parameters.AddWithValue(
+                "$version",
+                buildProvenance.Version);
+            command.Parameters.AddWithValue(
+                "$buildId",
+                buildProvenance.BuildId);
+            command.Parameters.AddWithValue(
+                "$sourceRevisionId",
+                buildProvenance.SourceRevisionId);
+            command.Parameters.AddWithValue(
+                "$linkedUtc",
+                buildProvenance.LinkedUtc.ToString(
+                    "O",
+                    CultureInfo.InvariantCulture));
+
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static ReviewerPackageOutputBuildProvenance
+        ReadReviewerOutputBuildProvenance(SqliteDataReader reader) =>
+        new(
+            reader.GetString(0),
+            reader.GetString(1),
+            reader.GetInt32(2),
+            reader.GetString(3),
+            reader.GetString(4),
+            DateTimeOffset.Parse(
+                reader.GetString(5),
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind));
 
     private static ReviewerPackageOutputProvenance ReadReviewerOutputProvenance(
         SqliteDataReader reader) =>

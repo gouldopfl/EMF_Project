@@ -29,7 +29,7 @@ public sealed class VeteransReviewerPackageReuseServiceTests
         Assert.Equal(original, selection.OutputSnapshot);
         Assert.Single(await db.Repository.GetEvidencePackagesAsync(new("issue")));
         provider.Throw = true;
-        var output = await new VeteransReviewerPackageDocumentOutputService(new Converter(), provider, db.Repository)
+        var output = await ReviewerDeploymentTestSupport.CreateService(new Converter(), provider, db.Repository)
             .RenderAsync(VeteransReviewerPackageSnapshot.Restore(selection.OutputSnapshot!).Details, format,
                 preparedSnapshot: selection.OutputSnapshot);
         Assert.Equal(format != VeteransReviewerPackageOutputFormat.Pdf, output.Docx is not null);
@@ -54,7 +54,7 @@ public sealed class VeteransReviewerPackageReuseServiceTests
         Assert.Equal(original, await db.Repository.GetReviewerSnapshotAsync(original.PackageId));
         provider.Throw = true;
         // Later DTO/provider changes cannot replace the captured current view.
-        await new VeteransReviewerPackageDocumentOutputService(regulatoryTextProvider: provider, snapshotRepository: db.Repository)
+        await ReviewerDeploymentTestSupport.CreateService(regulatoryTextProvider: provider, snapshotRepository: db.Repository)
             .RenderAsync(Current(original, requested, "Too late"), VeteransReviewerPackageOutputFormat.Docx,
                 preparedSnapshot: selection.OutputSnapshot);
         var sealedRow = await db.Repository.GetReviewerSnapshotAsync(selection.PackageId);
@@ -76,7 +76,7 @@ public sealed class VeteransReviewerPackageReuseServiceTests
             VeteransReviewerPackageSnapshotTests.Regulations());
         await db.Repository.SaveReviewerSnapshotAsync(competing, requested);
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new VeteransReviewerPackageDocumentOutputService(regulatoryTextProvider: new Regulations { Throw = true }, snapshotRepository: db.Repository)
+            ReviewerDeploymentTestSupport.CreateService(regulatoryTextProvider: new Regulations { Throw = true }, snapshotRepository: db.Repository)
                 .RenderAsync(Current(original, requested), VeteransReviewerPackageOutputFormat.Docx,
                     preparedSnapshot: selection.OutputSnapshot));
         Assert.Equal(competing, await db.Repository.GetReviewerSnapshotAsync(requested.Package.Id));

@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.Text.Json;
+using EMF.Common;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 
@@ -9,6 +11,7 @@ public sealed class VeteransReviewerPackageDocumentOutputService
     private readonly IEvidencePackageRepository? _snapshotRepository;
     private readonly IVeteransReviewerPackageDocumentConverter? _converter;
     private readonly IVeteransReviewerRegulatoryTextProvider? _regulatoryTextProvider;
+    private readonly Func<EmfVerifiedFirstPartyDeploymentIdentity>? _verifyDeployment;
 
     public VeteransReviewerPackageDocumentOutputService(
         IVeteransReviewerPackageDocumentConverter? converter = null,
@@ -18,6 +21,74 @@ public sealed class VeteransReviewerPackageDocumentOutputService
         _snapshotRepository = snapshotRepository;
         _converter = converter;
         _regulatoryTextProvider = regulatoryTextProvider;
+    }
+
+    public VeteransReviewerPackageDocumentOutputService(
+        IVeteransReviewerPackageDocumentConverter? converter,
+        IVeteransReviewerRegulatoryTextProvider? regulatoryTextProvider,
+        IEvidencePackageRepository? snapshotRepository,
+        EmfBuildManifest? buildManifest)
+        : this(converter, regulatoryTextProvider, snapshotRepository)
+    {
+        if (buildManifest is not null)
+            EmfBuildManifestIdentity.Validate(buildManifest);
+    }
+
+    [Obsolete("Use CreateForVerifiedDeployment for new M92 generation. Runtime tokens do not authorize deployment attribution.")]
+    public VeteransReviewerPackageDocumentOutputService(
+        IVeteransReviewerPackageDocumentConverter? converter,
+        IVeteransReviewerRegulatoryTextProvider? regulatoryTextProvider,
+        IEvidencePackageRepository? snapshotRepository,
+        EmfBuildManifest? buildManifest,
+        EmfVerifiedRuntimeIdentity? verifiedRuntimeIdentity)
+        : this(converter, regulatoryTextProvider, snapshotRepository, buildManifest)
+    {
+        if (verifiedRuntimeIdentity is not null)
+        {
+            EmfBuildManifestIdentity.Validate(
+                verifiedRuntimeIdentity.Manifest);
+
+            if (buildManifest is null ||
+                !string.Equals(
+                    buildManifest.BuildId,
+                    verifiedRuntimeIdentity.BuildId,
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    buildManifest.SourceRevisionId,
+                    verifiedRuntimeIdentity.SourceRevisionId,
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "Verified runtime identity does not match the supplied build manifest.");
+            }
+
+            VeteransReviewerPackageRendererIdentity
+                .ValidateVerifiedRuntime(verifiedRuntimeIdentity);
+        }
+    }
+
+    private VeteransReviewerPackageDocumentOutputService(
+        IVeteransReviewerPackageDocumentConverter? converter,
+        IVeteransReviewerRegulatoryTextProvider? regulatoryTextProvider,
+        IEvidencePackageRepository? snapshotRepository,
+        Func<EmfVerifiedFirstPartyDeploymentIdentity> verifyDeployment)
+        : this(converter, regulatoryTextProvider, snapshotRepository)
+    {
+        _verifyDeployment = verifyDeployment;
+    }
+
+    /// <summary>
+    /// The trusted host supplies verification against a pre-existing deployment
+    /// expectation. Invoked once per generation, after M91 verified-reuse exits.
+    /// </summary>
+    public static VeteransReviewerPackageDocumentOutputService CreateForVerifiedDeployment(
+        Func<EmfVerifiedFirstPartyDeploymentIdentity> verifyDeployment,
+        IVeteransReviewerPackageDocumentConverter? converter = null,
+        IVeteransReviewerRegulatoryTextProvider? regulatoryTextProvider = null,
+        IEvidencePackageRepository? snapshotRepository = null)
+    {
+        ArgumentNullException.ThrowIfNull(verifyDeployment);
+        return new(converter, regulatoryTextProvider, snapshotRepository, verifyDeployment);
     }
 
     public async Task<VeteransReviewerPackageDocumentOutput> RenderAsync(
@@ -83,6 +154,10 @@ public sealed class VeteransReviewerPackageDocumentOutputService
             _snapshotRepository?.SupportsReviewerOutputProvenance == true &&
             selected is not null;
 
+        var buildProvenanceEnabled =
+            provenanceEnabled &&
+            _snapshotRepository?.SupportsReviewerOutputBuildProvenance == true;
+
         VeteransReviewerPackageDocumentConverterInfo? converterInfo = null;
         if (requiresPdf && provenanceEnabled && existingOutput?.Pdf is not null)
             converterInfo = await RequireConverterInfoAsync();
@@ -138,6 +213,20 @@ public sealed class VeteransReviewerPackageDocumentOutputService
                 ReusedPdf: true);
         }
 
+        EmfVerifiedFirstPartyDeploymentIdentity? deploymentIdentity = null;
+        if (buildProvenanceEnabled)
+        {
+            if (_verifyDeployment is null)
+                throw new InvalidOperationException(
+                    "Reviewer output generation requires a build manifest and verified " +
+                    "first-party deployment identity when build provenance is supported.");
+
+            deploymentIdentity = _verifyDeployment()
+                ?? throw new InvalidDataException("Deployment verification returned no identity.");
+            VeteransReviewerPackageRendererIdentity.ValidateVerifiedDeployment(deploymentIdentity);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
         var docx = reusableDocx ??
             VeteransReviewerPackageDocxRenderer.Render(
                 details,
@@ -315,9 +404,27 @@ public sealed class VeteransReviewerPackageDocumentOutputService
                     output,
                     DateTimeOffset.UtcNow);
 
-            await _snapshotRepository!.SaveReviewerOutputProvenanceAsync(
-                provenance,
-                cancellationToken);
+            if (!buildProvenanceEnabled)
+            {
+                await _snapshotRepository!.SaveReviewerOutputProvenanceAsync(
+                    provenance,
+                    cancellationToken);
+                return;
+            }
+
+            var buildProvenance =
+                ReviewerPackageOutputBuildProvenance.Create(
+                    provenance.ProvenanceId,
+                    deploymentIdentity!.BuildId,
+                    deploymentIdentity.SourceRevisionId,
+                    DateTimeOffset.UtcNow);
+
+            await _snapshotRepository!
+                .SaveReviewerOutputWithBuildProvenanceAndManifestAsync(
+                    provenance,
+                    buildProvenance,
+                    JsonSerializer.Serialize(deploymentIdentity.Manifest),
+                    cancellationToken);
         }
     }
 

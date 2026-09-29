@@ -19,6 +19,7 @@ using EMF.Security.Models.Identities;
 
 namespace EMF.Tests;
 
+[Collection(ReviewerDeploymentEnvironmentCollection.Name)]
 public sealed partial class VeteransConsoleCommandTests
 {
     [Fact]
@@ -1593,6 +1594,7 @@ public sealed partial class VeteransConsoleCommandTests
     [Fact]
     public async Task EvidenceReviewer_CrossFunctionalPreservesCriticalEvidenceAndInventoriesNoMatchSource()
     {
+        using var deployment = new ExpectedReviewerDeployment();
         var databasePath = Path.GetTempFileName();
         var outputPath =
             Path.Combine(
@@ -4877,6 +4879,7 @@ public sealed partial class VeteransConsoleCommandTests
                 return;
             }
 
+            using var deployment = new ExpectedReviewerDeployment();
             var exitCode = await VeteransConsoleCommand.RunAsync(
                 reviewerArgs,
                 () => Task.FromResult(

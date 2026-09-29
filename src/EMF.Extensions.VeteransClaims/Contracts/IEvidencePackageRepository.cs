@@ -29,6 +29,38 @@ public interface IEvidencePackageRepository
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Reviewer output provenance is not supported.");
 
+
+    bool SupportsReviewerOutputBuildProvenance => false;
+
+    Task<IReadOnlyList<ReviewerPackageOutputBuildProvenance>>
+        GetReviewerOutputBuildProvenanceAsync(
+            string provenanceId,
+            CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "Reviewer output build provenance is not supported.");
+
+    Task SaveReviewerOutputBuildProvenanceAsync(
+        ReviewerPackageOutputBuildProvenance provenance,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "Reviewer output build provenance is not supported.");
+
+
+    Task SaveReviewerOutputWithBuildProvenanceAsync(
+        ReviewerPackageOutputProvenance outputProvenance,
+        ReviewerPackageOutputBuildProvenance buildProvenance,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "Atomic reviewer output/build provenance is not supported.");
+
+    Task SaveReviewerOutputWithBuildProvenanceAndManifestAsync(
+        ReviewerPackageOutputProvenance outputProvenance,
+        ReviewerPackageOutputBuildProvenance buildProvenance,
+        string buildManifestJson,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "Atomic reviewer output/build provenance with manifest archival is not supported.");
+
     Task AddEvidencePackageAsync(
         EvidencePackage evidencePackage,
         CancellationToken cancellationToken = default);

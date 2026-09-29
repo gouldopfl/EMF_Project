@@ -6797,7 +6797,8 @@ public static class VeteransConsoleCommand
                         await ReadExistingOutputAsync(outputRequest.PdfPath, cancellationToken));
 
                 content =
-                    await new VeteransReviewerPackageDocumentOutputService(
+                    await VeteransReviewerPackageDocumentOutputService.CreateForVerifiedDeployment(
+                            ReviewerDeploymentVerification.CreateFromEnvironment(),
                             converter,
                             suppliedRegulatoryTextProvider ??
                                 new EcfrVeteransReviewerRegulatoryTextProvider(),
@@ -6813,6 +6814,10 @@ public static class VeteransConsoleCommand
             catch (Exception ex) when (ex is
                 InvalidOperationException or
                 InvalidDataException or
+                IOException or
+                UnauthorizedAccessException or
+                ArgumentException or
+                BadImageFormatException or
                 HttpRequestException or
                 TimeoutException)
             {

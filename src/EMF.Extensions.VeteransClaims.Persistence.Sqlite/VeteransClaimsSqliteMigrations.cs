@@ -3079,6 +3079,89 @@ internal static class VeteransClaimsSqliteMigrations
                         AND s.Sha256 = NEW.SnapshotSha256
                 )
                 BEGIN SELECT RAISE(ABORT, 'Reviewer output provenance requires the matching sealed snapshot'); END;
+                """),
+            new VeteransClaimsSqliteMigration(
+                92,
+                "AddReviewerPackageOutputBuildProvenance",
+                """
+                CREATE TABLE VeteransClaims_ReviewerPackageOutputBuildProvenance (
+                    LinkId TEXT PRIMARY KEY NOT NULL CHECK (length(LinkId) = 64),
+                    ProvenanceId TEXT NOT NULL,
+                    Version INTEGER NOT NULL CHECK (Version = 1),
+                    BuildId TEXT NOT NULL CHECK (
+                        length(BuildId) = 71 AND substr(BuildId, 1, 7) = 'sha256:'),
+                    SourceRevisionId TEXT NOT NULL CHECK (
+                        length(SourceRevisionId) IN (40, 64)),
+                    LinkedUtc TEXT NOT NULL CHECK (length(LinkedUtc) > 0),
+                    FOREIGN KEY (ProvenanceId)
+                        REFERENCES VeteransClaims_ReviewerPackageOutputProvenance(ProvenanceId),
+                    UNIQUE (ProvenanceId, BuildId, SourceRevisionId)
+                ) WITHOUT ROWID;
+
+                CREATE INDEX IX_ReviewerPackageOutputBuildProvenance_Provenance
+                ON VeteransClaims_ReviewerPackageOutputBuildProvenance (
+                    ProvenanceId,
+                    LinkedUtc
+                );
+
+                CREATE TRIGGER ReviewerOutputBuildProvenance_NoReplace
+                BEFORE INSERT ON VeteransClaims_ReviewerPackageOutputBuildProvenance
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM VeteransClaims_ReviewerPackageOutputBuildProvenance
+                    WHERE LinkId = NEW.LinkId
+                       OR (
+                            ProvenanceId = NEW.ProvenanceId
+                            AND BuildId = NEW.BuildId
+                            AND SourceRevisionId = NEW.SourceRevisionId
+                       )
+                )
+                BEGIN SELECT RAISE(ABORT, 'Reviewer output build provenance already exists'); END;
+
+                CREATE TRIGGER ReviewerOutputBuildProvenance_ParentRequired
+                BEFORE INSERT ON VeteransClaims_ReviewerPackageOutputBuildProvenance
+                WHEN NOT EXISTS (
+                    SELECT 1
+                    FROM VeteransClaims_ReviewerPackageOutputProvenance
+                    WHERE ProvenanceId = NEW.ProvenanceId
+                )
+                BEGIN SELECT RAISE(ABORT, 'Reviewer output build provenance requires existing output provenance'); END;
+
+                CREATE TRIGGER ReviewerOutputBuildProvenance_NoUpdate
+                BEFORE UPDATE ON VeteransClaims_ReviewerPackageOutputBuildProvenance
+                BEGIN SELECT RAISE(ABORT, 'Reviewer output build provenance is immutable'); END;
+
+                CREATE TRIGGER ReviewerOutputBuildProvenance_NoDelete
+                BEFORE DELETE ON VeteransClaims_ReviewerPackageOutputBuildProvenance
+                BEGIN SELECT RAISE(ABORT, 'Reviewer output build provenance is immutable'); END;
+                """),
+            new VeteransClaimsSqliteMigration(
+                93,
+                "ArchiveReviewerBuildManifests",
+                """
+                CREATE TABLE VeteransClaims_ReviewerBuildManifests (
+                    BuildId TEXT PRIMARY KEY NOT NULL CHECK (
+                        length(BuildId) = 71 AND substr(BuildId, 1, 7) = 'sha256:'),
+                    ManifestJson TEXT NOT NULL CHECK (length(ManifestJson) > 0),
+                    ArchivedUtc TEXT NOT NULL CHECK (length(ArchivedUtc) > 0)
+                ) WITHOUT ROWID;
+
+                CREATE TRIGGER ReviewerBuildManifest_NoReplace
+                BEFORE INSERT ON VeteransClaims_ReviewerBuildManifests
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM VeteransClaims_ReviewerBuildManifests
+                    WHERE BuildId = NEW.BuildId
+                )
+                BEGIN SELECT RAISE(ABORT, 'Reviewer build manifest already exists'); END;
+
+                CREATE TRIGGER ReviewerBuildManifest_NoUpdate
+                BEFORE UPDATE ON VeteransClaims_ReviewerBuildManifests
+                BEGIN SELECT RAISE(ABORT, 'Reviewer build manifest is immutable'); END;
+
+                CREATE TRIGGER ReviewerBuildManifest_NoDelete
+                BEFORE DELETE ON VeteransClaims_ReviewerBuildManifests
+                BEGIN SELECT RAISE(ABORT, 'Reviewer build manifest is immutable'); END;
                 """)
         };
 }

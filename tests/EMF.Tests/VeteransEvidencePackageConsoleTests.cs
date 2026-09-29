@@ -12,6 +12,7 @@ using EMF.Extensions.VeteransClaims.Orchestration;
 
 namespace EMF.Tests;
 
+[Collection(ReviewerDeploymentEnvironmentCollection.Name)]
 public sealed partial class VeteransEvidencePackageConsoleTests
 {
     [Fact]
@@ -306,6 +307,7 @@ public sealed partial class VeteransEvidencePackageConsoleTests
     [Fact]
     public async Task EvidencePackage_WritesDocxFromCommand()
     {
+        using var deployment = new ExpectedReviewerDeployment();
         var databasePath =
             Path.Combine(
                 Path.GetTempPath(),
@@ -594,6 +596,7 @@ public sealed partial class VeteransEvidencePackageConsoleTests
     [Fact]
     public async Task EvidencePackage_WritesDocxAndPdfFromSingleCanonicalRender()
     {
+        using var deployment = new ExpectedReviewerDeployment();
         var databasePath =
             Path.Combine(
                 Path.GetTempPath(),
@@ -664,6 +667,9 @@ public sealed partial class VeteransEvidencePackageConsoleTests
                 row.ConverterIdentity == "Synthetic PDF Converter" &&
                 row.ConverterVersion == "1.0");
 
+            // Pure verified reuse must not need new deployment configuration.
+            Environment.SetEnvironmentVariable(ReviewerDeploymentVerification.ManifestEnvironmentVariable, null);
+            File.Delete(deployment.PathValue);
             var reusedExitCode =
                 await VeteransConsoleCommand.RunEvidencePackageDocumentAsync(
                     databasePath,

@@ -143,6 +143,156 @@ public sealed class VeteransReviewerOutputProvenanceTests
         Assert.Single(await db.Repository.GetReviewerOutputProvenanceAsync(snapshot.PackageId));
     }
 
+
+    [Fact]
+    public async Task DatabaseRejectsBuildLinkWithoutOutputProvenance()
+    {
+        await using var db = await Database.Create();
+
+        var sql =
+            "INSERT INTO VeteransClaims_ReviewerPackageOutputBuildProvenance " +
+            "(LinkId,ProvenanceId,Version,BuildId,SourceRevisionId,LinkedUtc) VALUES (" +
+            "'" + new string('A', 64) + "','" + new string('B', 64) + "',1," +
+            "'sha256:" + new string('C', 64) + "','" + new string('d', 40) + "'," +
+            "'2026-09-29T12:00:00Z');";
+
+        await Assert.ThrowsAsync<SqliteException>(() => db.Sql(sql));
+    }
+
+    [Fact]
+    public async Task DatabaseKeepsOutputBuildProvenanceImmutable()
+    {
+        await using var db = await Database.Create();
+        var details = Details();
+        var snapshot = await Seal(db, details);
+        var row = Docx(snapshot.PackageId, snapshot.Sha256, [1, 2, 3], Generated);
+        await db.Repository.SaveReviewerOutputProvenanceAsync(row);
+
+        var insert =
+            "INSERT INTO VeteransClaims_ReviewerPackageOutputBuildProvenance " +
+            "(LinkId,ProvenanceId,Version,BuildId,SourceRevisionId,LinkedUtc) VALUES (" +
+            "'" + new string('D', 64) + "','" + row.ProvenanceId + "',1," +
+            "'sha256:" + new string('C', 64) + "','" + new string('b', 40) + "'," +
+            "'2026-09-29T12:00:00Z');";
+
+        await db.Sql(insert);
+
+        await Assert.ThrowsAsync<SqliteException>(() => db.Sql(
+            "UPDATE VeteransClaims_ReviewerPackageOutputBuildProvenance " +
+            "SET LinkedUtc='2027-01-01T00:00:00Z';"));
+
+        await Assert.ThrowsAsync<SqliteException>(() => db.Sql(
+            "DELETE FROM VeteransClaims_ReviewerPackageOutputBuildProvenance;"));
+
+        await Assert.ThrowsAsync<SqliteException>(() => db.Sql(
+            insert.Replace("INSERT INTO", "INSERT OR REPLACE INTO")));
+    }
+
+
+    [Fact]
+    public async Task BuildProvenance_RoundTripsAndExactRetryIsIdempotent()
+    {
+        await using var db = await Database.Create();
+        var details = Details();
+        var snapshot = await Seal(db, details);
+        var output = Docx(snapshot.PackageId, snapshot.Sha256, [1, 2, 3], Generated);
+        await db.Repository.SaveReviewerOutputProvenanceAsync(output);
+
+        var link = ReviewerPackageOutputBuildProvenance.Create(
+            output.ProvenanceId,
+            "sha256:" + new string('C', 64),
+            new string('b', 40),
+            Generated);
+
+        await db.Repository.SaveReviewerOutputBuildProvenanceAsync(link);
+        await db.Repository.SaveReviewerOutputBuildProvenanceAsync(
+            link with { LinkedUtc = Generated.AddHours(1) });
+
+        var rows =
+            await db.Repository.GetReviewerOutputBuildProvenanceAsync(
+                output.ProvenanceId);
+
+        var stored = Assert.Single(rows);
+        Assert.Equal(link.LinkId, stored.LinkId);
+        Assert.Equal(link.BuildId, stored.BuildId);
+        Assert.Equal(link.SourceRevisionId, stored.SourceRevisionId);
+    }
+
+
+    [Fact]
+    public async Task AtomicOutputBuildSave_RoundTripsBothRows()
+    {
+        await using var db = await Database.Create();
+        var details = Details();
+        var snapshot = await Seal(db, details);
+
+        var output = Docx(
+            snapshot.PackageId,
+            snapshot.Sha256,
+            [1, 2, 3],
+            Generated);
+
+        var build = ReviewerPackageOutputBuildProvenance.Create(
+            output.ProvenanceId,
+            "sha256:" + new string('C', 64),
+            new string('b', 40),
+            Generated);
+
+        await db.Repository.SaveReviewerOutputWithBuildProvenanceAsync(
+            output,
+            build);
+
+        Assert.Equal(
+            output,
+            Assert.Single(
+                await db.Repository.GetReviewerOutputProvenanceAsync(
+                    snapshot.PackageId)));
+
+        Assert.Equal(
+            build,
+            Assert.Single(
+                await db.Repository.GetReviewerOutputBuildProvenanceAsync(
+                    output.ProvenanceId)));
+    }
+
+    [Fact]
+    public async Task AtomicOutputBuildSave_RollsBackOutputWhenLinkInsertFails()
+    {
+        await using var db = await Database.Create();
+        var details = Details();
+        var snapshot = await Seal(db, details);
+
+        var output = Docx(
+            snapshot.PackageId,
+            snapshot.Sha256,
+            [1, 2, 3],
+            Generated);
+
+        var build = ReviewerPackageOutputBuildProvenance.Create(
+            output.ProvenanceId,
+            "sha256:" + new string('C', 64),
+            new string('b', 40),
+            Generated);
+
+        await db.Sql(
+            "CREATE TRIGGER TestRejectReviewerOutputBuild " +
+            "BEFORE INSERT ON VeteransClaims_ReviewerPackageOutputBuildProvenance " +
+            "BEGIN SELECT RAISE(ABORT, 'test rejection'); END;");
+
+        await Assert.ThrowsAsync<SqliteException>(() =>
+            db.Repository.SaveReviewerOutputWithBuildProvenanceAsync(
+                output,
+                build));
+
+        Assert.Empty(
+            await db.Repository.GetReviewerOutputProvenanceAsync(
+                snapshot.PackageId));
+
+        Assert.Empty(
+            await db.Repository.GetReviewerOutputBuildProvenanceAsync(
+                output.ProvenanceId));
+    }
+
     [Fact]
     public async Task CorruptedPersistedProvenance_FailsClosed()
     {
