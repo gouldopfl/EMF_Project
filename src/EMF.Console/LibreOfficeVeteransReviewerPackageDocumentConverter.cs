@@ -4,7 +4,8 @@ using EMF.Extensions.VeteransClaims.Orchestration;
 namespace EMF.ConsoleApplication;
 
 internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
-    IVeteransReviewerPackageDocumentConverter
+    IVeteransReviewerPackageDocumentConverter,
+    IVeteransReviewerPackageDocumentConverterInfoProvider
 {
     internal const long DefaultMaxInputBytes = 100L * 1024 * 1024;
     internal const long DefaultMaxOutputBytes = 100L * 1024 * 1024;
@@ -39,6 +40,94 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
 
         _maxInputBytes = maxInputBytes;
         _maxOutputBytes = maxOutputBytes;
+    }
+
+    public async Task<VeteransReviewerPackageDocumentConverterInfo> GetDocumentConverterInfoAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var startInfo =
+            new ProcessStartInfo
+            {
+                FileName = _executablePath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+        startInfo.ArgumentList.Add("--version");
+
+        using var process = new Process
+        {
+            StartInfo = startInfo
+        };
+
+        try
+        {
+            if (!process.Start())
+            {
+                throw new InvalidOperationException(
+                    "LibreOffice version process could not be started.");
+            }
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            throw new InvalidOperationException(
+                "LibreOffice identity could not be determined.",
+                ex);
+        }
+
+        var stdoutTask = ReadBoundedAsync(process.StandardOutput, cancellationToken);
+        var stderrTask = ReadBoundedAsync(process.StandardError, cancellationToken);
+
+        using var timeoutSource =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(_timeout);
+
+        try
+        {
+            await process.WaitForExitAsync(timeoutSource.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            TryKill(process);
+            throw new TimeoutException(
+                "LibreOffice version query exceeded the allowed time.");
+        }
+        catch (OperationCanceledException)
+        {
+            TryKill(process);
+            throw;
+        }
+
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
+
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                "LibreOffice version query failed with exit code " +
+                $"{process.ExitCode}.");
+        }
+
+        var version =
+            new[] { stdout, stderr }
+                .SelectMany(value => value.Split(
+                    ['\r', '\n'],
+                    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .FirstOrDefault(value => value.Length > 0);
+
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            throw new InvalidDataException(
+                "LibreOffice version query returned no identity text.");
+        }
+
+        return new VeteransReviewerPackageDocumentConverterInfo(
+            "LibreOffice",
+            version);
     }
 
     public async Task<byte[]> ConvertDocxToPdfAsync(

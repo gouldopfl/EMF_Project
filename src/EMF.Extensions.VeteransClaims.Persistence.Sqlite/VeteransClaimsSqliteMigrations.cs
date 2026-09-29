@@ -3015,6 +3015,70 @@ internal static class VeteransClaimsSqliteMigrations
                 CREATE TRIGGER ReviewerSnapshot_MemberDelete BEFORE DELETE ON VeteransClaims_EvidencePackageArtifacts
                 WHEN EXISTS (SELECT 1 FROM VeteransClaims_EvidencePackages WHERE Id = OLD.EvidencePackageId AND ReviewerSnapshotSealed = 1)
                 BEGIN SELECT RAISE(ABORT, 'Reviewer snapshot members are immutable'); END;
+                """),
+            new VeteransClaimsSqliteMigration(
+                91,
+                "AddReviewerPackageOutputProvenance",
+                """
+                CREATE TABLE VeteransClaims_ReviewerPackageOutputProvenance (
+                    ProvenanceId TEXT PRIMARY KEY NOT NULL CHECK (length(ProvenanceId) = 64),
+                    EvidencePackageId TEXT NOT NULL,
+                    Version INTEGER NOT NULL CHECK (Version = 1),
+                    Format TEXT NOT NULL CHECK (Format IN ('docx', 'pdf')),
+                    SnapshotSha256 TEXT NOT NULL CHECK (length(SnapshotSha256) = 64),
+                    RendererContract TEXT NOT NULL CHECK (length(RendererContract) > 0),
+                    RendererBuild TEXT NOT NULL CHECK (length(RendererBuild) > 0),
+                    ConverterIdentity TEXT NULL,
+                    ConverterVersion TEXT NULL,
+                    SourceReviewDate TEXT NOT NULL CHECK (length(SourceReviewDate) = 10),
+                    OutputSha256 TEXT NOT NULL CHECK (length(OutputSha256) = 64),
+                    ByteLength INTEGER NOT NULL CHECK (ByteLength > 0),
+                    GeneratedUtc TEXT NOT NULL CHECK (length(GeneratedUtc) > 0),
+                    FOREIGN KEY (EvidencePackageId) REFERENCES VeteransClaims_EvidencePackages(Id),
+                    CHECK (
+                        (Format = 'docx' AND ConverterIdentity IS NULL AND ConverterVersion IS NULL) OR
+                        (Format = 'pdf' AND ConverterIdentity IS NOT NULL AND length(ConverterIdentity) > 0
+                            AND ConverterVersion IS NOT NULL AND length(ConverterVersion) > 0)
+                    )
+                );
+
+                CREATE INDEX IX_VeteransClaims_ReviewerPackageOutputProvenance_PackageFormat
+                ON VeteransClaims_ReviewerPackageOutputProvenance (
+                    EvidencePackageId,
+                    Format,
+                    GeneratedUtc
+                );
+
+                CREATE TRIGGER ReviewerOutputProvenance_NoReplace
+                BEFORE INSERT ON VeteransClaims_ReviewerPackageOutputProvenance
+                WHEN EXISTS (
+                    SELECT 1 FROM VeteransClaims_ReviewerPackageOutputProvenance
+                    WHERE ProvenanceId = NEW.ProvenanceId
+                )
+                BEGIN SELECT RAISE(ABORT, 'Reviewer output provenance already exists'); END;
+
+                CREATE TRIGGER ReviewerOutputProvenance_NoUpdate
+                BEFORE UPDATE ON VeteransClaims_ReviewerPackageOutputProvenance
+                BEGIN SELECT RAISE(ABORT, 'Reviewer output provenance is immutable'); END;
+
+                CREATE TRIGGER ReviewerOutputProvenance_NoDelete
+                BEFORE DELETE ON VeteransClaims_ReviewerPackageOutputProvenance
+                BEGIN SELECT RAISE(ABORT, 'Reviewer output provenance is immutable'); END;
+
+                CREATE TRIGGER ReviewerOutputProvenance_OnlySealedSnapshot
+                BEFORE INSERT ON VeteransClaims_ReviewerPackageOutputProvenance
+                WHEN NOT EXISTS (
+                    SELECT 1
+                    FROM VeteransClaims_EvidencePackages p
+                    JOIN VeteransClaims_ReviewerPackageSnapshots s
+                        ON s.EvidencePackageId = p.Id
+                    WHERE p.Id = NEW.EvidencePackageId
+                        AND p.ReviewerSnapshotVersion = 1
+                        AND p.ReviewerSnapshotSealed = 1
+                        AND s.Version = 1
+                        AND s.Sha256 = NEW.SnapshotSha256
+                )
+                BEGIN SELECT RAISE(ABORT, 'Reviewer output provenance requires the matching sealed snapshot'); END;
                 """)
         };
 }

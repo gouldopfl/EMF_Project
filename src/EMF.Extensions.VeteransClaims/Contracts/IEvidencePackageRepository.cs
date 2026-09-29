@@ -19,6 +19,16 @@ public interface IEvidencePackageRepository
         EvidencePackageDetails expectedMembership, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Reviewer snapshots are not supported.");
 
+    bool SupportsReviewerOutputProvenance => false;
+
+    Task<IReadOnlyList<ReviewerPackageOutputProvenance>> GetReviewerOutputProvenanceAsync(
+        EvidencePackageId packageId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Reviewer output provenance is not supported.");
+
+    Task SaveReviewerOutputProvenanceAsync(ReviewerPackageOutputProvenance provenance,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Reviewer output provenance is not supported.");
+
     Task AddEvidencePackageAsync(
         EvidencePackage evidencePackage,
         CancellationToken cancellationToken = default);

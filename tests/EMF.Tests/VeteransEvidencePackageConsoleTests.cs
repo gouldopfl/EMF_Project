@@ -623,16 +623,21 @@ public sealed partial class VeteransEvidencePackageConsoleTests
 
             var converter = new EvidencePackageRecordingConverter();
 
+            var reviewDate = new DateOnly(2026, 9, 29);
+            var request =
+                new VeteransReviewerPackageOutputRequest(
+                    VeteransReviewerPackageOutputFormat.Both,
+                    docxPath,
+                    pdfPath);
+
             var exitCode =
                 await VeteransConsoleCommand.RunEvidencePackageDocumentAsync(
                     databasePath,
                     package.Id,
-                    new VeteransReviewerPackageOutputRequest(
-                        VeteransReviewerPackageOutputFormat.Both,
-                        docxPath,
-                        pdfPath),
+                    request,
                     contentStoreFactory: () => null,
-                    suppliedConverter: converter);
+                    suppliedConverter: converter,
+                    sourceReviewDate: reviewDate);
 
             Assert.Equal(0, exitCode);
             Assert.True(File.Exists(docxPath));
@@ -646,6 +651,31 @@ public sealed partial class VeteransEvidencePackageConsoleTests
                     await File.ReadAllBytesAsync(pdfPath),
                     0,
                     5));
+
+            var provenance =
+                await packages.GetReviewerOutputProvenanceAsync(package.Id);
+            Assert.Equal(2, provenance.Count);
+            Assert.Contains(provenance, row =>
+                row.Format == ReviewerPackageOutputFormats.Docx &&
+                row.ConverterIdentity is null &&
+                row.ConverterVersion is null);
+            Assert.Contains(provenance, row =>
+                row.Format == ReviewerPackageOutputFormats.Pdf &&
+                row.ConverterIdentity == "Synthetic PDF Converter" &&
+                row.ConverterVersion == "1.0");
+
+            var reusedExitCode =
+                await VeteransConsoleCommand.RunEvidencePackageDocumentAsync(
+                    databasePath,
+                    package.Id,
+                    request,
+                    contentStoreFactory: () => null,
+                    suppliedConverter: converter,
+                    sourceReviewDate: reviewDate);
+
+            Assert.Equal(0, reusedExitCode);
+            Assert.Equal(1, converter.Conversions);
+            Assert.Equal(2, (await packages.GetReviewerOutputProvenanceAsync(package.Id)).Count);
         }
         finally
         {
@@ -661,20 +691,33 @@ public sealed partial class VeteransEvidencePackageConsoleTests
     }
 
     private sealed class EvidencePackageRecordingConverter :
-        IVeteransReviewerPackageDocumentConverter
+        IVeteransReviewerPackageDocumentConverter,
+        IVeteransReviewerPackageDocumentConverterInfoProvider
     {
         public byte[]? Docx { get; private set; }
+        public int Conversions { get; private set; }
 
         public Task<byte[]> ConvertDocxToPdfAsync(
             ReadOnlyMemory<byte> docx,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Conversions++;
             Docx = docx.ToArray();
 
             return Task.FromResult(
                 System.Text.Encoding.ASCII.GetBytes(
                     "%PDF-1.7\n%%EOF\n"));
+        }
+
+        public Task<VeteransReviewerPackageDocumentConverterInfo> GetDocumentConverterInfoAsync(
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(
+                new VeteransReviewerPackageDocumentConverterInfo(
+                    "Synthetic PDF Converter",
+                    "1.0"));
         }
     }
 }

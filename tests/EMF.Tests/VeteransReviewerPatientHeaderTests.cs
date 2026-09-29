@@ -127,7 +127,7 @@ public sealed class VeteransReviewerPatientHeaderTests
             var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([content]));
             using var doc = WordprocessingDocument.Open(new MemoryStream(bytes), false);
             Assert.Empty(doc.MainDocumentPart!.ImageParts);
-            var text = doc.MainDocumentPart!.Document.InnerText;
+            var text = doc.MainDocumentPart!.Document!.InnerText;
             Assert.Single(Regex.Matches(text, "Example-Surname,"));
             // Structured fields can render as separate table cells; InnerText
             // does not insert spaces between those cells.
@@ -174,7 +174,7 @@ public sealed class VeteransReviewerPatientHeaderTests
         };
         var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([content]));
         using var doc = WordprocessingDocument.Open(new MemoryStream(bytes), false);
-        Assert.Contains(demographic, doc.MainDocumentPart!.Document.InnerText);
+        Assert.Contains(demographic, doc.MainDocumentPart!.Document!.InnerText);
         var pdfBytes = await new EMF.ConsoleApplication.LibreOfficeVeteransReviewerPackageDocumentConverter().ConvertDocxToPdfAsync(bytes);
         using var pdf = UglyToad.PdfPig.PdfDocument.Open(pdfBytes);
         Assert.Contains(demographic, string.Join(" ", pdf.GetPages().SelectMany(p => p.GetWords()).Select(w => w.Text)));
@@ -231,7 +231,7 @@ public sealed class VeteransReviewerPatientHeaderTests
             using var pdf = UglyToad.PdfPig.PdfDocument.Open(pdfBytes);
             var words = string.Join(" ", pdf.GetPages().SelectMany(p => p.GetWords()).Select(w => w.Text));
             Assert.Contains(before + " " + after, words);
-            Assert.Equal(1, Regex.Matches(words, "Example-Surname,").Count);
+            Assert.Single(Regex.Matches(words, "Example-Surname,").Cast<Match>());
             Assert.Contains("December 3, 1971", words);
             Assert.Equal("Original stored evidence remains untouched.", content.Text);
         }

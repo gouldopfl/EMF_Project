@@ -106,9 +106,10 @@ public sealed class VeteransReviewerClinicalLayoutTests
         Assert.Equal(TableLayoutValues.Fixed, table.GetFirstChild<TableProperties>()!.TableLayout!.Type!.Value);
         Assert.All(table.Elements<TableRow>(), row => Assert.NotNull(row.GetFirstChild<TableRowProperties>()!.GetFirstChild<CantSplit>()));
         Assert.All(table.Descendants<FontSize>(), f => Assert.Equal("24", f.Val!.Value));
-        Assert.Contains("29/50", document.MainDocumentPart!.Document.InnerText);
-        Assert.Contains("58% disability", document.MainDocumentPart.Document.InnerText);
-        Assert.Contains("SOCIAL:", document.MainDocumentPart.Document.InnerText);
+        var mainDocument = document.MainDocumentPart!.Document!;
+        Assert.Contains("29/50", mainDocument.InnerText);
+        Assert.Contains("58% disability", mainDocument.InnerText);
+        Assert.Contains("SOCIAL:", mainDocument.InnerText);
         Assert.DoesNotContain("SOCIAL:", table.InnerText);
         Assert.Empty(new OpenXmlValidator().Validate(document));
     }
@@ -117,8 +118,9 @@ public sealed class VeteransReviewerClinicalLayoutTests
     public void RecordedTotalIsNotRecalculatedEvenWhenItDiffersFromTheRows()
     {
         using var document = Open(RenderBytes(Questionnaire.Replace("29/50", "31/50").Replace("58%", "62%")));
-        Assert.Contains("31/50", document.MainDocumentPart!.Document.InnerText);
-        Assert.Contains("62%", document.MainDocumentPart.Document.InnerText);
+        var mainDocument = document.MainDocumentPart!.Document!;
+        Assert.Contains("31/50", mainDocument.InnerText);
+        Assert.Contains("62%", mainDocument.InnerText);
         _ = ScoreTable(document);
     }
 

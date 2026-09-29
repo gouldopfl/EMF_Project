@@ -195,9 +195,16 @@ public sealed class VeteransReviewerPackageReuseServiceTests
         public Task<IReadOnlyList<VeteransReviewerApplicableRegulation>> GetCurrentAsync(IReadOnlyList<string> citations, CancellationToken cancellationToken = default) =>
             Throw ? throw new InvalidOperationException("Current provider unavailable") : Task.FromResult(VeteransReviewerPackageSnapshotTests.Regulations());
     }
-    private sealed class Converter : IVeteransReviewerPackageDocumentConverter
+    private sealed class Converter :
+        IVeteransReviewerPackageDocumentConverter,
+        IVeteransReviewerPackageDocumentConverterInfoProvider
     {
-        public Task<byte[]> ConvertDocxToPdfAsync(ReadOnlyMemory<byte> docx, CancellationToken cancellationToken = default) => Task.FromResult("%PDF-synthetic"u8.ToArray());
+        public Task<byte[]> ConvertDocxToPdfAsync(ReadOnlyMemory<byte> docx, CancellationToken cancellationToken = default) =>
+            Task.FromResult("%PDF-synthetic"u8.ToArray());
+
+        public Task<VeteransReviewerPackageDocumentConverterInfo> GetDocumentConverterInfoAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new VeteransReviewerPackageDocumentConverterInfo("Synthetic PDF Converter", "1.0"));
     }
     private sealed class Database(string path) : IAsyncDisposable
     {

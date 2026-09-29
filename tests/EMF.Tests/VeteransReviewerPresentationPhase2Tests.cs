@@ -166,8 +166,8 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             pages: [first.Page(pageNumber: 100), second.Page(pageNumber: 101)])]);
         var text = document.MainDocumentPart!.Document!.InnerText;
         Assert.Contains("Patient identifier: 5668", text);
-        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(
-            text, "Patient identifier: 5668").Count);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(
+            text, "Patient identifier: 5668").Cast<System.Text.RegularExpressions.Match>());
         Assert.DoesNotContain("MRN:", text);
         Assert.DoesNotContain("SSN:", text);
         Assert.DoesNotContain("123-45-5668", text);

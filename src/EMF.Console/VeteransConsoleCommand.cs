@@ -6680,7 +6680,8 @@ public static class VeteransConsoleCommand
         IVeteransReviewerPackageDocumentConverter? suppliedConverter = null,
         IVeteransReviewerRegulatoryTextProvider? suppliedRegulatoryTextProvider = null,
         CancellationToken cancellationToken = default,
-        ReviewerPackageSnapshot? preparedSnapshot = null)
+        ReviewerPackageSnapshot? preparedSnapshot = null,
+        DateOnly? sourceReviewDate = null)
     {
         ArgumentNullException.ThrowIfNull(outputRequest);
 
@@ -6790,6 +6791,11 @@ public static class VeteransConsoleCommand
 
             try
             {
+                var existingOutput =
+                    new VeteransReviewerPackageExistingOutput(
+                        await ReadExistingOutputAsync(outputRequest.DocxPath, cancellationToken),
+                        await ReadExistingOutputAsync(outputRequest.PdfPath, cancellationToken));
+
                 content =
                     await new VeteransReviewerPackageDocumentOutputService(
                             converter,
@@ -6799,7 +6805,10 @@ public static class VeteransConsoleCommand
                         .RenderAsync(
                             details,
                             outputRequest.Format,
-                            cancellationToken, preparedSnapshot);
+                            cancellationToken,
+                            preparedSnapshot,
+                            sourceReviewDate,
+                            existingOutput);
             }
             catch (Exception ex) when (ex is
                 InvalidOperationException or
@@ -6836,6 +6845,23 @@ public static class VeteransConsoleCommand
 
             return 0;
         }
+    }
+
+    private static async Task<byte[]?> ReadExistingOutputAsync(
+        string? path,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return null;
+
+        var info = new FileInfo(path);
+        if (info.Length <= 0 || info.Length > 150L * 1024 * 1024)
+        {
+            throw new InvalidDataException(
+                "Existing reviewer output has an invalid file size.");
+        }
+
+        return await File.ReadAllBytesAsync(path, cancellationToken);
     }
 
     private static async Task<VeteransReviewerPackageAssemblyService> CreateReviewerAssemblyAsync(

@@ -110,7 +110,7 @@ public sealed class VeteransReviewerLumbarStructureTests
         ((Dictionary<string, object>)pt.Artifact.Metadata)["evidenceTitle"] = "PT Outpatient Rehab Progress Note/Re-Eval";
         var lay = Evidence("Veteran Lay Clarification AFO Fit and Falls September 25, 2026", "Lay body", appendix: "LayEvidence", type: "file");
         using var doc = Render(pt, lay);
-        var text = doc.MainDocumentPart!.Document.InnerText;
+        var text = doc.MainDocumentPart!.Document!.InnerText;
         Assert.Equal(associated, text.Contains("Associated Veteran Lay Clarification — AFO Fit and Falls"));
         Assert.Equal(!associated, text.Contains("Additional Evidence"));
         Assert.Contains("Lay body", text);
