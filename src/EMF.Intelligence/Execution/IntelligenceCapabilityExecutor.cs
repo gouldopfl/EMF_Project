@@ -1,3 +1,4 @@
+using EMF.Core.Models.Identities;
 using EMF.Intelligence.Contracts;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
@@ -70,6 +71,7 @@ public sealed class IntelligenceCapabilityExecutor<
 
         IntelligenceExecutionMetadata? metadata = null;
         AuthorizationDecision? authorizationDecision = null;
+        ArtifactId? authorizationArtifactId = null;
         IntelligenceCapabilityResult<TResult> result;
 
         if (cancellationToken.IsCancellationRequested)
@@ -91,6 +93,7 @@ public sealed class IntelligenceCapabilityExecutor<
             foreach (var artifactId in
                 context.InputArtifactIds)
             {
+                authorizationArtifactId = artifactId;
                 authorizationDecision =
                     await _authorizationPolicy
                         .EvaluateAsync(
@@ -120,7 +123,8 @@ public sealed class IntelligenceCapabilityExecutor<
                         null,
                         authorizationDecision,
                         SecurityAuditOutcome.Denied,
-                        DateTimeOffset.UtcNow);
+                        DateTimeOffset.UtcNow,
+                        authorizationArtifactId: artifactId);
 
                     throw new
                         IntelligenceInputAuthorizationException(
@@ -128,6 +132,7 @@ public sealed class IntelligenceCapabilityExecutor<
                 }
             }
 
+            authorizationArtifactId = null;
             provider =
                 await _router.SelectAsync(
                     capabilityId,
@@ -183,7 +188,8 @@ public sealed class IntelligenceCapabilityExecutor<
                     ? null
                     : AuthorizationDecision.Allow,
                 SecurityAuditOutcome.Cancelled,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                authorizationArtifactId: authorizationArtifactId);
 
             throw;
         }
@@ -198,7 +204,8 @@ public sealed class IntelligenceCapabilityExecutor<
                     ? null
                     : AuthorizationDecision.Allow,
                 SecurityAuditOutcome.Failed,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                authorizationArtifactId: authorizationArtifactId);
 
             throw;
         }

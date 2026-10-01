@@ -111,18 +111,24 @@ public sealed class SqliteSecurityAuditHashChainTests
             await sink.InitializeAsync();
 
             const int recordCount = 32;
+            var start = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
 
             var writes =
                 Enumerable.Range(1, recordCount)
                     .Select(
                         index =>
-                            sink.WriteAsync(
-                                CreateRecord(
-                                    $"artifact-{index:D3}",
-                                    SecurityAuditOutcome
-                                        .Succeeded)))
+                            Task.Run(async () =>
+                            {
+                                await start.Task;
+                                await sink.WriteAsync(
+                                    CreateRecord(
+                                        $"artifact-{index:D3}",
+                                        SecurityAuditOutcome.Succeeded));
+                            }))
                     .ToArray();
 
+            start.SetResult();
             await Task.WhenAll(writes);
 
             var verifier =

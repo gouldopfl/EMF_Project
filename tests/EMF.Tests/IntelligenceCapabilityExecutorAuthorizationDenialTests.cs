@@ -90,5 +90,9 @@ public sealed partial class
         Assert.Equal(
             AuthorizationDecision.Deny,
             audit.PolicyDecision);
+
+        var authorization = Assert.Single(authorizationPolicy.Requests);
+        Assert.Equal(authorization.ResourceType, audit.ResourceType);
+        Assert.Equal(authorization.ResourceId, audit.ResourceId);
     }
 }

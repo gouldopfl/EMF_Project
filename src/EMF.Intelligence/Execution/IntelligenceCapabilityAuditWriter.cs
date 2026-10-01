@@ -1,9 +1,11 @@
 using System.Globalization;
+using EMF.Core.Models.Identities;
 using EMF.Intelligence.Models;
 using EMF.Intelligence.Models.Identities;
 using EMF.Security.Auditing;
 using EMF.Security.Auditing.Models;
 using EMF.Security.Authorization;
+using EMF.Security.Models;
 
 namespace EMF.Intelligence.Execution;
 
@@ -26,7 +28,8 @@ internal sealed class IntelligenceCapabilityAuditWriter
         IntelligenceExecutionMetadata? metadata,
         AuthorizationDecision? policyDecision,
         SecurityAuditOutcome outcome,
-        DateTimeOffset occurredUtc)
+        DateTimeOffset occurredUtc,
+        ArtifactId? authorizationArtifactId = null)
     {
         var facts =
             new Dictionary<string, string>(
@@ -49,6 +52,11 @@ internal sealed class IntelligenceCapabilityAuditWriter
         {
             facts["agentId"] =
                 context.AgentId.Value.Value;
+        }
+
+        if (authorizationArtifactId.HasValue)
+        {
+            facts["capabilityId"] = capabilityId.Value;
         }
 
         if (metadata is not null)
@@ -120,8 +128,10 @@ internal sealed class IntelligenceCapabilityAuditWriter
                 Operation =
                     "IntelligenceCapability.Execute",
                 ResourceType =
-                    "IntelligenceCapability",
-                ResourceId = capabilityId.Value,
+                    authorizationArtifactId.HasValue
+                        ? SecurityResourceTypes.Artifact
+                        : "IntelligenceCapability",
+                ResourceId = authorizationArtifactId?.Value ?? capabilityId.Value,
                 SubjectId = context.SubjectId,
                 PolicyDecision = policyDecision,
                 Destination = providerId?.Value,

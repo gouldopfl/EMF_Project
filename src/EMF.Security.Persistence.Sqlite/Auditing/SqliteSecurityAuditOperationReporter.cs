@@ -62,6 +62,7 @@ public sealed class SqliteSecurityAuditOperationReporter
                    MIN(OccurredUtc), MAX(OccurredUtc)
             FROM SecurityAuditRecords
             WHERE Operation = $operation
+              AND IntegrityVersion = 1
               AND ($occurredSinceUtc IS NULL OR
                    julianday(OccurredUtc) >=
                    julianday($occurredSinceUtc))
