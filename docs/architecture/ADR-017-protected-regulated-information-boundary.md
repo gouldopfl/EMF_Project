@@ -184,3 +184,85 @@ provenance, relationships, fingerprints, and extensible metadata.
 
 This decision adds a distinct platform information-protection concern and
 does not redefine those existing concepts.
+
+
+## Accepted Amendment — 2026-10-01: Authoritative Classification and Secured Disclosure/Export
+
+**Status:** Accepted
+**Date:** 2026-10-01
+
+This dated amendment extends the accepted decision. Original text above is preserved as architectural history. Where explicitly clarified below, this accepted amendment governs the current architecture; unrelated original decisions remain in force.
+
+### Cross-ADR identities and dependency direction
+
+Core-facing contracts MUST use Core-owned provider-neutral identity/value representations for operation, receipt, ownership, classification reference/revision and audit-obligation identity where those values cross the Core boundary. EMF.Core MUST NOT reference EMF.Security or its concrete models. Security owns authorization, classification authority, canonical audit-event models and lifecycle policy, and maps those models to the neutral contract representations. AuditEventId, ClassificationRevision, OperationId, Receipt and OwnershipToken retain their distinct validated identity semantics across that mapping; shared spelling or representation does not make them interchangeable. SQLite catalog and Azure SDK types remain implementation details outside Core.
+
+Physical Revision identifies a store-issued object generation; provisional OwnershipToken establishes lifecycle ownership; mutation OperationId identifies a logical mutation and Receipt records its durable outcome; ClassificationRevision identifies authoritative classification state; AuditEventId identifies one canonical audit event. These are separate typed concepts. None silently substitutes for another. Identifiers are bounded, validated, non-sensitive values and contain no plaintext, wrapped key bytes, credentials or DEK/KEK material. An ownership token is an opaque coordination identifier, not a bearer authorization credential; authorization is independently required.
+
+No Azure SDK types enter EMF.Core or provider-neutral EMF.Security contracts. Physical stores remain cryptography-unaware. Provider failures follow ADR-020 typed sanitized model. Recovery is authorized under its service identity, preserves the original actor separately, and is audited through ADR-049. Deployment policy, classification governance, recovery schedules, historical-key retention and alert escalation remain deployment obligations.
+
+### Amendment scope and decision
+
+Extend Policy Enforcement, Intelligence Services Boundary and Auditability without changing domain/protection classification separation, resource-neutral ADR-031 semantics or deployment compliance obligations.
+
+Provide a platform authoritative Artifact protection-classification resolver and shared secured disclosure/export executor in EMF.Security. Caller-supplied classification is a claim to verify, never a substitute for authoritative resolution. Unknown/missing/unresolvable classification fails closed. Resolver returns actual resource identity, classification, ClassificationRevision and a defined freshness/coordination capability. Classification assignment/governance is authorized and independently audited.
+
+Internal read/render requires applicable access authorization but is not automatically disclosure. Controlled local export requires export permission and a registered destination. External transmission/publication requires disclosure permission and provider/destination eligibility. Encryption at rest does not authorize either.
+
+### Required execution protocol
+
+1. Resolve actual Artifact or output identity and exact output/content revision or immutable snapshot; validate contributing Artifact identities for derived output.
+2. Resolve authoritative protection classification and ClassificationRevision.
+3. Resolve a bounded registered destination identity; actual endpoints/paths are separately secured configuration. Identity never contains credentials, protected paths or arbitrary user content. Redirects/provider substitutions require an approved destination or reauthorization.
+4. Authorize via existing resource-neutral policy with actual resource type/id, actor, operation, classification and destination. Bind decision to ClassificationRevision and exact output/input identities.
+5. Immediately before the first disclosure/export byte, verify that the originally authorized ClassificationRevision is still authoritative. Changed revision requires re-evaluation or fail-closed denial.
+6. Execute only through a trusted composition-registered disclosure handler resolved by the executor for the authorized operation kind, registered DestinationId and applicable output/resource type. No reusable naked allow boolean, arbitrary caller delegate/IDisclosureOperation, caller-controlled bypass or console-only duplicated policy.
+7. Audit decision and outcome with identical resource, actor, classification, destination and revision identities. Include UTC time and bounded failure category; never output content.
+
+A verify-then-send gap is not accepted as atomicity. Classification authority must support a short read lease/fence that serializes reclassification through disclosure initiation, or a destination-side acceptance mechanism with equivalent enforced preconditions. For long streams define the policy boundary explicitly: authorization applies to the immutable snapshot and initiation under the fence; classification changes after initiation cannot recall bytes already released. Deployments requiring midstream revocation must use bounded chunks/revalidation and explicit cancellation semantics. Pure eventual classification caches cannot satisfy this requirement.
+
+### Derived outputs
+
+Define an explicit versioned classification-derivation policy over contributing Artifacts, their ClassificationRevisions, relevant content revisions and output identity. Do not assume a highest-classification rule: classification domains may not be ordered. Unknown inputs, unsupported combinations or absent policy deny export. Revalidate contributing revisions and policy version immediately before disclosure; changed contribution requires re-derivation and authorization. Historical/prepared output reuse does not bypass the gate. Audit individual Artifact identities or bounded structured references to a governed contributing-resource manifest without copying protected content.
+
+### Illustrative contracts and layers
+
+```csharp
+Task<ResolvedProtectionClassification> ResolveAsync(ArtifactId id, CancellationToken ct);
+Task<DisclosureResult> ExecuteAsync(DisclosureRequest request, CancellationToken ct);
+```
+
+Ordinary callers supply only a validated request naming resources/output, operation kind and registered DestinationId. They MUST NOT supply executable code, an arbitrary handler instance, transport, endpoint override or delegate after authorization. The executor MUST resolve a trusted composition-registered capability whose structural registration binds operation kind, DestinationId and supported resource/output type; lookup ambiguity or binding mismatch fails closed. Registration is controlled by the trusted composition root, not runtime user input. Handler dependencies/transport configuration MUST enforce that destination binding; a mere string comparison before an unrestricted caller callback is insufficient. The executor passes a non-forgeable internal authorization context bound to the actual identities, output snapshot and ClassificationRevision. Handlers cannot substitute destination/resource/type; redirects or endpoint/provider changes require registered-destination validation and reauthorization before release of any further bytes. Internal rendering may return a snapshot, but may not inject arbitrary disclosure code.
+
+The resolver MUST also support ADR-048's governed provisional classification authority for pre-adoption resource operations; it is not a normal caller-supplied classification shortcut. Provisional authority cannot authorize disclosure of canonical/adopted resources. Tests MUST reject arbitrary executable callbacks, forged capabilities, handler/resource mismatch, unregistered destinations and redirection outside the authorized registration.
+
+Security owns policy resolver/executor contracts and context binding; persistence/provider adapters implement authoritative revision/fencing; composition registers destinations and injects the executor. Domain Extensions supply domain facts/rendering, not security policy or cryptography. Existing EISL capability/provider eligibility remains authoritative for intelligence processing and consumes verified classifications.
+
+### Exact current migration boundaries
+
+- src/EMF.Security/Models/ArtifactProtectionClassification.cs — association becomes resolvable authoritatively with revision.
+- src/EMF.Security/Authorization/AuthorizationRequest.cs and Services/CompositeAuthorizationPolicy.cs — retain resource-neutral semantics; bind verified classification at execution.
+- src/EMF.Intelligence/Execution/IntelligenceCapabilityExecutor.cs:94,110 — replace trusted caller classification with authoritative input resolution while preserving provider selection policy.
+- src/EMF.Security/Storage/ArtifactEnvelopeRewrappingService.cs — resolve actual Artifact classification for mutation/recovery authorization.
+- src/EMF.Console/VeteransConsoleCommand.cs:6741,6744,6786,6844,6856,6991 — prepared/historical reuse and actual DOCX/PDF export; wrap output operation before durable file release.
+- src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageDocumentOutputService.cs:94 — expose stable output/contributor context; internal rendering alone is not disclosure.
+- src/EMF.Console/IntelligenceConsoleCommand.cs:166 and TextInsightConsoleOutputWriter.cs — summary/keyword terminal output.
+- src/EMF.Console/TextSummarizationConsoleOutputWriter.cs:8 — summary output gate; live invocation remains subject to separate deployment authorization.
+- src/EMF.Console/ConsoleAuthorizationPolicyFactory.cs and ArtifactContentStoreFactory.cs — platform composition, not scattered command policy.
+- src/EMF.Console/VeteransReviewerPackagePublisher.cs:17,71 and TextInsightConsoleEvidencePublisher.cs:14 — assess internal evidence/package promotion for access and derived classification; do not classify method names as external disclosure without actual boundary crossing.
+
+### Migration, verification and tradeoffs
+
+Register destinations, configure authoritative classification persistence and derivation policy, classify legacy resources or deny export, then migrate every actual export boundary including reused output. No export path may keep caller-only classification. Preserve existing evidence/provenance and internal render behavior under access policy.
+
+Test unknown classification, caller mismatch, reclassification between authorization and export, concurrent fencing, changed derived contributors, unordered classification combinations, destination substitution, internal rendering vs export, reused output and exact authorization/audit identity agreement. Destination/identity schemas are bounded allowlists. Streaming revocation and derivation policy content remain explicit deployment-approved choices, not hidden permissive defaults. References: ADR-012/017/026/031, ADR-047/049.
+
+### Related architecture decisions
+
+- [ADR-012](ADR-012-domain-extension-platform-boundary.md)
+- [ADR-020](ADR-020-azure-key-management-adapter-boundary.md)
+- [ADR-026](ADR-026-intelligence-services-agent-boundary.md)
+- [ADR-031](ADR-031-resource-neutral-authorization.md)
+- [ADR-047](ADR-047-versioned-artifact-content-mutation.md)
+- [ADR-048](ADR-048-artifact-ingestion-ownership-and-recovery.md)
+- [ADR-049](ADR-049-security-sensitive-mutation-audit-delivery.md)
