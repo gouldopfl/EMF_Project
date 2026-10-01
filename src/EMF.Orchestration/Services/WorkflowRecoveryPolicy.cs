@@ -37,12 +37,14 @@ public sealed class WorkflowRecoveryPolicy : IWorkflowRecoveryPolicy
                     "Pending",
                     StringComparison.OrdinalIgnoreCase));
 
-        var hasFailedOperation =
-            operations.Any(operation =>
-                string.Equals(
-                    operation.Status,
-                    "Failed",
-                    StringComparison.OrdinalIgnoreCase));
+        var failedOperations =
+            operations
+                .Where(operation =>
+                    string.Equals(
+                        operation.Status,
+                        "Failed",
+                        StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
         var hasUnknownOperation =
             operations.Any(operation =>
@@ -73,10 +75,22 @@ public sealed class WorkflowRecoveryPolicy : IWorkflowRecoveryPolicy
                     => RecoveryDecision.RequireReview,
 
                 WorkflowStatus.Interrupted
-                    when hasFailedOperation
+                    when failedOperations.Count == 1 &&
+                         definition.ActivityIds.Contains(
+                             failedOperations[0].ActivityId,
+                             StringComparer.Ordinal) &&
+                         definition.RetryableActivityIds.Contains(
+                             failedOperations[0].ActivityId,
+                             StringComparer.Ordinal)
                     => RecoveryDecision.Retry,
 
-                WorkflowStatus.Interrupted when checkpoints.Count > 0
+                WorkflowStatus.Interrupted
+                    when failedOperations.Count > 0
+                    => RecoveryDecision.RequireReview,
+
+                WorkflowStatus.Interrupted
+                    when checkpoints.Any(checkpoint =>
+                        checkpoint.Status == WorkflowStatus.Completed)
                     => RecoveryDecision.Resume,
 
                 WorkflowStatus.Failed

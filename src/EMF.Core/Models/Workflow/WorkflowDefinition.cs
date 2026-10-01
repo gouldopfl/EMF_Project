@@ -9,4 +9,7 @@ public sealed class WorkflowDefinition
     public required string Version { get; init; }
 
     public required IReadOnlyList<string> ActivityIds { get; init; }
+
+    public IReadOnlyList<string> RetryableActivityIds { get; init; } =
+        Array.Empty<string>();
 }

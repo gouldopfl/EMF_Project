@@ -90,7 +90,7 @@ public sealed class WorkflowRecoveryCoordinatorTests
 
 
     [Fact]
-    public async Task Definition_id_mismatch_returns_failed_without_policy_evaluation()
+    public async Task Definition_id_mismatch_delegates_to_policy()
     {
         var repository = new FakeWorkflowRepository
         {
@@ -107,7 +107,7 @@ public sealed class WorkflowRecoveryCoordinatorTests
 
         var policy = new FakeRecoveryPolicy
         {
-            Decision = RecoveryDecision.Resume
+            Decision = RecoveryDecision.RequireReview
         };
 
         var coordinator =
@@ -129,14 +129,14 @@ public sealed class WorkflowRecoveryCoordinatorTests
                 definition);
 
         Assert.Equal(
-            RecoveryDecision.Failed,
+            RecoveryDecision.RequireReview,
             result.Decision);
 
-        Assert.False(policy.WasCalled);
+        Assert.True(policy.WasCalled);
     }
 
     [Fact]
-    public async Task Definition_version_mismatch_returns_failed_without_policy_evaluation()
+    public async Task Definition_version_mismatch_delegates_to_policy()
     {
         var repository = new FakeWorkflowRepository
         {
@@ -153,7 +153,7 @@ public sealed class WorkflowRecoveryCoordinatorTests
 
         var policy = new FakeRecoveryPolicy
         {
-            Decision = RecoveryDecision.Resume
+            Decision = RecoveryDecision.RequireReview
         };
 
         var coordinator =
@@ -175,10 +175,10 @@ public sealed class WorkflowRecoveryCoordinatorTests
                 definition);
 
         Assert.Equal(
-            RecoveryDecision.Failed,
+            RecoveryDecision.RequireReview,
             result.Decision);
 
-        Assert.False(policy.WasCalled);
+        Assert.True(policy.WasCalled);
     }
 
     [Fact]

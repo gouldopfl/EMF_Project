@@ -82,6 +82,49 @@ public sealed class WorkflowRecoveryPolicyTests
         Assert.Equal(RecoveryDecision.RequireReview, result);
     }
 
+    [Fact]
+    public async Task Interrupted_workflow_with_only_failed_checkpoint_does_not_resume()
+    {
+        var policy = new WorkflowRecoveryPolicy();
+
+        var execution = new WorkflowExecutionRecord
+        {
+            WorkflowId = new WorkflowId("workflow-failed-checkpoint"),
+            DefinitionId = "test",
+            DefinitionVersion = "1",
+            CreatedUtc = DateTimeOffset.UtcNow,
+            CurrentStatus = WorkflowStatus.Interrupted,
+            RecoveryStatus = WorkflowRecoveryStatus.None
+        };
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "Test Workflow",
+            Version = "1",
+            ActivityIds = Array.Empty<string>()
+        };
+
+        var checkpoints = new[]
+        {
+            new WorkflowCheckpoint
+            {
+                WorkflowId = execution.WorkflowId,
+                Step = "Step A",
+                Status = WorkflowStatus.Failed,
+                RecordedUtc = DateTimeOffset.UtcNow
+            }
+        };
+
+        var result = await policy.EvaluateAsync(
+            execution,
+            definition,
+            checkpoints,
+            Array.Empty<WorkflowOperationRecord>());
+
+        Assert.Equal(RecoveryDecision.Failed, result);
+    }
+
 }
 
 public sealed class WorkflowRecoveryDefinitionCompatibilityTests
@@ -250,7 +293,8 @@ public sealed class WorkflowRecoveryFailedOperationTests
             Id = "test",
             Name = "Test Workflow",
             Version = "1",
-            ActivityIds = Array.Empty<string>()
+            ActivityIds = new[] { "activity-001" },
+            RetryableActivityIds = new[] { "activity-001" }
         };
 
         var operations = new[]
@@ -277,6 +321,51 @@ public sealed class WorkflowRecoveryFailedOperationTests
             RecoveryDecision.Retry,
             result);
     }
+    [Fact]
+    public async Task Interrupted_workflow_with_non_retryable_failed_operation_requires_review()
+    {
+        var policy = new WorkflowRecoveryPolicy();
+
+        var execution = new WorkflowExecutionRecord
+        {
+            WorkflowId = new WorkflowId("workflow-non-retryable"),
+            DefinitionId = "test",
+            DefinitionVersion = "1",
+            CreatedUtc = DateTimeOffset.UtcNow,
+            CurrentStatus = WorkflowStatus.Interrupted,
+            RecoveryStatus = WorkflowRecoveryStatus.None
+        };
+
+        var definition = new WorkflowDefinition
+        {
+            Id = "test",
+            Name = "Test Workflow",
+            Version = "1",
+            ActivityIds = new[] { "activity-001" }
+        };
+
+        var operations = new[]
+        {
+            new WorkflowOperationRecord
+            {
+                WorkflowId = execution.WorkflowId,
+                ActivityId = "activity-001",
+                OperationId = new OperationId("operation-001"),
+                OperationType = "external-side-effect",
+                Status = "Failed",
+                CreatedUtc = DateTimeOffset.UtcNow
+            }
+        };
+
+        var result = await policy.EvaluateAsync(
+            execution,
+            definition,
+            Array.Empty<WorkflowCheckpoint>(),
+            operations);
+
+        Assert.Equal(RecoveryDecision.RequireReview, result);
+    }
+
 }
 
 public sealed class WorkflowRecoveryMixedOperationTests
