@@ -315,6 +315,11 @@ public sealed class WorkflowRecoveryCoordinatorTests
 
         Assert.Null(result.RetryActivityId);
         Assert.Null(result.RetryOperationId);
+
+        var saved = Assert.Single(repository.RecoveryDecisions);
+        Assert.Equal(RecoveryDecision.RequireReview, saved.Decision);
+        Assert.Null(saved.RetryActivityId);
+        Assert.Null(saved.RetryOperationId);
     }
 
     [Fact]
@@ -442,12 +447,181 @@ public sealed class WorkflowRecoveryCoordinatorTests
             policy.Operations[0].Status);
     }
 
+    [Fact]
+    public async Task Recovery_decision_is_persisted_when_status_does_not_change()
+    {
+        var workflowId = new WorkflowId("workflow-existing-recovery-status");
+
+        var repository = new FakeWorkflowRepository
+        {
+            Execution = new WorkflowExecutionRecord
+            {
+                WorkflowId = workflowId,
+                DefinitionId = "test",
+                DefinitionVersion = "1",
+                CreatedUtc = DateTimeOffset.UtcNow,
+                CurrentStatus = WorkflowStatus.Interrupted,
+                RecoveryStatus = WorkflowRecoveryStatus.Recoverable,
+                Revision = 7
+            }
+        };
+
+        var coordinator = new WorkflowRecoveryCoordinator(
+            repository,
+            new FakeRecoveryPolicy
+            {
+                Decision = RecoveryDecision.Resume
+            });
+
+        var result = await coordinator.RecoverAsync(
+            workflowId,
+            new WorkflowDefinition
+            {
+                Id = "test",
+                Name = "Test Workflow",
+                Version = "1",
+                ActivityIds = Array.Empty<string>()
+            });
+
+        Assert.Equal(RecoveryDecision.Resume, result.Decision);
+
+        var saved = Assert.Single(repository.RecoveryDecisions);
+        Assert.Equal(workflowId, saved.WorkflowId);
+        Assert.Equal("test", saved.DefinitionId);
+        Assert.Equal("1", saved.DefinitionVersion);
+        Assert.Equal(7, saved.EvaluatedRevision);
+        Assert.Equal(RecoveryDecision.Resume, saved.Decision);
+        Assert.Null(saved.RetryActivityId);
+        Assert.Null(saved.RetryOperationId);
+
+        Assert.NotNull(repository.Execution);
+        Assert.Equal(8, repository.Execution!.Revision);
+        Assert.Equal(
+            WorkflowRecoveryStatus.Recoverable,
+            repository.Execution.RecoveryStatus);
+    }
+
+    [Fact]
+    public async Task Retry_decision_persists_failed_operation_identity()
+    {
+        var workflowId = new WorkflowId("workflow-retry-persistence");
+        var operationId = new OperationId("operation-retry-persistence");
+
+        var repository = new FakeWorkflowRepository
+        {
+            Execution = new WorkflowExecutionRecord
+            {
+                WorkflowId = workflowId,
+                DefinitionId = "test",
+                DefinitionVersion = "1",
+                CreatedUtc = DateTimeOffset.UtcNow,
+                CurrentStatus = WorkflowStatus.Interrupted,
+                RecoveryStatus = WorkflowRecoveryStatus.None,
+                Revision = 3
+            },
+            Operations = new[]
+            {
+                new WorkflowOperationRecord
+                {
+                    WorkflowId = workflowId,
+                    ActivityId = "RetryActivity",
+                    OperationId = operationId,
+                    OperationType = "external-side-effect",
+                    Status = "Failed",
+                    CreatedUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
+                    CompletedUtc = DateTimeOffset.UtcNow
+                }
+            }
+        };
+
+        var coordinator = new WorkflowRecoveryCoordinator(
+            repository,
+            new FakeRecoveryPolicy
+            {
+                Decision = RecoveryDecision.Retry
+            });
+
+        var result = await coordinator.RecoverAsync(
+            workflowId,
+            new WorkflowDefinition
+            {
+                Id = "test",
+                Name = "Test Workflow",
+                Version = "1",
+                ActivityIds = new[] { "RetryActivity" },
+                RetryableActivityIds = new[] { "RetryActivity" }
+            });
+
+        Assert.Equal(RecoveryDecision.Retry, result.Decision);
+        Assert.Equal("RetryActivity", result.RetryActivityId);
+        Assert.Equal(operationId, result.RetryOperationId);
+
+        var saved = Assert.Single(repository.RecoveryDecisions);
+        Assert.Equal(3, saved.EvaluatedRevision);
+        Assert.Equal(RecoveryDecision.Retry, saved.Decision);
+        Assert.Equal("RetryActivity", saved.RetryActivityId);
+        Assert.Equal(operationId, saved.RetryOperationId);
+    }
+
+    [Fact]
+    public async Task Require_review_decision_is_persisted()
+    {
+        var workflowId = new WorkflowId("workflow-review-persistence");
+
+        var repository = new FakeWorkflowRepository
+        {
+            Execution = new WorkflowExecutionRecord
+            {
+                WorkflowId = workflowId,
+                DefinitionId = "test",
+                DefinitionVersion = "1",
+                CreatedUtc = DateTimeOffset.UtcNow,
+                CurrentStatus = WorkflowStatus.Interrupted,
+                RecoveryStatus = WorkflowRecoveryStatus.None,
+                Revision = 4
+            }
+        };
+
+        var coordinator = new WorkflowRecoveryCoordinator(
+            repository,
+            new FakeRecoveryPolicy
+            {
+                Decision = RecoveryDecision.RequireReview
+            });
+
+        var result = await coordinator.RecoverAsync(
+            workflowId,
+            new WorkflowDefinition
+            {
+                Id = "test",
+                Name = "Test Workflow",
+                Version = "1",
+                ActivityIds = Array.Empty<string>()
+            });
+
+        Assert.Equal(RecoveryDecision.RequireReview, result.Decision);
+
+        var saved = Assert.Single(repository.RecoveryDecisions);
+        Assert.Equal(4, saved.EvaluatedRevision);
+        Assert.Equal(RecoveryDecision.RequireReview, saved.Decision);
+        Assert.Null(saved.RetryActivityId);
+        Assert.Null(saved.RetryOperationId);
+
+        Assert.NotNull(repository.Execution);
+        Assert.Equal(
+            WorkflowRecoveryStatus.NeedsReview,
+            repository.Execution!.RecoveryStatus);
+    }
+
     private sealed class FakeWorkflowRepository : IWorkflowRepository
     {
         public WorkflowExecutionRecord? Execution { get; set; }
 
         public IReadOnlyList<WorkflowOperationRecord> Operations { get; set; } =
             Array.Empty<WorkflowOperationRecord>();
+
+        public List<WorkflowRecoveryDecisionRecord> RecoveryDecisions { get; } =
+            new();
 
         public Task<WorkflowOperationRecord?> GetOperationAsync(
             WorkflowId workflowId,
@@ -500,6 +674,37 @@ public sealed class WorkflowRecoveryCoordinatorTests
             Execution = execution;
 
             return Task.CompletedTask;
+        }
+
+        public Task ApplyRecoveryDecisionAsync(
+            WorkflowExecutionRecord execution,
+            WorkflowRecoveryDecisionRecord decision,
+            CancellationToken cancellationToken = default)
+        {
+            Execution = new WorkflowExecutionRecord
+            {
+                WorkflowId = execution.WorkflowId,
+                DefinitionId = execution.DefinitionId,
+                DefinitionVersion = execution.DefinitionVersion,
+                CreatedUtc = execution.CreatedUtc,
+                CurrentStatus = execution.CurrentStatus,
+                RecoveryStatus = execution.RecoveryStatus,
+                Revision = execution.Revision + 1
+            };
+
+            RecoveryDecisions.Add(decision);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<WorkflowRecoveryDecisionRecord>>
+            GetRecoveryDecisionsAsync(
+                WorkflowId workflowId,
+                CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<WorkflowRecoveryDecisionRecord>>(
+                RecoveryDecisions
+                    .Where(decision => decision.WorkflowId == workflowId)
+                    .ToList());
         }
 
 
@@ -619,6 +824,9 @@ public sealed class WorkflowRecoveryCoordinatorStatusTests
         public IReadOnlyList<WorkflowOperationRecord> Operations { get; set; } =
             Array.Empty<WorkflowOperationRecord>();
 
+        public List<WorkflowRecoveryDecisionRecord> RecoveryDecisions { get; } =
+            new();
+
         public Task CreateExecutionAsync(
             WorkflowExecutionRecord execution,
             CancellationToken cancellationToken = default)
@@ -633,6 +841,37 @@ public sealed class WorkflowRecoveryCoordinatorStatusTests
         {
             Execution = execution;
             return Task.CompletedTask;
+        }
+
+        public Task ApplyRecoveryDecisionAsync(
+            WorkflowExecutionRecord execution,
+            WorkflowRecoveryDecisionRecord decision,
+            CancellationToken cancellationToken = default)
+        {
+            Execution = new WorkflowExecutionRecord
+            {
+                WorkflowId = execution.WorkflowId,
+                DefinitionId = execution.DefinitionId,
+                DefinitionVersion = execution.DefinitionVersion,
+                CreatedUtc = execution.CreatedUtc,
+                CurrentStatus = execution.CurrentStatus,
+                RecoveryStatus = execution.RecoveryStatus,
+                Revision = execution.Revision + 1
+            };
+
+            RecoveryDecisions.Add(decision);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<WorkflowRecoveryDecisionRecord>>
+            GetRecoveryDecisionsAsync(
+                WorkflowId workflowId,
+                CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<WorkflowRecoveryDecisionRecord>>(
+                RecoveryDecisions
+                    .Where(decision => decision.WorkflowId == workflowId)
+                    .ToList());
         }
 
         public Task<WorkflowOperationRecord?> GetOperationAsync(

@@ -57,6 +57,9 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
                 operations,
                 cancellationToken);
 
+        string? retryActivityId = null;
+        OperationId? retryOperationId = null;
+
         if (decision == RecoveryDecision.Retry)
         {
             var failedOperations =
@@ -87,6 +90,11 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
                 {
                     decision = RecoveryDecision.RequireReview;
                 }
+                else
+                {
+                    retryActivityId = failedOperation.ActivityId;
+                    retryOperationId = failedOperation.OperationId;
+                }
             }
         }
 
@@ -102,42 +110,41 @@ public sealed class WorkflowRecoveryCoordinator : IWorkflowRecoveryCoordinator
                 _ => execution.RecoveryStatus
             };
 
-        if (recoveryStatus != execution.RecoveryStatus)
-        {
-            await _repository.UpdateExecutionAsync(
-                new WorkflowExecutionRecord
-                {
-                    WorkflowId = execution.WorkflowId,
-                    DefinitionId = execution.DefinitionId,
-                    DefinitionVersion = execution.DefinitionVersion,
-                    CreatedUtc = execution.CreatedUtc,
-                    CurrentStatus = execution.CurrentStatus,
-                    RecoveryStatus = recoveryStatus,
-                    Revision = execution.Revision
-                },
-                cancellationToken);
-        }
-
-        if (decision == RecoveryDecision.Retry)
-        {
-            var failedOperation =
-                operations.Single(operation =>
-                    string.Equals(
-                        operation.Status,
-                        "Failed",
-                        StringComparison.OrdinalIgnoreCase));
-
-            return new WorkflowRecoveryResult
+        var updatedExecution =
+            new WorkflowExecutionRecord
             {
-                Decision = decision,
-                RetryActivityId = failedOperation.ActivityId,
-                RetryOperationId = failedOperation.OperationId
+                WorkflowId = execution.WorkflowId,
+                DefinitionId = execution.DefinitionId,
+                DefinitionVersion = execution.DefinitionVersion,
+                CreatedUtc = execution.CreatedUtc,
+                CurrentStatus = execution.CurrentStatus,
+                RecoveryStatus = recoveryStatus,
+                Revision = execution.Revision
             };
-        }
+
+        var decisionRecord =
+            new WorkflowRecoveryDecisionRecord
+            {
+                WorkflowId = execution.WorkflowId,
+                DefinitionId = execution.DefinitionId,
+                DefinitionVersion = execution.DefinitionVersion,
+                EvaluatedRevision = execution.Revision,
+                Decision = decision,
+                RetryActivityId = retryActivityId,
+                RetryOperationId = retryOperationId,
+                RecordedUtc = DateTimeOffset.UtcNow
+            };
+
+        await _repository.ApplyRecoveryDecisionAsync(
+            updatedExecution,
+            decisionRecord,
+            cancellationToken);
 
         return new WorkflowRecoveryResult
         {
-            Decision = decision
+            Decision = decision,
+            RetryActivityId = retryActivityId,
+            RetryOperationId = retryOperationId
         };
     }
 }
