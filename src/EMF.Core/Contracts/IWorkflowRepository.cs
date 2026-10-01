@@ -59,6 +59,23 @@ public interface IWorkflowRepository
         WorkflowStatusTransition transition,
         CancellationToken cancellationToken = default);
 
+    Task ApplyRecoveryDecisionAsync(
+        WorkflowExecutionRecord execution,
+        WorkflowRecoveryDecisionRecord decision,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Workflow recovery decision persistence is not supported by this repository.");
+    }
+
+    Task<IReadOnlyList<WorkflowRecoveryDecisionRecord>> GetRecoveryDecisionsAsync(
+        WorkflowId workflowId,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException(
+            "Workflow recovery decision history is not supported by this repository.");
+    }
+
     Task<bool> TryClaimActivityAsync(
         WorkflowId workflowId,
         string activityId,

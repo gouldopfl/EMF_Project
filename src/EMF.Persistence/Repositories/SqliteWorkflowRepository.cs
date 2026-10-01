@@ -84,6 +84,18 @@ public sealed partial class SqliteWorkflowRepository : IWorkflowRepository
             CompletedUtc TEXT NULL,
             PRIMARY KEY (WorkflowId, ActivityId, OperationId)
         );
+
+        CREATE TABLE IF NOT EXISTS WorkflowRecoveryDecisions (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            WorkflowId TEXT NOT NULL,
+            DefinitionId TEXT NOT NULL,
+            DefinitionVersion TEXT NOT NULL,
+            EvaluatedRevision INTEGER NOT NULL,
+            Decision TEXT NOT NULL,
+            RetryActivityId TEXT NULL,
+            RetryOperationId TEXT NULL,
+            RecordedUtc TEXT NOT NULL
+        );
         """;
 
     await command.ExecuteNonQueryAsync(cancellationToken);
@@ -627,6 +639,213 @@ public async Task CreateExecutionAsync(
                     (object?)transition.Message ?? DBNull.Value);
 
                 await transitionCommand.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+
+    public async Task<IReadOnlyList<WorkflowRecoveryDecisionRecord>>
+        GetRecoveryDecisionsAsync(
+            WorkflowId workflowId,
+            CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+
+        command.CommandText =
+            """
+            SELECT DefinitionId,
+                   DefinitionVersion,
+                   EvaluatedRevision,
+                   Decision,
+                   RetryActivityId,
+                   RetryOperationId,
+                   RecordedUtc
+            FROM WorkflowRecoveryDecisions
+            WHERE WorkflowId = $workflowId
+            ORDER BY Id;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$workflowId",
+            workflowId.Value);
+
+        var decisions =
+            new List<WorkflowRecoveryDecisionRecord>();
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            decisions.Add(
+                new WorkflowRecoveryDecisionRecord
+                {
+                    WorkflowId = workflowId,
+                    DefinitionId = reader.GetString(0),
+                    DefinitionVersion = reader.GetString(1),
+                    EvaluatedRevision = reader.GetInt64(2),
+                    Decision = Enum.Parse<RecoveryDecision>(
+                        reader.GetString(3)),
+                    RetryActivityId = reader.IsDBNull(4)
+                        ? null
+                        : reader.GetString(4),
+                    RetryOperationId = reader.IsDBNull(5)
+                        ? null
+                        : new OperationId(reader.GetString(5)),
+                    RecordedUtc =
+                        DateTimeOffset.Parse(reader.GetString(6))
+                });
+        }
+
+        return decisions;
+    }
+
+    public async Task ApplyRecoveryDecisionAsync(
+        WorkflowExecutionRecord execution,
+        WorkflowRecoveryDecisionRecord decision,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(execution);
+        ArgumentNullException.ThrowIfNull(decision);
+
+        if (execution.WorkflowId != decision.WorkflowId)
+        {
+            throw new ArgumentException(
+                "Execution and recovery decision must reference the same workflow.");
+        }
+
+        if (execution.Revision != decision.EvaluatedRevision)
+        {
+            throw new ArgumentException(
+                "Recovery decision must reference the evaluated execution revision.");
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var transaction =
+            await connection.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            await using (var updateCommand = connection.CreateCommand())
+            {
+                updateCommand.Transaction =
+                    (SqliteTransaction)transaction;
+
+                updateCommand.CommandText =
+                    """
+                    UPDATE Workflows
+                    SET CurrentStatus = $currentStatus,
+                        RecoveryStatus = $recoveryStatus,
+                        Revision = Revision + 1
+                    WHERE Id = $id
+                      AND Revision = $expectedRevision;
+                    """;
+
+                updateCommand.Parameters.AddWithValue(
+                    "$currentStatus",
+                    execution.CurrentStatus.ToString());
+
+                updateCommand.Parameters.AddWithValue(
+                    "$recoveryStatus",
+                    execution.RecoveryStatus.ToString());
+
+                updateCommand.Parameters.AddWithValue(
+                    "$id",
+                    execution.WorkflowId.Value);
+
+                updateCommand.Parameters.AddWithValue(
+                    "$expectedRevision",
+                    execution.Revision);
+
+                var affectedRows =
+                    await updateCommand.ExecuteNonQueryAsync(
+                        cancellationToken);
+
+                if (affectedRows != 1)
+                {
+                    throw new WorkflowConcurrencyException(
+                        execution.WorkflowId,
+                        execution.Revision);
+                }
+            }
+
+            await using (var decisionCommand = connection.CreateCommand())
+            {
+                decisionCommand.Transaction =
+                    (SqliteTransaction)transaction;
+
+                decisionCommand.CommandText =
+                    """
+                    INSERT INTO WorkflowRecoveryDecisions
+                    (
+                        WorkflowId,
+                        DefinitionId,
+                        DefinitionVersion,
+                        EvaluatedRevision,
+                        Decision,
+                        RetryActivityId,
+                        RetryOperationId,
+                        RecordedUtc
+                    )
+                    VALUES
+                    (
+                        $workflowId,
+                        $definitionId,
+                        $definitionVersion,
+                        $evaluatedRevision,
+                        $decision,
+                        $retryActivityId,
+                        $retryOperationId,
+                        $recordedUtc
+                    );
+                    """;
+
+                decisionCommand.Parameters.AddWithValue(
+                    "$workflowId",
+                    decision.WorkflowId.Value);
+
+                decisionCommand.Parameters.AddWithValue(
+                    "$definitionId",
+                    decision.DefinitionId);
+
+                decisionCommand.Parameters.AddWithValue(
+                    "$definitionVersion",
+                    decision.DefinitionVersion);
+
+                decisionCommand.Parameters.AddWithValue(
+                    "$evaluatedRevision",
+                    decision.EvaluatedRevision);
+
+                decisionCommand.Parameters.AddWithValue(
+                    "$decision",
+                    decision.Decision.ToString());
+
+                decisionCommand.Parameters.AddWithValue(
+                    "$retryActivityId",
+                    (object?)decision.RetryActivityId ?? DBNull.Value);
+
+                decisionCommand.Parameters.AddWithValue(
+                    "$retryOperationId",
+                    (object?)decision.RetryOperationId?.Value ?? DBNull.Value);
+
+                decisionCommand.Parameters.AddWithValue(
+                    "$recordedUtc",
+                    decision.RecordedUtc.ToString("O"));
+
+                await decisionCommand.ExecuteNonQueryAsync(
+                    cancellationToken);
             }
 
             await transaction.CommitAsync(cancellationToken);
