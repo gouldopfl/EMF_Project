@@ -1,3 +1,4 @@
+using EMF.Security.Monitoring;
 using Microsoft.Data.Sqlite;
 
 namespace EMF.Security.Persistence.Sqlite.Auditing;
@@ -109,6 +110,7 @@ public sealed class
                         protectedRecordCount,
                         legacyRecordCount,
                         recordId,
+                        SecurityAuditIntegrityFailureCategory.InvalidLegacyPlacement,
                         "Legacy record appears inside the protected chain.");
                 }
 
@@ -123,10 +125,18 @@ public sealed class
                     protectedRecordCount,
                     legacyRecordCount,
                     recordId,
+                    SecurityAuditIntegrityFailureCategory.UnsupportedIntegrityVersion,
                     "Unsupported audit integrity version.");
             }
 
             protectedRecordsStarted = true;
+
+            if (recordHash is null)
+            {
+                return Invalid(protectedRecordCount, legacyRecordCount, recordId,
+                    SecurityAuditIntegrityFailureCategory.MissingRecordHash,
+                    "Protected audit record hash is missing.");
+            }
 
             if (!string.Equals(
                     previousRecordHash,
@@ -137,6 +147,7 @@ public sealed class
                     protectedRecordCount,
                     legacyRecordCount,
                     recordId,
+                    SecurityAuditIntegrityFailureCategory.PreviousHashMismatch,
                     "Previous audit record hash does not match.");
             }
 
@@ -163,6 +174,7 @@ public sealed class
                     protectedRecordCount,
                     legacyRecordCount,
                     recordId,
+                    SecurityAuditIntegrityFailureCategory.RecordHashMismatch,
                     "Audit record hash does not match its content.");
             }
 
@@ -200,6 +212,7 @@ public sealed class
             int protectedRecordCount,
             int legacyRecordCount,
             long recordId,
+            SecurityAuditIntegrityFailureCategory failureCategory,
             string failureReason)
     {
         return new SecurityAuditIntegrityVerificationResult
@@ -210,6 +223,7 @@ public sealed class
             LegacyRecordCount =
                 legacyRecordCount,
             InvalidRecordId = recordId,
+            FailureCategory = failureCategory,
             FailureReason = failureReason
         };
     }

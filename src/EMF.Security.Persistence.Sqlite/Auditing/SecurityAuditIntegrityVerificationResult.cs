@@ -1,3 +1,5 @@
+using EMF.Security.Monitoring;
+
 namespace EMF.Security.Persistence.Sqlite.Auditing;
 
 public sealed record
@@ -5,9 +7,11 @@ public sealed record
 {
     public required bool IsValid { get; init; }
 
+    /// <summary>Protected records processed before failure, or total protected records on success.</summary>
     public required int ProtectedRecordCount
     { get; init; }
 
+    /// <summary>Legal legacy prefix records processed before failure, or total legacy records on success.</summary>
     public required int LegacyRecordCount
     { get; init; }
 
@@ -19,4 +23,9 @@ public sealed record
     public long? InvalidRecordId { get; init; }
 
     public string? FailureReason { get; init; }
+
+    public SecurityAuditIntegrityFailureCategory? FailureCategory { get; init; }
+
+    // On invalid results the counts describe records processed before failure.
+    // Invalid results deliberately expose no chain head or hash.
 }
