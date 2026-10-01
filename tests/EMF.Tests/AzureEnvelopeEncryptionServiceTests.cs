@@ -185,6 +185,81 @@ public sealed class AzureEnvelopeEncryptionServiceTests
                 Encoding.UTF8.GetBytes("artifact-b")));
     }
 
+    [Fact]
+    public async Task DecryptAsync_UsesStoredHistoricalIdentityAfterRotation()
+    {
+        var keys = new HistoricalKeyProvider();
+        var service = new AzureEnvelopeEncryptionService(keys, new FakeFactory(new FakeCryptography()));
+        byte[] content = [1, 2, 3];
+        var historical = await service.EncryptAsync(content);
+        keys.CurrentVersion = "v2";
+        var current = await service.EncryptAsync(content);
+
+        Assert.Equal("emf-key/v1", historical.KeyEncryptionKeyId);
+        Assert.Equal("emf-key/v2", current.KeyEncryptionKeyId);
+        var decrypted = await service.DecryptAsync(historical);
+        Assert.True(content.SequenceEqual(decrypted));
+        Assert.Equal("emf-key/v1", keys.LastRequestedId);
+        keys.HistoricalAvailable = false;
+        await Assert.ThrowsAsync<CryptographicException>(() => service.DecryptAsync(historical));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EncryptAsync_WrapFailureOrCancellationClearsTemporaryDek(bool cancelled)
+    {
+        var cryptography = new FailingWrapCryptography(cancelled);
+        var service = new AzureEnvelopeEncryptionService(
+            new FakeKeyProvider(new AzureKeyReference { KeyName = "emf-key", KeyVersion = "v1" }),
+            new FakeFactory(cryptography));
+
+        var failure = await Record.ExceptionAsync(() => service.EncryptAsync(new byte[] { 1, 2, 3 }));
+
+        Assert.NotNull(failure);
+        if (cancelled)
+            Assert.IsAssignableFrom<OperationCanceledException>(failure);
+        else
+            Assert.IsType<InvalidOperationException>(failure);
+        Assert.NotNull(cryptography.TemporaryDek);
+        Assert.True(cryptography.TemporaryDek!.All(value => value == 0));
+    }
+
+    private sealed class HistoricalKeyProvider : IAzureKeyReferenceProvider
+    {
+        public string CurrentVersion { get; set; } = "v1";
+        public bool HistoricalAvailable { get; set; } = true;
+        public string? LastRequestedId { get; private set; }
+        public Task<AzureKeyReference> GetCurrentKeyAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new AzureKeyReference { KeyName = "emf-key", KeyVersion = CurrentVersion });
+        }
+        public Task<AzureKeyReference?> GetKeyAsync(string keyIdentifier, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            LastRequestedId = keyIdentifier;
+            var version = keyIdentifier.Split('/')[1];
+            return Task.FromResult<AzureKeyReference?>(
+                version == "v1" && !HistoricalAvailable ? null :
+                new AzureKeyReference { KeyName = "emf-key", KeyVersion = version });
+        }
+    }
+
+    private sealed class FailingWrapCryptography(bool cancelled) : IAzureKeyCryptography
+    {
+        public byte[]? TemporaryDek { get; private set; }
+        public Task<byte[]> WrapKeyAsync(byte[] key, CancellationToken cancellationToken = default)
+        {
+            TemporaryDek = key;
+            return Task.FromException<byte[]>(cancelled ?
+                new OperationCanceledException("Synthetic wrapping cancellation.") :
+                new InvalidOperationException("Synthetic wrapping failure."));
+        }
+        public Task<byte[]> UnwrapKeyAsync(byte[] wrappedKey, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
     private sealed class FakeKeyProvider :
         IAzureKeyReferenceProvider
     {

@@ -61,11 +61,6 @@ public sealed class DevelopmentEnvelopeEncryptionService :
                 "Invalid encryption key.");
         }
 
-        var dek = RandomNumberGenerator.GetBytes(KeySize);
-        var nonce = RandomNumberGenerator.GetBytes(NonceSize);
-        var ciphertext = new byte[plaintext.Length];
-        var tag = new byte[TagSize];
-
         var authenticatedData =
             authenticatedContext.HasValue
                 ? EncryptedEnvelopeFormat
@@ -76,6 +71,11 @@ public sealed class DevelopmentEnvelopeEncryptionService :
                 : EncryptedEnvelopeFormat.GetAuthenticatedData(
                     EncryptedEnvelopeFormat.CurrentVersion,
                     EncryptedEnvelopeFormat.Aes256GcmAlgorithm);
+
+        var nonce = RandomNumberGenerator.GetBytes(NonceSize);
+        var ciphertext = new byte[plaintext.Length];
+        var tag = new byte[TagSize];
+        var dek = RandomNumberGenerator.GetBytes(KeySize);
 
         try
         {

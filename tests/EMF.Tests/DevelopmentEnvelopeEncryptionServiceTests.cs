@@ -152,6 +152,48 @@ public sealed class DevelopmentEnvelopeEncryptionServiceTests
                 envelope));
     }
 
+    [Theory]
+    [InlineData("ciphertext")]
+    [InlineData("nonce")]
+    [InlineData("tag")]
+    [InlineData("wrapped-dek")]
+    public async Task DecryptAsync_RejectsAuthenticatedEnvelopeTampering(string field)
+    {
+        var service = CreateService();
+        var envelope = await service.EncryptAsync(new byte[] { 1, 2, 3 });
+        var bytes = field switch
+        {
+            "ciphertext" => envelope.Ciphertext,
+            "nonce" => envelope.Nonce,
+            "tag" => envelope.AuthenticationTag,
+            _ => envelope.WrappedDataEncryptionKey
+        };
+        bytes[0] ^= 1;
+
+        await Assert.ThrowsAnyAsync<CryptographicException>(() => service.DecryptAsync(envelope));
+    }
+
+    [Fact]
+    public async Task DecryptAsync_RejectsWrongKeyMaterialWithSameIdentity()
+    {
+        var envelope = await CreateService().EncryptAsync(new byte[] { 1, 2, 3 });
+        var wrongKey = new EncryptionKey
+        {
+            KeyId = envelope.KeyEncryptionKeyId,
+            KeyMaterial = RandomNumberGenerator.GetBytes(32)
+        };
+        var service = new DevelopmentEnvelopeEncryptionService(
+            new InMemoryEncryptionKeyProvider([wrongKey]));
+        try
+        {
+            await Assert.ThrowsAnyAsync<CryptographicException>(() => service.DecryptAsync(envelope));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(wrongKey.KeyMaterial);
+        }
+    }
+
     private sealed class MismatchedKeyProvider :
         IEncryptionKeyProvider
     {

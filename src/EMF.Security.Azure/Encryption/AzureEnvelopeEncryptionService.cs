@@ -50,11 +50,6 @@ public sealed class AzureEnvelopeEncryptionService :
         if (string.IsNullOrWhiteSpace(keyReference.KeyVersion))
             throw new CryptographicException("Key version is required.");
 
-        var dek = RandomNumberGenerator.GetBytes(32);
-        var nonce = RandomNumberGenerator.GetBytes(12);
-        var ciphertext = new byte[plaintext.Length];
-        var tag = new byte[16];
-
         var authenticatedData =
             authenticatedContext.HasValue
                 ? EncryptedEnvelopeFormat
@@ -65,6 +60,11 @@ public sealed class AzureEnvelopeEncryptionService :
                 : EncryptedEnvelopeFormat.GetAuthenticatedData(
                     EncryptedEnvelopeFormat.CurrentVersion,
                     EncryptedEnvelopeFormat.Aes256GcmAlgorithm);
+
+        var nonce = RandomNumberGenerator.GetBytes(12);
+        var ciphertext = new byte[plaintext.Length];
+        var tag = new byte[16];
+        var dek = RandomNumberGenerator.GetBytes(32);
 
         try
         {

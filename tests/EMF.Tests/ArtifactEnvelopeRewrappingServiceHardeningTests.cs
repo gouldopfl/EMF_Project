@@ -1,3 +1,5 @@
+using System.Text.Json;
+using EMF.Security.Encryption.Envelope.Models;
 using EMF.Core.Contracts.Storage;
 using EMF.Core.Models.Identities;
 using EMF.Security.Auditing.Models;
@@ -133,6 +135,44 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         Assert.Equal(
             SecurityAuditOutcome.Failed,
             record.Outcome);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RewrapAsync_FailureAuditRetainsKnownKeyIdentities(bool replacementFailure)
+    {
+        var original = new EncryptedEnvelope
+        {
+            Ciphertext = [1, 2, 3],
+            Nonce = new byte[12],
+            AuthenticationTag = new byte[16],
+            WrappedDataEncryptionKey = [10],
+            KeyEncryptionKeyId = "key/v1",
+            Algorithm = "AES-256-GCM"
+        };
+        var stored = JsonSerializer.SerializeToUtf8Bytes(original);
+        var contentStore = new FailingReplacementContentStore(stored);
+        var audit = new RecordingSecurityAuditSink();
+        var service = new ArtifactEnvelopeRewrappingService(
+            contentStore,
+            replacementFailure ? new TestRewrappingService() : new FailingRewrappingService(),
+            new AllowPolicy(), audit);
+        var artifactId = new ArtifactId("synthetic-key-audit-failure");
+
+        var failure = await Record.ExceptionAsync(() => service.RewrapAsync(CreateRequest(artifactId)));
+
+        Assert.NotNull(failure);
+        var record = Assert.Single(audit.Records);
+        Assert.Equal(SecurityAuditOutcome.Failed, record.Outcome);
+        Assert.Equal(artifactId.Value, record.ResourceId);
+        Assert.Equal("key/v1", record.Facts["previousKeyEncryptionKeyId"]);
+        if (replacementFailure)
+            Assert.Equal("key/v2", record.Facts["currentKeyEncryptionKeyId"]);
+        else
+            Assert.False(record.Facts.ContainsKey("currentKeyEncryptionKeyId"));
+        var durable = await contentStore.ReadAsync(artifactId);
+        Assert.True(stored.SequenceEqual(durable!));
     }
 
     private sealed class FailingReadContentStore(

@@ -149,6 +149,8 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 null);
         }
 
+        string? previousKeyId = null;
+        string? currentKeyId = null;
         EncryptedEnvelope envelope;
 
         try
@@ -158,6 +160,7 @@ public sealed class ArtifactEnvelopeRewrappingService :
                     JsonSerializer
                         .Deserialize<EncryptedEnvelope>(
                             serialized));
+            previousKeyId = envelope.KeyEncryptionKeyId;
         }
         catch (Exception)
         {
@@ -165,7 +168,9 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 request,
                 AuthorizationDecision.Allow,
                 SecurityAuditOutcome.Failed,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                previousKeyId,
+                currentKeyId);
 
             throw;
         }
@@ -178,6 +183,7 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 await _rewrappingService.RewrapAsync(
                     envelope,
                     cancellationToken);
+            currentKeyId = rewrapped.KeyEncryptionKeyId;
         }
         catch (OperationCanceledException)
         {
@@ -185,7 +191,9 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 request,
                 AuthorizationDecision.Allow,
                 SecurityAuditOutcome.Cancelled,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                previousKeyId,
+                currentKeyId);
 
             throw;
         }
@@ -195,7 +203,9 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 request,
                 AuthorizationDecision.Allow,
                 SecurityAuditOutcome.Failed,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                previousKeyId,
+                currentKeyId);
 
             throw;
         }
@@ -212,7 +222,9 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 request,
                 AuthorizationDecision.Allow,
                 SecurityAuditOutcome.Failed,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                previousKeyId,
+                currentKeyId);
 
             throw;
         }
@@ -249,7 +261,9 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 request,
                 AuthorizationDecision.Allow,
                 SecurityAuditOutcome.Cancelled,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                previousKeyId,
+                currentKeyId);
 
             throw;
         }
@@ -259,7 +273,9 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 request,
                 AuthorizationDecision.Allow,
                 SecurityAuditOutcome.Failed,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                previousKeyId,
+                currentKeyId);
 
             throw;
         }
@@ -331,7 +347,9 @@ public sealed class ArtifactEnvelopeRewrappingService :
         ArtifactEnvelopeRewrappingRequest request,
         AuthorizationDecision? policyDecision,
         SecurityAuditOutcome outcome,
-        DateTimeOffset occurredUtc)
+        DateTimeOffset occurredUtc,
+        string? previousKeyId = null,
+        string? currentKeyId = null)
     {
         return _auditSink.WriteAsync(
             new SecurityAuditRecord
@@ -345,7 +363,8 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 SubjectId = request.SubjectId,
                 PolicyDecision = policyDecision,
                 Outcome = outcome,
-                OccurredUtc = occurredUtc
+                OccurredUtc = occurredUtc,
+                Facts = CreateKeyFacts(previousKeyId, currentKeyId)
             },
             CancellationToken.None);
     }
@@ -369,21 +388,7 @@ public sealed class ArtifactEnvelopeRewrappingService :
                 DateTimeOffset.UtcNow
         };
 
-        var facts =
-            new Dictionary<string, string>(
-                StringComparer.Ordinal);
-
-        if (!string.IsNullOrWhiteSpace(previousKeyId))
-        {
-            facts["previousKeyEncryptionKeyId"] =
-                previousKeyId;
-        }
-
-        if (!string.IsNullOrWhiteSpace(currentKeyId))
-        {
-            facts["currentKeyEncryptionKeyId"] =
-                currentKeyId;
-        }
+        var facts = CreateKeyFacts(previousKeyId, currentKeyId);
 
         await _auditSink.WriteAsync(
             new SecurityAuditRecord
@@ -413,5 +418,28 @@ public sealed class ArtifactEnvelopeRewrappingService :
             CancellationToken.None);
 
         return result;
+    }
+
+    private static IReadOnlyDictionary<string, string> CreateKeyFacts(
+        string? previousKeyId,
+        string? currentKeyId)
+    {
+        var facts =
+            new Dictionary<string, string>(
+                StringComparer.Ordinal);
+
+        if (!string.IsNullOrWhiteSpace(previousKeyId))
+        {
+            facts["previousKeyEncryptionKeyId"] =
+                previousKeyId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentKeyId))
+        {
+            facts["currentKeyEncryptionKeyId"] =
+                currentKeyId;
+        }
+
+        return facts;
     }
 }
