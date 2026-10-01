@@ -1,3 +1,4 @@
+using EMF.Common;
 using System.Globalization;
 using EMF.Core.Contracts;
 using EMF.Core.Models;
@@ -18,6 +19,7 @@ internal sealed class VeteransReviewerPrintableSourceResolver(
     public async Task<VeteransReviewerPrintableSource> ResolveAsync(
         Artifact artifact, CancellationToken cancellationToken, string? excerptText = null)
     {
+        using var performanceTiming = EmfPerformanceTiming.Measure(EmfPerformancePhase.SourcePageRender);
         // A native artifact remains authoritative in its own right. Only text
         // derivatives need their immediate parent's page-coordinate mapping.
         var extension = Extension(artifact);

@@ -1,0 +1,73 @@
+  EMF.Common -> /home/michael/EMF_Project/src/EMF.Common/bin/Debug/net10.0/EMF.Common.dll
+  EMF.Core -> /home/michael/EMF_Project/src/EMF.Core/bin/Debug/net10.0/EMF.Core.dll
+  EMF.Inventory -> /home/michael/EMF_Project/src/EMF.Inventory/bin/Debug/net10.0/EMF.Inventory.dll
+  EMF.Persistence -> /home/michael/EMF_Project/src/EMF.Persistence/bin/Debug/net10.0/EMF.Persistence.dll
+  EMF.Extensions.VeteransClaims -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.dll
+  EMF.Integrity -> /home/michael/EMF_Project/src/EMF.Integrity/bin/Debug/net10.0/EMF.Integrity.dll
+  EMF.Security -> /home/michael/EMF_Project/src/EMF.Security/bin/Debug/net10.0/EMF.Security.dll
+  EMF.Discovery -> /home/michael/EMF_Project/src/EMF.Discovery/bin/Debug/net10.0/EMF.Discovery.dll
+  EMF.Security.Azure -> /home/michael/EMF_Project/src/EMF.Security.Azure/bin/Debug/net10.0/EMF.Security.Azure.dll
+  EMF.Security.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Security.Persistence.Sqlite/bin/Debug/net10.0/EMF.Security.Persistence.Sqlite.dll
+  EMF.Intelligence -> /home/michael/EMF_Project/src/EMF.Intelligence/bin/Debug/net10.0/EMF.Intelligence.dll
+  EMF.Intelligence.Development -> /home/michael/EMF_Project/src/EMF.Intelligence.Development/bin/Debug/net10.0/EMF.Intelligence.Development.dll
+  EMF.Intelligence.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Intelligence.Persistence.Sqlite/bin/Debug/net10.0/EMF.Intelligence.Persistence.Sqlite.dll
+  EMF.Intelligence.AzureOpenAI -> /home/michael/EMF_Project/src/EMF.Intelligence.AzureOpenAI/bin/Debug/net10.0/EMF.Intelligence.AzureOpenAI.dll
+  EMF.Extensions.VeteransClaims.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Persistence.Sqlite.dll
+  EMF.Orchestration -> /home/michael/EMF_Project/src/EMF.Orchestration/bin/Debug/net10.0/EMF.Orchestration.dll
+  EMF.Extensions.VeteransClaims.Orchestration -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Orchestration/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Orchestration.dll
+  EMF.Laboratory -> /home/michael/EMF_Project/src/EMF.Laboratory/bin/Debug/net10.0/EMF.Laboratory.dll
+  EMF.Extensions.VeteransClaims.Persistence -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Persistence/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Persistence.dll
+  EMF.Console -> /home/michael/EMF_Project/src/EMF.Console/bin/Debug/net10.0/EMF.Console.dll
+  EMF.Tests -> /home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll
+Test run for /home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.4.5+1caef2f33e (64-bit .NET 10.0.12)
+[xUnit.net 00:00:00.46]   Discovering: EMF.Tests
+[xUnit.net 00:00:00.63]   Discovered:  EMF.Tests
+[xUnit.net 00:00:00.63]   Starting:    EMF.Tests
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.UncertainColumnsAreNotAssignedToInferredCells(source: "Sodium\n138\nmmol/L\nPotassium\n4.2\nmmol/L") [5 ms]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.UncertainColumnsAreNotAssignedToInferredCells(source: "Test  Result  Units\nSodium  138\nUnassigned value"...) [2 ms]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.UncertainColumnsAreNotAssignedToInferredCells(source: "PowerForm\nTest  Result  Units\nSodium  138  mmol/"...) [< 1 ms]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.RotatedGridUsesOrientedCoordinatesAndKeepsAllCropPixels(rotation: 270) [100 ms]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.RotatedGridUsesOrientedCoordinatesAndKeepsAllCropPixels(rotation: 90) [72 ms]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.RotatedGridUsesOrientedCoordinatesAndKeepsAllCropPixels(rotation: 180) [71 ms]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.CoverScopeIsCenteredBeneathPreparedUsingWithoutChangingItsValues [394 ms]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.ImagingColumnsPreserveStudyDateAndStatusAssociations [1 ms]
+[xUnit.net 00:00:01.13]     EMF.Tests.VeteransReviewerSharedVisualRulesTests.StructuredFieldsAndLabColumnsRemainAlignedInTheConvertedPdf [SKIP]
+[xUnit.net 00:00:01.13]       Set EMF_REVIEWER_LAYOUT_TESTS=true to test synthetic pagination with installed LibreOffice.
+WARNING: Logging before InitGoogleLogging() is written to STDERR
+W0930 16:57:46.321270 759504 pd_config.cc:378] Warning: The api is deprecated since version 3.x, please use onednn api PD_ConfigSetOnednnCacheCapacity.
+  Skipped EMF.Tests.VeteransReviewerSharedVisualRulesTests.StructuredFieldsAndLabColumnsRemainAlignedInTheConvertedPdf [1 ms]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.MetadataBoundaryBelongsToSourceMetadataAndKeepsWithTheRecord(source: "Synthetic medical source") [82 ms]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.MetadataBoundaryBelongsToSourceMetadataAndKeepsWithTheRecord(source: "VA Blue Button Report") [80 ms]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.LongStructuredPromptUsesFullWidthAndKeepsItsCompleteValue(input: "The following\npoints were\nplaced:\nAll 10 points"...) [108 ms]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.LongStructuredPromptUsesFullWidthAndKeepsItsCompleteValue(input: "The following points were placed:\nAll\n10\npoints"...) [91 ms]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.LongStructuredPromptUsesFullWidthAndKeepsItsCompleteValue(input: "The following points were placed: All 10 points in"...) [107 ms]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.ReasonForStudyRemainsPairedAndLabValuesOccupyExplicitColumns [117 ms]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.StructuredRecoveryStopsAtBlankOrNewFieldBoundaries [< 1 ms]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.FragmentedProblemListAndDateTimeRecoverOnlyExplicitTokens [88 ms]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.FrozenAuditRetainsRejectedCandidatesWithoutRenderingThem [6 s]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.PreparationRejectsAnAuditAppliedToADifferentRasterWithTheSameDimensions [2 s]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.EmptyPlotGridCannotQualifyAsAnUncaptionedTable [33 ms]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.FigureTouchingPageMarginClampsPaddingWithoutLosingEdgePixels [43 ms]
+[xUnit.net 00:00:12.93]     EMF.Tests.VeteransReviewerSourceEnlargementTests.SupplementPaginationsRetainOriginalAndClearHeadersAndFooters [SKIP]
+[xUnit.net 00:00:12.93]       Set EMF_REVIEWER_LAYOUT_TESTS=true to test synthetic pagination with installed LibreOffice.
+[xUnit.net 00:00:13.27]   Finished:    EMF.Tests
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.PreparationFreezesGeometryAndHashesAndReprintReusesTheFrozenDocument [2 s]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.AmbiguousRasterBlockIsAuditedWithoutCreatingACrop [19 ms]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.TwoCaptionedFiguresInSeparateColumnsProduceSeparateNonoverlappingSupplements [36 ms]
+  Skipped EMF.Tests.VeteransReviewerSourceEnlargementTests.SupplementPaginationsRetainOriginalAndClearHeadersAndFooters [1 ms]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.HistoricalPresentationWithoutRegionExtensionKeepsItsIntegrityAndReprints [217 ms]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.CaptionedGraphSelectsLosslessRegionAndPreservesCaptionLegendAndFootnote [42 ms]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.WideTableBelowMinimumGainIsDetectedButRejected [29 ms]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.CaptionedUnruledTableRetainsEveryCellAndFootnote [25 ms]
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.UncaptionedRuledTableRequiresMultipleIntersectingThinRules [30 ms]
+
+Test Run Successful.
+Total tests: 30
+     Passed: 28
+    Skipped: 2
+ Total time: 13.6931 Seconds

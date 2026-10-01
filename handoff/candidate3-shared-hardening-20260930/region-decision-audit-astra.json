@@ -1,0 +1,236 @@
+{
+  "AuditCount": 43,
+  "PriorSelected": 0,
+  "ScaleUnits": "EMU per source raster pixel",
+  "SupplementLabelAndInlineReserveTwips": 280,
+  "Regions": [
+    {
+      "SourcePage": 5,
+      "Bounds": [
+        808,
+        312,
+        1617,
+        1059
+      ],
+      "PreservedScaleEmuPerPixel": 2796.988178235829,
+      "PreservedWidthInches": 7.8,
+      "PreservedHeightInches": 10.091058617672791,
+      "OriginalRegionDisplayedWidthInches": 4.946117546158503,
+      "PortraitScaleEmuPerPixel": 4410.834879406308,
+      "LandscapeScaleEmuPerPixel": 5824.564007421151,
+      "ChosenOrientation": "Landscape",
+      "Gain": 2.082441410637257,
+      "Decision": "Selected: high confidence, safe boundary, gain \u003E= 1.35",
+      "SafeBoundary": true,
+      "SourceSectionTwips": {
+        "Width": 12240,
+        "Height": 15840,
+        "Top": 720,
+        "Bottom": 432,
+        "Left": 504,
+        "Right": 504,
+        "Header": 180,
+        "Footer": 180
+      },
+      "PortraitBoxInches": [
+        7.8,
+        10.005555555555556
+      ],
+      "LandscapeBoxInches": [
+        10.3,
+        7.5055555555555555
+      ],
+      "PriorDecision": "Insufficient enlargement gain"
+    },
+    {
+      "SourcePage": 6,
+      "Bounds": [
+        124,
+        298,
+        2301,
+        2554
+      ],
+      "PreservedScaleEmuPerPixel": 2796.988178235829,
+      "PreservedWidthInches": 7.8,
+      "PreservedHeightInches": 10.091058617672791,
+      "OriginalRegionDisplayedWidthInches": 7.038352797594753,
+      "PortraitScaleEmuPerPixel": 3099.6610169491523,
+      "LandscapeScaleEmuPerPixel": 2687.188723570869,
+      "ChosenOrientation": "Portrait",
+      "Gain": 1.1082138426856818,
+      "Decision": "Rejected: insufficient enlargement gain",
+      "SafeBoundary": true,
+      "SourceSectionTwips": {
+        "Width": 12240,
+        "Height": 15840,
+        "Top": 720,
+        "Bottom": 432,
+        "Left": 504,
+        "Right": 504,
+        "Header": 180,
+        "Footer": 180
+      },
+      "PortraitBoxInches": [
+        7.8,
+        10.005555555555556
+      ],
+      "LandscapeBoxInches": [
+        10.3,
+        7.5055555555555555
+      ],
+      "PriorDecision": "Insufficient enlargement gain"
+    },
+    {
+      "SourcePage": 7,
+      "Bounds": [
+        321,
+        119,
+        2680,
+        2306
+      ],
+      "PreservedScaleEmuPerPixel": 2741.2078431372547,
+      "PreservedWidthInches": 9.889812992125984,
+      "PreservedHeightInches": 7.644444444444445,
+      "OriginalRegionDisplayedWidthInches": 8.034161220043572,
+      "PortraitScaleEmuPerPixel": 2661.313432835821,
+      "LandscapeScaleEmuPerPixel": 2976.1838681699915,
+      "ChosenOrientation": "Landscape",
+      "Gain": 1.0857198864438573,
+      "Decision": "Rejected: insufficient enlargement gain",
+      "SafeBoundary": true,
+      "SourceSectionTwips": {
+        "Width": 15840,
+        "Height": 12240,
+        "Top": 720,
+        "Bottom": 432,
+        "Left": 504,
+        "Right": 504,
+        "Header": 180,
+        "Footer": 180
+      },
+      "PortraitBoxInches": [
+        7.8,
+        10.005555555555556
+      ],
+      "LandscapeBoxInches": [
+        10.3,
+        7.5055555555555555
+      ],
+      "PriorDecision": "Insufficient enlargement gain"
+    },
+    {
+      "SourcePage": 9,
+      "Bounds": [
+        808,
+        307,
+        1617,
+        491
+      ],
+      "PreservedScaleEmuPerPixel": 2796.988178235829,
+      "PreservedWidthInches": 7.8,
+      "PreservedHeightInches": 10.091058617672791,
+      "OriginalRegionDisplayedWidthInches": 4.946117546158503,
+      "PortraitScaleEmuPerPixel": 4410.834879406308,
+      "LandscapeScaleEmuPerPixel": 5824.564007421151,
+      "ChosenOrientation": "Landscape",
+      "Gain": 2.082441410637257,
+      "Decision": "Selected: high confidence, safe boundary, gain \u003E= 1.35",
+      "SafeBoundary": true,
+      "SourceSectionTwips": {
+        "Width": 12240,
+        "Height": 15840,
+        "Top": 720,
+        "Bottom": 432,
+        "Left": 504,
+        "Right": 504,
+        "Header": 180,
+        "Footer": 180
+      },
+      "PortraitBoxInches": [
+        7.8,
+        10.005555555555556
+      ],
+      "LandscapeBoxInches": [
+        10.3,
+        7.5055555555555555
+      ],
+      "PriorDecision": "Insufficient enlargement gain"
+    },
+    {
+      "SourcePage": 9,
+      "Bounds": [
+        808,
+        831,
+        1617,
+        1109
+      ],
+      "PreservedScaleEmuPerPixel": 2796.988178235829,
+      "PreservedWidthInches": 7.8,
+      "PreservedHeightInches": 10.091058617672791,
+      "OriginalRegionDisplayedWidthInches": 4.946117546158503,
+      "PortraitScaleEmuPerPixel": 4410.834879406308,
+      "LandscapeScaleEmuPerPixel": 5824.564007421151,
+      "ChosenOrientation": "Landscape",
+      "Gain": 2.082441410637257,
+      "Decision": "Selected: high confidence, safe boundary, gain \u003E= 1.35",
+      "SafeBoundary": true,
+      "SourceSectionTwips": {
+        "Width": 12240,
+        "Height": 15840,
+        "Top": 720,
+        "Bottom": 432,
+        "Left": 504,
+        "Right": 504,
+        "Header": 180,
+        "Footer": 180
+      },
+      "PortraitBoxInches": [
+        7.8,
+        10.005555555555556
+      ],
+      "LandscapeBoxInches": [
+        10.3,
+        7.5055555555555555
+      ],
+      "PriorDecision": "Insufficient enlargement gain"
+    },
+    {
+      "SourcePage": 10,
+      "Bounds": [
+        808,
+        306,
+        1617,
+        741
+      ],
+      "PreservedScaleEmuPerPixel": 2796.988178235829,
+      "PreservedWidthInches": 7.8,
+      "PreservedHeightInches": 10.091058617672791,
+      "OriginalRegionDisplayedWidthInches": 4.946117546158503,
+      "PortraitScaleEmuPerPixel": 4410.834879406308,
+      "LandscapeScaleEmuPerPixel": 5824.564007421151,
+      "ChosenOrientation": "Landscape",
+      "Gain": 2.082441410637257,
+      "Decision": "Selected: high confidence, safe boundary, gain \u003E= 1.35",
+      "SafeBoundary": true,
+      "SourceSectionTwips": {
+        "Width": 12240,
+        "Height": 15840,
+        "Top": 720,
+        "Bottom": 432,
+        "Left": 504,
+        "Right": 504,
+        "Header": 180,
+        "Footer": 180
+      },
+      "PortraitBoxInches": [
+        7.8,
+        10.005555555555556
+      ],
+      "LandscapeBoxInches": [
+        10.3,
+        7.5055555555555555
+      ],
+      "PriorDecision": "Insufficient enlargement gain"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+using EMF.Common;
 using System.Text;
 using EMF.Core.Models;
 using EMF.Orchestration.Services;
@@ -11,6 +12,7 @@ internal static class VeteransReviewerPagePrivacy
 {
     public static PrintableArtifactPage Mask(PrintableArtifactPage page)
     {
+        using var performanceTiming = EmfPerformanceTiming.Measure(EmfPerformancePhase.PrivacyMasking);
         if (!page.ContentType.Equals("image/png", StringComparison.OrdinalIgnoreCase)) return page;
         using var encoded = SKData.CreateCopy(page.Content.Span);
         using var codec = SKCodec.Create(encoded)

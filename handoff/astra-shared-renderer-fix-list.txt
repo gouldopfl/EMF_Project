@@ -1,0 +1,54 @@
+Astra shared-renderer fix list
+Updated: 2026-09-30
+Status: source placement implemented; focused and synthetic PDF layout validation passed.
+Existing OSA, GERD/Mental Health, and Lumbar outputs have not been regenerated.
+
+Native/source-page placement
+Scope: OSA, GERD/Mental Health, and Lumbar packages; apply in the shared renderer.
+
+Align preserved source pages and source-page images to the reviewer content left
+margin and maximize within the available content box. Do not center a narrower
+fixed-width source block when more horizontal space is available.
+
+Acceptance criteria:
+- No extra left indentation beyond the normal reviewer-page content margin.
+- Scale uniformly as large as possible within the usable width and height;
+  preserve aspect ratio. Height may limit width for a tall source page.
+- Keep portrait pages portrait and landscape pages properly oriented, honoring
+  source orientation without double rotation.
+- Keep reviewer headers and footers outside the source image area.
+- Do not crop or alter the original source page just to fill space.
+- Preserve margins contained in the original source in the original-page view.
+- When graphs or tables remain difficult to read, add a separate, clearly
+  identified enlargement while retaining the complete original-page view.
+
+Distinguish the two whitespace problems:
+1. EMF-added whitespace: eliminate added indentation, centering, padding, and
+   unnecessarily narrow source blocks by left-aligning and maximizing placement.
+2. Original-source whitespace: preserve it in the complete source-page view;
+   use a separate figure/table enlargement when readability requires it.
+
+Policy conflict resolved:
+docs/architecture/ADR-046-source-aware-reviewer-evidence-presentation.md now
+preserves exterior whitespace in original-page views. Literature rendering and
+native-page fallbacks retain original source margins. All source drawings use
+left alignment, zero indentation/padding, and proportional maximum-fit sizing;
+the extra clinical-image font-size cap was removed. Existing clinical record
+reconstruction remains a separate presentation path. Automatic literature figure/table
+enlargements are now implemented with frozen provenance and rejection auditing.
+See candidate2-shared-renderer-20260930/HANDOFF.txt for the full shared-rule handoff.
+
+Validation requested:
+Review embedded VA records and medical-literature pages across all three packages.
+Verify left-margin alignment, maximum proportional fit, portrait/landscape
+orientation, header/footer clearance, and retention of original source margins
+and content. Confirm any figure/table enlargement supplements the original view.
+
+Completed validation:
+- Focused renderer/presentation/native-page tests: 202 passed, 12 skipped.
+- Explicit LibreOffice mixed-orientation test: 1 passed, 0 skipped; five source
+  pages retained portrait/landscape orientation and header/footer clearance.
+- Complete embedded literature image bytes, including source whitespace, and
+  unmodified native fallbacks verified; proportional sizing and left alignment
+  checked in DOCX. git diff --check passed.
+- Logs: source-placement-tests.log and source-placement-layout.log in handoff/.

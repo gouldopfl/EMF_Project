@@ -150,7 +150,7 @@ public sealed class VeteransReviewerPackageSourceClarificationTests
                 ]
             };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
         var text = document.MainDocumentPart!.Document!.Body!.InnerText;

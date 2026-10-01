@@ -129,7 +129,7 @@ public static class VeteransReviewerPackagePrescriptionPresentation
             CurrentPrescribedMedications = details.CurrentPrescribedMedications, CurrentMedications = details.CurrentMedications,
             MedicationProgressions = details.MedicationProgressions, MedicationClinicalContexts = details.MedicationClinicalContexts,
             SourceClarifications = details.SourceClarifications, ClinicalProgressionEvents = details.ClinicalProgressionEvents,
-            MedicalOpinionRequested = details.MedicalOpinionRequested, VeteranDisplayName = details.VeteranDisplayName, PackagePreparedBy = details.PackagePreparedBy
+            ResolvedCover = details.ResolvedCover, MedicalOpinionRequested = details.MedicalOpinionRequested, VeteranDisplayName = details.VeteranDisplayName, PackagePreparedBy = details.PackagePreparedBy
         };
     }
 }

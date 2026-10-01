@@ -42,7 +42,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -244,7 +244,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -335,7 +335,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         var exception =
             Assert.Throws<InvalidOperationException>(
                 () =>
-                    VeteransReviewerPackageDocxRenderer.Render(
+                    ReviewerPackageTestPreparation.Render(
                         details));
 
         Assert.Contains(
@@ -428,7 +428,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -540,7 +540,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -637,7 +637,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -876,7 +876,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -1056,7 +1056,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -1146,7 +1146,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream =
             new MemoryStream(content);
@@ -1297,7 +1297,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         ];
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details,
                 regulations);
 
@@ -1410,7 +1410,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -1494,7 +1494,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -1681,7 +1681,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -1799,7 +1799,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -1900,7 +1900,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -1982,7 +1982,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -2068,7 +2068,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -2172,7 +2172,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -2231,7 +2231,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 """);
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -2289,7 +2289,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 """);
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -2385,7 +2385,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -2487,7 +2487,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             ]
         };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
@@ -2580,7 +2580,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var content =
-            VeteransReviewerPackageDocxRenderer.Render(
+            ReviewerPackageTestPreparation.Render(
                 details);
 
         using var stream =
@@ -2670,7 +2670,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             ]
         };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
@@ -2799,7 +2799,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             ]
         };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
@@ -2840,7 +2840,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 [],
                 "This is a reviewer paragraph that should stay together.");
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
@@ -2877,7 +2877,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "Derived evidence text.");
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -2931,7 +2931,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "");
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -2966,7 +2966,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             appendix: VeteransReviewerPackageAppendix.MedicalEvidence);
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
@@ -2998,7 +2998,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             appendix: VeteransReviewerPackageAppendix.LayEvidence);
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -3024,7 +3024,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             new PrintableArtifactPage { PageNumber = 2, ContentType = "image/png", Content = TinyPng() }
         ], "", appendix: VeteransReviewerPackageAppendix.MedicalEvidence);
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
         using var document = WordprocessingDocument.Open(new MemoryStream(bytes), false);
         var paragraphs = document.MainDocumentPart!.Document!.Body!
             .Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>().ToArray();
@@ -3060,7 +3060,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "");
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -3127,7 +3127,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "");
 
         Assert.Throws<NotSupportedException>(
-            () => VeteransReviewerPackageDocxRenderer.Render(details));
+            () => ReviewerPackageTestPreparation.Render(details));
     }
 
     [Fact]
@@ -3146,7 +3146,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "");
 
         Assert.Throws<InvalidDataException>(
-            () => VeteransReviewerPackageDocxRenderer.Render(details));
+            () => ReviewerPackageTestPreparation.Render(details));
     }
 
     [Fact]
@@ -3171,7 +3171,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "");
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -3201,7 +3201,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "");
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -3234,7 +3234,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "");
 
         Assert.Throws<InvalidOperationException>(
-            () => VeteransReviewerPackageDocxRenderer.Render(details));
+            () => ReviewerPackageTestPreparation.Render(details));
     }
 
     [Fact]
@@ -3259,14 +3259,14 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "");
 
         Assert.Throws<InvalidOperationException>(
-            () => VeteransReviewerPackageDocxRenderer.Render(details));
+            () => ReviewerPackageTestPreparation.Render(details));
     }
 }
 
 public sealed partial class VeteransReviewerPackageDocxRendererTests
 {
     [Fact]
-    public void Render_RemovesInvalidXmlControlCharacters()
+    public void Render_PreservesSourcePageBoundaryAndRemovesInvalidXmlControlCharacters()
     {
         var details =
             CreatePrintableDetails(
@@ -3274,7 +3274,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 "Before\fAfter\uFFFDBeyond");
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -3283,7 +3283,10 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
         var text =
             document.MainDocumentPart!.Document!.InnerText;
 
-        Assert.Contains("Before After Beyond", text);
+        var paragraphs = document.MainDocumentPart!.Document!.Body!.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>().Select(p => p.InnerText).ToArray();
+        Assert.Contains("Before", paragraphs);
+        Assert.Contains("After Beyond", paragraphs);
+        Assert.True(Array.IndexOf(paragraphs, "Before") < Array.IndexOf(paragraphs, "After Beyond"));
         Assert.DoesNotContain("\uFFFD", text);
         Assert.DoesNotContain("\f", text);
     }
@@ -3313,7 +3316,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             }]
         };
         using var document = WordprocessingDocument.Open(
-            new MemoryStream(VeteransReviewerPackageDocxRenderer.Render(details)), false);
+            new MemoryStream(ReviewerPackageTestPreparation.Render(details)), false);
         var text = document.MainDocumentPart!.Document!.InnerText;
         Assert.Contains("Bilateral pes planus and low back pain", text);
         Assert.DoesNotContain("AUDIO HEARING AID CHECK", text);
@@ -3328,7 +3331,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             new PrintableArtifactPage { PageNumber = 2, ContentType = "text/plain",
                 Content = System.Text.Encoding.UTF8.GetBytes("ER assessment") }
         ], "", reviewerPageSelection: "2,3");
-        Assert.Throws<InvalidDataException>(() => VeteransReviewerPackageDocxRenderer.Render(details));
+        Assert.Throws<InvalidDataException>(() => ReviewerPackageTestPreparation.Render(details));
     }
 
     [Fact]
@@ -3339,7 +3342,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 Content = System.Text.Encoding.UTF8.GetBytes("Reviewer evidence") }
         ], "");
         using var document = WordprocessingDocument.Open(
-            new MemoryStream(VeteransReviewerPackageDocxRenderer.Render(details)), false);
+            new MemoryStream(ReviewerPackageTestPreparation.Render(details)), false);
         var main = document.MainDocumentPart!;
         var fonts = main.FontTablePart!.Fonts!;
         Assert.Equal(new[] { "DejaVu Serif", "DejaVu Sans Mono" },
@@ -3461,7 +3464,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             sourceText);
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -3577,7 +3580,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "");
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -3638,7 +3641,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             [new PrintableArtifactPage { PageNumber = 1, ContentType = "text/plain",
                 Content = System.Text.Encoding.UTF8.GetBytes("First reviewer text block.\nSecond reviewer text block.") }], "");
         using var document = WordprocessingDocument.Open(
-            new MemoryStream(VeteransReviewerPackageDocxRenderer.Render(details)), false);
+            new MemoryStream(ReviewerPackageTestPreparation.Render(details)), false);
         var main = document.MainDocumentPart!;
         Assert.Contains(main.Document!.Body!.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>(),
             paragraph => paragraph.InnerText == "Source Evidence");
@@ -3720,7 +3723,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             ]
         };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -3813,7 +3816,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -3889,7 +3892,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             ]
         };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -3965,7 +3968,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             ]
         };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -4055,7 +4058,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             ]
         };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -4089,7 +4092,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         var exception =
             Assert.Throws<InvalidOperationException>(
-                () => VeteransReviewerPackageDocxRenderer.Render(details));
+                () => ReviewerPackageTestPreparation.Render(details));
 
         Assert.Contains("associated with package 'package-other'", exception.Message);
     }
@@ -4113,7 +4116,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         var exception =
             Assert.Throws<InvalidOperationException>(
-                () => VeteransReviewerPackageDocxRenderer.Render(details));
+                () => ReviewerPackageTestPreparation.Render(details));
 
         Assert.Contains("unsupported content role 'UnexpectedRole'", exception.Message);
     }
@@ -4146,7 +4149,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         var exception =
             Assert.Throws<InvalidOperationException>(
-                () => VeteransReviewerPackageDocxRenderer.Render(details));
+                () => ReviewerPackageTestPreparation.Render(details));
 
         Assert.Contains("conflicting content roles", exception.Message);
         Assert.Contains(artifact.Id.Value, exception.Message);
@@ -4173,7 +4176,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         var exception =
             Assert.Throws<InvalidOperationException>(
-                () => VeteransReviewerPackageDocxRenderer.Render(details));
+                () => ReviewerPackageTestPreparation.Render(details));
 
         Assert.Contains("multiple reviewable content entries", exception.Message);
         Assert.Contains(artifact.Id.Value, exception.Message);
@@ -4190,7 +4193,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         var exception =
             Assert.Throws<InvalidOperationException>(
-                () => VeteransReviewerPackageDocxRenderer.Render(details));
+                () => ReviewerPackageTestPreparation.Render(details));
 
         Assert.Contains("not part of the package", exception.Message);
         Assert.Contains(artifact.Id.Value, exception.Message);
@@ -4226,7 +4229,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         var exception =
             Assert.Throws<InvalidOperationException>(
-                () => VeteransReviewerPackageDocxRenderer.Render(details));
+                () => ReviewerPackageTestPreparation.Render(details));
 
         Assert.Contains("provenance for artifact 'source-other'", exception.Message);
     }
@@ -4260,7 +4263,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         var exception =
             Assert.Throws<InvalidOperationException>(
-                () => VeteransReviewerPackageDocxRenderer.Render(details));
+                () => ReviewerPackageTestPreparation.Render(details));
 
         Assert.Contains("unrelated artifact relationship", exception.Message);
     }
@@ -4292,7 +4295,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         var exception =
             Assert.Throws<InvalidOperationException>(
-                () => VeteransReviewerPackageDocxRenderer.Render(details));
+                () => ReviewerPackageTestPreparation.Render(details));
 
         Assert.Contains("reviewed literature for artifact 'source-other'", exception.Message);
     }
@@ -4323,7 +4326,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
 
         var exception =
             Assert.Throws<InvalidOperationException>(
-                () => VeteransReviewerPackageDocxRenderer.Render(details));
+                () => ReviewerPackageTestPreparation.Render(details));
 
         Assert.Contains(
             "reviewed literature excerpt for artifact 'source-other'",
@@ -4453,7 +4456,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "11,13");
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -4495,7 +4498,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "");
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -4525,7 +4528,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             "");
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -4662,7 +4665,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
             };
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -4827,7 +4830,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 ]
             };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
@@ -4914,7 +4917,7 @@ public sealed partial class VeteransReviewerPackageDocxRendererTests
                 ArtifactContents = []
             };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);

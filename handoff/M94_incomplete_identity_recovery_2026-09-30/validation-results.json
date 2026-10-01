@@ -1,0 +1,70 @@
+{
+  "focused_runs": [
+    {
+      "trx": "legacy-recovery_net10.0_20260930093537.trx",
+      "counts": {
+        "total": 1,
+        "executed": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "skipped": 0,
+      "times": {
+        "creation": "2026-09-30T09:35:37.0145838+00:00",
+        "queuing": "2026-09-30T09:35:37.0145839+00:00",
+        "start": "2026-09-30T09:35:32.4568115+00:00",
+        "finish": "2026-09-30T09:35:37.0219009+00:00"
+      }
+    },
+    {
+      "trx": "recovery-focused_net10.0_20260930093435.trx",
+      "counts": {
+        "total": 25,
+        "executed": 25,
+        "passed": 25,
+        "failed": 0
+      },
+      "skipped": 0,
+      "times": {
+        "creation": "2026-09-30T09:33:30.5707210+00:00",
+        "queuing": "2026-09-30T09:33:30.5707210+00:00",
+        "start": "2026-09-30T09:33:26.7679065+00:00",
+        "finish": "2026-09-30T09:34:35.1654078+00:00"
+      }
+    }
+  ],
+  "combined_counts": {
+    "total": 26,
+    "executed": 26,
+    "passed": 26,
+    "failed": 0
+  },
+  "skipped": 0,
+  "full_regression_rerun": false,
+  "protected_hashes": [
+    {
+      "path": "/home/michael/EMF_Project/.emf-local/lumbar-claim.db",
+      "sha256": "cbde12e1718ed146f61aac76640cd5a6016bbb7fb52307483512a7d1a867dae6",
+      "matches_expected": true
+    },
+    {
+      "path": "/home/michael/EMF_Final_Docs/Lumbar_Review_Package.docx",
+      "sha256": "1822c8f0437c1d617560e0cc595250d2ab11a441ce60685d6b422840538a6a4f",
+      "matches_expected": true
+    },
+    {
+      "path": "/home/michael/EMF_Deployment/build-manifests/emf-dfee83b7-release.json",
+      "sha256": "800704a70c5fabfbb7f7aa57e00463a8462558750a1c49dc65b7987691878e6a",
+      "matches_expected": true
+    }
+  ],
+  "diff_check": "passed",
+  "head": "dfee83b7af3f1fbb0352105f217f061223ae1472",
+  "EMF_AZURE_OPENAI_LIVE_unset": true,
+  "live_database_modified": false,
+  "live_database_migrated": false,
+  "candidate_packages_generated": false,
+  "staged": false,
+  "committed": false,
+  "pushed": false
+}

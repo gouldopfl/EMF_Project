@@ -31,7 +31,7 @@ public sealed class VeteransReviewerPackageReuseServiceTests
         provider.Throw = true;
         var output = await ReviewerDeploymentTestSupport.CreateService(new Converter(), provider, db.Repository)
             .RenderAsync(VeteransReviewerPackageSnapshot.Restore(selection.OutputSnapshot!).Details, format,
-                preparedSnapshot: selection.OutputSnapshot);
+                preparedSnapshot: selection.OutputSnapshot, sourceReviewDate: new(2026, 9, 29));
         Assert.Equal(format != VeteransReviewerPackageOutputFormat.Pdf, output.Docx is not null);
         Assert.Equal(format != VeteransReviewerPackageOutputFormat.Docx, output.Pdf is not null);
     }
@@ -56,7 +56,7 @@ public sealed class VeteransReviewerPackageReuseServiceTests
         // Later DTO/provider changes cannot replace the captured current view.
         await ReviewerDeploymentTestSupport.CreateService(regulatoryTextProvider: provider, snapshotRepository: db.Repository)
             .RenderAsync(Current(original, requested, "Too late"), VeteransReviewerPackageOutputFormat.Docx,
-                preparedSnapshot: selection.OutputSnapshot);
+                preparedSnapshot: selection.OutputSnapshot, sourceReviewDate: new(2026, 9, 29));
         var sealedRow = await db.Repository.GetReviewerSnapshotAsync(selection.PackageId);
         Assert.Equal(selection.OutputSnapshot, sealedRow);
         Assert.Contains("Changed title", sealedRow!.Payload);

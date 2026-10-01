@@ -12,6 +12,7 @@ public sealed class SqliteEvidencePackageRepository :
 {
     private readonly string _databasePath;
 
+    public bool SupportsReviewerPresentationSnapshots => true;
     public bool SupportsReviewerOutputProvenance => true;
     public bool SupportsReviewerOutputBuildProvenance => true;
 
@@ -28,6 +29,183 @@ public sealed class SqliteEvidencePackageRepository :
     {
         return VeteransClaimsSqliteConnectionFactory
             .Create(_databasePath);
+    }
+
+    public async Task<ReviewerPackagePresentationSnapshot?> GetReviewerPresentationAsync(
+        EvidencePackageId packageId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT Payload, Sha256, SourceSnapshotSha256, PackagePreparedDate, DocxSha256, PreviousPackageId FROM VeteransClaims_ReviewerPresentations WHERE EvidencePackageId = $id;";
+        command.Parameters.AddWithValue("$id", packageId.Value);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return null;
+        var result = JsonSerializer.Deserialize<ReviewerPackagePresentationSnapshot>(reader.GetString(0))
+            ?? throw new InvalidDataException("Missing prepared reviewer presentation.");
+        result.ValidateIntegrity();
+        if (result.PackageId != packageId || result.Sha256 != reader.GetString(1) ||
+            result.SourceSnapshotSha256 != reader.GetString(2) ||
+            result.PackagePreparedDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) != reader.GetString(3) ||
+            result.DocxSha256 != reader.GetString(4) ||
+            result.PreviousPackageId != (reader.IsDBNull(5) ? null : reader.GetString(5)) ||
+            reader.GetString(0) != JsonSerializer.Serialize(result))
+            throw new InvalidDataException("Prepared reviewer presentation row mismatch.");
+        var source = await GetReviewerSnapshotAsync(packageId, cancellationToken);
+        if (source is null || result.SourceSnapshotSha256 != source.Sha256)
+            throw new InvalidDataException("Prepared reviewer presentation source mismatch.");
+        return result;
+    }
+
+    public Task CreateReviewerPresentationVersionAsync(ReviewerPackageSnapshot snapshot,
+        EvidencePackageDetails membership, ReviewerPackagePresentationSnapshot presentation,
+        CancellationToken cancellationToken = default) =>
+        PersistReviewerPresentationVersionAsync(snapshot, membership, presentation, false, cancellationToken);
+
+    public Task RecoverReviewerPresentationVersionAsync(ReviewerPackageSnapshot snapshot,
+        EvidencePackageDetails membership, ReviewerPackagePresentationSnapshot presentation,
+        CancellationToken cancellationToken = default) =>
+        PersistReviewerPresentationVersionAsync(snapshot, membership, presentation, true, cancellationToken);
+
+    private async Task PersistReviewerPresentationVersionAsync(ReviewerPackageSnapshot snapshot,
+        EvidencePackageDetails membership, ReviewerPackagePresentationSnapshot presentation,
+        bool recoverIncomplete, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(membership);
+        ArgumentNullException.ThrowIfNull(presentation);
+        snapshot.ValidateMembership(membership);
+        presentation.ValidateIntegrity();
+        if (presentation.PackageId != snapshot.PackageId ||
+            presentation.SourceSnapshotSha256 != snapshot.Sha256 ||
+            string.IsNullOrWhiteSpace(presentation.PreviousPackageId))
+            throw new InvalidDataException("New presentation version must bind its source and previous package.");
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = connection.BeginTransaction(deferred: false);
+        if (recoverIncomplete)
+        {
+            // Check under the same write lock as completion. Exported historical
+            // packages are never given a fabricated frozen presentation by recovery.
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = """
+                SELECT EXISTS (SELECT 1 FROM VeteransClaims_ReviewerPresentations WHERE EvidencePackageId = $id)
+                    OR EXISTS (SELECT 1 FROM VeteransClaims_ReviewerFrozenPdfs WHERE EvidencePackageId = $id)
+                    OR EXISTS (SELECT 1 FROM VeteransClaims_ReviewerPackageOutputProvenance WHERE EvidencePackageId = $id);
+                """;
+            command.Parameters.AddWithValue("$id", snapshot.PackageId.Value);
+            if ((long)(await command.ExecuteScalarAsync(cancellationToken))! != 0)
+                throw new InvalidDataException("Recovery requires an incomplete identity without frozen presentation or output history.");
+        }
+        else
+        {
+            await InsertEvidencePackageAsync(connection, transaction, membership.Package, cancellationToken);
+            foreach (var artifact in membership.Artifacts)
+                await InsertEvidencePackageArtifactAsync(connection, transaction, artifact, cancellationToken);
+        }
+        await SaveReviewerSnapshotAsync(connection, transaction, snapshot, membership, cancellationToken);
+        await SaveReviewerPresentationAsync(connection, transaction, presentation, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task SaveReviewerPresentationAsync(ReviewerPackagePresentationSnapshot presentation,
+        CancellationToken cancellationToken = default)
+    {
+        presentation.ValidateIntegrity();
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = connection.BeginTransaction(deferred: false);
+        await SaveReviewerPresentationAsync(connection, transaction, presentation, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task SaveReviewerPresentationAsync(SqliteConnection connection,
+        SqliteTransaction transaction, ReviewerPackagePresentationSnapshot presentation,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT Sha256 FROM VeteransClaims_ReviewerPresentations WHERE EvidencePackageId = $id;";
+        command.Parameters.AddWithValue("$id", presentation.PackageId.Value);
+        var existing = await command.ExecuteScalarAsync(cancellationToken);
+        if (existing is not null)
+        {
+            if (!string.Equals((string)existing, presentation.Sha256, StringComparison.Ordinal))
+                throw new InvalidDataException("Changing prepared presentation requires a new package version.");
+            return;
+        }
+        command.CommandText = """
+            INSERT INTO VeteransClaims_ReviewerPresentations
+            (EvidencePackageId, SourceSnapshotSha256, PackagePreparedDate, Payload, Sha256, DocxSha256, PreviousPackageId)
+            VALUES ($id, $source, $date, $payload, $hash, $docx, $previous);
+            """;
+        command.Parameters.AddWithValue("$source", presentation.SourceSnapshotSha256);
+        command.Parameters.AddWithValue("$date", presentation.PackagePreparedDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(presentation));
+        command.Parameters.AddWithValue("$hash", presentation.Sha256);
+        command.Parameters.AddWithValue("$docx", presentation.DocxSha256);
+        command.Parameters.AddWithValue("$previous", (object?)presentation.PreviousPackageId ?? DBNull.Value);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<ReviewerPackageFrozenPdf?> GetReviewerFrozenPdfAsync(
+        EvidencePackageId packageId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT Payload, Sha256, PresentationSha256, PdfSha256, ConverterIdentity, ConverterVersion FROM VeteransClaims_ReviewerFrozenPdfs WHERE EvidencePackageId = $id;";
+        command.Parameters.AddWithValue("$id", packageId.Value);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return null;
+        var result = JsonSerializer.Deserialize<ReviewerPackageFrozenPdf>(reader.GetString(0))
+            ?? throw new InvalidDataException("Missing frozen reviewer PDF.");
+        result.ValidateIntegrity();
+        if (result.PackageId != packageId || result.Sha256 != reader.GetString(1) ||
+            result.PresentationSha256 != reader.GetString(2) || result.PdfSha256 != reader.GetString(3) ||
+            result.ConverterIdentity != reader.GetString(4) || result.ConverterVersion != reader.GetString(5) ||
+            reader.GetString(0) != JsonSerializer.Serialize(result))
+            throw new InvalidDataException("Frozen reviewer PDF row mismatch.");
+        var presentation = await GetReviewerPresentationAsync(packageId, cancellationToken);
+        if (presentation is null || presentation.Sha256 != result.PresentationSha256)
+            throw new InvalidDataException("Frozen reviewer PDF presentation mismatch.");
+        return result;
+    }
+
+    public async Task SaveReviewerFrozenPdfAsync(ReviewerPackageFrozenPdf pdf,
+        CancellationToken cancellationToken = default)
+    {
+        pdf.ValidateIntegrity();
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = connection.BeginTransaction(deferred: false);
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT Sha256 FROM VeteransClaims_ReviewerFrozenPdfs WHERE EvidencePackageId = $id;";
+        command.Parameters.AddWithValue("$id", pdf.PackageId.Value);
+        var existing = await command.ExecuteScalarAsync(cancellationToken);
+        if (existing is not null)
+        {
+            if (!string.Equals((string)existing, pdf.Sha256, StringComparison.Ordinal))
+                throw new InvalidDataException("Changing frozen PDF requires a new package version.");
+            transaction.Commit();
+            return;
+        }
+        command.CommandText = """
+            INSERT INTO VeteransClaims_ReviewerFrozenPdfs
+            (EvidencePackageId, PresentationSha256, Payload, Sha256, PdfSha256, ConverterIdentity, ConverterVersion)
+            VALUES ($id, $presentation, $payload, $hash, $pdf, $identity, $version);
+            """;
+        command.Parameters.AddWithValue("$presentation", pdf.PresentationSha256);
+        command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(pdf));
+        command.Parameters.AddWithValue("$hash", pdf.Sha256);
+        command.Parameters.AddWithValue("$pdf", pdf.PdfSha256);
+        command.Parameters.AddWithValue("$identity", pdf.ConverterIdentity);
+        command.Parameters.AddWithValue("$version", pdf.ConverterVersion);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        transaction.Commit();
     }
 
     public async Task<ReviewerPackageSnapshot?> GetReviewerSnapshotAsync(
@@ -72,6 +250,17 @@ public sealed class SqliteEvidencePackageRepository :
     public async Task SaveReviewerSnapshotAsync(ReviewerPackageSnapshot snapshot,
         EvidencePackageDetails expectedMembership, CancellationToken cancellationToken = default)
     {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = connection.BeginTransaction(deferred: false);
+        await SaveReviewerSnapshotAsync(connection, transaction, snapshot, expectedMembership, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task SaveReviewerSnapshotAsync(SqliteConnection connection,
+        SqliteTransaction transaction, ReviewerPackageSnapshot snapshot,
+        EvidencePackageDetails expectedMembership, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(expectedMembership);
         snapshot.ValidateMembership(expectedMembership);
@@ -80,9 +269,6 @@ public sealed class SqliteEvidencePackageRepository :
             expectedMembership.Artifacts.GroupBy(x => x.ArtifactId).Any(g => g.Count() != 1))
             throw new InvalidDataException("Reviewer snapshot membership identity mismatch.");
 
-        await using var connection = CreateConnection();
-        await connection.OpenAsync(cancellationToken);
-        await using var transaction = connection.BeginTransaction(deferred: false);
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
@@ -138,7 +324,6 @@ public sealed class SqliteEvidencePackageRepository :
             command.Parameters.AddWithValue("$hash", snapshot.Sha256);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
-        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<ReviewerPackageOutputProvenance>> GetReviewerOutputProvenanceAsync(
@@ -187,6 +372,28 @@ public sealed class SqliteEvidencePackageRepository :
         return rows;
     }
 
+    private static async Task RequirePreservedReviewDateAsync(
+        SqliteConnection connection, SqliteTransaction transaction,
+        ReviewerPackageOutputProvenance provenance, CancellationToken cancellationToken)
+    {
+        // docs/REVIEWER_PACKAGE_DETERMINISM_CONTRACT.md: date refresh creates
+        // a new package version; audit timestamps cannot revise visible dates.
+        // Both save paths call this under an immediate transaction, so even
+        // concurrent first renders cannot record different dates for one package.
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT 1 FROM VeteransClaims_ReviewerPackageOutputProvenance
+            WHERE EvidencePackageId = $package AND SourceReviewDate <> $date
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$package", provenance.PackageId.Value);
+        command.Parameters.AddWithValue("$date", provenance.SourceReviewDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        if (await command.ExecuteScalarAsync(cancellationToken) is not null)
+            throw new InvalidDataException(
+                "Refreshing a visible review date requires a new package version.");
+    }
+
     public async Task SaveReviewerOutputProvenanceAsync(
         ReviewerPackageOutputProvenance provenance,
         CancellationToken cancellationToken = default)
@@ -221,6 +428,8 @@ public sealed class SqliteEvidencePackageRepository :
             throw new InvalidDataException(
                 "Reviewer output provenance requires the matching sealed reviewer snapshot.");
         }
+
+        await RequirePreservedReviewDateAsync(connection, transaction, provenance, cancellationToken);
 
         command.CommandText = """
             SELECT ProvenanceId, EvidencePackageId, Version, Format, SnapshotSha256,
@@ -724,6 +933,8 @@ public sealed class SqliteEvidencePackageRepository :
             throw new InvalidDataException(
                 "Reviewer output provenance requires the matching sealed reviewer snapshot.");
         }
+
+        await RequirePreservedReviewDateAsync(connection, transaction, outputProvenance, cancellationToken);
 
         command.Parameters.Clear();
         command.CommandText = """

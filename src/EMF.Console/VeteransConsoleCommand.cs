@@ -2061,6 +2061,7 @@ public static class VeteransConsoleCommand
         VeteransReviewerPackageOutputRequest? outputRequest,
         string? basisId = null)
     {
+        using var performanceTiming = EmfPerformanceTiming.BeginReviewer(global::System.Console.WriteLine);
         static void OperatorStatus(
             string area,
             string message)
@@ -2149,6 +2150,7 @@ public static class VeteransConsoleCommand
             "EVIDENCE",
             "Loading claim issue details");
 
+        using var loadingTiming = EmfPerformanceTiming.MeasureTopLevel(EmfPerformancePhase.EvidenceLoading);
         var details =
             await CreateAdjudicationDetailsService(databasePath)
                 .GetAsync(claimIssueId);
@@ -2262,6 +2264,7 @@ public static class VeteransConsoleCommand
 
         await medicalLiteratureRepository.InitializeAsync();
 
+        loadingTiming.Dispose();
         OperatorStatus(
             "EXTRACT",
             "Extracting reviewer evidence sources");
@@ -2482,7 +2485,7 @@ public static class VeteransConsoleCommand
                 return 0;
             }
             var reusedExportExitCode = await RunEvidencePackageDocumentAsync(databasePath,
-                selection.PackageId, outputRequest, contentStore, preparedSnapshot: selection.OutputSnapshot);
+                selection.PackageId, outputRequest, contentStore, preparedSnapshot: selection.OutputSnapshot, preparedCover: selection.PreparedCover);
             if (reusedExportExitCode != 0) return reusedExportExitCode;
             WriteReviewerOutputPaths(outputRequest);
             OperatorStatus("COMPLETE", "Reviewer document output created");
@@ -6681,10 +6684,13 @@ public static class VeteransConsoleCommand
         IVeteransReviewerRegulatoryTextProvider? suppliedRegulatoryTextProvider = null,
         CancellationToken cancellationToken = default,
         ReviewerPackageSnapshot? preparedSnapshot = null,
-        DateOnly? sourceReviewDate = null)
+        DateOnly? sourceReviewDate = null,
+        ReviewerPackageCover? preparedCover = null)
     {
+        using var performanceTiming = EmfPerformanceTiming.BeginReviewer(global::System.Console.WriteLine);
         ArgumentNullException.ThrowIfNull(outputRequest);
 
+        using var loadingTiming = EmfPerformanceTiming.MeasureTopLevel(EmfPerformancePhase.EvidenceLoading);
         var fullDatabasePath =
             Path.GetFullPath(databasePath);
 
@@ -6725,6 +6731,7 @@ public static class VeteransConsoleCommand
             global::System.Console.Error.WriteLine(ConsoleTextSanitizer.Sanitize(ex.Message));
             return 2;
         }
+        loadingTiming.Dispose();
         // Historical output has no dependency on current evidence, clinical repositories,
         // environment identity values, source content stores, or regulatory providers.
         if (preparedSnapshot is not null)
@@ -6809,7 +6816,8 @@ public static class VeteransConsoleCommand
                             cancellationToken,
                             preparedSnapshot,
                             sourceReviewDate,
-                            existingOutput);
+                            existingOutput,
+                            preparedCover);
             }
             catch (Exception ex) when (ex is
                 InvalidOperationException or
@@ -6832,6 +6840,7 @@ public static class VeteransConsoleCommand
                     throw new InvalidOperationException(
                         "DOCX reviewer-package output was requested but not rendered.");
 
+                using var publishTiming = EmfPerformanceTiming.MeasureTopLevel(EmfPerformancePhase.DocxPublish);
                 await WriteFileAtomicallyAsync(
                     outputRequest.DocxPath,
                     content.Docx);
@@ -6843,6 +6852,7 @@ public static class VeteransConsoleCommand
                     throw new InvalidOperationException(
                         "PDF reviewer-package output was requested but not rendered.");
 
+                using var publishTiming = EmfPerformanceTiming.MeasureTopLevel(EmfPerformancePhase.PdfPublish);
                 await WriteFileAtomicallyAsync(
                     outputRequest.PdfPath,
                     content.Pdf);

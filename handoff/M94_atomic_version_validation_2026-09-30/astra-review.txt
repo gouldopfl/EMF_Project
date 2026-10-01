@@ -1,0 +1,13 @@
+Astra read-only review of atomic version creation, 2026-09-30
+
+No concrete atomicity bug found.
+
+One SQLite connection and one immediate transaction cover new package identity and membership, source snapshot and sealing, and frozen presentation/lineage. Helpers share the connection and transaction; only the outer method commits. Exception unwinding disposes the uncommitted transaction.
+
+Writes target the new identity. Prior package rows remain immutable. Retrying after rollback can use the same identity; retrying after success fails the existing-identity check. Primary keys and immutability triggers prevent duplicates. Existing snapshot membership, sealing, immutability and output/build-provenance protections remain in place.
+
+Failure injection uses only disposable temporary test databases, with BEFORE/AFTER INSERT cases for all four persistence tables.
+
+Non-SQLite activity happens before persistence: deployment manifest and assembly-file reads, possible assembly loading and lazy verifier caching, embedded-font reads, and DOCX/ZIP construction in memory. No PDF conversion, export-file write, network request or completion step follows commit. The shipped path cannot commit a package that depends on an unfinished external side effect.
+
+Qualification: verification is an injected delegate; this side-effect assessment applies to the inspected shipped verifier, not arbitrary caller-provided delegate behavior.

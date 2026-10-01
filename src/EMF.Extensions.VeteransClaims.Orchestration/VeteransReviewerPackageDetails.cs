@@ -43,6 +43,10 @@ public sealed class VeteransReviewerPackageDetails
     public VeteransReviewerMedicalOpinionRequest? MedicalOpinionRequested
     { get; init; }
 
+    // Preparation-only typed scope, persisted in the compiled presentation envelope.
+    // Deliberately absent from the immutable historical V1 source wire contract.
+    public ReviewerPackageCover? ResolvedCover { get; init; }
+
     public string? VeteranDisplayName { get; init; }
 
     public string? PackagePreparedBy { get; init; }

@@ -1,3 +1,4 @@
+using EMF.Common;
 using System.Text;
 using System.Text.Json;
 using EMF.Core.Contracts;
@@ -150,6 +151,7 @@ public sealed class VeteransReviewerPackageDetailsService
         EvidencePackageId packageId,
         CancellationToken cancellationToken = default)
     {
+        using var loadingTiming = EmfPerformanceTiming.MeasureTopLevel(EmfPerformancePhase.EvidenceLoading);
         var details =
             await _packages.GetAsync(
                 packageId,
@@ -160,12 +162,14 @@ public sealed class VeteransReviewerPackageDetailsService
 
         if (details.Package.Id != packageId)
             throw new InvalidDataException("Reviewer package identity mismatch.");
+        loadingTiming.Dispose();
         return await GetCurrentAsync(details, cancellationToken);
     }
 
     public async Task<VeteransReviewerPackageDetails> GetCurrentAsync(
         EvidencePackageDetails details, CancellationToken cancellationToken = default)
     {
+        using var performanceTiming = EmfPerformanceTiming.MeasureTopLevel(EmfPerformancePhase.EvidenceMaterialization);
         ArgumentNullException.ThrowIfNull(details);
         var packageId = details.Package.Id;
         if (details.Artifacts.Any(row =>
@@ -190,11 +194,13 @@ public sealed class VeteransReviewerPackageDetailsService
 
         foreach (var packageArtifact in packageArtifacts)
         {
+            using var artifactLoadingTiming = EmfPerformanceTiming.Measure(EmfPerformancePhase.EvidenceLoading);
             var artifact =
                 await _evidence.GetArtifactAsync(
                     packageArtifact.ArtifactId,
                     cancellationToken);
 
+            artifactLoadingTiming.Dispose();
             if (artifact is null)
             {
                 throw new InvalidOperationException(

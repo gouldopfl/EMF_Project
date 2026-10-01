@@ -1,3 +1,4 @@
+using EMF.Common;
 using EMF.Core.Contracts;
 using EMF.Core.Models;
 using EMF.Core.Services;
@@ -10,9 +11,6 @@ using MetadataExtractor.Formats.Gif;
 using MetadataExtractor.Formats.Jpeg;
 using MetadataExtractor.Formats.Png;
 using MetadataExtractor.Formats.WebP;
-using Sdcb.PaddleInference;
-using Sdcb.PaddleOCR;
-using Sdcb.PaddleOCR.Models.Local;
 
 namespace EMF.Orchestration.Services;
 
@@ -24,6 +22,7 @@ public sealed class PaddleImageOcrService :
     public const long DefaultMaxPixelCount = 40_000_000L;
     public const int DefaultMaxExtractedTextChars = 10 * 1024 * 1024;
 
+    private readonly PaddleOcrEngineCache _engines;
     private readonly long _maxInputBytes;
     private readonly int _maxDimensionPixels;
     private readonly long _maxPixelCount;
@@ -34,7 +33,19 @@ public sealed class PaddleImageOcrService :
         int maxDimensionPixels = DefaultMaxDimensionPixels,
         long maxPixelCount = DefaultMaxPixelCount,
         int maxExtractedTextChars = DefaultMaxExtractedTextChars)
+        : this(PaddleOcrEngineCache.Shared, maxInputBytes, maxDimensionPixels,
+            maxPixelCount, maxExtractedTextChars)
     {
+    }
+
+    internal PaddleImageOcrService(
+        PaddleOcrEngineCache engines,
+        long maxInputBytes = DefaultMaxInputBytes,
+        int maxDimensionPixels = DefaultMaxDimensionPixels,
+        long maxPixelCount = DefaultMaxPixelCount,
+        int maxExtractedTextChars = DefaultMaxExtractedTextChars)
+    {
+        _engines = engines;
         ValidatePositive(maxInputBytes, nameof(maxInputBytes));
         ValidatePositive(
             maxDimensionPixels,
@@ -50,7 +61,7 @@ public sealed class PaddleImageOcrService :
         _maxExtractedTextChars = maxExtractedTextChars;
     }
 
-    public Task<string?> RecognizeTextAsync(
+    public async Task<string?> RecognizeTextAsync(
         OcrRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -65,43 +76,26 @@ public sealed class PaddleImageOcrService :
 
         cancellationToken.ThrowIfCancellationRequested();
 
+        using var decodeTiming = EmfPerformanceTiming.Measure(EmfPerformancePhase.PaddleDecode);
         using var source =
             Cv2.ImDecode(
                 request.Image.ToArray(),
                 ImreadModes.Color);
 
+        decodeTiming.Dispose();
         if (source.Empty())
             throw new InvalidDataException(
                 "The image could not be decoded.");
 
-        var model =
-            OcrLanguageResolver.Resolve(request.Language) switch
-            {
-                OcrLanguage.Chinese => LocalFullModels.ChineseV5,
-                OcrLanguage.Korean => LocalFullModels.KoreanV5,
-                OcrLanguage.Arabic => LocalFullModels.ArabicV5,
-                OcrLanguage.Greek => LocalFullModels.GreekV5,
-                OcrLanguage.Thai => LocalFullModels.ThaiV5,
-                OcrLanguage.Cyrillic => LocalFullModels.CyrillicV5,
-                OcrLanguage.Latin => LocalFullModels.LatinV5,
-                _ => LocalFullModels.EnglishV5
-            };
-
-        using var ocr =
-            new PaddleOcrAll(
-                model,
-                PaddleDevice.Mkldnn())
-            {
-                AllowRotateDetection = false,
-                Enable180Classification = false
-            };
-
-        var result = ocr.Run(source);
+        var resultText = await _engines.RunAsync(
+            OcrLanguageResolver.Resolve(request.Language),
+            source,
+            cancellationToken);
 
         var text =
-            string.IsNullOrWhiteSpace(result.Text)
+            string.IsNullOrWhiteSpace(resultText)
                 ? null
-                : result.Text;
+                : resultText;
 
         if (text is not null &&
             text.Length > _maxExtractedTextChars)
@@ -110,7 +104,7 @@ public sealed class PaddleImageOcrService :
                 "OCR text exceeds the maximum allowed size.");
         }
 
-        return Task.FromResult<string?>(text);
+        return text;
     }
 
     private void ValidateImageDimensions(ReadOnlyMemory<byte> image)

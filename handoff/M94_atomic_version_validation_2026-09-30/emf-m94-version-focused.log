@@ -1,0 +1,8 @@
+Test run for /home/michael/EMF_Project/tests/EMF.Tests/bin/Release/net10.0/EMF.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /tmp/emf-m94-version-fix/focused_net10.0_20260930090300.trx
+
+Passed!  - Failed:     0, Passed:   183, Skipped:     0, Total:   183, Duration: 4 m 9 s - EMF.Tests.dll (net10.0)

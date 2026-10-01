@@ -1,3 +1,4 @@
+using EMF.Common;
 using System.Runtime.Versioning;
 using EMF.Core.Contracts;
 using PDFtoImage;
@@ -87,6 +88,7 @@ public sealed class PdfToImagePageRenderer :
 
         using var output = new MemoryStream();
 
+        using var rasterTiming = EmfPerformanceTiming.Measure(EmfPerformancePhase.PdfRasterization);
         Conversion.SavePng(
             output,
             content,
@@ -97,6 +99,7 @@ public sealed class PdfToImagePageRenderer :
                 Grayscale = _grayscale
             });
 
+        rasterTiming.Dispose();
         cancellationToken.ThrowIfCancellationRequested();
 
         return Task.FromResult(output.ToArray());

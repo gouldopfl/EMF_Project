@@ -1,3 +1,4 @@
+using EMF.Common;
 using EMF.Core.Contracts;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
@@ -59,6 +60,7 @@ public sealed class VeteransReviewerEvidenceSourceService
             ServiceConnectionBasisId? selectedBasisId,
             CancellationToken cancellationToken)
     {
+        using var materializationTiming = EmfPerformanceTiming.MeasureTopLevel(EmfPerformancePhase.EvidenceMaterialization);
         ArgumentNullException.ThrowIfNull(details);
         ArgumentNullException.ThrowIfNull(classifications);
 

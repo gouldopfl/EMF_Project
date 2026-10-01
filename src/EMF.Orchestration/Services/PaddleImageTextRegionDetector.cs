@@ -1,3 +1,4 @@
+using EMF.Common;
 using OpenCvSharp;
 using Sdcb.PaddleInference;
 using Sdcb.PaddleOCR;
@@ -21,10 +22,14 @@ public static class PaddleImageTextRegionDetector
     public static IReadOnlyList<PaddleImageTextRegion> Detect(
         ReadOnlyMemory<byte> image)
     {
+        using var detectionTiming = EmfPerformanceTiming.Measure(EmfPerformancePhase.PaddleRegionDetection);
+        using var decodeTiming = EmfPerformanceTiming.Measure(EmfPerformancePhase.PaddleDecode);
         using var source =
             Cv2.ImDecode(
                 image.ToArray(),
                 ImreadModes.Color);
+
+        decodeTiming.Dispose();
 
         if (source.Empty())
         {
@@ -33,6 +38,8 @@ public static class PaddleImageTextRegionDetector
                 "text-region detection.");
         }
 
+        var rasterRequest = EmfPerformanceTiming.RecordPrivacyRaster(image);
+        EmfPerformanceTiming.Count(EmfPerformanceCounter.PrivacyOcrPages);
         lock (OcrLock)
         {
             _ocr ??=
@@ -74,7 +81,18 @@ public static class PaddleImageTextRegionDetector
                         });
                 }
 
+                using var inferenceTiming = EmfPerformanceTiming.Measure(turn switch
+                {
+                    0 => EmfPerformancePhase.Ocr0,
+                    1 => EmfPerformancePhase.Ocr90,
+                    2 => EmfPerformancePhase.Ocr180,
+                    _ => EmfPerformancePhase.Ocr270
+                });
+                EmfPerformanceTiming.Count(EmfPerformanceCounter.PaddleRuns);
+                if (rasterRequest.PreviouslyCompleted)
+                    EmfPerformanceTiming.Count(EmfPerformanceCounter.PotentialPaddleRunsAvoided);
                 var result = _ocr.Run(oriented);
+                inferenceTiming.Dispose();
 
                 foreach (var region in
                          result.Regions
@@ -99,6 +117,7 @@ public static class PaddleImageTextRegionDetector
                 }
             }
 
+            rasterRequest.Complete();
             return output;
         }
     }

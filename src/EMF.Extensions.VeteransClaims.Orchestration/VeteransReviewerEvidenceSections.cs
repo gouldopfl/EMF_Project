@@ -50,14 +50,15 @@ internal sealed class VeteransReviewerEvidenceSections
             ? null : AddHeader(evidenceTitle + " — Continued", titleColor);
     }
 
-    public void StartSourcePage(Body body, int pageNumber, bool landscape)
+    public void StartSourcePage(Body body, int pageNumber, bool landscape, string? supplement = null)
     {
         CloseSection(body);
         _sourcePage = true;
         _landscape = landscape;
         var header = _mainPart.AddNewPart<HeaderPart>();
         header.Header = new Header(HeaderParagraph(PackageHeader, "16"),
-            HeaderParagraph($"Appendix F — Medical Literature | Source Page {pageNumber}", "16"));
+            HeaderParagraph($"Appendix F — Medical Literature | Source Page {pageNumber}" +
+                (supplement is null ? "" : $" | {supplement} enlargement (supplement)"), "16"));
         _continuationHeaderId = _mainPart.GetIdOfPart(header);
     }
 

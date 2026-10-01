@@ -65,7 +65,7 @@ public sealed class VeteransReviewerEvidencePresentationTests
                      "Oxygen: 98%", "Dose: 5 mg", "ACTIVE", "Follow-up: 2026-10-01" })
             Assert.Contains(value, normalized);
         Assert.Equal(normalized, presentation.Normalize(normalized));
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([content], veteranDisplayName: "Michael Allen Gould"));
+        var bytes = ReviewerPackageTestPreparation.Render(Details([content], veteranDisplayName: "Michael Allen Gould"));
         using var document = WordprocessingDocument.Open(new MemoryStream(bytes), false);
         var text = document.MainDocumentPart!.Document!.Body!.InnerText;
         Assert.DoesNotContain("Report generated", text);
@@ -123,7 +123,7 @@ public sealed class VeteransReviewerEvidencePresentationTests
         Assert.Equal(expected, presentation.Normalize(input));
         Assert.Equal(expected, presentation.Normalize(expected));
         using var document = WordprocessingDocument.Open(new MemoryStream(
-            VeteransReviewerPackageDocxRenderer.Render(Details([content], veteranDisplayName: "Robin Example"))), false);
+            ReviewerPackageTestPreparation.Render(Details([content], veteranDisplayName: "Robin Example"))), false);
         var body = document.MainDocumentPart!.Document!.Body!.InnerText;
         Assert.DoesNotContain(ScrambledDob, body);
         Assert.DoesNotContain("Example, Robin", body);
@@ -192,7 +192,7 @@ public sealed class VeteransReviewerEvidencePresentationTests
         {
             var pages = printable ? new[] { TextPage(1, input) } : [];
             var content = Content(input, appendix: appendix, pages: pages);
-            var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([content]));
+            var bytes = ReviewerPackageTestPreparation.Render(Details([content]));
             using var document = WordprocessingDocument.Open(new MemoryStream(bytes), false);
             var body = document.MainDocumentPart!.Document!.Body!;
             Assert.DoesNotContain("Report generated", body.InnerText);
@@ -243,7 +243,7 @@ public sealed class VeteransReviewerEvidencePresentationTests
         {
             var renderedContent = Content(verifiedHeader + "\n" + input, appendix: VeteransReviewerPackageAppendix.LayEvidence,
                 pages: printable ? [TextPage(422, input)] : []);
-            var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([renderedContent]));
+            var bytes = ReviewerPackageTestPreparation.Render(Details([renderedContent]));
             using var document = WordprocessingDocument.Open(new MemoryStream(bytes), false);
             var body = document.MainDocumentPart!.Document!.Body!;
             Assert.DoesNotContain("Allen", body.InnerText);
@@ -302,7 +302,7 @@ public sealed class VeteransReviewerEvidencePresentationTests
                 useVerifiedHeader ? verifiedHeader + "\n" + input : input,
                 appendix: VeteransReviewerPackageAppendix.LayEvidence,
                 pages: printable ? [TextPage(422, input)] : []);
-            var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([content],
+            var bytes = ReviewerPackageTestPreparation.Render(Details([content],
                 veteranDisplayName: useVerifiedHeader ? "Robin Example" : "Robin Allen Example"));
             using var document = WordprocessingDocument.Open(new MemoryStream(bytes), false);
             var paragraphs = document.MainDocumentPart!.Document!.Body!.Descendants<Paragraph>()
@@ -369,7 +369,7 @@ public sealed class VeteransReviewerEvidencePresentationTests
     [InlineData("Stable symptoms.  Continue care.  Return next month.")]
     public void Render_DoubleSpacedProseUsesNarrativeFont(string prose)
     {
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([Content(prose)]));
+        var bytes = ReviewerPackageTestPreparation.Render(Details([Content(prose)]));
         using var document = WordprocessingDocument.Open(new MemoryStream(bytes), false);
         var paragraph = Assert.Single(document.MainDocumentPart!.Document!.Body!
             .Descendants<Paragraph>().Where(p => p.InnerText == prose));
@@ -440,9 +440,12 @@ public sealed class VeteransReviewerEvidencePresentationTests
         Assert.Contains("Drug A 5 mg daily", body.InnerText);
         Assert.Contains("No active infection.", body.InnerText);
         Assert.Contains(body.Descendants<Paragraph>(), p => p.InnerText == "ACTIVE");
-        var row = Assert.Single(body.Descendants<Paragraph>().Where(p => p.InnerText == "Temperature   37.2      C"));
-        Assert.Equal("DejaVu Sans Mono", row.Descendants<RunFonts>().Single().Ascii!.Value);
-        Assert.Contains(body.Descendants<Paragraph>(), p => p.InnerText == "Pulse   72      /min");
+        var table = Assert.Single(body.Elements<Table>().Where(t => t.InnerText.StartsWith("TestResultUnits")));
+        Assert.Equal(new[] { "Temperature", "37.2", "C" }, table.Elements<TableRow>().ElementAt(1)
+            .Elements<TableCell>().Select(c => c.InnerText));
+        Assert.Equal(new[] { "Pulse", "72", "/min" }, table.Elements<TableRow>().ElementAt(2)
+            .Elements<TableCell>().Select(c => c.InnerText));
+        Assert.All(table.Elements<TableRow>(), row => Assert.NotNull(row.TableRowProperties!.GetFirstChild<CantSplit>()));
         Assert.Contains("See Page 17 of 900 for the previous measurement.", body.InnerText);
         if (printablePages)
         {
@@ -466,7 +469,7 @@ public sealed class VeteransReviewerEvidencePresentationTests
         var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
         var content = Content("Extracted text must not replace the preserved page.", null, appendix, name,
             [new PrintableArtifactPage { PageNumber = 1, ContentType = "image/png", Content = png }]);
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([content]));
+        var bytes = ReviewerPackageTestPreparation.Render(Details([content]));
         using var document = WordprocessingDocument.Open(new MemoryStream(bytes), false);
         using var image = Assert.Single(document.MainDocumentPart!.ImageParts).GetStream();
         using var copy = new MemoryStream();
@@ -483,7 +486,7 @@ public sealed class VeteransReviewerEvidencePresentationTests
     public void Render_NonClinicalTextRetainsQuotedBlueButtonHeader(string appendix)
     {
         var content = Content("I reviewed Blue Button.\n" + Header + "\n" + ClinicalText, "Personal statement", appendix);
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([content]));
+        var bytes = ReviewerPackageTestPreparation.Render(Details([content]));
         using var document = WordprocessingDocument.Open(new MemoryStream(bytes), false);
         var text = document.MainDocumentPart!.Document!.Body!.InnerText;
         Assert.Contains("Report generated by My HealtheVet", text);
@@ -496,7 +499,7 @@ public sealed class VeteransReviewerEvidencePresentationTests
     {
         var content = Content(Header, pages: [new PrintableArtifactPage
         { PageNumber = 1, ContentType = "text/plain", Content = new byte[] { 0xff } }]);
-        Assert.Throws<InvalidDataException>(() => VeteransReviewerPackageDocxRenderer.Render(Details([content])));
+        Assert.Throws<InvalidDataException>(() => ReviewerPackageTestPreparation.Render(Details([content])));
     }
 
     internal static VeteransReviewerArtifactContent Content(string text,

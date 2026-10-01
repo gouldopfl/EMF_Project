@@ -1,0 +1,162 @@
+--- a/src/EMF.Core/Models/Identities/IdentityValueValidator.cs
++++ b/src/EMF.Core/Models/Identities/IdentityValueValidator.cs
+@@ -14,14 +14,31 @@
+                 parameterName);
+         }
+ 
+-        foreach (var character in value)
++        for (var index = 0; index < value.Length; index++)
+         {
++            var character = value[index];
+             if (char.IsControl(character))
+             {
+                 throw new ArgumentException(
+                     $"{displayName} cannot contain control characters.",
+                     parameterName);
+             }
++
++            // UTF-8 replacement fallback would collapse malformed UTF-16 IDs
++            // into another identity in persistence and authenticated context.
++            if (char.IsSurrogate(character))
++            {
++                if (!char.IsHighSurrogate(character) ||
++                    index + 1 >= value.Length ||
++                    !char.IsLowSurrogate(value[index + 1]))
++                {
++                    throw new ArgumentException(
++                        $"{displayName} must contain well-formed Unicode.",
++                        parameterName);
++                }
++
++                index++;
++            }
+         }
+ 
+         return value;
+--- a/src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageClinicalProgressionService.cs
++++ b/src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageClinicalProgressionService.cs
+@@ -65,6 +65,9 @@
+             cancellationToken.ThrowIfCancellationRequested();
+ 
+             Validate(progressionEvent);
++
++            // Membership integrity applies even when the event has no page range.
++            scope.ValidateMember(progressionEvent.SourceArtifactId);
+ 
+             var selected = details.PackageDetails.Artifacts.Single(row => row.ArtifactId == progressionEvent.SourceArtifactId);
+             if (selected.ReviewerPageSelection is not null && progressionEvent.SourceStartPage is null)
+--- a/src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageEvidenceScope.cs
++++ b/src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageEvidenceScope.cs
+@@ -1,4 +1,5 @@
+ using System.Globalization;
++using EMF.Core.Models;
+ using EMF.Core.Models.Identities;
+ using EMF.Extensions.VeteransClaims.Models;
+ using EMF.Extensions.VeteransClaims.Models.Adjudication;
+@@ -17,13 +18,7 @@
+         if (!ArtifactIds.Contains(sourceId)) return false;
+         if (start <= 0 || end < start)
+             throw new InvalidDataException("Reviewer factual source range is invalid.");
+-        var row = details.PackageDetails.Artifacts.Single(row => row.ArtifactId == sourceId);
+-        if (row.EvidencePackageId != details.PackageDetails.Package.Id)
+-            throw new InvalidDataException("Reviewer factual source package identity mismatch.");
+-        var artifact = details.Artifacts.SingleOrDefault(item => item.Id == sourceId)
+-            ?? throw new InvalidDataException("Reviewer factual source artifact is missing.");
+-        var content = details.ArtifactContents.SingleOrDefault(item => item.Artifact.Id == sourceId)
+-            ?? throw new InvalidDataException("Reviewer factual source content is missing.");
++        var (row, artifact, content) = GetMember(sourceId);
+         var hasStart = artifact.Metadata.TryGetValue(VeteransArtifactMetadataKeys.SourceStartPage, out var sourceStart);
+         var hasEnd = artifact.Metadata.TryGetValue(VeteransArtifactMetadataKeys.SourceEndPage, out var sourceEnd);
+         if (hasStart || hasEnd)
+@@ -39,4 +34,21 @@
+         return (long)end - start + 1 <= pages.Count &&
+             Enumerable.Range(start, end - start + 1).All(pages.Contains);
+     }
++
++    public void ValidateMember(ArtifactId sourceId) => _ = GetMember(sourceId);
++
++    private (EvidencePackageArtifact Row, Artifact Artifact, VeteransReviewerArtifactContent Content)
++        GetMember(ArtifactId sourceId)
++    {
++        if (!ArtifactIds.Contains(sourceId))
++            throw new InvalidDataException("Reviewer factual source is not an underlying package member.");
++        var row = details.PackageDetails.Artifacts.Single(row => row.ArtifactId == sourceId);
++        if (row.EvidencePackageId != details.PackageDetails.Package.Id)
++            throw new InvalidDataException("Reviewer factual source package identity mismatch.");
++        var artifact = details.Artifacts.SingleOrDefault(item => item.Id == sourceId)
++            ?? throw new InvalidDataException("Reviewer factual source artifact is missing.");
++        var content = details.ArtifactContents.SingleOrDefault(item => item.Artifact.Id == sourceId)
++            ?? throw new InvalidDataException("Reviewer factual source content is missing.");
++        return (row, artifact, content);
++    }
+ }
+--- /dev/null
++++ b/tests/EMF.Tests/IdentityEncodingHardeningTests.cs
+@@ -0,0 +1,29 @@
++using System.Text;
++using EMF.Core.Models.Identities;
++
++namespace EMF.Tests;
++
++public sealed class IdentityEncodingHardeningTests
++{
++    [Fact]
++    public void ArtifactId_RejectsMalformedUnicodeThatAliasesAnotherAuthenticatedIdentity()
++    {
++        // Default UTF-8 replacement fallback turns distinct UTF-16 strings into
++        // identical bytes, including the bytes used for artifact authentication.
++        var replacement = "artifact-\uFFFD";
++        foreach (var malformed in new[] { "artifact-\uD800", "artifact-\uDC00" })
++        {
++            Assert.NotEqual(replacement, malformed);
++            Assert.Equal(Encoding.UTF8.GetBytes(replacement), Encoding.UTF8.GetBytes(malformed));
++            Assert.Throws<ArgumentException>(() => new ArtifactId(malformed));
++        }
++    }
++
++    [Fact]
++    public void ArtifactId_PreservesValidUnicodeWithoutNormalization()
++    {
++        foreach (var value in new[] { "artifact-\U0001F4C4", "artifact-é", "artifact-e\u0301", "artifact-\uFFFD" })
++            Assert.Equal(value, new ArtifactId(value).Value);
++        Assert.NotEqual(new ArtifactId("artifact-é"), new ArtifactId("artifact-e\u0301"));
++    }
++}
+--- a/tests/EMF.Tests/VeteransReviewerPackageClinicalProgressionTests.cs
++++ b/tests/EMF.Tests/VeteransReviewerPackageClinicalProgressionTests.cs
+@@ -465,6 +465,35 @@
+         }
+         var events = await service.GetAsync(details);
+         Assert.Equal(included ? 1 : 0, events.Count);
++    }
++
++    [Theory]
++    [InlineData(true)]
++    [InlineData(false)]
++    public async Task GetAsync_UnlocatedEventRejectsMissingArtifactOrWrongPackageRow(bool missingArtifact)
++    {
++        var issue = new ClaimIssueId("synthetic-issue");
++        var id = new ArtifactId("synthetic-source");
++        var original = Details(issue, Content(id));
++        var details = new VeteransReviewerPackageDetails
++        {
++            PackageDetails = new EvidencePackageDetails
++            {
++                Package = original.PackageDetails.Package,
++                Artifacts = [new EvidencePackageArtifact
++                {
++                    EvidencePackageId = missingArtifact ? original.PackageDetails.Package.Id : new("different-package"),
++                    ArtifactId = id,
++                    ContentRole = EvidencePackageContentRoles.UnderlyingEvidence
++                }]
++            },
++            Artifacts = missingArtifact ? [] : original.Artifacts,
++            ArtifactContents = original.ArtifactContents
++        };
++        var service = new VeteransReviewerPackageClinicalProgressionService(new ClinicalProgressionRepositoryStub(
++            Event(issue, id, new DateOnly(2026, 1, 1), ClinicalProgressionEventTypes.TreatmentResponse,
++                "Synthetic factual observation")));
++        await Assert.ThrowsAsync<InvalidDataException>(() => service.GetAsync(details));
+     }
+ 
+     private static ClinicalProgressionEvent Event(

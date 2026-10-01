@@ -123,7 +123,7 @@ public sealed class VeteransReviewerPackageClinicalProgressionTests
                 ClinicalProgressionEventTypes.TreatmentProblem, "LATER CLAIM ONLY FACT"));
         var events = await new VeteransReviewerPackageClinicalProgressionService(repository).GetAsync(details);
         Assert.Equal("Bilateral pes planus", Assert.Single(events).Summary);
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(new VeteransReviewerPackageDetails
+        var bytes = ReviewerPackageTestPreparation.Render(new VeteransReviewerPackageDetails
         {
             PackageDetails = original.PackageDetails,
             Artifacts = original.Artifacts,
@@ -167,7 +167,7 @@ public sealed class VeteransReviewerPackageClinicalProgressionTests
                 ]
             };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
         var text = document.MainDocumentPart!.Document!.Body!.InnerText;
@@ -331,7 +331,7 @@ Raw OSCAR session records are intentionally omitted from this physician report.
                 ]
             };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
         var body = document.MainDocumentPart!.Document!.Body!;

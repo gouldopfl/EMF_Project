@@ -1,0 +1,84 @@
+ M src/EMF.Console/LibreOfficeVeteransReviewerPackageDocumentConverter.cs
+ M src/EMF.Console/VeteransConsoleCommand.cs
+ M src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerMedicalOpinionRequestService.cs
+ M src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageAssemblyService.cs
+ M src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageDetails.cs
+ M src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageDocumentOutputService.cs
+ M src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageDocxRenderer.cs
+ M src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackagePrescriptionPresentation.cs
+ M src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageRendererIdentity.cs
+ M src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageReuseService.cs
+ M src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerSourceReasonablenessReview.cs
+ M src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/Repositories/SqliteEvidencePackageRepository.cs
+ M src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/VeteransClaimsSqliteMigrations.cs
+ M src/EMF.Extensions.VeteransClaims/Contracts/IEvidencePackageRepository.cs
+ M tests/EMF.Tests/LibreOfficeConverterSecurityTests.cs
+ M tests/EMF.Tests/VeteransClaimsSqliteMigrationTests.cs
+ M tests/EMF.Tests/VeteransReviewerClinicalLayoutTests.cs
+ M tests/EMF.Tests/VeteransReviewerEvidencePresentationTests.cs
+ M tests/EMF.Tests/VeteransReviewerEvidenceSourceServiceTests.cs
+ M tests/EMF.Tests/VeteransReviewerLumbarStructureTests.cs
+ M tests/EMF.Tests/VeteransReviewerOutputProvenanceIntegrationTests.cs
+ M tests/EMF.Tests/VeteransReviewerOutputProvenanceTests.cs
+ M tests/EMF.Tests/VeteransReviewerPackageClinicalProgressionTests.cs
+ M tests/EMF.Tests/VeteransReviewerPackageDocxRendererTests.cs
+ M tests/EMF.Tests/VeteransReviewerPackageMedicationRendererTests.cs
+ M tests/EMF.Tests/VeteransReviewerPackagePhysicianFacingNameTests.cs
+ M tests/EMF.Tests/VeteransReviewerPackagePrescriptionPresentationTests.cs
+ M tests/EMF.Tests/VeteransReviewerPackageReuseServiceTests.cs
+ M tests/EMF.Tests/VeteransReviewerPackageSnapshotTests.cs
+ M tests/EMF.Tests/VeteransReviewerPackageSourceClarificationTests.cs
+ M tests/EMF.Tests/VeteransReviewerPatientHeaderTests.cs
+ M tests/EMF.Tests/VeteransReviewerPresentationPhase2Tests.cs
+ M tests/EMF.Tests/VeteransReviewerSourceReasonablenessReviewTests.cs
+?? EMF_Output/EMF_v1_09252026.zip
+?? EMF_Output/M92_Hardening_Report_2026-09-29.docx
+?? EMF_Output/M92_Hardening_Report_2026-09-29.zip
+?? HARDENING_HANDOFF.md
+?? HARDENING_REVIEW.md
+?? SECURITY_HIPAA_NIST_AUDIT.md
+?? docs/LUMBAR_V3_STRUCTURAL_REVIEW.md
+?? docs/M92_ADVERSARIAL_REVIEW_2026-09-29.md
+?? docs/M94_REVIEW_AND_CLONE_REHEARSAL.md
+?? docs/REVIEWER_PACKAGE_DETERMINISM_CONTRACT.md
+?? docs/REVIEWER_PACKAGE_DETERMINISM_VALIDATION_REPORT.json
+?? handoff/M92_Hardening_Report_2026-09-29.docx
+?? handoff/M92_Hardening_Report_2026-09-29.zip
+?? handoff/M94_atomic_version_validation_2026-09-30/astra-review.txt
+?? handoff/M94_atomic_version_validation_2026-09-30/atomic-version_net10.0_20260930085627.trx
+?? handoff/M94_atomic_version_validation_2026-09-30/boundaries_net10.0_20260930085811.trx
+?? handoff/M94_atomic_version_validation_2026-09-30/diff-check.txt
+?? handoff/M94_atomic_version_validation_2026-09-30/emf-m94-version-boundaries.log
+?? handoff/M94_atomic_version_validation_2026-09-30/emf-m94-version-fix.log
+?? handoff/M94_atomic_version_validation_2026-09-30/emf-m94-version-focused.log
+?? handoff/M94_atomic_version_validation_2026-09-30/emf-m94-version-full.log
+?? handoff/M94_atomic_version_validation_2026-09-30/focused_net10.0_20260930090300.trx
+?? handoff/M94_atomic_version_validation_2026-09-30/full-results/full-after-atomic-fix_net10.0_20260930090324.trx
+?? handoff/M94_atomic_version_validation_2026-09-30/full-results/full-after-atomic-fix_net10.0_20260930090326.trx
+?? handoff/M94_atomic_version_validation_2026-09-30/full-results/full-after-atomic-fix_net10.0_20260930092117.trx
+?? handoff/M94_atomic_version_validation_2026-09-30/git-status-final.txt
+?? handoff/M94_atomic_version_validation_2026-09-30/protected-inputs.sha256
+?? handoff/M94_atomic_version_validation_2026-09-30/regression-before-fix/full-suite.log
+?? handoff/M94_atomic_version_validation_2026-09-30/regression-before-fix/reflog-after.txt
+?? handoff/M94_atomic_version_validation_2026-09-30/regression-before-fix/reflog-before.txt
+?? handoff/M94_atomic_version_validation_2026-09-30/regression-before-fix/results/m94_net10.0_20260930082850.trx
+?? handoff/M94_atomic_version_validation_2026-09-30/regression-before-fix/results/m94_net10.0_20260930082858.trx
+?? handoff/M94_atomic_version_validation_2026-09-30/regression-before-fix/results/m94_net10.0_20260930084720.trx
+?? handoff/M94_atomic_version_validation_2026-09-30/regression-before-fix/status-after.txt
+?? handoff/M94_atomic_version_validation_2026-09-30/regression-before-fix/status-before.txt
+?? handoff/M94_atomic_version_validation_2026-09-30/regression-before-fix/untracked-after.sha256
+?? handoff/M94_atomic_version_validation_2026-09-30/regression-before-fix/untracked-before.sha256
+?? handoff/M94_atomic_version_validation_2026-09-30/validation-notes.txt
+?? handoff/M94_atomic_version_validation_2026-09-30/validation-results.json
+?? handoff/followup-20260925-identity-progression/README.md
+?? handoff/followup-20260925-identity-progression/followup-before-retry.log
+?? handoff/followup-20260925-identity-progression/followup-focused.log
+?? handoff/followup-20260925-identity-progression/followup-restore.log
+?? handoff/followup-20260925-identity-progression/followup.patch
+?? src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackagePresentationPreparation.cs
+?? src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageRenderSettings.cs
+?? src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPresentationVersionService.cs
+?? src/EMF.Extensions.VeteransClaims/Models/Adjudication/ReviewerPackagePresentationSnapshot.cs
+?? tests/EMF.Tests/ReviewerPackageTestPreparation.cs
+?? tests/EMF.Tests/VeteransReviewerPackageArchitectureTests.cs
+?? tests/EMF.Tests/VeteransReviewerPackageDeterminismTests.cs

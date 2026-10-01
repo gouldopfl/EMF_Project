@@ -1,0 +1,31 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  EMF.Common -> /home/michael/EMF_Project/src/EMF.Common/bin/Debug/net10.0/EMF.Common.dll
+  EMF.Core -> /home/michael/EMF_Project/src/EMF.Core/bin/Debug/net10.0/EMF.Core.dll
+  EMF.Integrity -> /home/michael/EMF_Project/src/EMF.Integrity/bin/Debug/net10.0/EMF.Integrity.dll
+  EMF.Discovery -> /home/michael/EMF_Project/src/EMF.Discovery/bin/Debug/net10.0/EMF.Discovery.dll
+  EMF.Security -> /home/michael/EMF_Project/src/EMF.Security/bin/Debug/net10.0/EMF.Security.dll
+  EMF.Persistence -> /home/michael/EMF_Project/src/EMF.Persistence/bin/Debug/net10.0/EMF.Persistence.dll
+  EMF.Intelligence -> /home/michael/EMF_Project/src/EMF.Intelligence/bin/Debug/net10.0/EMF.Intelligence.dll
+  EMF.Security.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Security.Persistence.Sqlite/bin/Debug/net10.0/EMF.Security.Persistence.Sqlite.dll
+  EMF.Inventory -> /home/michael/EMF_Project/src/EMF.Inventory/bin/Debug/net10.0/EMF.Inventory.dll
+  EMF.Extensions.VeteransClaims -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.dll
+  EMF.Security.Azure -> /home/michael/EMF_Project/src/EMF.Security.Azure/bin/Debug/net10.0/EMF.Security.Azure.dll
+  EMF.Orchestration -> /home/michael/EMF_Project/src/EMF.Orchestration/bin/Debug/net10.0/EMF.Orchestration.dll
+  EMF.Extensions.VeteransClaims.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Persistence.Sqlite.dll
+  EMF.Extensions.VeteransClaims.Persistence -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Persistence/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Persistence.dll
+  EMF.Intelligence.Development -> /home/michael/EMF_Project/src/EMF.Intelligence.Development/bin/Debug/net10.0/EMF.Intelligence.Development.dll
+  EMF.Intelligence.AzureOpenAI -> /home/michael/EMF_Project/src/EMF.Intelligence.AzureOpenAI/bin/Debug/net10.0/EMF.Intelligence.AzureOpenAI.dll
+  EMF.Extensions.VeteransClaims.Orchestration -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Orchestration/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Orchestration.dll
+  EMF.Intelligence.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Intelligence.Persistence.Sqlite/bin/Debug/net10.0/EMF.Intelligence.Persistence.Sqlite.dll
+  EMF.Console -> /home/michael/EMF_Project/src/EMF.Console/bin/Debug/net10.0/EMF.Console.dll
+  EMF.Laboratory -> /home/michael/EMF_Project/src/EMF.Laboratory/bin/Debug/net10.0/EMF.Laboratory.dll
+  EMF.Tests -> /home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll
+Test run for /home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:    27, Skipped:     0, Total:    27, Duration: 7 s - EMF.Tests.dll (net10.0)
+Results File: /home/michael/EMF_Project/handoff/candidate3-shared-hardening-20260930/recovery-final.trx

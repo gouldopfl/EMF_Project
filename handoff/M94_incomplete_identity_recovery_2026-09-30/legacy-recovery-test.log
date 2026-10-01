@@ -1,0 +1,40 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  EMF.Common -> /home/michael/EMF_Project/src/EMF.Common/bin/Release/net10.0/EMF.Common.dll
+  EMF.Core -> /home/michael/EMF_Project/src/EMF.Core/bin/Release/net10.0/EMF.Core.dll
+  EMF.Security -> /home/michael/EMF_Project/src/EMF.Security/bin/Release/net10.0/EMF.Security.dll
+  EMF.Security.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Security.Persistence.Sqlite/bin/Release/net10.0/EMF.Security.Persistence.Sqlite.dll
+  EMF.Inventory -> /home/michael/EMF_Project/src/EMF.Inventory/bin/Release/net10.0/EMF.Inventory.dll
+  EMF.Discovery -> /home/michael/EMF_Project/src/EMF.Discovery/bin/Release/net10.0/EMF.Discovery.dll
+  EMF.Extensions.VeteransClaims -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims/bin/Release/net10.0/EMF.Extensions.VeteransClaims.dll
+  EMF.Intelligence -> /home/michael/EMF_Project/src/EMF.Intelligence/bin/Release/net10.0/EMF.Intelligence.dll
+  EMF.Persistence -> /home/michael/EMF_Project/src/EMF.Persistence/bin/Release/net10.0/EMF.Persistence.dll
+  EMF.Security.Azure -> /home/michael/EMF_Project/src/EMF.Security.Azure/bin/Release/net10.0/EMF.Security.Azure.dll
+  EMF.Intelligence.AzureOpenAI -> /home/michael/EMF_Project/src/EMF.Intelligence.AzureOpenAI/bin/Release/net10.0/EMF.Intelligence.AzureOpenAI.dll
+  EMF.Integrity -> /home/michael/EMF_Project/src/EMF.Integrity/bin/Release/net10.0/EMF.Integrity.dll
+  EMF.Intelligence.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Intelligence.Persistence.Sqlite/bin/Release/net10.0/EMF.Intelligence.Persistence.Sqlite.dll
+  EMF.Intelligence.Development -> /home/michael/EMF_Project/src/EMF.Intelligence.Development/bin/Release/net10.0/EMF.Intelligence.Development.dll
+  EMF.Orchestration -> /home/michael/EMF_Project/src/EMF.Orchestration/bin/Release/net10.0/EMF.Orchestration.dll
+  EMF.Extensions.VeteransClaims.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/bin/Release/net10.0/EMF.Extensions.VeteransClaims.Persistence.Sqlite.dll
+  EMF.Extensions.VeteransClaims.Orchestration -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Orchestration/bin/Release/net10.0/EMF.Extensions.VeteransClaims.Orchestration.dll
+  EMF.Console -> /home/michael/EMF_Project/src/EMF.Console/bin/Release/net10.0/EMF.Console.dll
+  EMF.Laboratory -> /home/michael/EMF_Project/src/EMF.Laboratory/bin/Release/net10.0/EMF.Laboratory.dll
+  EMF.Extensions.VeteransClaims.Persistence -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Persistence/bin/Release/net10.0/EMF.Extensions.VeteransClaims.Persistence.dll
+  EMF.Tests -> /home/michael/EMF_Project/tests/EMF.Tests/bin/Release/net10.0/EMF.Tests.dll
+Test run for /home/michael/EMF_Project/tests/EMF.Tests/bin/Release/net10.0/EMF.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.4.5+1caef2f33e (64-bit .NET 10.0.12)
+[xUnit.net 00:00:00.69]   Discovering: EMF.Tests
+[xUnit.net 00:00:00.86]   Discovered:  EMF.Tests
+[xUnit.net 00:00:00.86]   Starting:    EMF.Tests
+[xUnit.net 00:00:04.02]   Finished:    EMF.Tests
+  Passed EMF.Tests.VeteransReviewerPackageArchitectureTests.RecoveryRejectsLegacyIdentityWithoutFabricatingSourceOrPresentation [3 s]
+
+Test Run Successful.
+Total tests: 1
+     Passed: 1
+ Total time: 4.5430 Seconds
+Results File: /home/michael/EMF_Project/handoff/M94_incomplete_identity_recovery_2026-09-30/legacy-recovery_net10.0_20260930093537.trx

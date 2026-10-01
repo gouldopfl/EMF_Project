@@ -9,7 +9,7 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 /// </summary>
 public static class VeteransReviewerPackageRendererIdentity
 {
-    public const string Contract = "reviewer-docx-v1";
+    public const string Contract = "reviewer-docx-v2";
 
     public static string Build =>
         EmfAssemblyBuildIdentity.GetModuleVersionId(

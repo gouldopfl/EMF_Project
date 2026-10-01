@@ -1,0 +1,22 @@
+M94 atomic version creation follow-up — 2026-09-30
+
+Problem
+PrepareNewVersionAsync previously committed the new package/membership, source snapshot and frozen presentation independently. Interruption could therefore leave an incomplete identity that blocked retry.
+
+Correction
+CreateReviewerPresentationVersionAsync uses one SQLite connection and one explicit immediate transaction. Package and artifact rows, source snapshot and sealing, and presentation/lineage are committed together. The orchestration service prepares in memory before calling this atomic repository boundary. Unsupported repositories fail before version writes. Existing snapshot/presentation validation, immutable-row protections and output/build-provenance behavior are retained. No schema migration was added.
+
+Boundary verification
+Eight BEFORE/AFTER INSERT failures cover package, artifact membership, source snapshot and presentation tables, only in disposable temporary test databases. All eight passed with strengthened assertions: zero partial new-version rows, unchanged prior package/source/presentation/membership/output provenance, successful retry of the same identity, and no duplicate package/presentation/lineage state. A retry after successful creation is rejected and leaves persisted state unchanged.
+
+Verification completed so far
+Initial architecture/persistence checks: 135 passed, 0 failed, 0 skipped.
+Strengthened boundary cases: 8 passed, 0 failed, 0 skipped.
+M94 focused acceptance: 183 passed, 0 failed, 0 skipped (original 175 plus 8 boundary cases); synthetic LibreOffice PDF checks enabled.
+Full Release regression completed successfully. Exact counts, TRX run durations and skip reasons are in validation-results.json. Combined: {'total': 3127, 'executed': 3125, 'passed': 3125, 'failed': 0, 'skipped': 2, 'elapsed_run_window_seconds': '1075.4447614'}. All synthetic LibreOffice layout/determinism checks enabled. Only the disabled Azure OpenAI and Azure Monitor live integration tests were skipped.
+
+Side effects
+See astra-review.txt. The shipped preparation/verifier performs file/resource reads, assembly loading/caching and in-memory DOCX construction before the transaction. No network, PDF conversion or real package export occurs in new-version creation, and no unfinished external completion step follows commit. Caller-injected verifier delegates are outside that side-effect guarantee.
+
+Scope
+Previously persisted incomplete identities are not automatically modified or repaired. No live database migration or candidate generation is authorized. No files have been staged, committed or pushed. Test logs and review comments were copied here at the user's request. All three protected SHA-256 hashes matched after the full run; see protected-inputs.sha256. EMF_AZURE_OPENAI_LIVE remained unset, and Azure OpenAI was not invoked. git diff --check passed. HEAD remained dfee83b7af3f1fbb0352105f217f061223ae1472. No staging, commit or push occurred. Complete Git state is in git-status-final.txt. M94 is ready to advance to candidate-package validation; no candidate was generated.

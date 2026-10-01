@@ -163,37 +163,78 @@ pixel, including margins, headers, footers, tables, and charts, is retained;
 content-store bytes and the supplied printable-page buffer remain unchanged.
 This operation neither reconstructs content nor repairs extracted text.
 
-After orientation, literature presentation may remove exterior whitespace before
-scaling. The content bounds include every pixel other than exact opaque white:
-faint antialiasing, colored DOI links, isolated marks, and transparent pixels
-are retained. Bounds receive a safety margin of one percent of the shorter
-original pixel dimension, rounded up, with a two-pixel minimum and clamped to
-the original page. All-white and edge-to-edge pages remain unchanged. A pixel
-subset is encoded losslessly, without resampling or changing the source buffer.
-Publisher headers, footers, DOI links, page numbers, captions, tables, figures,
-and references receive exactly the same protection as body text. No semantic
-region detection or removal of internal whitespace is permitted.
+Preserved source pages retain their complete original margins after orientation.
+Do not crop the original-page view to fill the reviewer page. Source images align
+to the section's left content margin with zero added indentation and drawing
+padding, and scale uniformly to the largest size that fits the available content
+box. Height can limit the occupied width. Reviewer headers and footers remain
+outside that box. Native clinical images use the same maximum-fit rule without
+an additional displayed-font-size cap.
 
-The reviewer page orientation is selected from the oriented original page before
-cropping, retaining landscape placement for sideways source pages even if their
-content bounds have a different aspect ratio. The cropped image is then scaled
-proportionally to the maximum available reviewer area. Tests compare every
-retained pixel at its original integer offset and require every removed pixel
-to be exact white, including after quarter-turn orientation. The original
-article's own small labels and internal spacing remain; cropping does not
-promise a particular readable font size for every source.
+The reviewer page orientation is selected from the oriented original literature
+page, preserving portrait and landscape placement. Tests require complete embedded
+source bytes after orientation, including original whitespace. When graphs or
+tables require enlargement, provide a separate, clearly identified enlargement
+in addition to the preserved original-page view. Eliminate EMF-added whitespace
+through placement; preserve whitespace belonging to the source. This shared rule
+applies to OSA, GERD/Mental Health, and Lumbar packages.
 
 Readability review prioritizes tables, figures, forest plots, discussion and
-conclusions. The fidelity rules above apply equally to those pages: internal
-publisher layout takes priority when no further blank outer margin can be
-removed. In particular, an indented reference block does not authorize cropping
-non-white publisher furniture or repositioning individual article regions.
-Lumbar package page 85 / literature source page 15 is the regression example:
-its full source region is already centered with balanced safety padding, while
-the reference indentation is internal to the published page. Keep only that
-intact page. No supplemental magnification is currently enabled. Any future
-magnification must be a general, explicitly labeled feature with objective
-selection criteria, separately authorized rather than a page-specific exception.
+conclusions. Original publisher whitespace and internal layout remain intact in
+the source-page view, including indented reference blocks. A separate labeled
+figure/table enlargement may supplement that view when needed; it must never
+replace the complete original page or invent content. Preparation now selects
+supplements deterministically using `VeteransReviewerSourceEnlargements`:
+
+- Raster blocks are separated by at least 12 points of whitespace. Candidates
+  must span at least 60 by 35 points and less than 75% of the original raster area.
+  Native point geometry supplies the scale; without it, the shorter raster axis
+  is assigned 612 points solely for conservative detection thresholds.
+- Numbered Figure/Fig./Table captions must be within 24 points vertically and
+  overlap more than 50% of the shorter horizontal span. A caption shared by
+  multiple candidate blocks, or several captions in one block, is ambiguous.
+  Figures additionally require native graphics provenance, at least 100 non-text
+  ink pixels, and at least 20% non-text ink after excluding native glyph boxes.
+- An uncaptained table requires at least three horizontal and two vertical thin
+  rules, each covering at least 80% of its span. Rule thickness cannot exceed
+  the larger of three pixels or one twenty-fifth of the shorter region side.
+  At least four cells, across at least two rows and columns, must contain two
+  separated interior marks. Empty plot grids and solid rectangles are rejected.
+- Include six points of padding, clamped to the original page. Interior crop
+  edges must be exact opaque white; a source-page edge may retain original ink.
+  Captions, adjacent legend/footnote rows within the raster block, axes and
+  borders retain their pixels. Ambiguous or unsafe boundaries produce no crop.
+- A selected supplement must enlarge the region by at least **1.35 times** the
+  original-page display scale. Lesser gains and overlapping selections are
+  rejected. Confidence is a High/Low rule category, not a calibrated probability.
+  Extraction is a lossless pixel subset; no OCR, redraw, interpolation, numeric
+  correction or removal of whitespace inside the selected rectangle occurs.
+
+Each supplement follows its complete source page in a dedicated section. Its
+visible label names Figure/Table, source page, supplement status, and relative
+magnification. Supplement images use a proportional maximum fit within a
+6.5-inch width and 8-inch height allowance, leaving room for the visible label
+and keeping running headers/footers outside the image area.
+
+Preparation records all eligible raster candidates, including rejected ones,
+in the presentation's `FigureTableRegions` audit. The document audit represents
+Detected or Selected; successful preparation freezes Selected as Frozen in the
+snapshot. Rejected candidates remain Detected with an explicit reason and no
+crop raster. Every record binds source artifact/page, top-left half-open pixel
+bounds in the oriented privacy-masked raster, raster dimensions/orientation,
+applied rotation, source raster SHA-256, masking/rotation transform version,
+detection version/method/confidence, selection state/rejection reason,
+magnification, exact drawing dimensions, crop SHA-256 when selected, and renderer
+build. The enclosing snapshot binds the render profile and source snapshot hash.
+Preparation verifies crop pixels and displayed dimensions against that exact
+source raster before freezing. Preserved printing materializes the compiled
+DOCX or frozen PDF; it performs no detection, recropping or reinterpretation.
+Only preparation of a refreshed/new presentation may run detection again.
+
+The optional audit extension is omitted for historical presentations that lack
+it, preserving existing serialization and integrity hashes. New preparations
+record an immutable value collection, including an explicit empty collection
+when no candidates exist. The immutable source snapshot V1 is unchanged.
 
 Reviewer typographical corrections use a small, case-sensitive dictionary of
 lowercase whole-word rules. They apply only to eligible extracted narrative.
@@ -331,8 +372,8 @@ First-page evidence titles and continuation titles share the same blue color
 (`365F91`); the continuation adds `— Continued`. This is a shared renderer rule,
 not a condition- or artifact-specific exception. Confidentiality headings and
 source evidence pixels retain their existing styling. Appendix F source-page
-rendering, orientation, cropping, publisher layout and header/footer styling
-are unchanged.
+orientation, publisher layout and header/footer styling remain intact. The
+source-placement rule above supersedes exterior cropping for original-page views.
 
 Regression coverage includes the package-page-21 Attending paragraph pattern,
 repeated spaces, standalone local labels, corroborated column anchors, page-41

@@ -1,0 +1,8 @@
+Test run for /home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:   100, Skipped:     0, Total:   100, Duration: 3 m 42 s - EMF.Tests.dll (net10.0)
+Results File: /home/michael/EMF_Project/handoff/candidate3-shared-hardening-20260930/layout-verified.trx

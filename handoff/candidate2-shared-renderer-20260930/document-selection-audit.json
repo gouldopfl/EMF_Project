@@ -1,0 +1,28 @@
+[
+  {
+    "SourceArtifactId": "publication",
+    "SourcePage": 1,
+    "SourceWidth": 612,
+    "SourceHeight": 792,
+    "ClockwiseRotation": 0,
+    "Left": 44,
+    "Top": 127,
+    "Width": 192,
+    "Height": 159,
+    "CoordinateSystem": "oriented-raster-pixels/top-left/half-open",
+    "Orientation": "Portrait",
+    "State": "Selected",
+    "RejectionReason": null,
+    "Kind": "Figure",
+    "DetectionVersion": "caption-grid-v1",
+    "DetectionMethod": "caption-and-isolated-raster",
+    "Confidence": "High",
+    "EnlargementScale": 2.6562500507851468,
+    "DisplayWidthEmus": 5943600,
+    "DisplayHeightEmus": 4922044,
+    "SourceImageSha256": "594E355F99E4A0E5B734FED0123B8D0A90A3D1A4A1083102833BB253992F42D0",
+    "MaskingRotationVersion": "page-privacy-v1/source-orientation-v1",
+    "RendererBuild": "mvid:8c3c9438-b5ee-4056-9133-7c4b3ce15c6b",
+    "CropImageSha256": "1D33FCA02B809F2B6F975C3CC3A449C5126A5338C1708E09F950A12085BF3238"
+  }
+]

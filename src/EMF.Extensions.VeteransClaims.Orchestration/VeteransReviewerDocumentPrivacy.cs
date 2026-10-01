@@ -1,3 +1,4 @@
+using EMF.Common;
 using System.Text;
 using System.Text.RegularExpressions;
 using DocumentFormat.OpenXml;
@@ -16,6 +17,7 @@ internal static class VeteransReviewerDocumentPrivacy
     // label/value line break. Retain surrounding formatting and source objects.
     public static void Mask(OpenXmlElement root)
     {
+        using var performanceTiming = EmfPerformanceTiming.Measure(EmfPerformancePhase.PrivacyMasking);
         var text = new StringBuilder();
         var runs = new List<(Text Node, int Start, int Length)>();
         foreach (var paragraph in root.Descendants<Paragraph>())

@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="baeb198d-9fbd-44f8-84ca-d90191f0de9d" name="@EMF-Dev-VM 2026-09-30 08:28:50" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-09-30T08:28:50.5493473+00:00" queuing="2026-09-30T08:28:50.5493474+00:00" start="2026-09-30T08:28:48.7228265+00:00" finish="2026-09-30T08:28:50.5672743+00:00" />
+  <TestSettings name="default" id="f53fa1df-5830-4b14-8b56-93ea31c23a5b">
+    <Deployment runDeploymentRoot="_EMF-Dev-VM_2026-09-30_08_28_50" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="6e662ca2-880c-4d7e-ba2b-cbbd8f6f0949" testId="998e8731-7812-9939-7a89-560797666f38" testName="EMF.DeveloperAssurance.Tests.GitCheckpointStatusOperationTests.Capture_RejectsGitStatusFailure" computerName="EMF-Dev-VM" duration="00:00:00.0023286" startTime="2026-09-30T08:28:50.2953065+00:00" endTime="2026-09-30T08:28:50.2953066+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6e662ca2-880c-4d7e-ba2b-cbbd8f6f0949" />
+    <UnitTestResult executionId="a50c41e1-48a7-4cdf-af46-b1bd1343c5a1" testId="7c1bdd15-564e-b513-5f62-cd537da2411a" testName="EMF.DeveloperAssurance.Tests.GitCheckpointStatusOperationTests.Capture_ReturnsStructuredGitStatus" computerName="EMF-Dev-VM" duration="00:00:00.0180633" startTime="2026-09-30T08:28:50.2906666+00:00" endTime="2026-09-30T08:28:50.2906820+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a50c41e1-48a7-4cdf-af46-b1bd1343c5a1" />
+    <UnitTestResult executionId="f7e5f5c0-e0ec-46a1-9ad0-e79be57db66e" testId="f82201bd-0a48-0fad-6132-002b20b46a12" testName="EMF.DeveloperAssurance.Tests.GitCheckpointStatusOperationTests.Capture_RejectsGitLogFailure" computerName="EMF-Dev-VM" duration="00:00:00.0001897" startTime="2026-09-30T08:28:50.2955847+00:00" endTime="2026-09-30T08:28:50.2955848+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f7e5f5c0-e0ec-46a1-9ad0-e79be57db66e" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="EMF.DeveloperAssurance.Tests.GitCheckpointStatusOperationTests.Capture_RejectsGitLogFailure" storage="/home/michael/emf_project/tests/emf.developerassurance.tests/bin/release/net10.0/emf.developerassurance.tests.dll" id="f82201bd-0a48-0fad-6132-002b20b46a12">
+      <Execution id="f7e5f5c0-e0ec-46a1-9ad0-e79be57db66e" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.DeveloperAssurance.Tests/bin/Release/net10.0/EMF.DeveloperAssurance.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.DeveloperAssurance.Tests.GitCheckpointStatusOperationTests" name="Capture_RejectsGitLogFailure" />
+    </UnitTest>
+    <UnitTest name="EMF.DeveloperAssurance.Tests.GitCheckpointStatusOperationTests.Capture_RejectsGitStatusFailure" storage="/home/michael/emf_project/tests/emf.developerassurance.tests/bin/release/net10.0/emf.developerassurance.tests.dll" id="998e8731-7812-9939-7a89-560797666f38">
+      <Execution id="6e662ca2-880c-4d7e-ba2b-cbbd8f6f0949" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.DeveloperAssurance.Tests/bin/Release/net10.0/EMF.DeveloperAssurance.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.DeveloperAssurance.Tests.GitCheckpointStatusOperationTests" name="Capture_RejectsGitStatusFailure" />
+    </UnitTest>
+    <UnitTest name="EMF.DeveloperAssurance.Tests.GitCheckpointStatusOperationTests.Capture_ReturnsStructuredGitStatus" storage="/home/michael/emf_project/tests/emf.developerassurance.tests/bin/release/net10.0/emf.developerassurance.tests.dll" id="7c1bdd15-564e-b513-5f62-cd537da2411a">
+      <Execution id="a50c41e1-48a7-4cdf-af46-b1bd1343c5a1" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.DeveloperAssurance.Tests/bin/Release/net10.0/EMF.DeveloperAssurance.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.DeveloperAssurance.Tests.GitCheckpointStatusOperationTests" name="Capture_ReturnsStructuredGitStatus" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="998e8731-7812-9939-7a89-560797666f38" executionId="6e662ca2-880c-4d7e-ba2b-cbbd8f6f0949" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7c1bdd15-564e-b513-5f62-cd537da2411a" executionId="a50c41e1-48a7-4cdf-af46-b1bd1343c5a1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f82201bd-0a48-0fad-6132-002b20b46a12" executionId="f7e5f5c0-e0ec-46a1-9ad0-e79be57db66e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="3" executed="3" passed="3" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.4.5+1caef2f33e (64-bit .NET 10.0.12)
+[xUnit.net 00:00:00.81]   Discovering: EMF.DeveloperAssurance.Tests
+[xUnit.net 00:00:00.87]   Discovered:  EMF.DeveloperAssurance.Tests
+[xUnit.net 00:00:00.88]   Starting:    EMF.DeveloperAssurance.Tests
+[xUnit.net 00:00:00.99]   Finished:    EMF.DeveloperAssurance.Tests
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

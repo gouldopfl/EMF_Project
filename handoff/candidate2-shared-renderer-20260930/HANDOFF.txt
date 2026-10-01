@@ -1,0 +1,110 @@
+Candidate #2 shared-renderer handoff — 2026-09-30
+Status: implemented, tested, ready for handoff. No external message was sent.
+
+Completed shared rules
+- Claim type, Claimed condition, and Basis centered beneath Prepared Using.
+- Visible metadata/source boundary: thin rule and spacing attached to the final
+  metadata paragraph; keep-with-next retains the source attachment.
+- Demonstrated known label/value fragments recover source tokens only. Long
+  prompts use the full width; Reason for Study stays paired with its value.
+- Explicit lab/imaging headers and two agreeing data rows establish fixed columns
+  with unchanged row associations. Ragged/PowerForm/unanchored rows remain uninferred.
+- Known problem-list/date-time fragments normalize whitespace without changing values.
+- Source images align left, use zero added indentation/padding and maximum
+  proportional fit, preserve original literature/native-fallback margins and
+  orientation, and keep running headers/footers outside the image area.
+- Automatic medical-literature figure/table enlargements are labeled supplements
+  following the complete original page. They never replace the original view.
+
+Deterministic detection: caption-grid-v1
+- Raster separation: 12 points. Minimum region: 60 x 35 points. Region area must
+  be less than 75% of page area. Native point geometry supplies scale; without it,
+  the shorter raster axis is assigned 612 points for conservative detection only.
+- Numbered Figure/Fig./Table captions: <=24-point vertical distance, >50% overlap
+  of the shorter horizontal span, and exactly one candidate per caption.
+- Figures: native graphics provenance, >=100 non-text ink pixels and >=20%
+  non-text ink after masking native glyph boxes.
+- Uncaptioned tables: >=3 horizontal and >=2 vertical thin rules, >=80% coverage,
+  and >=4 populated cells across >=2 rows and columns. Each populated cell needs
+  >=2 separated interior marks. Empty plot grids and solid rectangles fail.
+  Maximum rule thickness: max(3 pixels, shorter region side / 25).
+- Safe padding: six points, clamped to the original page. Every interior crop
+  edge must be exact opaque white, including faint marks; page edges retain ink.
+- Required enlargement: >=1.35x original-page display scale. Insufficient gain,
+  confidence, unsafe boundaries, and overlapping selections are rejected.
+- Confidence is a High/Low rule category, not a calibrated probability.
+- Extraction is a lossless pixel subset. No OCR, redraw, interpolation, or numeric
+  correction. The supplement box is 6.5 x 8 inches with proportional fit and a
+  separate visible-label allowance; running headers/footers remain outside.
+
+Frozen provenance and lifecycle
+Every eligible candidate binds source artifact/page; exact oriented privacy-masked
+raster SHA-256; masking/rotation transform version; raster dimensions/orientation;
+applied quarter-turn; top-left half-open pixel rectangle; detection method/version/
+confidence; selection state/rejection reason; relative magnification; exact drawing
+size in EMUs; selected crop SHA-256; and renderer build. The enclosing presentation
+also binds the render profile and immutable source-snapshot hash.
+
+The compiled DOCX audit records Detected or Selected. Preparation verifies source
+raster identity, bounds, every crop pixel, and drawing dimensions before recording
+Selected as Frozen in the snapshot. Rejected candidates remain Detected and never
+render. FigureTableRegions is an immutable value collection with JSON round-trip
+value equality. The optional extension is omitted from historical presentations,
+preserving their hashes. The immutable source snapshot V1 wire contract is unchanged.
+
+Preserved reprint = materialize the frozen DOCX/PDF. No detection, recropping, or
+reinterpretation. A newly prepared presentation may run detection under its version.
+
+Validation
+- Stable focused suite: 472 cases; 454 passed, 0 failed, 18 skipped (opt-in layout
+  checks). Covers renderer, clinical layout, native geometry, snapshots, determinism,
+  package architecture, SQLite persistence/migrations, and output provenance.
+- Explicit LibreOffice checks: 3 passed, 0 failed, 0 skipped. Supplement placement;
+  structured-field/lab-column PDF alignment; five mixed-orientation source pages.
+- New region/visual suite: 28 passed, 0 failed; its 2 opt-in PDF checks both passed
+  in the explicit LibreOffice run above.
+- Required cases: captioned graph; two figures on one page; captioned table;
+  uncaptained populated ruled table; margin-touching figure; ambiguous raster block;
+  insufficient gain. Additional cases cover empty-grid rejection, quarter turns,
+  pixel conservation, exact raster binding despite identical dimensions, rejected
+  audits, frozen round trips, historical omission, source changes after freezing,
+  and DOCX schema validity.
+- git diff --check passed. Both PDF previews were inspected for metadata separation,
+  field pairing, stable columns, and source-image/header/footer clearance.
+
+Artifacts
+- figure-supplement-layout.docx/.pdf and -preview.png: synthetic native pixel-region
+  placement/provenance fixture. Colored glyph rectangles are intentional test pixels,
+  not a real publication or a readability assessment of a real graph.
+- structured-fields-layout.docx/.pdf and -preview.png: readable synthetic source
+  demonstrating metadata separation, field pairing, and lab-column alignment.
+- document-selection-audit.json: extracted DOCX-stage selection metadata. Selected
+  is the document stage; preparation records it as Frozen in the snapshot.
+- focused-tests.log, libreoffice-layout-tests.log, region-and-visual-tests.log.
+- SHA256SUMS.txt: handoff artifact integrity manifest.
+
+Implementation files (relative to repository root)
+src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerSourceEnlargements.cs
+src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageDocxRenderer.cs
+src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerEvidenceSections.cs
+src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerClinicalLayout.cs
+src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerNativeEvidencePage.cs
+src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackagePresentationPreparation.cs
+src/EMF.Extensions.VeteransClaims/Models/Adjudication/ReviewerPackagePresentationSnapshot.cs
+tests/EMF.Tests/VeteransReviewerSourceEnlargementTests.cs
+tests/EMF.Tests/VeteransReviewerSharedVisualRulesTests.cs
+tests/EMF.Tests/VeteransReviewerPresentationPhase2Tests.cs
+tests/EMF.Tests/VeteransReviewerNativeEvidencePageTests.cs
+docs/architecture/ADR-046-source-aware-reviewer-evidence-presentation.md
+docs/REVIEWER_PACKAGE_DETERMINISM_CONTRACT.md
+
+Integration notes
+Substantial pre-existing uncommitted M94/renderer work was preserved. This handoff
+provides evidence, not a blanket patch that could overwrite that work. No commit
+or real OSA/GERD/Lumbar regeneration was performed. Candidate #2 generation is the
+next separate step after this handoff.
+
+Conservative limits
+Scanned/unlabeled figures lacking native caption geometry remain in the intact
+source view. Ambiguous columns and unsafe crop boundaries are not inferred. False
+negatives are accepted to avoid presenting misleading partial evidence.

@@ -352,6 +352,6 @@ public sealed class VeteransReviewerPackageMedicationRendererTests
             CurrentMedications = [medication]
         };
 
-        return VeteransReviewerPackageDocxRenderer.Render(details);
+        return ReviewerPackageTestPreparation.Render(details);
     }
 }

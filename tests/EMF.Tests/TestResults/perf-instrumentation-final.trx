@@ -1,0 +1,108 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="b6d4b486-55f9-4e5c-a8a5-7ada4b5c5f9c" name="@EMF-Dev-VM 2026-09-30 21:48:51" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-09-30T21:48:51.6621468+00:00" queuing="2026-09-30T21:48:51.6621469+00:00" start="2026-09-30T21:48:50.5348321+00:00" finish="2026-09-30T21:48:54.7736914+00:00" />
+  <TestSettings name="default" id="ca3d0b0e-dd7f-4b97-9d26-567dfa84a867">
+    <Deployment runDeploymentRoot="_EMF-Dev-VM_2026-09-30_21_48_51" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="813fda6e-b2e4-443a-93c7-291ca8932958" testId="5cc79299-d642-58d5-c5fd-41dcfc9120bb" testName="EMF.Tests.EmfPerformanceTimingTests.TimingIsSilentUnlessSettingIsExactlyOne(setting: &quot;&quot;)" computerName="EMF-Dev-VM" duration="00:00:00.0020217" startTime="2026-09-30T21:48:51.5621879+00:00" endTime="2026-09-30T21:48:51.5622025+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="813fda6e-b2e4-443a-93c7-291ca8932958" />
+    <UnitTestResult executionId="1ff5457d-3a69-47cc-842f-8b5c9990b8de" testId="d3d987e8-706a-2f31-a1e2-96c5326b05cd" testName="EMF.Tests.EmfPerformanceTimingTests.DiagnosticsFailureCannotFailTheOperation" computerName="EMF-Dev-VM" duration="00:00:00.0012418" startTime="2026-09-30T21:48:51.5651166+00:00" endTime="2026-09-30T21:48:51.5651166+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="1ff5457d-3a69-47cc-842f-8b5c9990b8de" />
+    <UnitTestResult executionId="c16b4ea5-5f3e-4ea2-8c5c-6a55767aa685" testId="7b4f3105-d192-ecdc-8079-3e02c2cd6cbd" testName="EMF.Tests.EmfPerformanceTimingTests.TimingIsSilentUnlessSettingIsExactlyOne(setting: &quot;true&quot;)" computerName="EMF-Dev-VM" duration="00:00:00.0000033" startTime="2026-09-30T21:48:51.5650730+00:00" endTime="2026-09-30T21:48:51.5650730+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c16b4ea5-5f3e-4ea2-8c5c-6a55767aa685" />
+    <UnitTestResult executionId="31bd2b24-3d09-428c-aa21-924722e223e2" testId="76c85192-db2d-61e8-7ba2-504067288811" testName="EMF.Tests.EmfPerformanceTimingTests.PrivacyOcrCountsFourPassesPerRasterWithoutAddingInference" computerName="EMF-Dev-VM" duration="00:00:02.2943671" startTime="2026-09-30T21:48:53.9044944+00:00" endTime="2026-09-30T21:48:53.9044946+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="31bd2b24-3d09-428c-aa21-924722e223e2" />
+    <UnitTestResult executionId="2f796e76-e3df-44cf-95d9-eca129965756" testId="e440b054-c105-79ee-f31b-a73e389af574" testName="EMF.Tests.EmfPerformanceTimingTests.TopLevelRemainderUsesOnlyExclusiveIntervals" computerName="EMF-Dev-VM" duration="00:00:00.0079236" startTime="2026-09-30T21:48:51.5712358+00:00" endTime="2026-09-30T21:48:51.5712359+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2f796e76-e3df-44cf-95d9-eca129965756" />
+    <UnitTestResult executionId="3c3c1485-247b-444c-94b8-bf507afa7e5f" testId="3f62410f-bdfa-c03b-e941-b88f8d9fffd6" testName="EMF.Tests.EmfPerformanceTimingTests.ConcurrentIndependentTopLevelScopesSuppressTheRemainder" computerName="EMF-Dev-VM" duration="00:00:00.0019232" startTime="2026-09-30T21:48:53.9065561+00:00" endTime="2026-09-30T21:48:53.9065561+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3c3c1485-247b-444c-94b8-bf507afa7e5f" />
+    <UnitTestResult executionId="f7a0a349-fcac-4d24-8f6f-f83b606a532f" testId="5b493b3b-2552-8739-7a33-3f905dcff8d4" testName="EMF.Tests.EmfPerformanceTimingTests.TimingIsSilentUnlessSettingIsExactlyOne(setting: null)" computerName="EMF-Dev-VM" duration="00:00:00.0000020" startTime="2026-09-30T21:48:51.5650865+00:00" endTime="2026-09-30T21:48:51.5650865+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f7a0a349-fcac-4d24-8f6f-f83b606a532f" />
+    <UnitTestResult executionId="bae67ba0-f628-4d9e-978c-1d5b516a851c" testId="53a29db6-3d38-f4c7-cc07-368be1ac2932" testName="EMF.Tests.EmfPerformanceTimingTests.TimingDoesNotChangeCanonicalPackageOutputOrLeakSourceValues" computerName="EMF-Dev-VM" duration="00:00:00.7633050" startTime="2026-09-30T21:48:54.6690505+00:00" endTime="2026-09-30T21:48:54.6690509+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bae67ba0-f628-4d9e-978c-1d5b516a851c" />
+    <UnitTestResult executionId="ebf13bb2-631b-4602-8f39-8b7364b3c791" testId="3ccd9091-fff3-2187-0526-84991b4e5fd8" testName="EMF.Tests.EmfPerformanceTimingTests.TimingIsSilentUnlessSettingIsExactlyOne(setting: &quot;0&quot;)" computerName="EMF-Dev-VM" duration="00:00:00.0000080" startTime="2026-09-30T21:48:51.5650527+00:00" endTime="2026-09-30T21:48:51.5650528+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ebf13bb2-631b-4602-8f39-8b7364b3c791" />
+    <UnitTestResult executionId="f722961e-be96-41f4-81c2-575c9e057073" testId="32c9cf8c-8fd9-2cb6-e437-31d29094086a" testName="EMF.Tests.EmfPerformanceTimingTests.EnabledTimingAggregatesAcrossAwaitsAndDoesNotDuplicateNestedSummaries" computerName="EMF-Dev-VM" duration="00:00:00.0031880" startTime="2026-09-30T21:48:51.5773526+00:00" endTime="2026-09-30T21:48:51.5773526+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f722961e-be96-41f4-81c2-575c9e057073" />
+    <UnitTestResult executionId="97b52639-7cb7-42d9-a6c1-1a482e64296c" testId="9823d312-b87c-a583-6209-44cd5e86efea" testName="EMF.Tests.EmfPerformanceTimingTests.TimingIsSilentUnlessSettingIsExactlyOne(setting: &quot;01&quot;)" computerName="EMF-Dev-VM" duration="00:00:00.0001700" startTime="2026-09-30T21:48:51.5647850+00:00" endTime="2026-09-30T21:48:51.5647851+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="97b52639-7cb7-42d9-a6c1-1a482e64296c" />
+    <UnitTestResult executionId="48ee5593-2abc-4325-b662-c95e2f972a4e" testId="a68123c7-585f-e745-8f3e-e99467aacca8" testName="EMF.Tests.EmfPerformanceTimingTests.FailedConverterIsMeasuredWithoutLoggingItsPathsOrOutput" computerName="EMF-Dev-VM" duration="00:00:00.0287514" startTime="2026-09-30T21:48:51.6084525+00:00" endTime="2026-09-30T21:48:51.6084526+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="48ee5593-2abc-4325-b662-c95e2f972a4e" />
+    <UnitTestResult executionId="055fd897-d69a-49d1-89be-9cd2aceb84b1" testId="2fdae10a-50ba-a881-5608-4f95463b540d" testName="EMF.Tests.EmfPerformanceTimingTests.RasterIdentityCountsDistinguishBytesAndPriorSuccessfulRequests" computerName="EMF-Dev-VM" duration="00:00:00.0011284" startTime="2026-09-30T21:48:51.6359004+00:00" endTime="2026-09-30T21:48:51.6359005+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="055fd897-d69a-49d1-89be-9cd2aceb84b1" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.TopLevelRemainderUsesOnlyExclusiveIntervals" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="e440b054-c105-79ee-f31b-a73e389af574">
+      <Execution id="2f796e76-e3df-44cf-95d9-eca129965756" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="TopLevelRemainderUsesOnlyExclusiveIntervals" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.DiagnosticsFailureCannotFailTheOperation" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="d3d987e8-706a-2f31-a1e2-96c5326b05cd">
+      <Execution id="1ff5457d-3a69-47cc-842f-8b5c9990b8de" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="DiagnosticsFailureCannotFailTheOperation" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.FailedConverterIsMeasuredWithoutLoggingItsPathsOrOutput" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="a68123c7-585f-e745-8f3e-e99467aacca8">
+      <Execution id="48ee5593-2abc-4325-b662-c95e2f972a4e" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="FailedConverterIsMeasuredWithoutLoggingItsPathsOrOutput" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.TimingDoesNotChangeCanonicalPackageOutputOrLeakSourceValues" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="53a29db6-3d38-f4c7-cc07-368be1ac2932">
+      <Execution id="bae67ba0-f628-4d9e-978c-1d5b516a851c" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="TimingDoesNotChangeCanonicalPackageOutputOrLeakSourceValues" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.ConcurrentIndependentTopLevelScopesSuppressTheRemainder" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="3f62410f-bdfa-c03b-e941-b88f8d9fffd6">
+      <Execution id="3c3c1485-247b-444c-94b8-bf507afa7e5f" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="ConcurrentIndependentTopLevelScopesSuppressTheRemainder" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.EnabledTimingAggregatesAcrossAwaitsAndDoesNotDuplicateNestedSummaries" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="32c9cf8c-8fd9-2cb6-e437-31d29094086a">
+      <Execution id="f722961e-be96-41f4-81c2-575c9e057073" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="EnabledTimingAggregatesAcrossAwaitsAndDoesNotDuplicateNestedSummaries" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.TimingIsSilentUnlessSettingIsExactlyOne(setting: null)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="5b493b3b-2552-8739-7a33-3f905dcff8d4">
+      <Execution id="f7a0a349-fcac-4d24-8f6f-f83b606a532f" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="TimingIsSilentUnlessSettingIsExactlyOne" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.TimingIsSilentUnlessSettingIsExactlyOne(setting: &quot;01&quot;)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="9823d312-b87c-a583-6209-44cd5e86efea">
+      <Execution id="97b52639-7cb7-42d9-a6c1-1a482e64296c" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="TimingIsSilentUnlessSettingIsExactlyOne" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.TimingIsSilentUnlessSettingIsExactlyOne(setting: &quot;&quot;)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="5cc79299-d642-58d5-c5fd-41dcfc9120bb">
+      <Execution id="813fda6e-b2e4-443a-93c7-291ca8932958" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="TimingIsSilentUnlessSettingIsExactlyOne" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.PrivacyOcrCountsFourPassesPerRasterWithoutAddingInference" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="76c85192-db2d-61e8-7ba2-504067288811">
+      <Execution id="31bd2b24-3d09-428c-aa21-924722e223e2" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="PrivacyOcrCountsFourPassesPerRasterWithoutAddingInference" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.TimingIsSilentUnlessSettingIsExactlyOne(setting: &quot;true&quot;)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="7b4f3105-d192-ecdc-8079-3e02c2cd6cbd">
+      <Execution id="c16b4ea5-5f3e-4ea2-8c5c-6a55767aa685" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="TimingIsSilentUnlessSettingIsExactlyOne" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.RasterIdentityCountsDistinguishBytesAndPriorSuccessfulRequests" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="2fdae10a-50ba-a881-5608-4f95463b540d">
+      <Execution id="055fd897-d69a-49d1-89be-9cd2aceb84b1" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="RasterIdentityCountsDistinguishBytesAndPriorSuccessfulRequests" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.EmfPerformanceTimingTests.TimingIsSilentUnlessSettingIsExactlyOne(setting: &quot;0&quot;)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="3ccd9091-fff3-2187-0526-84991b4e5fd8">
+      <Execution id="ebf13bb2-631b-4602-8f39-8b7364b3c791" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.EmfPerformanceTimingTests" name="TimingIsSilentUnlessSettingIsExactlyOne" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="5cc79299-d642-58d5-c5fd-41dcfc9120bb" executionId="813fda6e-b2e4-443a-93c7-291ca8932958" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d3d987e8-706a-2f31-a1e2-96c5326b05cd" executionId="1ff5457d-3a69-47cc-842f-8b5c9990b8de" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7b4f3105-d192-ecdc-8079-3e02c2cd6cbd" executionId="c16b4ea5-5f3e-4ea2-8c5c-6a55767aa685" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="76c85192-db2d-61e8-7ba2-504067288811" executionId="31bd2b24-3d09-428c-aa21-924722e223e2" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e440b054-c105-79ee-f31b-a73e389af574" executionId="2f796e76-e3df-44cf-95d9-eca129965756" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3f62410f-bdfa-c03b-e941-b88f8d9fffd6" executionId="3c3c1485-247b-444c-94b8-bf507afa7e5f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5b493b3b-2552-8739-7a33-3f905dcff8d4" executionId="f7a0a349-fcac-4d24-8f6f-f83b606a532f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="53a29db6-3d38-f4c7-cc07-368be1ac2932" executionId="bae67ba0-f628-4d9e-978c-1d5b516a851c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3ccd9091-fff3-2187-0526-84991b4e5fd8" executionId="ebf13bb2-631b-4602-8f39-8b7364b3c791" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="32c9cf8c-8fd9-2cb6-e437-31d29094086a" executionId="f722961e-be96-41f4-81c2-575c9e057073" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9823d312-b87c-a583-6209-44cd5e86efea" executionId="97b52639-7cb7-42d9-a6c1-1a482e64296c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a68123c7-585f-e745-8f3e-e99467aacca8" executionId="48ee5593-2abc-4325-b662-c95e2f972a4e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2fdae10a-50ba-a881-5608-4f95463b540d" executionId="055fd897-d69a-49d1-89be-9cd2aceb84b1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="13" executed="13" passed="13" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.4.5+1caef2f33e (64-bit .NET 10.0.12)
+[xUnit.net 00:00:00.49]   Discovering: EMF.Tests
+[xUnit.net 00:00:00.67]   Discovered:  EMF.Tests
+[xUnit.net 00:00:00.67]   Starting:    EMF.Tests
+WARNING: Logging before InitGoogleLogging() is written to STDERR
+W0930 21:48:51.769737 2211685 pd_config.cc:378] Warning: The api is deprecated since version 3.x, please use onednn api PD_ConfigSetOnednnCacheCapacity.
+[xUnit.net 00:00:03.81]   Finished:    EMF.Tests
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

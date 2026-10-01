@@ -1,0 +1,26 @@
+  Determining projects to restore...
+  Restored /tmp/emf-hardening-followup-bzorycjm/tools/EMF.DeveloperAssurance/EMF.DeveloperAssurance.csproj (in 82 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Intelligence.Development/EMF.Intelligence.Development.csproj (in 19 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Intelligence.Persistence.Sqlite/EMF.Intelligence.Persistence.Sqlite.csproj (in 171 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Integrity/EMF.Integrity.csproj (in 1 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Extensions.VeteransClaims/EMF.Extensions.VeteransClaims.csproj (in 2 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Extensions.VeteransClaims.Persistence/EMF.Extensions.VeteransClaims.Persistence.csproj (in 3 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/EMF.Extensions.VeteransClaims.Persistence.Sqlite.csproj (in 1 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Intelligence.AzureOpenAI/EMF.Intelligence.AzureOpenAI.csproj (in 118 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Discovery/EMF.Discovery.csproj (in 1 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Core/EMF.Core.csproj (in 0.6 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Extensions.VeteransClaims.Orchestration/EMF.Extensions.VeteransClaims.Orchestration.csproj (in 180 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Console/EMF.Console.csproj (in 98 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Common/EMF.Common.csproj (in 1 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/tools/EMF.ArchitectureAuditor/EMF.ArchitectureAuditor.csproj (in 71 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/tests/EMF.DeveloperAssurance.Tests/EMF.DeveloperAssurance.Tests.csproj (in 87 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/tests/EMF.ArchitectureAuditor.Tests/EMF.ArchitectureAuditor.Tests.csproj (in 2 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Security/EMF.Security.csproj (in 0.8 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Security.Persistence.Sqlite/EMF.Security.Persistence.Sqlite.csproj (in 1 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Security.Azure/EMF.Security.Azure.csproj (in 2 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Persistence/EMF.Persistence.csproj (in 1 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/tests/EMF.Tests/EMF.Tests.csproj (in 177 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Orchestration/EMF.Orchestration.csproj (in 13 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Inventory/EMF.Inventory.csproj (in 1 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Laboratory/EMF.Laboratory.csproj (in 5 ms).
+  Restored /tmp/emf-hardening-followup-bzorycjm/src/EMF.Intelligence/EMF.Intelligence.csproj (in 9 ms).

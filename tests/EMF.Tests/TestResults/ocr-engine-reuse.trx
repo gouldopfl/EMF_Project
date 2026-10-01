@@ -1,0 +1,234 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="ccd966cc-5e38-4684-a5fb-ffbe29f1b148" name="@EMF-Dev-VM 2026-09-30 21:01:12" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-09-30T21:01:12.9493218+00:00" queuing="2026-09-30T21:01:12.9493219+00:00" start="2026-09-30T21:01:11.8281641+00:00" finish="2026-09-30T21:01:15.7657451+00:00" />
+  <TestSettings name="default" id="6b38de00-62e9-4734-a960-2760764eb415">
+    <Deployment runDeploymentRoot="_EMF-Dev-VM_2026-09-30_21_01_12" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="f53e8a15-781d-4e39-96ca-6a3028779e08" testId="6e547d2b-e6df-508a-41b4-1da10ba210df" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;german&quot;, expected: Latin)" computerName="EMF-Dev-VM" duration="00:00:00.0000008" startTime="2026-09-30T21:01:12.9218902+00:00" endTime="2026-09-30T21:01:12.9218903+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f53e8a15-781d-4e39-96ca-6a3028779e08" />
+    <UnitTestResult executionId="acb5b30e-f6d8-49a4-a237-0c739f6f5df4" testId="3cec8d39-ba4e-00af-2285-247b47240a54" testName="EMF.Tests.PaddleOcrEngineReuseTests.TextLimitStillAppliesToReusedEngine" computerName="EMF-Dev-VM" duration="00:00:00.0008990" startTime="2026-09-30T21:01:12.8674944+00:00" endTime="2026-09-30T21:01:12.8674945+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="acb5b30e-f6d8-49a4-a237-0c739f6f5df4" />
+    <UnitTestResult executionId="4f9ecead-4c43-40cd-9473-d59271095755" testId="9f61ee88-a7c0-75ae-9b9a-34adbc62f191" testName="EMF.Tests.PaddleOcrEngineReuseTests.SameModelWaitsWhileDifferentModelRunsIndependently" computerName="EMF-Dev-VM" duration="00:00:00.0339231" startTime="2026-09-30T21:01:12.9222780+00:00" endTime="2026-09-30T21:01:12.9222781+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4f9ecead-4c43-40cd-9473-d59271095755" />
+    <UnitTestResult executionId="a1d872dc-905e-4d98-bf38-dcafd3577f55" testId="576e8a7a-fbea-026a-f694-4db2fca73d10" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;fr&quot;, expected: Latin)" computerName="EMF-Dev-VM" duration="00:00:00.0000013" startTime="2026-09-30T21:01:12.9218491+00:00" endTime="2026-09-30T21:01:12.9218492+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a1d872dc-905e-4d98-bf38-dcafd3577f55" />
+    <UnitTestResult executionId="a9c708b0-3398-4a3b-aa6b-aec3c1732412" testId="6a6b179d-09a4-ad17-6ece-b5d26f29c4c5" testName="EMF.Tests.PaddleImageOcrServiceTests.RecognizeTextAsync_RejectsOversizedDimension" computerName="EMF-Dev-VM" duration="00:00:00.0008872" startTime="2026-09-30T21:01:15.1256742+00:00" endTime="2026-09-30T21:01:15.1256743+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a9c708b0-3398-4a3b-aa6b-aec3c1732412" />
+    <UnitTestResult executionId="b3e0fbc4-311e-46a0-a510-f6933b44e4b6" testId="672f36f3-a601-a103-a1ee-97bff659e919" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;es&quot;, expected: Latin)" computerName="EMF-Dev-VM" duration="00:00:00.0000011" startTime="2026-09-30T21:01:12.9219465+00:00" endTime="2026-09-30T21:01:12.9219465+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b3e0fbc4-311e-46a0-a510-f6933b44e4b6" />
+    <UnitTestResult executionId="ae033276-858f-47d7-b744-e6350b298471" testId="abfbe265-10f1-e079-4edf-9c77e45888ba" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: null, expected: English)" computerName="EMF-Dev-VM" duration="00:00:00.0000053" startTime="2026-09-30T21:01:12.9197208+00:00" endTime="2026-09-30T21:01:12.9197208+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ae033276-858f-47d7-b744-e6350b298471" />
+    <UnitTestResult executionId="61f394a4-6022-43ff-ac3b-43de3e8d3d28" testId="d5a91553-ef0c-a6b8-4782-7d2be78afe56" testName="EMF.Tests.PaddleImageOcrServiceTests.Constructor_RejectsNonPositiveInputLimit(value: -1)" computerName="EMF-Dev-VM" duration="00:00:00.0002055" startTime="2026-09-30T21:01:12.8286768+00:00" endTime="2026-09-30T21:01:12.8286769+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="61f394a4-6022-43ff-ac3b-43de3e8d3d28" />
+    <UnitTestResult executionId="abd0f41a-aea1-4bad-b763-a8c0ae3fe32c" testId="ebe873fa-a8c3-b162-7894-c942077f75f3" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;portuguese&quot;, expected: Latin)" computerName="EMF-Dev-VM" duration="00:00:00.0000008" startTime="2026-09-30T21:01:12.9219332+00:00" endTime="2026-09-30T21:01:12.9219332+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="abd0f41a-aea1-4bad-b763-a8c0ae3fe32c" />
+    <UnitTestResult executionId="cdb48b18-0055-4c17-bd82-c5b92f7a275b" testId="226eee02-be66-824e-f8e1-43cdb7ca1dd9" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;de&quot;, expected: Latin)" computerName="EMF-Dev-VM" duration="00:00:00.0000044" startTime="2026-09-30T21:01:12.9197697+00:00" endTime="2026-09-30T21:01:12.9197697+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cdb48b18-0055-4c17-bd82-c5b92f7a275b" />
+    <UnitTestResult executionId="0524cb29-94a9-4047-8e15-45ec63ece837" testId="e4ed1b73-418f-8f91-dd68-6fe6f67170e8" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;arabic&quot;, expected: Arabic)" computerName="EMF-Dev-VM" duration="00:00:00.0000010" startTime="2026-09-30T21:01:12.9222235+00:00" endTime="2026-09-30T21:01:12.9222235+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0524cb29-94a9-4047-8e15-45ec63ece837" />
+    <UnitTestResult executionId="cbfc8bd2-cfbe-4f92-bb4c-fe2b692de53c" testId="8eea265a-ac28-853a-e46a-a2490bf51074" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;zh&quot;, expected: Chinese)" computerName="EMF-Dev-VM" duration="00:00:00.0000011" startTime="2026-09-30T21:01:12.9219750+00:00" endTime="2026-09-30T21:01:12.9219750+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cbfc8bd2-cfbe-4f92-bb4c-fe2b692de53c" />
+    <UnitTestResult executionId="832934de-3379-422b-97e5-3d5919635d67" testId="355ee0cb-23bf-c331-07f7-2e1aeaae52f0" testName="EMF.Tests.PaddleOcrEngineReuseTests.AllSupportedModelsHaveDistinctBoundedSlots" computerName="EMF-Dev-VM" duration="00:00:00.0072719" startTime="2026-09-30T21:01:12.9196550+00:00" endTime="2026-09-30T21:01:12.9196551+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="832934de-3379-422b-97e5-3d5919635d67" />
+    <UnitTestResult executionId="cafaa35b-fcf4-4341-9213-b8b1d7db7ea8" testId="250b67fa-7086-19db-0331-f703555b56b7" testName="EMF.Tests.PaddleOcrEngineReuseTests.OutputSemanticsArePreserved(output: null, expected: null)" computerName="EMF-Dev-VM" duration="00:00:00.0547718" startTime="2026-09-30T21:01:12.8674288+00:00" endTime="2026-09-30T21:01:12.8674289+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cafaa35b-fcf4-4341-9213-b8b1d7db7ea8" />
+    <UnitTestResult executionId="032f60a3-f90e-4865-9673-0c75d28094e7" testId="e4c8c9d8-a939-0487-420d-759574875b3b" testName="EMF.Tests.PaddleImageOcrServiceTests.RecognizeTextAsync_RejectsOversizedJpegWithSmallExifDimensions" computerName="EMF-Dev-VM" duration="00:00:00.0212379" startTime="2026-09-30T21:01:15.6418602+00:00" endTime="2026-09-30T21:01:15.6418604+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="032f60a3-f90e-4865-9673-0c75d28094e7" />
+    <UnitTestResult executionId="c60a2767-3113-4b92-9b86-895baf2216f8" testId="4f981023-8331-3834-831d-268c8d0bbf77" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;french&quot;, expected: Latin)" computerName="EMF-Dev-VM" duration="00:00:00.0000008" startTime="2026-09-30T21:01:12.9219614+00:00" endTime="2026-09-30T21:01:12.9219614+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c60a2767-3113-4b92-9b86-895baf2216f8" />
+    <UnitTestResult executionId="24ccf02b-bb9d-4ef4-ab32-20da6eba6074" testId="01972e9e-996c-6103-a2a6-f67cd107279c" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;spanish&quot;, expected: Latin)" computerName="EMF-Dev-VM" duration="00:00:00.0000010" startTime="2026-09-30T21:01:12.9218728+00:00" endTime="2026-09-30T21:01:12.9218728+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="24ccf02b-bb9d-4ef4-ab32-20da6eba6074" />
+    <UnitTestResult executionId="12fce68d-7865-4b73-9b48-a9ca309137d8" testId="7f3a3150-2585-6fbd-150c-a8045e628409" testName="EMF.Tests.PaddleOcrEngineReuseTests.OutputSemanticsArePreserved(output: &quot; text &quot;, expected: &quot; text &quot;)" computerName="EMF-Dev-VM" duration="00:00:00.0000770" startTime="2026-09-30T21:01:12.8674769+00:00" endTime="2026-09-30T21:01:12.8674769+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="12fce68d-7865-4b73-9b48-a9ca309137d8" />
+    <UnitTestResult executionId="2325890c-4b20-4653-aeb1-bbbe26b6ec4f" testId="19c2a9ca-bfe7-c649-6c52-294b44a879ac" testName="EMF.Tests.PaddleImageOcrServiceTests.Constructor_RejectsOtherNonPositiveLimits" computerName="EMF-Dev-VM" duration="00:00:00.0003948" startTime="2026-09-30T21:01:15.6425502+00:00" endTime="2026-09-30T21:01:15.6425503+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2325890c-4b20-4653-aeb1-bbbe26b6ec4f" />
+    <UnitTestResult executionId="333b12cb-161c-4248-b3e3-834adc10b30a" testId="da5c6144-a3ca-8d3f-106a-9d6811740366" testName="EMF.Tests.PaddleOcrEngineReuseTests.ValidationAndPreCancelledRequestsNeverCreateEngine" computerName="EMF-Dev-VM" duration="00:00:00.0028820" startTime="2026-09-30T21:01:12.8697851+00:00" endTime="2026-09-30T21:01:12.8697851+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="333b12cb-161c-4248-b3e3-834adc10b30a" />
+    <UnitTestResult executionId="d8da9886-4e15-41ff-b8f4-a6a133ba2386" testId="c2951a55-4d32-a0b1-47ac-e8f992adcd88" testName="EMF.Tests.PaddleImageOcrServiceTests.RecognizeTextAsync_RecognizesKnownEnglishText" computerName="EMF-Dev-VM" duration="00:00:00.4936449" startTime="2026-09-30T21:01:15.6202227+00:00" endTime="2026-09-30T21:01:15.6202230+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d8da9886-4e15-41ff-b8f4-a6a133ba2386" />
+    <UnitTestResult executionId="43f971e9-6f40-4674-b069-ae4a3e16551e" testId="08c89463-3bdc-7962-4d1c-d08b1178ad8b" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;english&quot;, expected: English)" computerName="EMF-Dev-VM" duration="00:00:00.0009858" startTime="2026-09-30T21:01:12.9196874+00:00" endTime="2026-09-30T21:01:12.9196874+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="43f971e9-6f40-4674-b069-ae4a3e16551e" />
+    <UnitTestResult executionId="f4ad88f6-bf8b-4f6d-8894-ec077746455f" testId="ae75196f-e87a-f365-32cb-20c899a7ba3d" testName="EMF.Tests.PaddleImageOcrServiceTests.RecognizeTextAsync_RejectsOversizedInput" computerName="EMF-Dev-VM" duration="00:00:00.0004112" startTime="2026-09-30T21:01:15.1262972+00:00" endTime="2026-09-30T21:01:15.1262973+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f4ad88f6-bf8b-4f6d-8894-ec077746455f" />
+    <UnitTestResult executionId="1dfbabb6-e215-40d9-be66-83c484bd2257" testId="700475dd-2c54-d631-26c4-7933b72c92f7" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;it&quot;, expected: Latin)" computerName="EMF-Dev-VM" duration="00:00:00.0000014" startTime="2026-09-30T21:01:12.9197404+00:00" endTime="2026-09-30T21:01:12.9197405+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="1dfbabb6-e215-40d9-be66-83c484bd2257" />
+    <UnitTestResult executionId="b31b72fa-0f10-420f-ab97-38db69020fc7" testId="3732ef59-011f-afa4-dced-6ec0d3f4c6c3" testName="EMF.Tests.PaddleImageOcrServiceTests.RecognizeTextAsync_RejectsOversizedPixelCount" computerName="EMF-Dev-VM" duration="00:00:00.0277831" startTime="2026-09-30T21:01:12.8439445+00:00" endTime="2026-09-30T21:01:12.8439446+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b31b72fa-0f10-420f-ab97-38db69020fc7" />
+    <UnitTestResult executionId="e0d8e342-627b-4fab-92df-85e38290697f" testId="754cebff-e81f-ed11-f843-122d188b9dfe" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;&quot;, expected: English)" computerName="EMF-Dev-VM" duration="00:00:00.0000051" startTime="2026-09-30T21:01:12.9197550+00:00" endTime="2026-09-30T21:01:12.9197550+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e0d8e342-627b-4fab-92df-85e38290697f" />
+    <UnitTestResult executionId="af250622-8a05-4810-8d53-04858ba83be4" testId="a58d4dea-0e6e-9b2a-6266-831d5b6476b9" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;cyrillic&quot;, expected: Cyrillic)" computerName="EMF-Dev-VM" duration="00:00:00.0002186" startTime="2026-09-30T21:01:12.9197065+00:00" endTime="2026-09-30T21:01:12.9197066+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="af250622-8a05-4810-8d53-04858ba83be4" />
+    <UnitTestResult executionId="324f8e02-3d5f-4e77-88a3-f9b286e19c21" testId="d1ddb560-86ac-60fb-8dd3-21dfa0e01ed5" testName="EMF.Tests.PaddleOcrEngineReuseTests.EnglishAliasesAndServiceInstancesReuseOneEngine" computerName="EMF-Dev-VM" duration="00:00:00.0029886" startTime="2026-09-30T21:01:12.9195290+00:00" endTime="2026-09-30T21:01:12.9195291+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="324f8e02-3d5f-4e77-88a3-f9b286e19c21" />
+    <UnitTestResult executionId="7ef05ea1-23f1-49b2-a734-80352d8bd7db" testId="e84d8897-1a69-8ef7-a4bc-0c785410a5a4" testName="EMF.Tests.PaddleOcrEngineReuseTests.OutputSemanticsArePreserved(output: &quot;  &quot;, expected: null)" computerName="EMF-Dev-VM" duration="00:00:00.0004017" startTime="2026-09-30T21:01:12.8674599+00:00" endTime="2026-09-30T21:01:12.8674600+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7ef05ea1-23f1-49b2-a734-80352d8bd7db" />
+    <UnitTestResult executionId="4f981164-0daa-4930-955b-c51af2ad7395" testId="3e8ada9c-9af6-8589-0629-ad6ad721689b" testName="EMF.Tests.PaddleImageOcrServiceTests.Constructor_RejectsNonPositiveInputLimit(value: 0)" computerName="EMF-Dev-VM" duration="00:00:00.0025504" startTime="2026-09-30T21:01:12.8152964+00:00" endTime="2026-09-30T21:01:12.8153110+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4f981164-0daa-4930-955b-c51af2ad7395" />
+    <UnitTestResult executionId="e9a17759-b729-4807-8154-c79d10cd9cdc" testId="8cc0b2aa-2241-148f-7308-27d343fb5bb6" testName="EMF.Tests.PaddleImageOcrServiceTests.RecognizeTextAsync_RejectsOversizedText" computerName="EMF-Dev-VM" duration="00:00:02.2804582" startTime="2026-09-30T21:01:15.1244042+00:00" endTime="2026-09-30T21:01:15.1244045+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e9a17759-b729-4807-8154-c79d10cd9cdc" />
+    <UnitTestResult executionId="03350637-0287-4b79-be30-22e8d1f5977e" testId="4d26308a-fa43-b313-d2df-1916999d8740" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;thai&quot;, expected: Thai)" computerName="EMF-Dev-VM" duration="00:00:00.0000011" startTime="2026-09-30T21:01:12.9219181+00:00" endTime="2026-09-30T21:01:12.9219182+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="03350637-0287-4b79-be30-22e8d1f5977e" />
+    <UnitTestResult executionId="f2e77e7c-6c49-485e-b3e1-9b8611b61271" testId="b40a0114-283b-8f1a-2488-7f30835ee8af" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;greek&quot;, expected: Greek)" computerName="EMF-Dev-VM" duration="00:00:00.0000015" startTime="2026-09-30T21:01:12.9222415+00:00" endTime="2026-09-30T21:01:12.9222415+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f2e77e7c-6c49-485e-b3e1-9b8611b61271" />
+    <UnitTestResult executionId="2eff38e9-dde6-4a44-acfb-d84cf0bacdb6" testId="1c9982f9-14d7-d56c-06b6-ef915705a9c5" testName="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;korean&quot;, expected: Korean)" computerName="EMF-Dev-VM" duration="00:00:00.0000009" startTime="2026-09-30T21:01:12.9219043+00:00" endTime="2026-09-30T21:01:12.9219043+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2eff38e9-dde6-4a44-acfb-d84cf0bacdb6" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;spanish&quot;, expected: Latin)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="01972e9e-996c-6103-a2a6-f67cd107279c">
+      <Execution id="24ccf02b-bb9d-4ef4-ab32-20da6eba6074" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;greek&quot;, expected: Greek)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="b40a0114-283b-8f1a-2488-7f30835ee8af">
+      <Execution id="f2e77e7c-6c49-485e-b3e1-9b8611b61271" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;es&quot;, expected: Latin)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="672f36f3-a601-a103-a1ee-97bff659e919">
+      <Execution id="b3e0fbc4-311e-46a0-a510-f6933b44e4b6" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleImageOcrServiceTests.RecognizeTextAsync_RecognizesKnownEnglishText" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="c2951a55-4d32-a0b1-47ac-e8f992adcd88">
+      <Execution id="d8da9886-4e15-41ff-b8f4-a6a133ba2386" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleImageOcrServiceTests" name="RecognizeTextAsync_RecognizesKnownEnglishText" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleOcrEngineReuseTests.OutputSemanticsArePreserved(output: &quot;  &quot;, expected: null)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="e84d8897-1a69-8ef7-a4bc-0c785410a5a4">
+      <Execution id="7ef05ea1-23f1-49b2-a734-80352d8bd7db" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleOcrEngineReuseTests" name="OutputSemanticsArePreserved" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleOcrEngineReuseTests.OutputSemanticsArePreserved(output: null, expected: null)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="250b67fa-7086-19db-0331-f703555b56b7">
+      <Execution id="cafaa35b-fcf4-4341-9213-b8b1d7db7ea8" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleOcrEngineReuseTests" name="OutputSemanticsArePreserved" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;german&quot;, expected: Latin)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="6e547d2b-e6df-508a-41b4-1da10ba210df">
+      <Execution id="f53e8a15-781d-4e39-96ca-6a3028779e08" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleImageOcrServiceTests.RecognizeTextAsync_RejectsOversizedInput" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="ae75196f-e87a-f365-32cb-20c899a7ba3d">
+      <Execution id="f4ad88f6-bf8b-4f6d-8894-ec077746455f" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleImageOcrServiceTests" name="RecognizeTextAsync_RejectsOversizedInput" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleImageOcrServiceTests.Constructor_RejectsNonPositiveInputLimit(value: 0)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="3e8ada9c-9af6-8589-0629-ad6ad721689b">
+      <Execution id="4f981164-0daa-4930-955b-c51af2ad7395" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleImageOcrServiceTests" name="Constructor_RejectsNonPositiveInputLimit" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleImageOcrServiceTests.Constructor_RejectsOtherNonPositiveLimits" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="19c2a9ca-bfe7-c649-6c52-294b44a879ac">
+      <Execution id="2325890c-4b20-4653-aeb1-bbbe26b6ec4f" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleImageOcrServiceTests" name="Constructor_RejectsOtherNonPositiveLimits" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;korean&quot;, expected: Korean)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="1c9982f9-14d7-d56c-06b6-ef915705a9c5">
+      <Execution id="2eff38e9-dde6-4a44-acfb-d84cf0bacdb6" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;cyrillic&quot;, expected: Cyrillic)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="a58d4dea-0e6e-9b2a-6266-831d5b6476b9">
+      <Execution id="af250622-8a05-4810-8d53-04858ba83be4" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;thai&quot;, expected: Thai)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="4d26308a-fa43-b313-d2df-1916999d8740">
+      <Execution id="03350637-0287-4b79-be30-22e8d1f5977e" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;de&quot;, expected: Latin)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="226eee02-be66-824e-f8e1-43cdb7ca1dd9">
+      <Execution id="cdb48b18-0055-4c17-bd82-c5b92f7a275b" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleImageOcrServiceTests.RecognizeTextAsync_RejectsOversizedJpegWithSmallExifDimensions" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="e4c8c9d8-a939-0487-420d-759574875b3b">
+      <Execution id="032f60a3-f90e-4865-9673-0c75d28094e7" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleImageOcrServiceTests" name="RecognizeTextAsync_RejectsOversizedJpegWithSmallExifDimensions" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;english&quot;, expected: English)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="08c89463-3bdc-7962-4d1c-d08b1178ad8b">
+      <Execution id="43f971e9-6f40-4674-b069-ae4a3e16551e" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleImageOcrServiceTests.Constructor_RejectsNonPositiveInputLimit(value: -1)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="d5a91553-ef0c-a6b8-4782-7d2be78afe56">
+      <Execution id="61f394a4-6022-43ff-ac3b-43de3e8d3d28" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleImageOcrServiceTests" name="Constructor_RejectsNonPositiveInputLimit" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleOcrEngineReuseTests.ValidationAndPreCancelledRequestsNeverCreateEngine" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="da5c6144-a3ca-8d3f-106a-9d6811740366">
+      <Execution id="333b12cb-161c-4248-b3e3-834adc10b30a" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleOcrEngineReuseTests" name="ValidationAndPreCancelledRequestsNeverCreateEngine" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;portuguese&quot;, expected: Latin)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="ebe873fa-a8c3-b162-7894-c942077f75f3">
+      <Execution id="abd0f41a-aea1-4bad-b763-a8c0ae3fe32c" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleImageOcrServiceTests.RecognizeTextAsync_RejectsOversizedText" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="8cc0b2aa-2241-148f-7308-27d343fb5bb6">
+      <Execution id="e9a17759-b729-4807-8154-c79d10cd9cdc" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleImageOcrServiceTests" name="RecognizeTextAsync_RejectsOversizedText" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleImageOcrServiceTests.RecognizeTextAsync_RejectsOversizedDimension" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="6a6b179d-09a4-ad17-6ece-b5d26f29c4c5">
+      <Execution id="a9c708b0-3398-4a3b-aa6b-aec3c1732412" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleImageOcrServiceTests" name="RecognizeTextAsync_RejectsOversizedDimension" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;french&quot;, expected: Latin)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="4f981023-8331-3834-831d-268c8d0bbf77">
+      <Execution id="c60a2767-3113-4b92-9b86-895baf2216f8" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleOcrEngineReuseTests.EnglishAliasesAndServiceInstancesReuseOneEngine" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="d1ddb560-86ac-60fb-8dd3-21dfa0e01ed5">
+      <Execution id="324f8e02-3d5f-4e77-88a3-f9b286e19c21" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleOcrEngineReuseTests" name="EnglishAliasesAndServiceInstancesReuseOneEngine" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;arabic&quot;, expected: Arabic)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="e4ed1b73-418f-8f91-dd68-6fe6f67170e8">
+      <Execution id="0524cb29-94a9-4047-8e15-45ec63ece837" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;fr&quot;, expected: Latin)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="576e8a7a-fbea-026a-f694-4db2fca73d10">
+      <Execution id="a1d872dc-905e-4d98-bf38-dcafd3577f55" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;it&quot;, expected: Latin)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="700475dd-2c54-d631-26c4-7933b72c92f7">
+      <Execution id="1dfbabb6-e215-40d9-be66-83c484bd2257" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleOcrEngineReuseTests.OutputSemanticsArePreserved(output: &quot; text &quot;, expected: &quot; text &quot;)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="7f3a3150-2585-6fbd-150c-a8045e628409">
+      <Execution id="12fce68d-7865-4b73-9b48-a9ca309137d8" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleOcrEngineReuseTests" name="OutputSemanticsArePreserved" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleOcrEngineReuseTests.AllSupportedModelsHaveDistinctBoundedSlots" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="355ee0cb-23bf-c331-07f7-2e1aeaae52f0">
+      <Execution id="832934de-3379-422b-97e5-3d5919635d67" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleOcrEngineReuseTests" name="AllSupportedModelsHaveDistinctBoundedSlots" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;&quot;, expected: English)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="754cebff-e81f-ed11-f843-122d188b9dfe">
+      <Execution id="e0d8e342-627b-4fab-92df-85e38290697f" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: null, expected: English)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="abfbe265-10f1-e079-4edf-9c77e45888ba">
+      <Execution id="ae033276-858f-47d7-b744-e6350b298471" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleOcrEngineReuseTests.SameModelWaitsWhileDifferentModelRunsIndependently" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="9f61ee88-a7c0-75ae-9b9a-34adbc62f191">
+      <Execution id="4f9ecead-4c43-40cd-9473-d59271095755" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleOcrEngineReuseTests" name="SameModelWaitsWhileDifferentModelRunsIndependently" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleImageOcrServiceTests.RecognizeTextAsync_RejectsOversizedPixelCount" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="3732ef59-011f-afa4-dced-6ec0d3f4c6c3">
+      <Execution id="b31b72fa-0f10-420f-ab97-38db69020fc7" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleImageOcrServiceTests" name="RecognizeTextAsync_RejectsOversizedPixelCount" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.OcrLanguageResolverTests.Resolve_MapsSupportedLanguages(language: &quot;zh&quot;, expected: Chinese)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="8eea265a-ac28-853a-e46a-a2490bf51074">
+      <Execution id="cbfc8bd2-cfbe-4f92-bb4c-fe2b692de53c" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.OcrLanguageResolverTests" name="Resolve_MapsSupportedLanguages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.PaddleOcrEngineReuseTests.TextLimitStillAppliesToReusedEngine" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="3cec8d39-ba4e-00af-2285-247b47240a54">
+      <Execution id="acb5b30e-f6d8-49a4-a237-0c739f6f5df4" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.PaddleOcrEngineReuseTests" name="TextLimitStillAppliesToReusedEngine" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="6e547d2b-e6df-508a-41b4-1da10ba210df" executionId="f53e8a15-781d-4e39-96ca-6a3028779e08" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3cec8d39-ba4e-00af-2285-247b47240a54" executionId="acb5b30e-f6d8-49a4-a237-0c739f6f5df4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9f61ee88-a7c0-75ae-9b9a-34adbc62f191" executionId="4f9ecead-4c43-40cd-9473-d59271095755" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="576e8a7a-fbea-026a-f694-4db2fca73d10" executionId="a1d872dc-905e-4d98-bf38-dcafd3577f55" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6a6b179d-09a4-ad17-6ece-b5d26f29c4c5" executionId="a9c708b0-3398-4a3b-aa6b-aec3c1732412" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="672f36f3-a601-a103-a1ee-97bff659e919" executionId="b3e0fbc4-311e-46a0-a510-f6933b44e4b6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="abfbe265-10f1-e079-4edf-9c77e45888ba" executionId="ae033276-858f-47d7-b744-e6350b298471" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d5a91553-ef0c-a6b8-4782-7d2be78afe56" executionId="61f394a4-6022-43ff-ac3b-43de3e8d3d28" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ebe873fa-a8c3-b162-7894-c942077f75f3" executionId="abd0f41a-aea1-4bad-b763-a8c0ae3fe32c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="226eee02-be66-824e-f8e1-43cdb7ca1dd9" executionId="cdb48b18-0055-4c17-bd82-c5b92f7a275b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e4ed1b73-418f-8f91-dd68-6fe6f67170e8" executionId="0524cb29-94a9-4047-8e15-45ec63ece837" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8eea265a-ac28-853a-e46a-a2490bf51074" executionId="cbfc8bd2-cfbe-4f92-bb4c-fe2b692de53c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="355ee0cb-23bf-c331-07f7-2e1aeaae52f0" executionId="832934de-3379-422b-97e5-3d5919635d67" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="250b67fa-7086-19db-0331-f703555b56b7" executionId="cafaa35b-fcf4-4341-9213-b8b1d7db7ea8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e4c8c9d8-a939-0487-420d-759574875b3b" executionId="032f60a3-f90e-4865-9673-0c75d28094e7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4f981023-8331-3834-831d-268c8d0bbf77" executionId="c60a2767-3113-4b92-9b86-895baf2216f8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="01972e9e-996c-6103-a2a6-f67cd107279c" executionId="24ccf02b-bb9d-4ef4-ab32-20da6eba6074" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7f3a3150-2585-6fbd-150c-a8045e628409" executionId="12fce68d-7865-4b73-9b48-a9ca309137d8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="19c2a9ca-bfe7-c649-6c52-294b44a879ac" executionId="2325890c-4b20-4653-aeb1-bbbe26b6ec4f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="da5c6144-a3ca-8d3f-106a-9d6811740366" executionId="333b12cb-161c-4248-b3e3-834adc10b30a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c2951a55-4d32-a0b1-47ac-e8f992adcd88" executionId="d8da9886-4e15-41ff-b8f4-a6a133ba2386" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="08c89463-3bdc-7962-4d1c-d08b1178ad8b" executionId="43f971e9-6f40-4674-b069-ae4a3e16551e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ae75196f-e87a-f365-32cb-20c899a7ba3d" executionId="f4ad88f6-bf8b-4f6d-8894-ec077746455f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="700475dd-2c54-d631-26c4-7933b72c92f7" executionId="1dfbabb6-e215-40d9-be66-83c484bd2257" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3732ef59-011f-afa4-dced-6ec0d3f4c6c3" executionId="b31b72fa-0f10-420f-ab97-38db69020fc7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="754cebff-e81f-ed11-f843-122d188b9dfe" executionId="e0d8e342-627b-4fab-92df-85e38290697f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a58d4dea-0e6e-9b2a-6266-831d5b6476b9" executionId="af250622-8a05-4810-8d53-04858ba83be4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d1ddb560-86ac-60fb-8dd3-21dfa0e01ed5" executionId="324f8e02-3d5f-4e77-88a3-f9b286e19c21" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e84d8897-1a69-8ef7-a4bc-0c785410a5a4" executionId="7ef05ea1-23f1-49b2-a734-80352d8bd7db" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3e8ada9c-9af6-8589-0629-ad6ad721689b" executionId="4f981164-0daa-4930-955b-c51af2ad7395" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8cc0b2aa-2241-148f-7308-27d343fb5bb6" executionId="e9a17759-b729-4807-8154-c79d10cd9cdc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4d26308a-fa43-b313-d2df-1916999d8740" executionId="03350637-0287-4b79-be30-22e8d1f5977e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b40a0114-283b-8f1a-2488-7f30835ee8af" executionId="f2e77e7c-6c49-485e-b3e1-9b8611b61271" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1c9982f9-14d7-d56c-06b6-ef915705a9c5" executionId="2eff38e9-dde6-4a44-acfb-d84cf0bacdb6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="34" executed="34" passed="34" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.4.5+1caef2f33e (64-bit .NET 10.0.12)
+[xUnit.net 00:00:00.48]   Discovering: EMF.Tests
+[xUnit.net 00:00:00.65]   Discovered:  EMF.Tests
+[xUnit.net 00:00:00.66]   Starting:    EMF.Tests
+WARNING: Logging before InitGoogleLogging() is written to STDERR
+W0930 21:01:14.137707 1651204 pd_config.cc:378] Warning: The api is deprecated since version 3.x, please use onednn api PD_ConfigSetOnednnCacheCapacity.
+[xUnit.net 00:00:03.52]   Finished:    EMF.Tests
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

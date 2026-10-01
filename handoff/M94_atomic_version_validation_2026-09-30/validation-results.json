@@ -1,0 +1,129 @@
+{
+  "full_regression": [
+    {
+      "suite": "EMF.DeveloperAssurance.Tests",
+      "total": 3,
+      "executed": 3,
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": "2.0801270",
+      "times": {
+        "creation": "2026-09-30T09:03:23.9557296+00:00",
+        "queuing": "2026-09-30T09:03:23.9557297+00:00",
+        "start": "2026-09-30T09:03:21.9130560+00:00",
+        "finish": "2026-09-30T09:03:23.9931830+00:00"
+      },
+      "skip_details": [],
+      "trx": "full-results/full-after-atomic-fix_net10.0_20260930090324.trx"
+    },
+    {
+      "suite": "EMF.ArchitectureAuditor.Tests",
+      "total": 22,
+      "executed": 22,
+      "passed": 22,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": "4.6206278",
+      "times": {
+        "creation": "2026-09-30T09:03:24.1421651+00:00",
+        "queuing": "2026-09-30T09:03:24.1421652+00:00",
+        "start": "2026-09-30T09:03:21.7488983+00:00",
+        "finish": "2026-09-30T09:03:26.3695261+00:00"
+      },
+      "skip_details": [],
+      "trx": "full-results/full-after-atomic-fix_net10.0_20260930090326.trx"
+    },
+    {
+      "suite": "EMF.Tests",
+      "total": 3102,
+      "executed": 3100,
+      "passed": 3100,
+      "failed": 0,
+      "skipped": 2,
+      "duration_seconds": "1069.7598954",
+      "times": {
+        "creation": "2026-09-30T09:03:29.8967323+00:00",
+        "queuing": "2026-09-30T09:03:29.8967323+00:00",
+        "start": "2026-09-30T09:03:27.4337643+00:00",
+        "finish": "2026-09-30T09:21:17.1936597+00:00"
+      },
+      "skip_details": [
+        {
+          "name": "EMF.Tests.AzureOpenAIIntegrationTests.ExecuteAsync_ReturnsLiveNormalizedSummary",
+          "reason": "Azure OpenAI live tests are disabled."
+        },
+        {
+          "name": "EMF.Tests.AzureMonitorSecurityAlertSinkIntegrationTests.WriteAsync_UploadsSyntheticAlert",
+          "reason": "Azure Monitor live tests are disabled."
+        }
+      ],
+      "trx": "full-results/full-after-atomic-fix_net10.0_20260930092117.trx"
+    }
+  ],
+  "combined": {
+    "total": 3127,
+    "executed": 3125,
+    "passed": 3125,
+    "failed": 0,
+    "skipped": 2,
+    "elapsed_run_window_seconds": "1075.4447614"
+  },
+  "boundary_tests": {
+    "total": 8,
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0
+  },
+  "focused_tests": {
+    "total": 183,
+    "passed": 183,
+    "failed": 0,
+    "skipped": 0
+  },
+  "protected_hashes": [
+    {
+      "path": "/home/michael/EMF_Project/.emf-local/lumbar-claim.db",
+      "sha256": "cbde12e1718ed146f61aac76640cd5a6016bbb7fb52307483512a7d1a867dae6",
+      "expected": "cbde12e1718ed146f61aac76640cd5a6016bbb7fb52307483512a7d1a867dae6",
+      "matches": true
+    },
+    {
+      "path": "/home/michael/EMF_Final_Docs/Lumbar_Review_Package.docx",
+      "sha256": "1822c8f0437c1d617560e0cc595250d2ab11a441ce60685d6b422840538a6a4f",
+      "expected": "1822c8f0437c1d617560e0cc595250d2ab11a441ce60685d6b422840538a6a4f",
+      "matches": true
+    },
+    {
+      "path": "/home/michael/EMF_Deployment/build-manifests/emf-dfee83b7-release.json",
+      "sha256": "800704a70c5fabfbb7f7aa57e00463a8462558750a1c49dc65b7987691878e6a",
+      "expected": "800704a70c5fabfbb7f7aa57e00463a8462558750a1c49dc65b7987691878e6a",
+      "matches": true
+    }
+  ],
+  "head": "dfee83b7af3f1fbb0352105f217f061223ae1472",
+  "live_database_migrated": false,
+  "real_reviewer_package_regenerated": false,
+  "candidates_generated": false,
+  "staged": false,
+  "committed": false,
+  "pushed": false,
+  "EMF_AZURE_OPENAI_LIVE_unset": true,
+  "diff_check": "passed",
+  "working_tree_review": {
+    "tracked_files_changed_by_fix": [
+      "a/src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/Repositories/SqliteEvidencePackageRepository.cs b/src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/Repositories/SqliteEvidencePackageRepository.cs",
+      "a/src/EMF.Extensions.VeteransClaims/Contracts/IEvidencePackageRepository.cs b/src/EMF.Extensions.VeteransClaims/Contracts/IEvidencePackageRepository.cs"
+    ],
+    "existing_untracked_files_changed_by_fix": [
+      "docs/M94_REVIEW_AND_CLONE_REHEARSAL.md",
+      "docs/REVIEWER_PACKAGE_DETERMINISM_CONTRACT.md",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPresentationVersionService.cs",
+      "tests/EMF.Tests/VeteransReviewerPackageArchitectureTests.cs"
+    ],
+    "new_files": "Requested validation logs and comments under handoff/M94_atomic_version_validation_2026-09-30",
+    "unexpected_changes": [],
+    "staged_files": [],
+    "head_and_latest_reflog_unchanged": true
+  }
+}

@@ -153,7 +153,7 @@ public sealed class VeteransReviewerSourceReasonablenessReviewTests
     public void Render_DisplaysWarningBesideAffectedEvidenceAndPreservesOriginalValue()
     {
         const string source = "Weight loss of about 8200 pounds after his bariatric surgery.";
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([Content(source, [TextPage(1, source)])]), sourceReviewDate: ReviewDate);
+        var bytes = ReviewerPackageTestPreparation.Render(Details([Content(source, [TextPage(1, source)])]), sourceReviewDate: ReviewDate);
         using var doc = WordprocessingDocument.Open(new MemoryStream(bytes), false);
         var text = doc.MainDocumentPart!.Document!.Body!.InnerText;
         var warning = text.IndexOf("Source Data Warning — Review Required", StringComparison.Ordinal);
@@ -179,7 +179,7 @@ public sealed class VeteransReviewerSourceReasonablenessReviewTests
             }]
         };
         using var doc = WordprocessingDocument.Open(new MemoryStream(
-            VeteransReviewerPackageDocxRenderer.Render(details, sourceReviewDate: ReviewDate)), false);
+            ReviewerPackageTestPreparation.Render(details, sourceReviewDate: ReviewDate)), false);
         Assert.Contains("Source Data Warning — Review Required", doc.MainDocumentPart!.Document!.Body!.InnerText);
     }
 

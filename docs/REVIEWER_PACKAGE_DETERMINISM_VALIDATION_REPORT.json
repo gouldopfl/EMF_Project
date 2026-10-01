@@ -1,0 +1,511 @@
+{
+  "status": "completed: all automated acceptance gates passed",
+  "source_git_head": "dfee83b7af3f1fbb0352105f217f061223ae1472",
+  "uncommitted": true,
+  "renderer_contract": "reviewer-docx-v2",
+  "architecture_assessment": [
+    {
+      "item": "Frozen package + explicit settings + renderer/converter identity",
+      "before": "Partial: V1 source frozen, date/profile outside the canonical package",
+      "after": "Immutable source/presentation/PDF aggregate with explicit date and versioned profile"
+    },
+    {
+      "item": "Shared cross-claim presentation",
+      "before": "Shared renderer and components already existed",
+      "after": "Retained; typed primary/secondary/presumptive scope uses shared cover components"
+    },
+    {
+      "item": "Single source of truth",
+      "before": "Cover scope parsed from opinion; source interpretation occurred at each rendering",
+      "after": "Resolved typed cover and compiled presentation persisted; legacy interpretation happens once in preparation"
+    },
+    {
+      "item": "Pure preserved print/export",
+      "before": "Snapshot rendering could repeat source/clinical interpretation and PDF conversion",
+      "after": "Materializes frozen DOCX/PDF without evidence interpretation or repagination"
+    },
+    {
+      "item": "Preserved visible dates versus technical audit time",
+      "before": "Review date pinned by output provenance; renderer had implicit current-date fallback",
+      "after": "Prepared date belongs to immutable presentation; renderer rejects missing/default dates; GeneratedUtc remains audit metadata"
+    },
+    {
+      "item": "New data or date creates a new version",
+      "before": "Date refresh under an existing identity rejected, but no explicit version service",
+      "after": "Preserve/new-version application service, fresh identity and prior-package link; original preserved"
+    },
+    {
+      "item": "Controlled converter profile",
+      "before": "LibreOffice version alone",
+      "after": "Pinned Linux locale, timezone, headless backend/DPI, private user/font settings and hashes of engine/fonts/shaping dependencies; ambient overrides removed"
+    },
+    {
+      "item": "M92/M93",
+      "before": "Completed source/output/build/manifest protection",
+      "after": "Retained; additional immutable presentation/output binding, no V1 wire rewrite and no relaxed build verification"
+    },
+    {
+      "item": "Change control and tests",
+      "before": "Gold-consistent shared repairs and focused regressions",
+      "after": "Documented contract; repeat DOCX/PDF, cross-claim, date, deployment/provenance and full-suite gates"
+    }
+  ],
+  "changes_are": "shared architecture and semantic components; no condition-, veteran-, claim-ID-, page- or Gold-text-specific presentation fixes",
+  "schema": "Append-only migration 94, not applied to the live database",
+  "build": {
+    "project": "EMF.Console",
+    "configuration": "Release",
+    "passed": true,
+    "warnings": 0,
+    "errors": 0,
+    "log": "/tmp/emf-architecture-release-final.log"
+  },
+  "completed_test_results": {
+    "focused": {
+      "counters": {
+        "total": "988",
+        "executed": "988",
+        "passed": "988",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "classes": {
+        "EMF.Tests.VeteransReviewerPresentationPhase2Tests": {
+          "Passed": 91
+        },
+        "EMF.Tests.VeteransReviewerOutputProvenanceTests": {
+          "Passed": 16
+        },
+        "EMF.Tests.VeteransReviewerPackagePrivacySanitizerTests": {
+          "Passed": 25
+        },
+        "EMF.Tests.VeteransReviewerPackageDocxRendererTests": {
+          "Passed": 65
+        },
+        "EMF.Tests.VeteransReviewerPageSelectorTests": {
+          "Passed": 10
+        },
+        "EMF.Tests.VeteransReviewerPackagePrescriptionPresentationTests": {
+          "Passed": 13
+        },
+        "EMF.Tests.VeteransReviewerLumbarStructureTests": {
+          "Passed": 42
+        },
+        "EMF.Tests.VeteransReviewerEvidencePresentationTests": {
+          "Passed": 58
+        },
+        "EMF.Tests.VeteransReviewerPackageMedicationServiceTests": {
+          "Passed": 5
+        },
+        "EMF.Tests.VeteransReviewerPackageSnapshotTests": {
+          "Passed": 29
+        },
+        "EMF.Tests.VeteransReviewerClinicalLayoutTests": {
+          "Passed": 52
+        },
+        "EMF.Tests.VeteransReviewerOutputProvenanceIntegrationTests": {
+          "Passed": 40
+        },
+        "EMF.Tests.VeteransReviewerPackageArchitectureTests": {
+          "Passed": 24
+        },
+        "EMF.Tests.VeteransReviewerNativeEvidencePageTests": {
+          "Passed": 58
+        },
+        "EMF.Tests.VeteransReviewerPackageMedicationRendererTests": {
+          "Passed": 8
+        },
+        "EMF.Tests.VeteransReviewerNativeExcerptTests": {
+          "Passed": 9
+        },
+        "EMF.Tests.VeteransReviewerEvidenceSourceServiceTests": {
+          "Passed": 19
+        },
+        "EMF.Tests.VeteransReviewerNativeProseTests": {
+          "Passed": 14
+        },
+        "EMF.Tests.VeteransReviewerPackageAppendixTests": {
+          "Passed": 7
+        },
+        "EMF.Tests.VeteransReviewerSourceReasonablenessReviewTests": {
+          "Passed": 41
+        },
+        "EMF.Tests.VeteransReviewerReuseHardeningTests": {
+          "Passed": 5
+        },
+        "EMF.Tests.VeteransReviewerPackagePrintSelectionServiceTests": {
+          "Passed": 6
+        },
+        "EMF.Tests.VeteransReviewerPatientHeaderTests": {
+          "Passed": 20
+        },
+        "EMF.Tests.EmfAssemblyBuildIdentityTests": {
+          "Passed": 16
+        },
+        "EMF.Tests.VeteransReviewerPackageDocumentOutputServiceTests": {
+          "Passed": 7
+        },
+        "EMF.Tests.VeteransReviewerPackageDeterminismTests": {
+          "Passed": 20
+        },
+        "EMF.Tests.ReviewerBuildManifestArchiveTests": {
+          "Passed": 8
+        },
+        "EMF.Tests.VeteransReviewerPackageReuseServiceTests": {
+          "Passed": 10
+        },
+        "EMF.Tests.VeteransReviewerSourcePageCropTests": {
+          "Passed": 9
+        },
+        "EMF.Tests.VeteransReviewerDisplayNameResolverTests": {
+          "Passed": 9
+        },
+        "EMF.Tests.VeteransReviewerEvidenceProjectionServiceTests": {
+          "Passed": 11
+        },
+        "EMF.Tests.VeteransReviewerMedicalOpinionRequestServiceTests": {
+          "Passed": 9
+        },
+        "EMF.Tests.VeteransReviewerPackageOutputReuseTests": {
+          "Passed": 20
+        },
+        "EMF.Tests.VeteransReviewerPrintableSourceResolverTests": {
+          "Passed": 27
+        },
+        "EMF.Tests.VeteransReviewerPackageMedicationProgressionServiceTests": {
+          "Passed": 20
+        },
+        "EMF.Tests.ReviewerPackageOutputBuildProvenanceTests": {
+          "Passed": 3
+        },
+        "EMF.Tests.VeteransReviewerPackageOutputRequestTests": {
+          "Passed": 6
+        },
+        "EMF.Tests.VeteransReviewerPackageSourceClarificationTests": {
+          "Passed": 4
+        },
+        "EMF.Tests.VeteransReviewerPackagePreparationServiceTests": {
+          "Passed": 6
+        },
+        "EMF.Tests.VeteransReviewerPackageIntelligenceServiceTests": {
+          "Passed": 17
+        },
+        "EMF.Tests.VeteransReviewerPackageClinicalProgressionTests": {
+          "Passed": 9
+        },
+        "EMF.Tests.VeteransReviewerPackageSourceFormatterTests": {
+          "Passed": 16
+        },
+        "EMF.Tests.VeteransReviewerEvidenceDevelopmentDetailsServiceTests": {
+          "Passed": 4
+        },
+        "EMF.Tests.EmfFirstPartyDeploymentIdentityTests": {
+          "Passed": 25
+        },
+        "EMF.Tests.VeteransReviewerPackageDetailsServiceTests": {
+          "Passed": 30
+        },
+        "EMF.Tests.VeteransReviewerSourcePageOrientationTests": {
+          "Passed": 3
+        },
+        "EMF.Tests.ReviewerDeploymentCompositionTests": {
+          "Passed": 9
+        },
+        "EMF.Tests.VeteransReviewerPackageBasisScopeServiceTests": {
+          "Passed": 3
+        },
+        "EMF.Tests.VeteransReviewerPackageAssemblyServiceTests": {
+          "Passed": 2
+        },
+        "EMF.Tests.ReviewerDocumentConstructorCompatibilityTests": {
+          "Passed": 2
+        },
+        "EMF.Tests.VeteransClaimsSqliteMigrationTests": {
+          "Passed": 7
+        },
+        "EMF.Tests.ReviewerBuildProvenanceSqliteHardeningTests": {
+          "Passed": 4
+        },
+        "EMF.Tests.VeteransReviewerPackageEvidenceScopeTests": {
+          "Passed": 3
+        },
+        "EMF.Tests.EcfrVeteransReviewerRegulatoryTextProviderTests": {
+          "Passed": 3
+        },
+        "EMF.Tests.VeteransReviewerMedicationClinicalContextProjectionServiceTests": {
+          "Passed": 2
+        },
+        "EMF.Tests.VeteransReviewerPackagePhysicianFacingNameTests": {
+          "Passed": 2
+        },
+        "EMF.Tests.VeteransReviewerPackageMedicationClinicalContextServiceTests": {
+          "Passed": 1
+        },
+        "EMF.Tests.LibreOfficeConverterSecurityTests": {
+          "Passed": 3
+        },
+        "EMF.Tests.VeteransReviewerPackageCurrentMedicationServiceTests": {
+          "Passed": 1
+        }
+      },
+      "trx": "/tmp/emf-architecture-20260930/acceptance/acceptance.trx"
+    },
+    "architecture_auditor": {
+      "counters": {
+        "total": "22",
+        "executed": "22",
+        "passed": "22",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "classes": {
+        "EMF.ArchitectureAuditor.Tests.ProviderAdapterDependencyRuleTests": {
+          "Passed": 2
+        },
+        "EMF.ArchitectureAuditor.Tests.FoundationalDependencyRuleTests": {
+          "Passed": 2
+        },
+        "EMF.ArchitectureAuditor.Tests.ConsoleCompositionDependencyRuleTests": {
+          "Passed": 2
+        },
+        "EMF.ArchitectureAuditor.Tests.InputMaterializationRuleTests": {
+          "Passed": 3
+        },
+        "EMF.ArchitectureAuditor.Tests.DirectPackageOwnershipRuleTests": {
+          "Passed": 3
+        },
+        "EMF.ArchitectureAuditor.Tests.CoreProjectDependencyRuleTests": {
+          "Passed": 2
+        },
+        "EMF.ArchitectureAuditor.Tests.LaboratoryDependencyRuleTests": {
+          "Passed": 2
+        },
+        "EMF.ArchitectureAuditor.Tests.VeteransClaimsDependencyRuleTests": {
+          "Passed": 2
+        },
+        "EMF.ArchitectureAuditor.Tests.WholeFileReadRuleTests": {
+          "Passed": 2
+        },
+        "EMF.ArchitectureAuditor.Tests.ProductionPackageDependencyRuleTests": {
+          "Passed": 2
+        }
+      },
+      "trx": "/tmp/emf-architecture-20260930/architecture-auditor/architecture-auditor.trx"
+    },
+    "developer_assurance": {
+      "counters": {
+        "total": "3",
+        "executed": "3",
+        "passed": "3",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "classes": {
+        "EMF.DeveloperAssurance.Tests.GitCheckpointStatusOperationTests": {
+          "Passed": 3
+        }
+      },
+      "trx": "/tmp/emf-architecture-20260930/developer-assurance/developer-assurance.trx"
+    }
+  },
+  "full_suite": {
+    "main": {
+      "total": 3076,
+      "executed": 3074,
+      "passed": 3074,
+      "failed": 0,
+      "skipped": 2,
+      "duration": "18m28s",
+      "skips": [
+        "Azure OpenAI live tests disabled",
+        "Azure Monitor live tests disabled"
+      ]
+    },
+    "architecture_auditor": {
+      "passed": 22,
+      "failed": 0,
+      "skipped": 0
+    },
+    "developer_assurance": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0
+    },
+    "combined": {
+      "total": 3101,
+      "executed": 3099,
+      "passed": 3099,
+      "failed": 0,
+      "skipped": 2
+    }
+  },
+  "files": {
+    "tracked_modified": [
+      "src/EMF.Console/LibreOfficeVeteransReviewerPackageDocumentConverter.cs",
+      "src/EMF.Console/VeteransConsoleCommand.cs",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerMedicalOpinionRequestService.cs",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageAssemblyService.cs",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageDetails.cs",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageDocumentOutputService.cs",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageDocxRenderer.cs",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackagePrescriptionPresentation.cs",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageRendererIdentity.cs",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageReuseService.cs",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerSourceReasonablenessReview.cs",
+      "src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/Repositories/SqliteEvidencePackageRepository.cs",
+      "src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/VeteransClaimsSqliteMigrations.cs",
+      "src/EMF.Extensions.VeteransClaims/Contracts/IEvidencePackageRepository.cs",
+      "tests/EMF.Tests/LibreOfficeConverterSecurityTests.cs",
+      "tests/EMF.Tests/VeteransClaimsSqliteMigrationTests.cs",
+      "tests/EMF.Tests/VeteransReviewerClinicalLayoutTests.cs",
+      "tests/EMF.Tests/VeteransReviewerEvidencePresentationTests.cs",
+      "tests/EMF.Tests/VeteransReviewerEvidenceSourceServiceTests.cs",
+      "tests/EMF.Tests/VeteransReviewerLumbarStructureTests.cs",
+      "tests/EMF.Tests/VeteransReviewerOutputProvenanceIntegrationTests.cs",
+      "tests/EMF.Tests/VeteransReviewerOutputProvenanceTests.cs",
+      "tests/EMF.Tests/VeteransReviewerPackageClinicalProgressionTests.cs",
+      "tests/EMF.Tests/VeteransReviewerPackageDocxRendererTests.cs",
+      "tests/EMF.Tests/VeteransReviewerPackageMedicationRendererTests.cs",
+      "tests/EMF.Tests/VeteransReviewerPackagePhysicianFacingNameTests.cs",
+      "tests/EMF.Tests/VeteransReviewerPackagePrescriptionPresentationTests.cs",
+      "tests/EMF.Tests/VeteransReviewerPackageReuseServiceTests.cs",
+      "tests/EMF.Tests/VeteransReviewerPackageSnapshotTests.cs",
+      "tests/EMF.Tests/VeteransReviewerPackageSourceClarificationTests.cs",
+      "tests/EMF.Tests/VeteransReviewerPatientHeaderTests.cs",
+      "tests/EMF.Tests/VeteransReviewerPresentationPhase2Tests.cs",
+      "tests/EMF.Tests/VeteransReviewerSourceReasonablenessReviewTests.cs"
+    ],
+    "new_checkpoint_files": [
+      "docs/REVIEWER_PACKAGE_DETERMINISM_CONTRACT.md",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackagePresentationPreparation.cs",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageRenderSettings.cs",
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPresentationVersionService.cs",
+      "src/EMF.Extensions.VeteransClaims/Models/Adjudication/ReviewerPackagePresentationSnapshot.cs",
+      "tests/EMF.Tests/ReviewerPackageTestPreparation.cs",
+      "tests/EMF.Tests/VeteransReviewerPackageArchitectureTests.cs",
+      "tests/EMF.Tests/VeteransReviewerPackageDeterminismTests.cs"
+    ]
+  },
+  "new_file_whitespace_checks": {
+    "note": "--no-index exit 1 indicates added-file differences; whitespace failures produce diagnostics.",
+    "files": {
+      "docs/REVIEWER_PACKAGE_DETERMINISM_CONTRACT.md": {
+        "exit_code": 1,
+        "diagnostics": "",
+        "passed": true
+      },
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackagePresentationPreparation.cs": {
+        "exit_code": 1,
+        "diagnostics": "",
+        "passed": true
+      },
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageRenderSettings.cs": {
+        "exit_code": 1,
+        "diagnostics": "",
+        "passed": true
+      },
+      "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPresentationVersionService.cs": {
+        "exit_code": 1,
+        "diagnostics": "",
+        "passed": true
+      },
+      "src/EMF.Extensions.VeteransClaims/Models/Adjudication/ReviewerPackagePresentationSnapshot.cs": {
+        "exit_code": 1,
+        "diagnostics": "",
+        "passed": true
+      },
+      "tests/EMF.Tests/ReviewerPackageTestPreparation.cs": {
+        "exit_code": 1,
+        "diagnostics": "",
+        "passed": true
+      },
+      "tests/EMF.Tests/VeteransReviewerPackageArchitectureTests.cs": {
+        "exit_code": 1,
+        "diagnostics": "",
+        "passed": true
+      },
+      "tests/EMF.Tests/VeteransReviewerPackageDeterminismTests.cs": {
+        "exit_code": 1,
+        "diagnostics": "",
+        "passed": true
+      }
+    },
+    "passed": true
+  },
+  "protected_inputs": {
+    "gold": {
+      "path": "/home/michael/EMF_Final_Docs/Lumbar_Review_Package.docx",
+      "sha256": "1822c8f0437c1d617560e0cc595250d2ab11a441ce60685d6b422840538a6a4f"
+    },
+    "live_database": {
+      "path": "/home/michael/EMF_Project/.emf-local/lumbar-claim.db",
+      "sha256": "cbde12e1718ed146f61aac76640cd5a6016bbb7fb52307483512a7d1a867dae6"
+    },
+    "trusted_manifest": {
+      "path": "/home/michael/EMF_Deployment/build-manifests/emf-dfee83b7-release.json",
+      "sha256": "800704a70c5fabfbb7f7aa57e00463a8462558750a1c49dc65b7987691878e6a"
+    }
+  },
+  "remaining_nondeterministic_inputs": [
+    "No uncontrolled visible inputs in the persisted preserved-presentation path.",
+    "First preparation may resolve today once before freezing; that date is an explicit persisted package input.",
+    "Independent fresh PDF conversions may differ in technical container metadata; visible pagination/positions are checked, and preserved reprints use frozen bytes.",
+    "GeneratedUtc remains technical audit metadata and does not alter presentation."
+  ],
+  "remaining_ui_work": [
+    "Wire mutually exclusive Preserve original dates / Refresh dates and create new version actions; default to Preserve.",
+    "Display package identity, date, prior-version lineage and explicit refreshed source dates.",
+    "Integrate reviewed-data preparation and recovery for interrupted new-version preparation; never overwrite originals."
+  ],
+  "baseline_assessment": {
+    "shared_working_baseline": "PASS automated gates; shared baseline ready for external candidate verification",
+    "production_freeze": "requires separately verified candidate/manifest and applicable external Gold comparisons"
+  },
+  "gold_comparison": "No new Gold comparison claimed. Gold documents were not regenerated or altered.",
+  "safety": {
+    "azure_openai_live_launcher": "unset",
+    "external_ai_invoked": false,
+    "real_reviewer_packages_regenerated": false,
+    "live_database_migrated": false,
+    "trusted_manifest_overwritten": false,
+    "staged": false,
+    "committed": false,
+    "pushed": false
+  },
+  "intermediate_results": "Initial serialization/profile and fixture failures were corrected. An intermediate broad run had 979 passes/5 failures; corrected final focused run has 988 passes/0 failures/0 skips. A superseded run was cancelled before the final acceptance run.",
+  "final_diff_check": "PASS",
+  "protected_hashes_rechecked_unchanged": true
+}

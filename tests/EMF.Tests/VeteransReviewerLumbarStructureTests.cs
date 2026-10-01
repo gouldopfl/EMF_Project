@@ -20,7 +20,7 @@ public sealed class VeteransReviewerLumbarStructureTests
     };
 
     private static WordprocessingDocument Render(params VeteransReviewerArtifactContent[] contents) =>
-        WordprocessingDocument.Open(new MemoryStream(VeteransReviewerPackageDocxRenderer.Render(Details(contents))), false);
+        WordprocessingDocument.Open(new MemoryStream(ReviewerPackageTestPreparation.Render(Details(contents))), false);
 
     [ReviewerLibreOfficeFact]
     public async Task StoredTextPtHeaderSuppliesChronologyDateAndAssociatedLayPlacement()
@@ -37,7 +37,7 @@ public sealed class VeteransReviewerLumbarStructureTests
             Artifact = new() { Id = new("stored-lay"), Name = "Veteran Lay Clarification_AFO Fit and Falls_09252026.txt", ArtifactType = "file" },
             Text = "Unchanged lay clarification body.", Appendix = "LayEvidence"
         };
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([pt, lay]));
+        var bytes = ReviewerPackageTestPreparation.Render(Details([pt, lay]));
         using var doc = WordprocessingDocument.Open(new MemoryStream(bytes), false);
         var headings = doc.MainDocumentPart!.Document!.Body!.Elements<Paragraph>()
             .Where(p => p.ParagraphProperties?.ParagraphStyleId?.Val == "Heading2").Select(p => p.InnerText).ToArray();
@@ -80,7 +80,7 @@ public sealed class VeteransReviewerLumbarStructureTests
             Evidence("Spousal Statement", "Spousal body", appendix: "LayEvidence", type: "file"),
             Evidence("Veteran Personal Statement", "Veteran body", appendix: "LayEvidence", type: "file")]);
         Assert.Equal("LayEvidence", VeteransReviewerSourceMembership.Select(details, [lay]).Single().Appendix);
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
         using var doc = WordprocessingDocument.Open(new MemoryStream(bytes), false);
         var headings = doc.MainDocumentPart!.Document!.Body!.Elements<Paragraph>()
             .Where(p => p.ParagraphProperties?.ParagraphStyleId?.Val == "Heading2").Select(p => p.InnerText).ToArray();
@@ -120,7 +120,7 @@ public sealed class VeteransReviewerLumbarStructureTests
     public async Task PatientHeaderGapAndDetachedDobRenderOnOnePdfBaseline()
     {
         const string source = "Example, Patient Allen                                                Date of birth:\nDecember 3, 1971\nClinical assessment: unchanged";
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([Evidence("Patient header", source)]));
+        var bytes = ReviewerPackageTestPreparation.Render(Details([Evidence("Patient header", source)]));
         using var doc = WordprocessingDocument.Open(new MemoryStream(bytes), false);
         var header = Assert.Single(doc.MainDocumentPart!.Document!.Descendants<Paragraph>().Where(p => p.InnerText.Contains("Date of birth:")));
         Assert.Equal("Example, Patient Allen Date of birth: December\u00a03,\u00a01971", header.InnerText);
@@ -138,7 +138,7 @@ public sealed class VeteransReviewerLumbarStructureTests
         const string source = "Clinical assessment: unchanged.\n/es/ EXAMPLE CLINICIAN\nSigned: 03/29/2025 23:48\n" +
             "Receipt Acknowledged By:\n04/01/2025 14:39   /es/ EXAMPLE NURSE\nPACT RN, BSN, Clinic\n" +
             "04/04/2025 15:33   /es/ EXAMPLE MD STAFF PHYSICIAN";
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([Evidence("Emergency Department", source)]));
+        var bytes = ReviewerPackageTestPreparation.Render(Details([Evidence("Emergency Department", source)]));
         using var doc = WordprocessingDocument.Open(new MemoryStream(bytes), false);
         var label = Assert.Single(doc.MainDocumentPart!.Document!.Descendants<Paragraph>().Where(p => p.InnerText == "Receipt Acknowledged By:"));
         Assert.Equal("0", label.ParagraphProperties!.SpacingBetweenLines!.After!.Value);
@@ -384,7 +384,7 @@ public sealed class VeteransReviewerLumbarStructureTests
             PackageDetails = initial.PackageDetails, Artifacts = initial.Artifacts, ArtifactContents = initial.ArtifactContents,
             MedicalOpinionRequested = new() { OpinionText = "Determine whether the Veteran's Lumbar degenerative disc disease (L3-L5) is at least as likely as not (50 percent or greater probability) proximately due to or the result of the Veteran's service-connected Bilateral pes planus. If causation is not established, determine aggravation." }
         };
-        using var doc = WordprocessingDocument.Open(new MemoryStream(VeteransReviewerPackageDocxRenderer.Render(details)), false);
+        using var doc = WordprocessingDocument.Open(new MemoryStream(ReviewerPackageTestPreparation.Render(details)), false);
         var text = doc.MainDocumentPart!.Document!.Body!.InnerText;
         Assert.Contains("Claim type: Secondary service connection", text);
         Assert.Contains("Claimed condition: Lumbar degenerative disc disease (L3-L5)", text);
@@ -412,7 +412,7 @@ public sealed class VeteransReviewerLumbarStructureTests
         using var signature = new NativePage(1224, 1584);
         signature.Line("/es/ EXAMPLE CLINICIAN", 55);
         signature.Line("Signed: 06/22/2026 14:30", 80);
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([
+        var bytes = ReviewerPackageTestPreparation.Render(Details([
             Evidence("Clinical Triage", pages: [title.Page(), note.Page(pageNumber: 2), signature.Page(pageNumber: 3)]),
             Evidence("Veteran Lay Clarification_AFO", "Verified clarification body.", appendix: "LayEvidence", type: "file")]));
         using (var doc = WordprocessingDocument.Open(new MemoryStream(bytes), false)) Assert.Empty(doc.MainDocumentPart!.ImageParts);
@@ -517,7 +517,7 @@ public sealed class VeteransReviewerLumbarStructureTests
         page.Line("Final certification text", 757);
         page.Line("SYNTHETIC SIGNATURE REGION", 782);
         var source = page.Page(pageNumber: 1);
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([
+        var bytes = ReviewerPackageTestPreparation.Render(Details([
             Evidence("Veteran Personal Statement", pages: [source], appendix: "LayEvidence", type: "file")]));
         using (var doc = WordprocessingDocument.Open(new MemoryStream(bytes), false))
         {

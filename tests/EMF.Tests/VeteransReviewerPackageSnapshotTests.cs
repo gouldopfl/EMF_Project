@@ -230,9 +230,17 @@ public sealed class VeteransReviewerPackageSnapshotTests
         // by an ambient serializer. The checked-in V1 map defines the wire fields.
         foreach (var (type, fields) in VeteransReviewerSnapshotV1Contract.Fields)
         {
-            Assert.Equal(type.GetProperties().Select(p => p.Name).OrderBy(x => x, StringComparer.Ordinal),
+            // Reviewed preparation-only field: typed cover belongs to the immutable
+            // presentation envelope (migration 94), never the historical V1 wire.
+            // All other DTO fields still demand explicit V1 contract coverage.
+            var properties = type.GetProperties().Where(p =>
+                type != typeof(VeteransReviewerPackageDetails) ||
+                p.Name != nameof(VeteransReviewerPackageDetails.ResolvedCover)).ToArray();
+            if (type == typeof(VeteransReviewerPackageDetails))
+                Assert.DoesNotContain(nameof(VeteransReviewerPackageDetails.ResolvedCover), fields);
+            Assert.Equal(properties.Select(p => p.Name).OrderBy(x => x, StringComparer.Ordinal),
                 fields.OrderBy(x => x, StringComparer.Ordinal));
-            foreach (var property in type.GetProperties())
+            foreach (var property in properties)
                 Assert.Equal(new System.Reflection.NullabilityInfoContext().Create(property).WriteState == System.Reflection.NullabilityState.Nullable,
                     VeteransReviewerSnapshotV1Contract.NullableFields.Contains((type, property.Name)));
         }
@@ -468,9 +476,12 @@ public sealed class VeteransReviewerPackageSnapshotTests
         public Task<IReadOnlyList<VeteransReviewerApplicableRegulation>> GetCurrentAsync(IReadOnlyList<string> citations, CancellationToken cancellationToken = default)
         { Calls++; if (Throw) throw new InvalidOperationException("Must not fetch current regulations"); return Task.FromResult(Regulations()); }
     }
-    private sealed class InvalidConverter : IVeteransReviewerPackageDocumentConverter
+    private sealed class InvalidConverter : IVeteransReviewerPackageDocumentConverter,
+        IVeteransReviewerPackageDocumentConverterInfoProvider
     {
         public Task<byte[]> ConvertDocxToPdfAsync(ReadOnlyMemory<byte> docx, CancellationToken cancellationToken = default) => Task.FromResult(new byte[] { 0 });
+        public Task<VeteransReviewerPackageDocumentConverterInfo> GetDocumentConverterInfoAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new VeteransReviewerPackageDocumentConverterInfo("Synthetic invalid-output converter", "1"));
     }
     private sealed class Database(string path) : IAsyncDisposable
     {

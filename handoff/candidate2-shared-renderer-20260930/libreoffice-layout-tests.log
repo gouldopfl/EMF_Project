@@ -1,0 +1,20 @@
+Test run for /home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.4.5+1caef2f33e (64-bit .NET 10.0.12)
+[xUnit.net 00:00:00.71]   Discovering: EMF.Tests
+[xUnit.net 00:00:01.00]   Discovered:  EMF.Tests
+[xUnit.net 00:00:01.02]   Starting:    EMF.Tests
+WARNING: Logging before InitGoogleLogging() is written to STDERR
+W0930 17:00:08.853689 767977 pd_config.cc:378] Warning: The api is deprecated since version 3.x, please use onednn api PD_ConfigSetOnednnCacheCapacity.
+  Passed EMF.Tests.VeteransReviewerSourceEnlargementTests.SupplementPaginationsRetainOriginalAndClearHeadersAndFooters [12 s]
+  Passed EMF.Tests.VeteransReviewerSharedVisualRulesTests.StructuredFieldsAndLabColumnsRemainAlignedInTheConvertedPdf [12 s]
+[xUnit.net 00:02:59.32]   Finished:    EMF.Tests
+  Passed EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_LiteratureUsesFullPagesAndHonorsMixedSourceOrientations [2 m 57 s]
+
+Test Run Successful.
+Total tests: 3
+     Passed: 3
+ Total time: 2.9982 Minutes

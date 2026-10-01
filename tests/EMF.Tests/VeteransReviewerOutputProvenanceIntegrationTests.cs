@@ -259,9 +259,11 @@ public sealed class VeteransReviewerOutputProvenanceIntegrationTests
             VeteransReviewerPackageOutputFormat.Both,
             sourceReviewDate: ReviewDate);
 
-        // Exact-byte provenance must not assume DOCX container determinism.
+        // Reprints materialize the frozen plan and PDF, even at a new path.
+        // M92 still verifies exact bytes; it does not normalize provenance hashes.
+        Assert.Equal(first.Docx, retry.Docx);
         Assert.Equal(first.Pdf, retry.Pdf);
-        Assert.Equal(2, converter.Conversions);
+        Assert.Equal(1, converter.Conversions);
 
         var firstDocxHash = Convert.ToHexString(SHA256.HashData(first.Docx!));
         var retryDocxHash = Convert.ToHexString(SHA256.HashData(retry.Docx!));
@@ -305,6 +307,118 @@ public sealed class VeteransReviewerOutputProvenanceIntegrationTests
         Assert.Equal(pdfHash, pdf.OutputSha256);
     }
 
+
+    [Theory]
+    [InlineData(VeteransReviewerPackageOutputFormat.Docx, 2000)]
+    [InlineData(VeteransReviewerPackageOutputFormat.Pdf, 2000)]
+    [InlineData(VeteransReviewerPackageOutputFormat.Both, 2000)]
+    [InlineData(VeteransReviewerPackageOutputFormat.Both, 2050)]
+    public async Task PreservedReprintWithoutNewDateRetainsRecordedDateAndExactBytes(
+        VeteransReviewerPackageOutputFormat format, int originalYear)
+    {
+        await using var db = await Database.Create();
+        var details = Details();
+        await db.Repository.AddEvidencePackageAsync(details.PackageDetails.Package, details.PackageDetails.Artifacts.ToArray());
+        var converter = new Converter();
+        var service = CreateVerifiedService(converter, new Regulations(), db.Repository, CurrentBuildManifest());
+        var originalDate = new DateOnly(originalYear, 1, 1);
+        var first = await service.RenderAsync(details, format, sourceReviewDate: originalDate);
+        var retry = await service.RenderAsync(details, format,
+            existingOutput: new VeteransReviewerPackageExistingOutput(first.Docx, first.Pdf));
+        Assert.Equal(first.Docx, retry.Docx);
+        Assert.Equal(first.Pdf, retry.Pdf);
+        Assert.Equal(format != VeteransReviewerPackageOutputFormat.Pdf, retry.ReusedDocx);
+        Assert.Equal(format != VeteransReviewerPackageOutputFormat.Docx, retry.ReusedPdf);
+        Assert.Equal(format == VeteransReviewerPackageOutputFormat.Docx ? 0 : 1, converter.Conversions);
+        Assert.All(await db.Repository.GetReviewerOutputProvenanceAsync(details.PackageDetails.Package.Id),
+            row => Assert.Equal(originalDate, row.SourceReviewDate));
+    }
+
+    [Theory]
+    [InlineData(VeteransReviewerPackageOutputFormat.Docx)]
+    [InlineData(VeteransReviewerPackageOutputFormat.Pdf)]
+    public async Task ReprintToNewOutputWithoutExistingBytesRetainsPackageReviewDate(
+        VeteransReviewerPackageOutputFormat secondFormat)
+    {
+        await using var db = await Database.Create();
+        var details = Details();
+        await db.Repository.AddEvidencePackageAsync(details.PackageDetails.Package, details.PackageDetails.Artifacts.ToArray());
+        var service = CreateVerifiedService(new Converter(), new Regulations(), db.Repository, CurrentBuildManifest());
+        var originalDate = new DateOnly(2000, 1, 1);
+        await service.RenderAsync(details, VeteransReviewerPackageOutputFormat.Docx, sourceReviewDate: originalDate);
+        await service.RenderAsync(details, secondFormat);
+        Assert.All(await db.Repository.GetReviewerOutputProvenanceAsync(details.PackageDetails.Package.Id),
+            row => Assert.Equal(originalDate, row.SourceReviewDate));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OldPreservedOutputTamperingFailsClosedWithoutNewReviewDate(bool tamperPdf)
+    {
+        await using var db = await Database.Create();
+        var details = Details();
+        await db.Repository.AddEvidencePackageAsync(details.PackageDetails.Package, details.PackageDetails.Artifacts.ToArray());
+        var converter = new Converter();
+        var service = CreateVerifiedService(converter, new Regulations(), db.Repository, CurrentBuildManifest());
+        var first = await service.RenderAsync(details, VeteransReviewerPackageOutputFormat.Both,
+            sourceReviewDate: new(2000, 1, 1));
+        var docx = first.Docx!.ToArray();
+        var pdf = first.Pdf!.ToArray();
+        if (tamperPdf) pdf[^1] ^= 1;
+        else docx[^1] ^= 1;
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => service.RenderAsync(details,
+            VeteransReviewerPackageOutputFormat.Both,
+            existingOutput: new VeteransReviewerPackageExistingOutput(docx, pdf)));
+        Assert.Contains("does not match persisted provenance", error.Message, StringComparison.Ordinal);
+        Assert.Equal(1, converter.Conversions);
+        Assert.Equal(2, (await db.Repository.GetReviewerOutputProvenanceAsync(details.PackageDetails.Package.Id)).Count);
+    }
+
+    [Fact]
+    public async Task ConflictingHistoricalPackageDatesFailClosedInsteadOfChoosingAReprintDate()
+    {
+        var details = Details();
+        var snapshot = VeteransReviewerPackageSnapshot.Capture(details, VeteransReviewerPackageSnapshotTests.Regulations());
+        var repository = new M91OnlyRepository();
+        await repository.SaveReviewerSnapshotAsync(snapshot, details.PackageDetails);
+        foreach (var date in new[] { new DateOnly(2000, 1, 1), new DateOnly(2001, 1, 1) })
+            repository.OutputProvenance.Add(ReviewerPackageOutputProvenance.Create(snapshot.PackageId,
+                ReviewerPackageOutputFormats.Docx, snapshot.Sha256, VeteransReviewerPackageRendererIdentity.Contract,
+                VeteransReviewerPackageRendererIdentity.Build, null, null, date, new byte[] { 1, 2, 3 }, DateTimeOffset.UnixEpoch));
+        var service = new VeteransReviewerPackageDocumentOutputService(snapshotRepository: repository);
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => service.RenderAsync(details,
+            VeteransReviewerPackageOutputFormat.Docx, sourceReviewDate: new(2000, 1, 1)));
+        Assert.Contains("conflicting review dates", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, repository.OutputProvenance.Count);
+    }
+
+    [Fact]
+    public async Task RefreshedReviewDateRequiresDistinctPackageIdentityAndPreservesOriginal()
+    {
+        await using var db = await Database.Create();
+        var details = Details();
+        await db.Repository.AddEvidencePackageAsync(details.PackageDetails.Package, details.PackageDetails.Artifacts.ToArray());
+        var service = CreateVerifiedService(null, new Regulations(), db.Repository, CurrentBuildManifest());
+        await service.RenderAsync(details, VeteransReviewerPackageOutputFormat.Docx, sourceReviewDate: ReviewDate);
+        var refreshed = VeteransReviewerPackageOutputReuseTests.Change(
+            VeteransReviewerPackageSnapshot.Capture(details, VeteransReviewerPackageSnapshotTests.Regulations()), root =>
+            {
+                var package = root["Details"]!["PackageDetails"]!;
+                package["Package"]!["Id"] = "package-refreshed-date";
+                foreach (var member in package["Artifacts"]!.AsArray())
+                    member!["EvidencePackageId"] = "package-refreshed-date";
+            }, "package-refreshed-date");
+        var refreshedDetails = VeteransReviewerPackageSnapshot.Restore(refreshed).Details;
+        await db.Repository.AddEvidencePackageAsync(refreshedDetails.PackageDetails.Package,
+            refreshedDetails.PackageDetails.Artifacts.ToArray());
+        await service.RenderAsync(refreshedDetails, VeteransReviewerPackageOutputFormat.Docx,
+            preparedSnapshot: refreshed, sourceReviewDate: ReviewDate.AddDays(1));
+        Assert.All(await db.Repository.GetReviewerOutputProvenanceAsync(details.PackageDetails.Package.Id),
+            row => Assert.Equal(ReviewDate, row.SourceReviewDate));
+        Assert.All(await db.Repository.GetReviewerOutputProvenanceAsync(refreshed.PackageId),
+            row => Assert.Equal(ReviewDate.AddDays(1), row.SourceReviewDate));
+    }
 
     [Fact]
     public async Task RenderAsync_Both_VerifiedExistingOutputsAreReusedWithoutPdfConversion()
@@ -762,7 +876,7 @@ public sealed class VeteransReviewerOutputProvenanceIntegrationTests
     }
 
     [Fact]
-    public async Task RenderAsync_Pdf_ChangedConverterIdentityDoesNotReuseExistingOutput()
+    public async Task RenderAsync_Pdf_ChangedConverterIdentityRequiresNewPackageVersion()
     {
         await using var db = await Database.Create();
         var details = Details();
@@ -781,28 +895,19 @@ public sealed class VeteransReviewerOutputProvenanceIntegrationTests
                 sourceReviewDate: ReviewDate);
 
         var secondConverter = new Converter(version: "2.0.0");
-        var second = await CreateVerifiedService(
-                secondConverter,
-                new Regulations(),
-                db.Repository,
-                CurrentBuildManifest())
-            .RenderAsync(
-                Details("later mutable state"),
-                VeteransReviewerPackageOutputFormat.Pdf,
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => CreateVerifiedService(
+                secondConverter, new Regulations(), db.Repository, CurrentBuildManifest())
+            .RenderAsync(Details("later mutable state"), VeteransReviewerPackageOutputFormat.Pdf,
                 sourceReviewDate: ReviewDate,
-                existingOutput: new VeteransReviewerPackageExistingOutput(
-                    null,
-                    first.Pdf));
-
-        Assert.False(second.ReusedPdf);
+                existingOutput: new VeteransReviewerPackageExistingOutput(null, first.Pdf)));
+        Assert.Contains("new package version", error.Message);
         Assert.Equal(1, firstConverter.Conversions);
-        Assert.Equal(1, secondConverter.Conversions);
-        Assert.Equal(2, (await db.Repository.GetReviewerOutputProvenanceAsync(
-            details.PackageDetails.Package.Id)).Count);
+        Assert.Equal(0, secondConverter.Conversions);
+        Assert.Single(await db.Repository.GetReviewerOutputProvenanceAsync(details.PackageDetails.Package.Id));
     }
 
     [Fact]
-    public async Task RenderAsync_Pdf_ChangedReviewDateDoesNotReuseExistingOutput()
+    public async Task RenderAsync_Pdf_ChangedReviewDateRequiresNewPackageVersion()
     {
         await using var db = await Database.Create();
         var details = Details();
@@ -820,18 +925,14 @@ public sealed class VeteransReviewerOutputProvenanceIntegrationTests
             details,
             VeteransReviewerPackageOutputFormat.Pdf,
             sourceReviewDate: ReviewDate);
-        var second = await service.RenderAsync(
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => service.RenderAsync(
             Details("later mutable state"),
             VeteransReviewerPackageOutputFormat.Pdf,
             sourceReviewDate: ReviewDate.AddDays(1),
-            existingOutput: new VeteransReviewerPackageExistingOutput(
-                null,
-                first.Pdf));
-
-        Assert.False(second.ReusedPdf);
-        Assert.Equal(2, converter.Conversions);
-        Assert.Equal(2, (await db.Repository.GetReviewerOutputProvenanceAsync(
-            details.PackageDetails.Package.Id)).Count);
+            existingOutput: new VeteransReviewerPackageExistingOutput(null, first.Pdf)));
+        Assert.Contains("new package version", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, converter.Conversions);
+        Assert.Single(await db.Repository.GetReviewerOutputProvenanceAsync(details.PackageDetails.Package.Id));
     }
 
     [Fact]

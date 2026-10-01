@@ -416,8 +416,7 @@ public sealed class VeteransReviewerNativeEvidencePageTests
         var page = fixture.Page(hasGraphics, missingGeometry);
         var result = VeteransReviewerNativeEvidencePage.Prepare(page, blueButton);
         Assert.Empty(result.Changes);
-        var crop = VeteransReviewerSourcePageCrop.Crop(page.Content);
-        VeteransReviewerSourcePageCropTests.AssertPreserved(page.Content, crop with { Content = result.Content });
+        Assert.Equal(page.Content.ToArray(), result.Content.ToArray());
     }
 
     [Fact]

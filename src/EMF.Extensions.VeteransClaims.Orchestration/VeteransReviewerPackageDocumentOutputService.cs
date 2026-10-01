@@ -97,7 +97,8 @@ public sealed class VeteransReviewerPackageDocumentOutputService
         CancellationToken cancellationToken = default,
         ReviewerPackageSnapshot? preparedSnapshot = null,
         DateOnly? sourceReviewDate = null,
-        VeteransReviewerPackageExistingOutput? existingOutput = null)
+        VeteransReviewerPackageExistingOutput? existingOutput = null,
+        ReviewerPackageCover? preparedCover = null)
     {
         ArgumentNullException.ThrowIfNull(details);
         cancellationToken.ThrowIfCancellationRequested();
@@ -124,7 +125,16 @@ public sealed class VeteransReviewerPackageDocumentOutputService
             ? preparedSnapshot ?? await CaptureCurrentAsync(details, cancellationToken)
             : null;
 
+        preparedCover ??= stored is null ? details.ResolvedCover : null;
         var selected = stored ?? preparedSnapshot ?? captured;
+        var presentationEnabled = selected is not null &&
+            _snapshotRepository?.SupportsReviewerPresentationSnapshots == true;
+        var presentation = presentationEnabled
+            ? await _snapshotRepository!.GetReviewerPresentationAsync(selected!.PackageId, cancellationToken)
+            : null;
+        if (presentation is not null && (presentation.SourceSnapshotSha256 != selected!.Sha256 ||
+            preparedCover is not null && preparedCover != presentation.Cover))
+            throw new InvalidDataException("Changing frozen presentation inputs requires a new package version.");
         var restored = selected is null ? null : VeteransReviewerPackageSnapshot.Restore(selected);
         if (restored is not null)
             details = restored.Details;
@@ -132,9 +142,6 @@ public sealed class VeteransReviewerPackageDocumentOutputService
         var regulations =
             restored?.Regulations ??
             await GetApplicableRegulationsAsync(details, cancellationToken);
-
-        var reviewDate =
-            sourceReviewDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
 
         var requiresDocx =
             format is VeteransReviewerPackageOutputFormat.Docx or
@@ -158,8 +165,11 @@ public sealed class VeteransReviewerPackageDocumentOutputService
             provenanceEnabled &&
             _snapshotRepository?.SupportsReviewerOutputBuildProvenance == true;
 
+        var frozenPdf = presentationEnabled && requiresPdf
+            ? await _snapshotRepository!.GetReviewerFrozenPdfAsync(selected!.PackageId, cancellationToken)
+            : null;
         VeteransReviewerPackageDocumentConverterInfo? converterInfo = null;
-        if (requiresPdf && provenanceEnabled && existingOutput?.Pdf is not null)
+        if (requiresPdf && provenanceEnabled && (existingOutput?.Pdf is not null || frozenPdf is not null))
             converterInfo = await RequireConverterInfoAsync();
 
         IReadOnlyList<ReviewerPackageOutputProvenance> provenanceRows =
@@ -168,6 +178,33 @@ public sealed class VeteransReviewerPackageDocumentOutputService
                 : await _snapshotRepository!.GetReviewerOutputProvenanceAsync(
                     selected!.PackageId,
                     cancellationToken);
+
+        // docs/REVIEWER_PACKAGE_DETERMINISM_CONTRACT.md: visible dates are
+        // presentation inputs, never a reason to silently mutate a reprint.
+        // Visible source-review dates belong to the preserved package, across
+        // formats and renderer builds. GeneratedUtc remains audit metadata.
+        // V1 snapshots are immutable: recover this input from their validated
+        // output provenance rather than rewriting the historical wire contract.
+        var recordedDates = provenanceRows.Select(row => row.SourceReviewDate).Distinct().ToArray();
+        if (recordedDates.Length > 1)
+            throw new InvalidDataException(
+                "Preserved package has conflicting review dates; create a new package version.");
+        if (recordedDates.Length == 1 && sourceReviewDate is not null && sourceReviewDate != recordedDates[0])
+            throw new InvalidDataException(
+                "Refreshing a visible review date requires a new package version.");
+        if (presentation is not null &&
+            (sourceReviewDate is not null && sourceReviewDate != presentation.PackagePreparedDate ||
+                recordedDates.Length == 1 && recordedDates[0] != presentation.PackagePreparedDate))
+            throw new InvalidDataException("Refreshing visible package dates requires a new package version.");
+        if (presentationEnabled && presentation is null && stored is not null &&
+            recordedDates.Length == 0 && sourceReviewDate is null)
+            throw new InvalidDataException("Historical package has no preserved prepared date; explicit preparation is required.");
+        var reviewDate = presentation?.PackagePreparedDate ??
+            (recordedDates.Length == 1 ? recordedDates[0] :
+                sourceReviewDate ?? DateOnly.FromDateTime(DateTime.UtcNow));
+        if (frozenPdf is not null && (converterInfo!.Identity != frozenPdf.ConverterIdentity ||
+            converterInfo.Version != frozenPdf.ConverterVersion))
+            throw new InvalidDataException("Changing the PDF conversion profile requires a new package version.");
 
         var reusablePdf = requiresPdf
             ? VerifyExistingOutput(
@@ -227,20 +264,33 @@ public sealed class VeteransReviewerPackageDocumentOutputService
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var docx = reusableDocx ??
-            VeteransReviewerPackageDocxRenderer.Render(
-                details,
-                regulations,
-                reviewDate);
+        // Preparation is the only interpretation boundary. Persisted reprints
+        // materialize the frozen plan: docs/REVIEWER_PACKAGE_DETERMINISM_CONTRACT.md.
+        if (presentationEnabled && presentation is null)
+            presentation = VeteransReviewerPackagePresentationPreparation.Prepare(selected!,
+                new VeteransReviewerPackageRenderSettings(reviewDate), preparedCover);
+        using var materializationTiming = EmfPerformanceTiming.MeasureTopLevel(EmfPerformancePhase.DocxMaterialization);
+        var docx = reusableDocx ?? (presentation is not null
+            ? VeteransReviewerPackageDocxRenderer.RenderPrepared(presentation)
+            : selected is not null
+                ? VeteransReviewerPackageDocxRenderer.RenderSnapshot(
+                    selected, new VeteransReviewerPackageRenderSettings(reviewDate))
+                : VeteransReviewerPackageDocxRenderer.Render(details, regulations, reviewDate));
 
+        materializationTiming.Dispose();
         cancellationToken.ThrowIfCancellationRequested();
 
-        byte[]? pdf = reusablePdf;
+        byte[]? pdf = reusablePdf ?? frozenPdf?.MaterializePdf();
         if (requiresPdf && pdf is null)
         {
+            using var conversionTiming = EmfPerformanceTiming.MeasureTopLevel(EmfPerformancePhase.PdfConversion);
+            if (provenanceEnabled && converterInfo is null)
+                converterInfo = await RequireConverterInfoAsync();
             pdf = await _converter!.ConvertDocxToPdfAsync(
                 docx,
                 cancellationToken);
+            if (provenanceEnabled && converterInfo != await RequireConverterInfoAsync())
+                throw new InvalidDataException("Converter profile changed during package preparation.");
         }
 
         if (pdf is not null)
@@ -255,6 +305,16 @@ public sealed class VeteransReviewerPackageDocumentOutputService
         }
 
         await SealAsync();
+        if (presentationEnabled)
+        {
+            await _snapshotRepository!.SaveReviewerPresentationAsync(presentation!, cancellationToken);
+            if (requiresPdf && frozenPdf is null)
+            {
+                frozenPdf = ReviewerPackageFrozenPdf.Create(presentation!, converterInfo!.Identity,
+                    converterInfo.Version, pdf!);
+                await _snapshotRepository.SaveReviewerFrozenPdfAsync(frozenPdf, cancellationToken);
+            }
+        }
 
         if (requiresDocx && reusableDocx is null)
         {

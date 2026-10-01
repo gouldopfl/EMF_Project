@@ -4,6 +4,23 @@ namespace EMF.Tests;
 
 public sealed class LibreOfficeConverterSecurityTests
 {
+    [Fact]
+    public void PresentationEnvironmentOverridesCannotEscapeTheSharedProfile()
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("synthetic-converter");
+        foreach (var key in new[] { "SAL_FORCEDPI", "SAL_OVERRIDE_LOCALE", "FONTCONFIG_FILE",
+            "QT_SCALE_FACTOR", "GDK_DPI_SCALE", "DISPLAY", "LD_LIBRARY_PATH" })
+            start.Environment[key] = "synthetic-ambient-override";
+        LibreOfficeVeteransReviewerPackageDocumentConverter.ApplyControlledEnvironment(start);
+        Assert.Equal("96", start.Environment["SAL_FORCEDPI"]);
+        Assert.Equal("svp", start.Environment["SAL_USE_VCLPLUGIN"]);
+        Assert.Equal("C.UTF-8", start.Environment["LC_ALL"]);
+        Assert.Equal("en_US", start.Environment["LANGUAGE"]);
+        Assert.Equal("UTC", start.Environment["TZ"]);
+        foreach (var key in new[] { "SAL_OVERRIDE_LOCALE", "FONTCONFIG_FILE", "QT_SCALE_FACTOR",
+            "GDK_DPI_SCALE", "DISPLAY", "LD_LIBRARY_PATH" }) Assert.False(start.Environment.ContainsKey(key));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(7)]

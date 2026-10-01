@@ -1,0 +1,109 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  EMF.Common -> /home/michael/EMF_Project/src/EMF.Common/bin/Debug/net10.0/EMF.Common.dll
+  EMF.Core -> /home/michael/EMF_Project/src/EMF.Core/bin/Debug/net10.0/EMF.Core.dll
+  EMF.Integrity -> /home/michael/EMF_Project/src/EMF.Integrity/bin/Debug/net10.0/EMF.Integrity.dll
+  EMF.Discovery -> /home/michael/EMF_Project/src/EMF.Discovery/bin/Debug/net10.0/EMF.Discovery.dll
+  EMF.Security -> /home/michael/EMF_Project/src/EMF.Security/bin/Debug/net10.0/EMF.Security.dll
+  EMF.Persistence -> /home/michael/EMF_Project/src/EMF.Persistence/bin/Debug/net10.0/EMF.Persistence.dll
+  EMF.Security.Azure -> /home/michael/EMF_Project/src/EMF.Security.Azure/bin/Debug/net10.0/EMF.Security.Azure.dll
+  EMF.Intelligence -> /home/michael/EMF_Project/src/EMF.Intelligence/bin/Debug/net10.0/EMF.Intelligence.dll
+  EMF.Intelligence.Development -> /home/michael/EMF_Project/src/EMF.Intelligence.Development/bin/Debug/net10.0/EMF.Intelligence.Development.dll
+  EMF.Security.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Security.Persistence.Sqlite/bin/Debug/net10.0/EMF.Security.Persistence.Sqlite.dll
+  EMF.Intelligence.AzureOpenAI -> /home/michael/EMF_Project/src/EMF.Intelligence.AzureOpenAI/bin/Debug/net10.0/EMF.Intelligence.AzureOpenAI.dll
+  EMF.Intelligence.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Intelligence.Persistence.Sqlite/bin/Debug/net10.0/EMF.Intelligence.Persistence.Sqlite.dll
+  EMF.Inventory -> /home/michael/EMF_Project/src/EMF.Inventory/bin/Debug/net10.0/EMF.Inventory.dll
+  EMF.Extensions.VeteransClaims -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.dll
+  EMF.Orchestration -> /home/michael/EMF_Project/src/EMF.Orchestration/bin/Debug/net10.0/EMF.Orchestration.dll
+  EMF.Extensions.VeteransClaims.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Persistence.Sqlite.dll
+  EMF.Laboratory -> /home/michael/EMF_Project/src/EMF.Laboratory/bin/Debug/net10.0/EMF.Laboratory.dll
+  EMF.Extensions.VeteransClaims.Orchestration -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Orchestration/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Orchestration.dll
+  EMF.Extensions.VeteransClaims.Persistence -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Persistence/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Persistence.dll
+  EMF.Console -> /home/michael/EMF_Project/src/EMF.Console/bin/Debug/net10.0/EMF.Console.dll
+  EMF.Tests -> /home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll
+Test run for /home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:01.44]     EMF.Tests.VeteransReviewerEvidencePresentationTests.Render_BlueButtonTextAndMultiplePagesShareCanonicalOutput(printablePages: False) [FAIL]
+[xUnit.net 00:00:01.65]     EMF.Tests.VeteransReviewerEvidencePresentationTests.Render_BlueButtonTextAndMultiplePagesShareCanonicalOutput(printablePages: True) [FAIL]
+  Failed EMF.Tests.VeteransReviewerEvidencePresentationTests.Render_BlueButtonTextAndMultiplePagesShareCanonicalOutput(printablePages: False) [240 ms]
+  Error Message:
+   The collection was expected to contain a single element, but it was empty.
+  Stack Trace:
+     at EMF.Tests.VeteransReviewerEvidencePresentationTests.Render_BlueButtonTextAndMultiplePagesShareCanonicalOutput(Boolean printablePages) in /home/michael/EMF_Project/tests/EMF.Tests/VeteransReviewerEvidencePresentationTests.cs:line 443
+--- End of stack trace from previous location ---
+  Failed EMF.Tests.VeteransReviewerEvidencePresentationTests.Render_BlueButtonTextAndMultiplePagesShareCanonicalOutput(printablePages: True) [209 ms]
+  Error Message:
+   The collection was expected to contain a single element, but it was empty.
+  Stack Trace:
+     at EMF.Tests.VeteransReviewerEvidencePresentationTests.Render_BlueButtonTextAndMultiplePagesShareCanonicalOutput(Boolean printablePages) in /home/michael/EMF_Project/tests/EMF.Tests/VeteransReviewerEvidencePresentationTests.cs:line 443
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:33.32]     EMF.Tests.VeteransReviewerClinicalLayoutTests.ConvertedPdfKeepsScoresInOneColumnAndMddWithinItsNarrativeLine [SKIP]
+[xUnit.net 00:00:33.32]     EMF.Tests.VeteransReviewerClinicalLayoutTests.LongNamedScalePaginatesWithoutDroppingScoresOrShrinkingBodyText [SKIP]
+  Skipped EMF.Tests.VeteransReviewerClinicalLayoutTests.ConvertedPdfKeepsScoresInOneColumnAndMddWithinItsNarrativeLine [1 ms]
+  Skipped EMF.Tests.VeteransReviewerClinicalLayoutTests.LongNamedScalePaginatesWithoutDroppingScoresOrShrinkingBodyText [1 ms]
+[xUnit.net 00:00:35.81]     EMF.Tests.VeteransReviewerStructuredRecordRecoveryTests.LabRowsAndUnassignedFragmentsStayAtomicAcrossOutputPageBoundaries [SKIP]
+  Skipped EMF.Tests.VeteransReviewerStructuredRecordRecoveryTests.LabRowsAndUnassignedFragmentsStayAtomicAcrossOutputPageBoundaries [1 ms]
+[xUnit.net 00:00:35.89]     EMF.Tests.VeteransReviewerStructuredRecordRecoveryTests.PowerFormSignaturesAndCompleteProblemRecordsRemainTogetherAcrossOutputPages [SKIP]
+  Skipped EMF.Tests.VeteransReviewerStructuredRecordRecoveryTests.PowerFormSignaturesAndCompleteProblemRecordsRemainTogetherAcrossOutputPages [1 ms]
+[xUnit.net 00:00:42.43]     EMF.Tests.VeteransReviewerPackageDocxRendererTests.Render_RemovesInvalidXmlControlCharacters [FAIL]
+  Failed EMF.Tests.VeteransReviewerPackageDocxRendererTests.Render_RemovesInvalidXmlControlCharacters [62 ms]
+  Error Message:
+   Assert.Contains() Failure
+Not found: Before After Beyond
+In value:  CONFIDENTIAL — VETERAN MEDICAL INFORMATIONVeterans Evidence Package for Medical ReviewPurpose: Reviewer packageReviewer Role: Medical ProfessionalPrepared Using: EMF Veterans Evidence SystemReviewer InstructionsHow to Use This PackageReview the Medical Opinion Requested, Issues Presented for Medical Review, and Questions for the Reviewing Physician first. Use the Key Evidence and Chronology for orientation to the principal medical evidence, then use the appendices to review the underlying source material.Reviewer GuidanceBase any opinion on the evidence supplied, identify the specific records and medical/scientific literature relied upon, address medically applicable causation and aggravation questions separately, and explain the medical rationale for each opinion.Executive SummaryPurpose of This DocumentPurpose: Reviewer package. This package organizes the evidence supplied for independent medical review and is intended to help the reviewing medical professional locate and evaluate the relevant medical, lay, adjudicative, treatment-device, and medical/scientific evidence efficiently. It does not make a medical, legal, or adjudicative conclusion.Evidence sources supplied for review: 1.Package GuideIssues Presented for Medical Review — Defines the review purpose, reviewer role, evidence scope, and limitations.Key Evidence and Chronology — Provides chronological orientation to the principal medical evidence.Questions for the Reviewing Physician — Lists the medical questions the reviewing physician is asked to address.Issues Presented for Medical ReviewReview purpose: Reviewer packageReviewer role: Medical ProfessionalEvidence sources supplied for review: 1.This package organizes evidence for independent medical review. It does not make a medical, legal, or adjudicative conclusion.Questions for the Reviewing PhysicianPlease address the questions that are medically applicable to the requested review and explain the rationale for each opinion.1. What current diagnosis or diagnoses and clinically significant findings are supported by the supplied evidence?2. What medical relationship, if any, is supported or not supported by the evidence for the claim issue under review?3. If causation and aggravation are medically applicable to the requested review, address each separately.4. Identify the specific records and medical or scientific literature relied upon, explain the medical rationale, and discuss material evidence that weighs against the opinion.Appendix A — Medical EvidenceContains clinical notes, diagnostic reports, treatment records, and related medical evidence.No medical evidence is included in this package.Appendix B — Medical Opinion EvidenceContains medical opinion and nexus evidence supplied for review.No medical opinion evidence is included in this package.Appendix C — Service RecordsContains relevant military service and service-treatment evidence.No service records are included in this package.Appendix D — Lay EvidenceContains statements and observations from the veteran and other lay witnesses.No lay evidence is included in this package.Appendix E — Adjudicative RecordsContains relevant VA decisions and adjudicative records.No adjudicative records are included in this package.Appendix F — Medical / Scientific LiteratureContains the medical/scientific literature supplied for review.No medical/scientific literature is included in this package.Additional EvidenceSource EvidenceBeforeAfter Beyond
+  Stack Trace:
+     at EMF.Tests.VeteransReviewerPackageDocxRendererTests.Render_RemovesInvalidXmlControlCharacters() in /home/michael/EMF_Project/tests/EMF.Tests/VeteransReviewerPackageDocxRendererTests.cs:line 3286
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:01:12.63]     EMF.Tests.VeteransReviewerSourceEnlargementTests.SupplementPaginationsRetainOriginalAndClearHeadersAndFooters [SKIP]
+[xUnit.net 00:01:12.63]     EMF.Tests.VeteransReviewerSourceEnlargementTests.MultipleSupplementsUseFullBoxesAndKeepNumberingAcrossOrientationChanges [SKIP]
+  Skipped EMF.Tests.VeteransReviewerSourceEnlargementTests.SupplementPaginationsRetainOriginalAndClearHeadersAndFooters [1 ms]
+  Skipped EMF.Tests.VeteransReviewerSourceEnlargementTests.MultipleSupplementsUseFullBoxesAndKeepNumberingAcrossOrientationChanges [1 ms]
+[xUnit.net 00:01:12.94]     EMF.Tests.VeteransReviewerSourceEnlargementTests.WideTableBelowMinimumGainIsDetectedButRejected [FAIL]
+  Failed EMF.Tests.VeteransReviewerSourceEnlargementTests.WideTableBelowMinimumGainIsDetectedButRejected [42 ms]
+  Error Message:
+   Assert.False() Failure
+Expected: False
+Actual:   True
+  Stack Trace:
+     at EMF.Tests.VeteransReviewerSourceEnlargementTests.WideTableBelowMinimumGainIsDetectedButRejected() in /home/michael/EMF_Project/tests/EMF.Tests/VeteransReviewerSourceEnlargementTests.cs:line 122
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:01:13.05]     EMF.Tests.VeteransReviewerSharedVisualRulesTests.StructuredFieldsAndLabColumnsRemainAlignedInTheConvertedPdf [SKIP]
+  Skipped EMF.Tests.VeteransReviewerSharedVisualRulesTests.StructuredFieldsAndLabColumnsRemainAlignedInTheConvertedPdf [1 ms]
+[xUnit.net 00:01:17.64]     EMF.Tests.VeteransReviewerPackageDeterminismTests.RepeatedPdfRetainsPageGeometrySectionPlacementAndSourceContent [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPackageDeterminismTests.RepeatedPdfRetainsPageGeometrySectionPlacementAndSourceContent [1 ms]
+[xUnit.net 00:01:21.06]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_MedicalEvidenceArtifactPreambleStaysWithFirstNativePage [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_MedicalEvidenceArtifactPreambleStaysWithFirstNativePage [1 ms]
+[xUnit.net 00:01:21.06]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_DerivedMedicalEvidenceUsesSelectedNativeTableInsteadOfFragmentStreams [SKIP]
+[xUnit.net 00:01:21.06]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_DataAnchorTypographyStopsAtEveryBoundary [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_DerivedMedicalEvidenceUsesSelectedNativeTableInsteadOfFragmentStreams [1 ms]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_DataAnchorTypographyStopsAtEveryBoundary [1 ms]
+[xUnit.net 00:01:28.13]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_TerminalSourceBlanksDoNotCreateEmptyContinuationPages [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_TerminalSourceBlanksDoNotCreateEmptyContinuationPages [1 ms]
+[xUnit.net 00:01:32.09]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_ReconstructedProseMasksSsnAndFlowsAcrossSourcePages [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_ReconstructedProseMasksSsnAndFlowsAcrossSourcePages [1 ms]
+[xUnit.net 00:01:32.45]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_GeneratedSubjectsContinueAndCoverUsesOpinionRequest [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_GeneratedSubjectsContinueAndCoverUsesOpinionRequest [1 ms]
+[xUnit.net 00:01:35.03]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_PaginatesSyntheticArtifactsWithCorrectContinuationIdentity [SKIP]
+[xUnit.net 00:01:35.43]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_FragmentedMedicalRowsStayCompactWithoutAbsorbingFollowingSection [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_PaginatesSyntheticArtifactsWithCorrectContinuationIdentity [1 ms]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_FragmentedMedicalRowsStayCompactWithoutAbsorbingFollowingSection [1 ms]
+[xUnit.net 00:01:36.02]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_NativeSourcePagesHaveFirstAndContinuationTitles [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_NativeSourcePagesHaveFirstAndContinuationTitles [1 ms]
+[xUnit.net 00:01:36.62]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_OversizedMedicationRecordPreservesOrderWithoutRecordContinuationLabels [SKIP]
+[xUnit.net 00:01:36.62]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_LiteratureUsesFullPagesAndHonorsMixedSourceOrientations [SKIP]
+[xUnit.net 00:01:36.62]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_ChronologyStartsBelowItsIntroduction [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_OversizedMedicationRecordPreservesOrderWithoutRecordContinuationLabels [1 ms]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_LiteratureUsesFullPagesAndHonorsMixedSourceOrientations [1 ms]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_ChronologyStartsBelowItsIntroduction [1 ms]
+
+Failed!  - Failed:     4, Passed:   471, Skipped:    20, Total:   495, Duration: 3 m - EMF.Tests.dll (net10.0)
+Results File: /home/michael/EMF_Project/handoff/candidate3-shared-hardening-20260930/focused.trx

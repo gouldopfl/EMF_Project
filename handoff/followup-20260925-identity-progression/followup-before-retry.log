@@ -1,0 +1,56 @@
+  EMF.Common -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Common/bin/Debug/net10.0/EMF.Common.dll
+  EMF.Core -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Core/bin/Debug/net10.0/EMF.Core.dll
+  EMF.Discovery -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Discovery/bin/Debug/net10.0/EMF.Discovery.dll
+  EMF.Extensions.VeteransClaims -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Extensions.VeteransClaims/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.dll
+  EMF.Security -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Security/bin/Debug/net10.0/EMF.Security.dll
+  EMF.Intelligence -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Intelligence/bin/Debug/net10.0/EMF.Intelligence.dll
+  EMF.Inventory -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Inventory/bin/Debug/net10.0/EMF.Inventory.dll
+  EMF.Integrity -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Integrity/bin/Debug/net10.0/EMF.Integrity.dll
+  EMF.Persistence -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Persistence/bin/Debug/net10.0/EMF.Persistence.dll
+  EMF.Security.Azure -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Security.Azure/bin/Debug/net10.0/EMF.Security.Azure.dll
+  EMF.Orchestration -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Orchestration/bin/Debug/net10.0/EMF.Orchestration.dll
+  EMF.Intelligence.Development -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Intelligence.Development/bin/Debug/net10.0/EMF.Intelligence.Development.dll
+  EMF.Security.Persistence.Sqlite -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Security.Persistence.Sqlite/bin/Debug/net10.0/EMF.Security.Persistence.Sqlite.dll
+  EMF.Extensions.VeteransClaims.Orchestration -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Extensions.VeteransClaims.Orchestration/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Orchestration.dll
+  EMF.Intelligence.AzureOpenAI -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Intelligence.AzureOpenAI/bin/Debug/net10.0/EMF.Intelligence.AzureOpenAI.dll
+  EMF.Extensions.VeteransClaims.Persistence.Sqlite -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Persistence.Sqlite.dll
+  EMF.Laboratory -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Laboratory/bin/Debug/net10.0/EMF.Laboratory.dll
+  EMF.Extensions.VeteransClaims.Persistence -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Extensions.VeteransClaims.Persistence/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Persistence.dll
+  EMF.Intelligence.Persistence.Sqlite -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Intelligence.Persistence.Sqlite/bin/Debug/net10.0/EMF.Intelligence.Persistence.Sqlite.dll
+  EMF.Console -> /tmp/emf-hardening-followup-bzorycjm/src/EMF.Console/bin/Debug/net10.0/EMF.Console.dll
+  EMF.Tests -> /tmp/emf-hardening-followup-bzorycjm/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll
+Test run for /tmp/emf-hardening-followup-bzorycjm/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:01.33]     EMF.Tests.IdentityEncodingHardeningTests.ArtifactId_RejectsMalformedUnicodeThatAliasesAnotherAuthenticatedIdentity [FAIL]
+[xUnit.net 00:00:01.34]     EMF.Tests.VeteransReviewerPackageClinicalProgressionTests.GetAsync_UnlocatedEventRejectsMissingArtifactOrWrongPackageRow(missingArtifact: False) [FAIL]
+[xUnit.net 00:00:01.34]     EMF.Tests.VeteransReviewerPackageClinicalProgressionTests.GetAsync_UnlocatedEventRejectsMissingArtifactOrWrongPackageRow(missingArtifact: True) [FAIL]
+  Failed EMF.Tests.IdentityEncodingHardeningTests.ArtifactId_RejectsMalformedUnicodeThatAliasesAnotherAuthenticatedIdentity [11 ms]
+  Error Message:
+   Assert.Throws() Failure
+Expected: typeof(System.ArgumentException)
+Actual:   (No exception was thrown)
+  Stack Trace:
+     at EMF.Tests.IdentityEncodingHardeningTests.ArtifactId_RejectsMalformedUnicodeThatAliasesAnotherAuthenticatedIdentity() in /tmp/emf-hardening-followup-bzorycjm/tests/EMF.Tests/IdentityEncodingHardeningTests.cs:line 18
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed EMF.Tests.VeteransReviewerPackageClinicalProgressionTests.GetAsync_UnlocatedEventRejectsMissingArtifactOrWrongPackageRow(missingArtifact: False) [29 ms]
+  Error Message:
+   Assert.Throws() Failure
+Expected: typeof(System.IO.InvalidDataException)
+Actual:   (No exception was thrown)
+  Stack Trace:
+     at EMF.Tests.VeteransReviewerPackageClinicalProgressionTests.GetAsync_UnlocatedEventRejectsMissingArtifactOrWrongPackageRow(Boolean missingArtifact) in /tmp/emf-hardening-followup-bzorycjm/tests/EMF.Tests/VeteransReviewerPackageClinicalProgressionTests.cs:line 496
+--- End of stack trace from previous location ---
+  Failed EMF.Tests.VeteransReviewerPackageClinicalProgressionTests.GetAsync_UnlocatedEventRejectsMissingArtifactOrWrongPackageRow(missingArtifact: True) [2 ms]
+  Error Message:
+   Assert.Throws() Failure
+Expected: typeof(System.IO.InvalidDataException)
+Actual:   (No exception was thrown)
+  Stack Trace:
+     at EMF.Tests.VeteransReviewerPackageClinicalProgressionTests.GetAsync_UnlocatedEventRejectsMissingArtifactOrWrongPackageRow(Boolean missingArtifact) in /tmp/emf-hardening-followup-bzorycjm/tests/EMF.Tests/VeteransReviewerPackageClinicalProgressionTests.cs:line 496
+--- End of stack trace from previous location ---
+
+Failed!  - Failed:     3, Passed:     1, Skipped:     0, Total:     4, Duration: 37 ms - EMF.Tests.dll (net10.0)

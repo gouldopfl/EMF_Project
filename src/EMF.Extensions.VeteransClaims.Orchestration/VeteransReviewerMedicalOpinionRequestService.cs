@@ -26,6 +26,58 @@ public sealed class VeteransReviewerMedicalOpinionRequestService
         _regulatory = regulatory;
     }
 
+    /// <summary>Resolve typed cover scope before freezing; never parse an opinion at print time.</summary>
+    public async Task<(string? ClaimType, string? Condition, string? Basis)> GetCoverScopeAsync(
+        EvidencePackage package, CancellationToken cancellationToken = default)
+    {
+        if (package.ServiceConnectionBasisId is null)
+        {
+            var conditions = await _conditions.GetClaimedConditionsAsync(package.ClaimIssueId, cancellationToken);
+            if (conditions.Any(c => c.ClaimIssueId != package.ClaimIssueId))
+                throw new InvalidDataException("Cover condition lineage mismatch.");
+            // Absence of a selected theory does not establish that the claim is primary.
+            return (null, conditions.Count == 0 ? null : FormatConditionNames(conditions.Select(c => c.Name)), null);
+        }
+        var basis = await _connections.GetServiceConnectionBasisAsync(package.ServiceConnectionBasisId.Value, cancellationToken)
+            ?? throw new InvalidDataException("Cover service-connection basis is missing.");
+        var theory = await _connections.GetServiceConnectionTheoryAsync(basis.ServiceConnectionTheoryId, cancellationToken)
+            ?? throw new InvalidDataException("Cover service-connection theory is missing.");
+        if (basis.Id != package.ServiceConnectionBasisId.Value || basis.ClaimIssueId != package.ClaimIssueId ||
+            theory.Id != basis.ServiceConnectionTheoryId || theory.ClaimIssueId != package.ClaimIssueId)
+            throw new InvalidDataException("Cover service-connection lineage mismatch.");
+        var claimed = new List<string>();
+        foreach (var id in await _connections.GetClaimedConditionIdsAsync(basis.Id, cancellationToken))
+        {
+            var condition = await _conditions.GetClaimedConditionAsync(id, cancellationToken)
+                ?? throw new InvalidDataException("Cover claimed condition is missing.");
+            if (condition.Id != id || condition.ClaimIssueId != package.ClaimIssueId)
+                throw new InvalidDataException("Cover claimed condition lineage mismatch.");
+            claimed.Add(condition.Name);
+        }
+        var related = new List<string>();
+        foreach (var id in await _connections.GetServiceConnectedConditionIdsAsync(basis.Id, cancellationToken))
+        {
+            var condition = await _conditions.GetMedicalConditionAsync(id, cancellationToken)
+                ?? throw new InvalidDataException("Cover basis condition is missing.");
+            if (condition.Id != id) throw new InvalidDataException("Cover basis condition identity mismatch.");
+            related.Add(condition.Name);
+        }
+        var medications = await _connections.GetPrescribedMedicationNamesAsync(basis.Id, cancellationToken);
+        var basisNames = related.Count > 0 ? FormatReviewerConditionNames(FormatConditionNames(related)) : null;
+        if (medications.Count > 0)
+            basisNames = string.Join("; ", new[] { basisNames, FormatConditionNames(medications) }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        var type = theory.TheoryType switch
+        {
+            ServiceConnectionTheoryTypes.Direct => "Primary service connection",
+            ServiceConnectionTheoryTypes.Secondary => "Secondary service connection",
+            ServiceConnectionTheoryTypes.Aggravation => "Aggravation",
+            ServiceConnectionTheoryTypes.Presumptive => "Presumptive service connection",
+            _ => theory.TheoryType
+        };
+        return (type, claimed.Count == 0 ? null : FormatConditionNames(claimed),
+            basisNames ?? basis.ReviewerLabel);
+    }
+
     public async Task<VeteransReviewerMedicalOpinionRequest?> GetAsync(
         EvidencePackage package,
         CancellationToken cancellationToken = default)

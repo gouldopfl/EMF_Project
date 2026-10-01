@@ -124,7 +124,7 @@ public sealed class VeteransReviewerPatientHeaderTests
                 Text = "Original stored evidence remains untouched.",
                 PrintablePages = Pages(before, after, pageEdgeBlock: true, beforeX: beforeX, painContext: true)[..2]
             };
-            var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([content]));
+            var bytes = ReviewerPackageTestPreparation.Render(Details([content]));
             using var doc = WordprocessingDocument.Open(new MemoryStream(bytes), false);
             Assert.Empty(doc.MainDocumentPart!.ImageParts);
             var text = doc.MainDocumentPart!.Document!.InnerText;
@@ -172,7 +172,7 @@ public sealed class VeteransReviewerPatientHeaderTests
             Artifact = new() { Id = new("form-control"), Name = "Physical Therapy Form", ArtifactType = "file" },
             Appendix = VeteransReviewerPackageAppendix.MedicalEvidence, Text = source
         };
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([content]));
+        var bytes = ReviewerPackageTestPreparation.Render(Details([content]));
         using var doc = WordprocessingDocument.Open(new MemoryStream(bytes), false);
         Assert.Contains(demographic, doc.MainDocumentPart!.Document!.InnerText);
         var pdfBytes = await new EMF.ConsoleApplication.LibreOfficeVeteransReviewerPackageDocumentConverter().ConvertDocxToPdfAsync(bytes);
@@ -218,7 +218,7 @@ public sealed class VeteransReviewerPatientHeaderTests
                 Appendix = VeteransReviewerPackageAppendix.MedicalEvidence, SourceName = "VA Blue Button Report",
                 Text = "Original stored evidence remains untouched.", PrintablePages = pages
             };
-            var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([content]));
+            var bytes = ReviewerPackageTestPreparation.Render(Details([content]));
             using var doc = WordprocessingDocument.Open(new MemoryStream(bytes), false);
             var paragraphs = doc.MainDocumentPart!.Document!.Body!.Elements<Paragraph>().ToArray();
             Assert.Empty(doc.MainDocumentPart.ImageParts);

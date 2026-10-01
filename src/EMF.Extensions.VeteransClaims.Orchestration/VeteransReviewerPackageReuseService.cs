@@ -6,7 +6,10 @@ namespace EMF.Extensions.VeteransClaims.Orchestration;
 
 public sealed record VeteransReviewerPackageReuseSelection(
     EvidencePackageId PackageId, bool ReusedSealedPackage,
-    ReviewerPackageSnapshot? OutputSnapshot, string Reason, string? Fingerprint);
+    ReviewerPackageSnapshot? OutputSnapshot, string Reason, string? Fingerprint)
+{
+    public ReviewerPackageCover? PreparedCover { get; init; }
+}
 
 /// <summary>Called only after summary/intelligence reuse has independently succeeded.</summary>
 public sealed class VeteransReviewerPackageReuseService(IEvidencePackageRepository packages)
@@ -30,15 +33,19 @@ public sealed class VeteransReviewerPackageReuseService(IEvidencePackageReposito
             throw new InvalidDataException("Current-view package preparation requires a fresh identity.");
 
         ReviewerPackageSnapshot? current = null;
+        ReviewerPackageCover? cover = null;
         VeteransReviewerPackageOutputReuseDecision? decision = null;
         if (outputRequested)
         {
             var details = await assembleCurrent(requested, cancellationToken);
+            cover = details.ResolvedCover;
             current = await new VeteransReviewerPackageDocumentOutputService(regulatoryTextProvider: regulatoryTextProvider)
                 .CaptureCurrentAsync(details, cancellationToken);
             current.ValidateMembership(requested);
             decision = VeteransReviewerPackageOutputReuse.Decide(candidate, current);
-            if (decision.ReuseSealedPackage)
+            var existingPresentation = packages.SupportsReviewerPresentationSnapshots
+                ? await packages.GetReviewerPresentationAsync(summaryOwner, cancellationToken) : null;
+            if (decision.ReuseSealedPackage && (cover is null || existingPresentation?.Cover == cover))
                 return new(decision.PackageId, true, candidate.Snapshot, decision.Reason, decision.CurrentFingerprint);
         }
 
@@ -47,6 +54,6 @@ public sealed class VeteransReviewerPackageReuseService(IEvidencePackageReposito
         await packages.AddEvidencePackageAsync(requested.Package, requested.Artifacts.ToArray(), cancellationToken);
         return new(requested.Package.Id, false, current,
             decision?.Reason ?? "Summary reused; no output comparison requested. Created a pending current-view package.",
-            decision?.CurrentFingerprint);
+            decision?.CurrentFingerprint) { PreparedCover = cover };
     }
 }

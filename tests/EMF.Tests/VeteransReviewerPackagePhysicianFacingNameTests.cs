@@ -57,7 +57,7 @@ public sealed class VeteransReviewerPackagePhysicianFacingNameTests
             ]
         };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details);
+        var bytes = ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =
@@ -127,7 +127,7 @@ public sealed class VeteransReviewerPackagePhysicianFacingNameTests
         };
 
         var bytes =
-            VeteransReviewerPackageDocxRenderer.Render(details);
+            ReviewerPackageTestPreparation.Render(details);
 
         using var stream = new MemoryStream(bytes);
         using var document =

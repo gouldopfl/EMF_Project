@@ -1,0 +1,137 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="522d6b8b-29a6-4902-a6f0-f0cfaec4eea4" name="@EMF-Dev-VM 2026-09-30 21:04:59" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-09-30T21:04:59.8008910+00:00" queuing="2026-09-30T21:04:59.8008911+00:00" start="2026-09-30T21:04:57.9082065+00:00" finish="2026-09-30T21:05:10.1035954+00:00" />
+  <TestSettings name="default" id="2e438542-ad16-4b15-94a5-ef3973e4b624">
+    <Deployment runDeploymentRoot="_EMF-Dev-VM_2026-09-30_21_04_59" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="e7295bd8-6232-4d39-a8be-f5f7cfbf902d" testId="1a66c703-fe3b-9326-a349-e69556b852ef" testName="EMF.Tests.VeteransReviewerNativeProseTests.Reconstruct_JoinsMarginFragmentsAcrossPagesWithoutDroppingOrInventingWords(indent: 150, pageNumber: 2023)" computerName="EMF-Dev-VM" duration="00:00:00.2899605" startTime="2026-09-30T21:05:08.7417088+00:00" endTime="2026-09-30T21:05:08.7417089+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e7295bd8-6232-4d39-a8be-f5f7cfbf902d" />
+    <UnitTestResult executionId="3190f58e-64bb-4caa-8b40-8f8afe446bd4" testId="0b2bc8cc-7d4c-2734-bcca-c1c73113f284" testName="EMF.Tests.VeteransReviewerNativeProseTests.MaskScannedSsn_UsesLocalOcrWithoutChangingSource(rotation: 180)" computerName="EMF-Dev-VM" duration="00:00:01.6310089" startTime="2026-09-30T21:05:06.8376455+00:00" endTime="2026-09-30T21:05:06.8376457+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3190f58e-64bb-4caa-8b40-8f8afe446bd4" />
+    <UnitTestResult executionId="0b74f920-6033-448f-96bc-48ac46ade83e" testId="1de5e787-50bf-6274-fbee-4f9ce23259f5" testName="EMF.Tests.VeteransReviewerNativeProseTests.Reconstruct_LeavesGenuineAlignedFieldsAndTablesNative" computerName="EMF-Dev-VM" duration="00:00:00.1423261" startTime="2026-09-30T21:04:59.0481969+00:00" endTime="2026-09-30T21:04:59.0481970+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0b74f920-6033-448f-96bc-48ac46ade83e" />
+    <UnitTestResult executionId="dd97826d-87fe-4c11-ad89-02ca30d6083f" testId="55ba2fca-be19-884a-c4a9-e7c3769ddb5c" testName="EMF.Tests.VeteransReviewerNativeProseTests.MaskNativeSsn_PreservesSourcePixelsAndGeometry(mrn: True)" computerName="EMF-Dev-VM" duration="00:00:00.1346312" startTime="2026-09-30T21:05:09.5364659+00:00" endTime="2026-09-30T21:05:09.5364661+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="dd97826d-87fe-4c11-ad89-02ca30d6083f" />
+    <UnitTestResult executionId="d3c99d9b-f56d-4221-9729-11ed3e4035ab" testId="2834df3e-05ee-d2e4-273f-fad3c0c04f05" testName="EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_ReconstructedProseMasksSsnAndFlowsAcrossSourcePages" computerName="EMF-Dev-VM" duration="00:00:00.0010000" startTime="2026-09-30T21:04:58.8982061+00:00" endTime="2026-09-30T21:04:58.8982213+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d3c99d9b-f56d-4221-9729-11ed3e4035ab">
+      <Output>
+        <StdOut>Set EMF_REVIEWER_LAYOUT_TESTS=true to test synthetic pagination with installed LibreOffice.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="c56f81ba-04bd-43b9-8092-1acc6374338b" testId="72dc4bde-6fd2-4465-48b9-3150ea64ba27" testName="EMF.Tests.VeteransReviewerNativeProseTests.Reconstruct_RetainsUniquePatientHeaderOnceAcrossContinuationPages" computerName="EMF-Dev-VM" duration="00:00:00.1504112" startTime="2026-09-30T21:05:09.2806258+00:00" endTime="2026-09-30T21:05:09.2806259+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c56f81ba-04bd-43b9-8092-1acc6374338b" />
+    <UnitTestResult executionId="1b78e483-0021-4af3-9ca1-9df24bc306d3" testId="fc63d212-3fae-d611-3316-63eb86f1a45e" testName="EMF.Tests.VeteransReviewerNativeProseTests.Reconstruct_OrdinaryNarrativeClinicalNoteWithoutMarginFragments" computerName="EMF-Dev-VM" duration="00:00:00.1752952" startTime="2026-09-30T21:05:09.8561726+00:00" endTime="2026-09-30T21:05:09.8561728+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="1b78e483-0021-4af3-9ca1-9df24bc306d3" />
+    <UnitTestResult executionId="192506fc-b376-4c4b-bacf-1114192903d9" testId="50bd4925-efc1-f6f8-908f-17c18d13b86a" testName="EMF.Tests.VeteransReviewerNativeProseTests.Reconstruct_JoinsMarginFragmentsAcrossPagesWithoutDroppingOrInventingWords(indent: 100, pageNumber: 2020)" computerName="EMF-Dev-VM" duration="00:00:00.2576324" startTime="2026-09-30T21:05:08.9994884+00:00" endTime="2026-09-30T21:05:08.9994886+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="192506fc-b376-4c4b-bacf-1114192903d9" />
+    <UnitTestResult executionId="5c02f233-6bba-4963-9909-dd86579aa5a1" testId="31a25523-5056-c82a-97ff-91804498a927" testName="EMF.Tests.VeteransReviewerNativeProseTests.MaskNativeSsn_AcceptsMixedCaseImageMimeType" computerName="EMF-Dev-VM" duration="00:00:00.1304242" startTime="2026-09-30T21:05:09.1300553+00:00" endTime="2026-09-30T21:05:09.1300570+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5c02f233-6bba-4963-9909-dd86579aa5a1" />
+    <UnitTestResult executionId="745c6725-abc4-43ca-bd3d-d045e4beb7c9" testId="7a8dc65a-5947-09e3-f19a-56b318a1d472" testName="EMF.Tests.VeteransReviewerPresentationPhase2Tests.Render_MasksNativeAndTextEvidenceWithoutChangingInputs" computerName="EMF-Dev-VM" duration="00:00:01.2679736" startTime="2026-09-30T21:05:00.1725096+00:00" endTime="2026-09-30T21:05:00.1725097+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="745c6725-abc4-43ca-bd3d-d045e4beb7c9" />
+    <UnitTestResult executionId="6e013b92-3da9-4c60-9503-db3cbc4c1442" testId="27f147ba-7330-c14b-127f-c0ae8b29ee36" testName="EMF.Tests.VeteransReviewerNativeProseTests.MaskNativeSsn_WithLabelOnPreviousLine" computerName="EMF-Dev-VM" duration="00:00:00.1165597" startTime="2026-09-30T21:05:09.9728493+00:00" endTime="2026-09-30T21:05:09.9728493+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6e013b92-3da9-4c60-9503-db3cbc4c1442" />
+    <UnitTestResult executionId="550f200a-48c7-4b0c-9d2c-618945fa757a" testId="89e262b5-357a-1da6-49db-2234026d1d9b" testName="EMF.Tests.VeteransReviewerNativeProseTests.Reconstruct_JoinsDetachedPainScaleLineAndValueWithExplicitPainLabel" computerName="EMF-Dev-VM" duration="00:00:00.1448019" startTime="2026-09-30T21:05:09.6807217+00:00" endTime="2026-09-30T21:05:09.6807218+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="550f200a-48c7-4b0c-9d2c-618945fa757a" />
+    <UnitTestResult executionId="24ce45b1-b1e0-488b-add5-4785992d4d65" testId="2fce7836-24e3-9fc4-b4fd-06e042feca17" testName="EMF.Tests.VeteransReviewerNativeProseTests.MaskScannedSsn_UsesLocalOcrWithoutChangingSource(rotation: 270)" computerName="EMF-Dev-VM" duration="00:00:01.6128887" startTime="2026-09-30T21:05:08.4524811+00:00" endTime="2026-09-30T21:05:08.4524813+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="24ce45b1-b1e0-488b-add5-4785992d4d65" />
+    <UnitTestResult executionId="d97a44b7-383f-4c84-8db1-83dcdddc68dc" testId="48fa5671-62e2-c1ee-41a3-9fcd33b12e49" testName="EMF.Tests.VeteransReviewerNativeProseTests.MaskScannedSsn_UsesLocalOcrWithoutChangingSource(rotation: 90)" computerName="EMF-Dev-VM" duration="00:00:04.0849376" startTime="2026-09-30T21:05:03.1318402+00:00" endTime="2026-09-30T21:05:03.1318403+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d97a44b7-383f-4c84-8db1-83dcdddc68dc" />
+    <UnitTestResult executionId="edc1decd-b246-49fb-ad5b-f8952df5792c" testId="6b68e34d-b7cb-d8b8-9944-78f611f22ee9" testName="EMF.Tests.VeteransReviewerNativeProseTests.MaskNativeSsn_PreservesSourcePixelsAndGeometry(mrn: False)" computerName="EMF-Dev-VM" duration="00:00:00.1201911" startTime="2026-09-30T21:05:09.4009715+00:00" endTime="2026-09-30T21:05:09.4009717+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="edc1decd-b246-49fb-ad5b-f8952df5792c" />
+    <UnitTestResult executionId="00bfa4a3-4190-4ec1-889f-4adebf08c0cf" testId="7dd94c9c-a410-43e0-4e6f-38e5bb38247a" testName="EMF.Tests.VeteransReviewerNativeProseTests.MaskScannedSsn_UsesLocalOcrWithoutChangingSource(rotation: 0)" computerName="EMF-Dev-VM" duration="00:00:02.0730238" startTime="2026-09-30T21:05:05.2074554+00:00" endTime="2026-09-30T21:05:05.2074556+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="00bfa4a3-4190-4ec1-889f-4adebf08c0cf" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.Reconstruct_LeavesGenuineAlignedFieldsAndTablesNative" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="1de5e787-50bf-6274-fbee-4f9ce23259f5">
+      <Execution id="0b74f920-6033-448f-96bc-48ac46ade83e" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="Reconstruct_LeavesGenuineAlignedFieldsAndTablesNative" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.MaskNativeSsn_PreservesSourcePixelsAndGeometry(mrn: False)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="6b68e34d-b7cb-d8b8-9944-78f611f22ee9">
+      <Execution id="edc1decd-b246-49fb-ad5b-f8952df5792c" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="MaskNativeSsn_PreservesSourcePixelsAndGeometry" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.Reconstruct_JoinsDetachedPainScaleLineAndValueWithExplicitPainLabel" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="89e262b5-357a-1da6-49db-2234026d1d9b">
+      <Execution id="550f200a-48c7-4b0c-9d2c-618945fa757a" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="Reconstruct_JoinsDetachedPainScaleLineAndValueWithExplicitPainLabel" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.Reconstruct_RetainsUniquePatientHeaderOnceAcrossContinuationPages" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="72dc4bde-6fd2-4465-48b9-3150ea64ba27">
+      <Execution id="c56f81ba-04bd-43b9-8092-1acc6374338b" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="Reconstruct_RetainsUniquePatientHeaderOnceAcrossContinuationPages" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.MaskScannedSsn_UsesLocalOcrWithoutChangingSource(rotation: 180)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="0b2bc8cc-7d4c-2734-bcca-c1c73113f284">
+      <Execution id="3190f58e-64bb-4caa-8b40-8f8afe446bd4" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="MaskScannedSsn_UsesLocalOcrWithoutChangingSource" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.MaskScannedSsn_UsesLocalOcrWithoutChangingSource(rotation: 0)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="7dd94c9c-a410-43e0-4e6f-38e5bb38247a">
+      <Execution id="00bfa4a3-4190-4ec1-889f-4adebf08c0cf" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="MaskScannedSsn_UsesLocalOcrWithoutChangingSource" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.Reconstruct_JoinsMarginFragmentsAcrossPagesWithoutDroppingOrInventingWords(indent: 150, pageNumber: 2023)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="1a66c703-fe3b-9326-a349-e69556b852ef">
+      <Execution id="e7295bd8-6232-4d39-a8be-f5f7cfbf902d" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="Reconstruct_JoinsMarginFragmentsAcrossPagesWithoutDroppingOrInventingWords" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.Reconstruct_OrdinaryNarrativeClinicalNoteWithoutMarginFragments" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="fc63d212-3fae-d611-3316-63eb86f1a45e">
+      <Execution id="1b78e483-0021-4af3-9ca1-9df24bc306d3" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="Reconstruct_OrdinaryNarrativeClinicalNoteWithoutMarginFragments" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.Reconstruct_JoinsMarginFragmentsAcrossPagesWithoutDroppingOrInventingWords(indent: 100, pageNumber: 2020)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="50bd4925-efc1-f6f8-908f-17c18d13b86a">
+      <Execution id="192506fc-b376-4c4b-bacf-1114192903d9" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="Reconstruct_JoinsMarginFragmentsAcrossPagesWithoutDroppingOrInventingWords" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.MaskScannedSsn_UsesLocalOcrWithoutChangingSource(rotation: 270)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="2fce7836-24e3-9fc4-b4fd-06e042feca17">
+      <Execution id="24ce45b1-b1e0-488b-add5-4785992d4d65" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="MaskScannedSsn_UsesLocalOcrWithoutChangingSource" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.MaskNativeSsn_WithLabelOnPreviousLine" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="27f147ba-7330-c14b-127f-c0ae8b29ee36">
+      <Execution id="6e013b92-3da9-4c60-9503-db3cbc4c1442" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="MaskNativeSsn_WithLabelOnPreviousLine" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.MaskScannedSsn_UsesLocalOcrWithoutChangingSource(rotation: 90)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="48fa5671-62e2-c1ee-41a3-9fcd33b12e49">
+      <Execution id="d97a44b7-383f-4c84-8db1-83dcdddc68dc" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="MaskScannedSsn_UsesLocalOcrWithoutChangingSource" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.MaskNativeSsn_PreservesSourcePixelsAndGeometry(mrn: True)" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="55ba2fca-be19-884a-c4a9-e7c3769ddb5c">
+      <Execution id="dd97826d-87fe-4c11-ad89-02ca30d6083f" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="MaskNativeSsn_PreservesSourcePixelsAndGeometry" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerNativeProseTests.MaskNativeSsn_AcceptsMixedCaseImageMimeType" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="31a25523-5056-c82a-97ff-91804498a927">
+      <Execution id="5c02f233-6bba-4963-9909-dd86579aa5a1" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerNativeProseTests" name="MaskNativeSsn_AcceptsMixedCaseImageMimeType" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerPresentationPhase2Tests.Render_MasksNativeAndTextEvidenceWithoutChangingInputs" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="7a8dc65a-5947-09e3-f19a-56b318a1d472">
+      <Execution id="745c6725-abc4-43ca-bd3d-d045e4beb7c9" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerPresentationPhase2Tests" name="Render_MasksNativeAndTextEvidenceWithoutChangingInputs" />
+    </UnitTest>
+    <UnitTest name="EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_ReconstructedProseMasksSsnAndFlowsAcrossSourcePages" storage="/home/michael/emf_project/tests/emf.tests/bin/debug/net10.0/emf.tests.dll" id="2834df3e-05ee-d2e4-273f-fad3c0c04f05">
+      <Execution id="d3c99d9b-f56d-4221-9729-11ed3e4035ab" />
+      <TestMethod codeBase="/home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="EMF.Tests.VeteransReviewerPresentationPhase2Tests" name="LibreOffice_ReconstructedProseMasksSsnAndFlowsAcrossSourcePages" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="1a66c703-fe3b-9326-a349-e69556b852ef" executionId="e7295bd8-6232-4d39-a8be-f5f7cfbf902d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0b2bc8cc-7d4c-2734-bcca-c1c73113f284" executionId="3190f58e-64bb-4caa-8b40-8f8afe446bd4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1de5e787-50bf-6274-fbee-4f9ce23259f5" executionId="0b74f920-6033-448f-96bc-48ac46ade83e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="55ba2fca-be19-884a-c4a9-e7c3769ddb5c" executionId="dd97826d-87fe-4c11-ad89-02ca30d6083f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2834df3e-05ee-d2e4-273f-fad3c0c04f05" executionId="d3c99d9b-f56d-4221-9729-11ed3e4035ab" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="72dc4bde-6fd2-4465-48b9-3150ea64ba27" executionId="c56f81ba-04bd-43b9-8092-1acc6374338b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="fc63d212-3fae-d611-3316-63eb86f1a45e" executionId="1b78e483-0021-4af3-9ca1-9df24bc306d3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="50bd4925-efc1-f6f8-908f-17c18d13b86a" executionId="192506fc-b376-4c4b-bacf-1114192903d9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="31a25523-5056-c82a-97ff-91804498a927" executionId="5c02f233-6bba-4963-9909-dd86579aa5a1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7a8dc65a-5947-09e3-f19a-56b318a1d472" executionId="745c6725-abc4-43ca-bd3d-d045e4beb7c9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="27f147ba-7330-c14b-127f-c0ae8b29ee36" executionId="6e013b92-3da9-4c60-9503-db3cbc4c1442" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="89e262b5-357a-1da6-49db-2234026d1d9b" executionId="550f200a-48c7-4b0c-9d2c-618945fa757a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2fce7836-24e3-9fc4-b4fd-06e042feca17" executionId="24ce45b1-b1e0-488b-add5-4785992d4d65" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="48fa5671-62e2-c1ee-41a3-9fcd33b12e49" executionId="d97a44b7-383f-4c84-8db1-83dcdddc68dc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6b68e34d-b7cb-d8b8-9944-78f611f22ee9" executionId="edc1decd-b246-49fb-ad5b-f8952df5792c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7dd94c9c-a410-43e0-4e6f-38e5bb38247a" executionId="00bfa4a3-4190-4ec1-889f-4adebf08c0cf" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="16" executed="15" passed="15" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.4.5+1caef2f33e (64-bit .NET 10.0.12)
+[xUnit.net 00:00:00.49]   Discovering: EMF.Tests
+[xUnit.net 00:00:00.67]   Discovered:  EMF.Tests
+[xUnit.net 00:00:00.67]   Starting:    EMF.Tests
+[xUnit.net 00:00:00.70]       Set EMF_REVIEWER_LAYOUT_TESTS=true to test synthetic pagination with installed LibreOffice.
+WARNING: Logging before InitGoogleLogging() is written to STDERR
+W0930 21:04:59.270851 1654377 pd_config.cc:378] Warning: The api is deprecated since version 3.x, please use onednn api PD_ConfigSetOnednnCacheCapacity.
+Test 'EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_ReconstructedProseMasksSsnAndFlowsAcrossSourcePages' was skipped in the test run.
+[xUnit.net 00:00:11.78]   Finished:    EMF.Tests
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="EMF-Dev-VM" outcome="Warning" timestamp="2026-09-30T21:04:58.8966687+00:00">
+        <Text>[xUnit.net 00:00:00.70]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_ReconstructedProseMasksSsnAndFlowsAcrossSourcePages [SKIP]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

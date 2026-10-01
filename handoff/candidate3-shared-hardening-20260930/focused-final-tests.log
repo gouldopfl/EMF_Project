@@ -1,0 +1,71 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  EMF.Core -> /home/michael/EMF_Project/src/EMF.Core/bin/Debug/net10.0/EMF.Core.dll
+  EMF.Common -> /home/michael/EMF_Project/src/EMF.Common/bin/Debug/net10.0/EMF.Common.dll
+  EMF.Integrity -> /home/michael/EMF_Project/src/EMF.Integrity/bin/Debug/net10.0/EMF.Integrity.dll
+  EMF.Discovery -> /home/michael/EMF_Project/src/EMF.Discovery/bin/Debug/net10.0/EMF.Discovery.dll
+  EMF.Security -> /home/michael/EMF_Project/src/EMF.Security/bin/Debug/net10.0/EMF.Security.dll
+  EMF.Persistence -> /home/michael/EMF_Project/src/EMF.Persistence/bin/Debug/net10.0/EMF.Persistence.dll
+  EMF.Intelligence -> /home/michael/EMF_Project/src/EMF.Intelligence/bin/Debug/net10.0/EMF.Intelligence.dll
+  EMF.Extensions.VeteransClaims -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.dll
+  EMF.Inventory -> /home/michael/EMF_Project/src/EMF.Inventory/bin/Debug/net10.0/EMF.Inventory.dll
+  EMF.Security.Azure -> /home/michael/EMF_Project/src/EMF.Security.Azure/bin/Debug/net10.0/EMF.Security.Azure.dll
+  EMF.Security.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Security.Persistence.Sqlite/bin/Debug/net10.0/EMF.Security.Persistence.Sqlite.dll
+  EMF.Intelligence.Development -> /home/michael/EMF_Project/src/EMF.Intelligence.Development/bin/Debug/net10.0/EMF.Intelligence.Development.dll
+  EMF.Extensions.VeteransClaims.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Persistence.Sqlite.dll
+  EMF.Intelligence.AzureOpenAI -> /home/michael/EMF_Project/src/EMF.Intelligence.AzureOpenAI/bin/Debug/net10.0/EMF.Intelligence.AzureOpenAI.dll
+  EMF.Orchestration -> /home/michael/EMF_Project/src/EMF.Orchestration/bin/Debug/net10.0/EMF.Orchestration.dll
+  EMF.Laboratory -> /home/michael/EMF_Project/src/EMF.Laboratory/bin/Debug/net10.0/EMF.Laboratory.dll
+  EMF.Extensions.VeteransClaims.Orchestration -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Orchestration/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Orchestration.dll
+  EMF.Extensions.VeteransClaims.Persistence -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Persistence/bin/Debug/net10.0/EMF.Extensions.VeteransClaims.Persistence.dll
+  EMF.Console -> /home/michael/EMF_Project/src/EMF.Console/bin/Debug/net10.0/EMF.Console.dll
+  EMF.Intelligence.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Intelligence.Persistence.Sqlite/bin/Debug/net10.0/EMF.Intelligence.Persistence.Sqlite.dll
+  EMF.Tests -> /home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll
+Test run for /home/michael/EMF_Project/tests/EMF.Tests/bin/Debug/net10.0/EMF.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:01.41]     EMF.Tests.VeteransReviewerSharedVisualRulesTests.StructuredFieldsAndLabColumnsRemainAlignedInTheConvertedPdf [SKIP]
+  Skipped EMF.Tests.VeteransReviewerSharedVisualRulesTests.StructuredFieldsAndLabColumnsRemainAlignedInTheConvertedPdf [1 ms]
+[xUnit.net 00:00:12.21]     EMF.Tests.VeteransReviewerPackageDeterminismTests.RepeatedPdfRetainsPageGeometrySectionPlacementAndSourceContent [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPackageDeterminismTests.RepeatedPdfRetainsPageGeometrySectionPlacementAndSourceContent [1 ms]
+[xUnit.net 00:00:28.92]     EMF.Tests.VeteransReviewerSourceEnlargementTests.SupplementPaginationsRetainOriginalAndClearHeadersAndFooters [SKIP]
+[xUnit.net 00:00:28.92]     EMF.Tests.VeteransReviewerSourceEnlargementTests.MultipleSupplementsUseFullBoxesAndKeepNumberingAcrossOrientationChanges [SKIP]
+  Skipped EMF.Tests.VeteransReviewerSourceEnlargementTests.SupplementPaginationsRetainOriginalAndClearHeadersAndFooters [1 ms]
+  Skipped EMF.Tests.VeteransReviewerSourceEnlargementTests.MultipleSupplementsUseFullBoxesAndKeepNumberingAcrossOrientationChanges [1 ms]
+[xUnit.net 00:00:53.28]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_MedicalEvidenceArtifactPreambleStaysWithFirstNativePage [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_MedicalEvidenceArtifactPreambleStaysWithFirstNativePage [1 ms]
+[xUnit.net 00:00:53.28]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_DerivedMedicalEvidenceUsesSelectedNativeTableInsteadOfFragmentStreams [SKIP]
+[xUnit.net 00:00:53.28]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_DataAnchorTypographyStopsAtEveryBoundary [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_DerivedMedicalEvidenceUsesSelectedNativeTableInsteadOfFragmentStreams [1 ms]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_DataAnchorTypographyStopsAtEveryBoundary [1 ms]
+[xUnit.net 00:00:56.62]     EMF.Tests.VeteransReviewerStructuredRecordRecoveryTests.LabRowsAndUnassignedFragmentsStayAtomicAcrossOutputPageBoundaries [SKIP]
+  Skipped EMF.Tests.VeteransReviewerStructuredRecordRecoveryTests.LabRowsAndUnassignedFragmentsStayAtomicAcrossOutputPageBoundaries [1 ms]
+[xUnit.net 00:00:56.69]     EMF.Tests.VeteransReviewerStructuredRecordRecoveryTests.PowerFormSignaturesAndCompleteProblemRecordsRemainTogetherAcrossOutputPages [SKIP]
+  Skipped EMF.Tests.VeteransReviewerStructuredRecordRecoveryTests.PowerFormSignaturesAndCompleteProblemRecordsRemainTogetherAcrossOutputPages [1 ms]
+[xUnit.net 00:00:59.11]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_TerminalSourceBlanksDoNotCreateEmptyContinuationPages [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_TerminalSourceBlanksDoNotCreateEmptyContinuationPages [1 ms]
+[xUnit.net 00:01:02.73]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_ReconstructedProseMasksSsnAndFlowsAcrossSourcePages [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_ReconstructedProseMasksSsnAndFlowsAcrossSourcePages [1 ms]
+[xUnit.net 00:01:03.07]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_GeneratedSubjectsContinueAndCoverUsesOpinionRequest [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_GeneratedSubjectsContinueAndCoverUsesOpinionRequest [1 ms]
+[xUnit.net 00:01:05.32]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_PaginatesSyntheticArtifactsWithCorrectContinuationIdentity [SKIP]
+[xUnit.net 00:01:05.69]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_FragmentedMedicalRowsStayCompactWithoutAbsorbingFollowingSection [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_PaginatesSyntheticArtifactsWithCorrectContinuationIdentity [1 ms]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_FragmentedMedicalRowsStayCompactWithoutAbsorbingFollowingSection [1 ms]
+[xUnit.net 00:01:06.24]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_NativeSourcePagesHaveFirstAndContinuationTitles [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_NativeSourcePagesHaveFirstAndContinuationTitles [1 ms]
+[xUnit.net 00:01:06.78]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_OversizedMedicationRecordPreservesOrderWithoutRecordContinuationLabels [SKIP]
+[xUnit.net 00:01:06.78]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_LiteratureUsesFullPagesAndHonorsMixedSourceOrientations [SKIP]
+[xUnit.net 00:01:06.78]     EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_ChronologyStartsBelowItsIntroduction [SKIP]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_OversizedMedicationRecordPreservesOrderWithoutRecordContinuationLabels [1 ms]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_LiteratureUsesFullPagesAndHonorsMixedSourceOrientations [1 ms]
+  Skipped EMF.Tests.VeteransReviewerPresentationPhase2Tests.LibreOffice_ChronologyStartsBelowItsIntroduction [1 ms]
+[xUnit.net 00:01:13.23]     EMF.Tests.VeteransReviewerClinicalLayoutTests.ConvertedPdfKeepsScoresInOneColumnAndMddWithinItsNarrativeLine [SKIP]
+[xUnit.net 00:01:13.23]     EMF.Tests.VeteransReviewerClinicalLayoutTests.LongNamedScalePaginatesWithoutDroppingScoresOrShrinkingBodyText [SKIP]
+  Skipped EMF.Tests.VeteransReviewerClinicalLayoutTests.ConvertedPdfKeepsScoresInOneColumnAndMddWithinItsNarrativeLine [1 ms]
+  Skipped EMF.Tests.VeteransReviewerClinicalLayoutTests.LongNamedScalePaginatesWithoutDroppingScoresOrShrinkingBodyText [1 ms]
+
+Passed!  - Failed:     0, Passed:   475, Skipped:    20, Total:   495, Duration: 3 m 43 s - EMF.Tests.dll (net10.0)
+Results File: /home/michael/EMF_Project/handoff/candidate3-shared-hardening-20260930/focused-final.trx

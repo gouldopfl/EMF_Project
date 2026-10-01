@@ -119,7 +119,7 @@ internal sealed record VeteransReviewerNativeEvidencePage(
     {
         if (!isBlueButton || page.TextGeometry is not { } geometry || geometry.ContainsGraphics ||
             page.SuggestedClockwiseRotation != 0 || geometry.Width <= 0 || geometry.Height <= 0)
-            return new(VeteransReviewerSourcePageCrop.Crop(page.Content).Content, []);
+            return new(page.Content, []);
 
         using var bitmap = SKBitmap.Decode(page.Content.Span)
             ?? throw new InvalidDataException("Native evidence image could not be decoded.");

@@ -1,3 +1,4 @@
+using EMF.Common;
 using EMF.Extensions.VeteransClaims.Contracts;
 using EMF.Extensions.VeteransClaims.Models.Adjudication;
 using EMF.Extensions.VeteransClaims.Models.Identities;
@@ -92,6 +93,7 @@ public sealed class VeteransReviewerPackageAssemblyService
         VeteransReviewerPackageDetails details, string? packagePreparedBy, string? veteranDisplayName,
         CancellationToken cancellationToken)
     {
+        using var loadingTiming = EmfPerformanceTiming.MeasureTopLevel(EmfPerformancePhase.EvidenceLoading);
         var package = details.PackageDetails.Package;
 
         var currentMedications =
@@ -115,8 +117,14 @@ public sealed class VeteransReviewerPackageAssemblyService
         var medicalOpinionRequested =
             await _medicalOpinionRequest.GetAsync(package, cancellationToken);
 
+        var coverScope = await _medicalOpinionRequest.GetCoverScopeAsync(package, cancellationToken);
         return new VeteransReviewerPackageDetails
         {
+            ResolvedCover = new(
+                string.IsNullOrWhiteSpace(veteranDisplayName) ? null : veteranDisplayName.Trim(),
+                coverScope.ClaimType, coverScope.Condition, coverScope.Basis,
+                string.IsNullOrWhiteSpace(packagePreparedBy) ? null : packagePreparedBy.Trim(),
+                package.ReviewerRole),
             PackageDetails = details.PackageDetails,
             Artifacts = details.Artifacts,
             ArtifactContents = details.ArtifactContents,

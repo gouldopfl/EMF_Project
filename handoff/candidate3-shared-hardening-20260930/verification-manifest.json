@@ -1,0 +1,91 @@
+{
+  "CodeAndTestFilesEditedThisTurn": [
+    {
+      "Path": "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerClinicalLayout.cs",
+      "Sha256": "20EB63638B626BDC8F41148C131B3783FD034CBF67C1DE7EA1311D3577C2C505"
+    },
+    {
+      "Path": "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerPackageDocxRenderer.cs",
+      "Sha256": "BCA2BACA0BCD9AD8D376401E0560F033EBC0DB495B368F35DC49071C1604819E"
+    },
+    {
+      "Path": "src/EMF.Extensions.VeteransClaims.Orchestration/VeteransReviewerSourceEnlargements.cs",
+      "Sha256": "3E6DECFD3D3AD86BE605672A0DF8C176BE3AD7CDB6E303B7760B5C1F56EA07E9"
+    },
+    {
+      "Path": "src/EMF.Extensions.VeteransClaims/Models/Adjudication/ReviewerPackagePresentationSnapshot.cs",
+      "Sha256": "447463A920F4044358F26595AF5F14AD5A39479C2D6AC3A0110F4CB7CDDE1465"
+    },
+    {
+      "Path": "tests/EMF.Tests/VeteransReviewerConservativeRecoveryBoundaryTests.cs",
+      "Sha256": "7921E0BF6AAB3533DDCC96D956838D3488976C1CE7712A08D01BEFC33F193182"
+    },
+    {
+      "Path": "tests/EMF.Tests/VeteransReviewerStructuredRecordRecoveryTests.cs",
+      "Sha256": "A999C06DB758A9C3A71346A02F048FC073E2611DC55A7EE24AF57CECF6EF7101"
+    },
+    {
+      "Path": "tests/EMF.Tests/VeteransReviewerSourceEnlargementTests.cs",
+      "Sha256": "61A0782D72A6BF6FE5E83DD28FEA8567C2F7E8EA920DF7DCF773F0786364ABF6"
+    },
+    {
+      "Path": "tests/EMF.Tests/VeteransReviewerEvidencePresentationTests.cs",
+      "Sha256": "78003E2D0A2B9BAB6EB8C8C673A89E768E9A960BBCCED093E07143BF547946A9"
+    },
+    {
+      "Path": "tests/EMF.Tests/VeteransReviewerPackageDocxRendererTests.cs",
+      "Sha256": "543CCA3A122DA02888E0229A5ACF5BA63477CF6783ACF4D1A8E52AF3B27B81A5"
+    }
+  ],
+  "Candidate2Inputs": [
+    {
+      "Path": "/home/michael/EMF_Docs_working/M94_Lumbar_Candidate2/20260930-185405/Lumbar_M94_Candidate2.pdf",
+      "Sha256": "C8F40630BF2DC5458B4E0129BFB6706C4CD62520DE14F3E1C5F632EBF65982A3"
+    },
+    {
+      "Path": "/home/michael/EMF_Docs_working/M94_Lumbar_Candidate2/20260930-185405/Lumbar_M94_Candidate2.docx",
+      "Sha256": "A26782FCDEE119E9300A030A36C9603111DEFAD711456FB17D4E81A05F59A4C8"
+    }
+  ],
+  "VerificationArtifacts": [
+    "handoff/candidate3-shared-hardening-20260930/diff-check.log",
+    "handoff/candidate3-shared-hardening-20260930/focused-complete-tests.log",
+    "handoff/candidate3-shared-hardening-20260930/focused-complete.trx",
+    "handoff/candidate3-shared-hardening-20260930/focused-final-tests.log",
+    "handoff/candidate3-shared-hardening-20260930/focused-final.trx",
+    "handoff/candidate3-shared-hardening-20260930/focused-tests.log",
+    "handoff/candidate3-shared-hardening-20260930/focused-verified-tests.log",
+    "handoff/candidate3-shared-hardening-20260930/focused-verified.trx",
+    "handoff/candidate3-shared-hardening-20260930/focused.trx",
+    "handoff/candidate3-shared-hardening-20260930/layout-complete.trx",
+    "handoff/candidate3-shared-hardening-20260930/layout-final.trx",
+    "handoff/candidate3-shared-hardening-20260930/layout-verified-tests.log",
+    "handoff/candidate3-shared-hardening-20260930/layout-verified.trx",
+    "handoff/candidate3-shared-hardening-20260930/libreoffice-complete-tests.log",
+    "handoff/candidate3-shared-hardening-20260930/libreoffice-layout-tests.log",
+    "handoff/candidate3-shared-hardening-20260930/recovery-final.trx",
+    "handoff/candidate3-shared-hardening-20260930/recovery-layout-tests.log",
+    "handoff/candidate3-shared-hardening-20260930/region-decision-audit-astra.json",
+    "handoff/candidate3-shared-hardening-20260930/verification-manifest.json"
+  ],
+  "Candidate3Generated": false,
+  "AzureOpenAiLiveEnvironment": "unset",
+  "FinalTestResults": {
+    "FocusedReviewerRegression": {
+      "Total": 506,
+      "Passed": 486,
+      "Failed": 0,
+      "Skipped": 20,
+      "Trx": "handoff/candidate3-shared-hardening-20260930/focused-verified.trx"
+    },
+    "EnabledLayoutRegression": {
+      "Total": 100,
+      "Passed": 100,
+      "Failed": 0,
+      "Skipped": 0,
+      "Trx": "handoff/candidate3-shared-hardening-20260930/layout-verified.trx",
+      "ExplicitLibreOfficeCases": 7
+    }
+  },
+  "FullRepositoryRegressionRun": false
+}

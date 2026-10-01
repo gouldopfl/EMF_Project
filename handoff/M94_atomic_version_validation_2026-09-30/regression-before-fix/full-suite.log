@@ -1,0 +1,55 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  EMF.Core -> /home/michael/EMF_Project/src/EMF.Core/bin/Release/net10.0/EMF.Core.dll
+  EMF.Security -> /home/michael/EMF_Project/src/EMF.Security/bin/Release/net10.0/EMF.Security.dll
+  EMF.Common -> /home/michael/EMF_Project/src/EMF.Common/bin/Release/net10.0/EMF.Common.dll
+  EMF.Discovery -> /home/michael/EMF_Project/src/EMF.Discovery/bin/Release/net10.0/EMF.Discovery.dll
+  EMF.Integrity -> /home/michael/EMF_Project/src/EMF.Integrity/bin/Release/net10.0/EMF.Integrity.dll
+  EMF.Persistence -> /home/michael/EMF_Project/src/EMF.Persistence/bin/Release/net10.0/EMF.Persistence.dll
+  EMF.Extensions.VeteransClaims -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims/bin/Release/net10.0/EMF.Extensions.VeteransClaims.dll
+  EMF.DeveloperAssurance -> /home/michael/EMF_Project/tools/EMF.DeveloperAssurance/bin/Release/net10.0/EMF.DeveloperAssurance.dll
+  EMF.Extensions.VeteransClaims.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Persistence.Sqlite/bin/Release/net10.0/EMF.Extensions.VeteransClaims.Persistence.Sqlite.dll
+  EMF.DeveloperAssurance.Tests -> /home/michael/EMF_Project/tests/EMF.DeveloperAssurance.Tests/bin/Release/net10.0/EMF.DeveloperAssurance.Tests.dll
+Test run for /home/michael/EMF_Project/tests/EMF.DeveloperAssurance.Tests/bin/Release/net10.0/EMF.DeveloperAssurance.Tests.dll (.NETCoreApp,Version=v10.0)
+  EMF.Extensions.VeteransClaims.Persistence -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Persistence/bin/Release/net10.0/EMF.Extensions.VeteransClaims.Persistence.dll
+VSTest version 18.0.2 (x64)
+
+  EMF.Security.Azure -> /home/michael/EMF_Project/src/EMF.Security.Azure/bin/Release/net10.0/EMF.Security.Azure.dll
+Starting test execution, please wait...
+  EMF.Security.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Security.Persistence.Sqlite/bin/Release/net10.0/EMF.Security.Persistence.Sqlite.dll
+A total of 1 test files matched the specified pattern.
+Results File: /tmp/emf-m94-full-regression/results/m94_net10.0_20260930082850.trx
+
+Passed!  - Failed:     0, Passed:     3, Skipped:     0, Total:     3, Duration: 22 ms - EMF.DeveloperAssurance.Tests.dll (net10.0)
+  EMF.Inventory -> /home/michael/EMF_Project/src/EMF.Inventory/bin/Release/net10.0/EMF.Inventory.dll
+  EMF.ArchitectureAuditor -> /home/michael/EMF_Project/tools/EMF.ArchitectureAuditor/bin/Release/net10.0/EMF.ArchitectureAuditor.dll
+  EMF.Intelligence -> /home/michael/EMF_Project/src/EMF.Intelligence/bin/Release/net10.0/EMF.Intelligence.dll
+  EMF.Intelligence.Development -> /home/michael/EMF_Project/src/EMF.Intelligence.Development/bin/Release/net10.0/EMF.Intelligence.Development.dll
+  EMF.Intelligence.Persistence.Sqlite -> /home/michael/EMF_Project/src/EMF.Intelligence.Persistence.Sqlite/bin/Release/net10.0/EMF.Intelligence.Persistence.Sqlite.dll
+  EMF.Intelligence.AzureOpenAI -> /home/michael/EMF_Project/src/EMF.Intelligence.AzureOpenAI/bin/Release/net10.0/EMF.Intelligence.AzureOpenAI.dll
+  EMF.Orchestration -> /home/michael/EMF_Project/src/EMF.Orchestration/bin/Release/net10.0/EMF.Orchestration.dll
+  EMF.ArchitectureAuditor.Tests -> /home/michael/EMF_Project/tests/EMF.ArchitectureAuditor.Tests/bin/Release/net10.0/EMF.ArchitectureAuditor.Tests.dll
+Test run for /home/michael/EMF_Project/tests/EMF.ArchitectureAuditor.Tests/bin/Release/net10.0/EMF.ArchitectureAuditor.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /tmp/emf-m94-full-regression/results/m94_net10.0_20260930082858.trx
+
+Passed!  - Failed:     0, Passed:    22, Skipped:     0, Total:    22, Duration: 4 s - EMF.ArchitectureAuditor.Tests.dll (net10.0)
+  EMF.Extensions.VeteransClaims.Orchestration -> /home/michael/EMF_Project/src/EMF.Extensions.VeteransClaims.Orchestration/bin/Release/net10.0/EMF.Extensions.VeteransClaims.Orchestration.dll
+  EMF.Laboratory -> /home/michael/EMF_Project/src/EMF.Laboratory/bin/Release/net10.0/EMF.Laboratory.dll
+  EMF.Console -> /home/michael/EMF_Project/src/EMF.Console/bin/Release/net10.0/EMF.Console.dll
+  EMF.Tests -> /home/michael/EMF_Project/tests/EMF.Tests/bin/Release/net10.0/EMF.Tests.dll
+Test run for /home/michael/EMF_Project/tests/EMF.Tests/bin/Release/net10.0/EMF.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:36.45]     EMF.Tests.AzureOpenAIIntegrationTests.ExecuteAsync_ReturnsLiveNormalizedSummary [SKIP]
+  Skipped EMF.Tests.AzureOpenAIIntegrationTests.ExecuteAsync_ReturnsLiveNormalizedSummary [1 ms]
+[xUnit.net 00:07:31.12]     EMF.Tests.AzureMonitorSecurityAlertSinkIntegrationTests.WriteAsync_UploadsSyntheticAlert [SKIP]
+  Skipped EMF.Tests.AzureMonitorSecurityAlertSinkIntegrationTests.WriteAsync_UploadsSyntheticAlert [1 ms]
+Results File: /tmp/emf-m94-full-regression/results/m94_net10.0_20260930084720.trx
+
+Passed!  - Failed:     0, Passed:  3092, Skipped:     2, Total:  3094, Duration: 17 m 39 s - EMF.Tests.dll (net10.0)

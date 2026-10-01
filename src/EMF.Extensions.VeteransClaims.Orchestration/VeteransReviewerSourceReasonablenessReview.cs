@@ -117,7 +117,8 @@ public static class VeteransReviewerSourceReasonablenessReview
                 var completed = CompletedDate.IsMatch(preceding) && !ProspectiveAction.IsMatch(preceding);
                 if (!completed && PlannedDate.IsMatch(preceding)) continue;
                 Add("FutureRecordedDate", match, match.Value,
-                    $"This {(completed ? "documented-event" : "source")} date is after the review date ({reviewDate:yyyy-MM-dd})" +
+                    $"This {(completed ? "documented-event" : "source")} date is after the review date (" +
+                    reviewDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + ")" +
                     " and is not clearly a scheduled or planned event. Verify the date and context before relying on it.");
             }
 

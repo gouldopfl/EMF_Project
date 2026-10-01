@@ -1000,7 +1000,8 @@ public sealed class VeteransClaimsSqliteMigrationTests
                 (90, "AddReviewerPackageSnapshots"),
                 (91, "AddReviewerPackageOutputProvenance"),
                 (92, "AddReviewerPackageOutputBuildProvenance"),
-                (93, "ArchiveReviewerBuildManifests")
+                (93, "ArchiveReviewerBuildManifests"),
+                (94, "FreezeReviewerPackagePresentation")
             };
 
             foreach (var expected in remainingMigrations)

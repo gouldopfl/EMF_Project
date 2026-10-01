@@ -80,6 +80,32 @@ public sealed class VeteransReviewerOutputProvenanceTests
         Assert.Equal(pdf, rows.Single(row => row.Format == ReviewerPackageOutputFormats.Pdf));
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task RepositoryRejectsDifferentVisibleDateAcrossFormatsAndAtomicSavePaths(bool atomic, bool pdf)
+    {
+        await using var db = await Database.Create();
+        var snapshot = await Seal(db, Details());
+        var original = Docx(snapshot.PackageId, snapshot.Sha256, [1, 2, 3], Generated);
+        await db.Repository.SaveReviewerOutputProvenanceAsync(original);
+        var changed = ReviewerPackageOutputProvenance.Create(snapshot.PackageId,
+            pdf ? ReviewerPackageOutputFormats.Pdf : ReviewerPackageOutputFormats.Docx,
+            snapshot.Sha256, "reviewer-docx-v1", "build-2",
+            pdf ? "Synthetic converter" : null, pdf ? "1.0" : null,
+            ReviewDate.AddDays(1), new byte[] { 4, 5, 6 }, Generated.AddDays(1));
+        var build = ReviewerPackageOutputBuildProvenance.Create(changed.ProvenanceId,
+            "sha256:" + new string('C', 64), new string('b', 40), Generated.AddDays(1));
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => atomic
+            ? db.Repository.SaveReviewerOutputWithBuildProvenanceAsync(changed, build)
+            : db.Repository.SaveReviewerOutputProvenanceAsync(changed));
+        Assert.Contains("new package version", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(original, Assert.Single(await db.Repository.GetReviewerOutputProvenanceAsync(snapshot.PackageId)));
+        Assert.Empty(await db.Repository.GetReviewerOutputBuildProvenanceAsync(changed.ProvenanceId));
+    }
+
     [Fact]
     public async Task Save_RequiresMatchingSealedSnapshot()
     {

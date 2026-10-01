@@ -71,15 +71,15 @@ public sealed class VeteransReviewerPackagePrescriptionPresentationTests
         var earlier = Details();
         var frozen = VeteransReviewerPackagePrescriptionPresentation.Attach(earlier, DeriveFor(earlier));
         var snapshot = VeteransReviewerPackageSnapshot.Capture(frozen, []);
-        var before = DocumentText(VeteransReviewerPackageDocxRenderer.Render(VeteransReviewerPackageSnapshot.Restore(snapshot).Details));
+        var before = DocumentText(ReviewerPackageTestPreparation.Render(VeteransReviewerPackageSnapshot.Restore(snapshot).Details));
         var later = Details("package-two");
         var laterArtifact = Derive(later, new(2026, 10, 2),
             [Ledger(), Ledger("later", 10, 1)], Entries().Concat(Entries("later", "DIFFERENT LATER DIRECTIONS")).ToArray(), [], []);
         var laterSnapshot = VeteransReviewerPackageSnapshot.Capture(VeteransReviewerPackagePrescriptionPresentation.Attach(later, laterArtifact), []);
-        Assert.Contains("DIFFERENT LATER DIRECTIONS", DocumentText(VeteransReviewerPackageDocxRenderer.Render(VeteransReviewerPackageSnapshot.Restore(laterSnapshot).Details)));
+        Assert.Contains("DIFFERENT LATER DIRECTIONS", DocumentText(ReviewerPackageTestPreparation.Render(VeteransReviewerPackageSnapshot.Restore(laterSnapshot).Details)));
         var restored = VeteransReviewerPackageSnapshot.Restore(snapshot);
         Assert.Equal(snapshot, VeteransReviewerPackageSnapshot.Capture(restored.Details, restored.Regulations));
-        Assert.Equal(before, DocumentText(VeteransReviewerPackageDocxRenderer.Render(restored.Details)));
+        Assert.Equal(before, DocumentText(ReviewerPackageTestPreparation.Render(restored.Details)));
         Assert.DoesNotContain("DIFFERENT LATER DIRECTIONS", before);
     }
 

@@ -1,4 +1,8 @@
+using EMF.Common;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Runtime.InteropServices;
+using System.Text;
 using EMF.Extensions.VeteransClaims.Orchestration;
 
 namespace EMF.ConsoleApplication;
@@ -45,6 +49,7 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
     public async Task<VeteransReviewerPackageDocumentConverterInfo> GetDocumentConverterInfoAsync(
         CancellationToken cancellationToken = default)
     {
+        using var performanceTiming = EmfPerformanceTiming.Measure(EmfPerformancePhase.ConverterIdentity);
         cancellationToken.ThrowIfCancellationRequested();
 
         var startInfo =
@@ -57,6 +62,7 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
                 RedirectStandardError = true
             };
 
+        ApplyControlledEnvironment(startInfo);
         startInfo.ArgumentList.Add("--version");
 
         using var process = new Process
@@ -127,13 +133,14 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
 
         return new VeteransReviewerPackageDocumentConverterInfo(
             "LibreOffice",
-            version);
+            version + " | emf-pdf-profile-v1:" + CaptureProfileHash());
     }
 
     public async Task<byte[]> ConvertDocxToPdfAsync(
         ReadOnlyMemory<byte> docx,
         CancellationToken cancellationToken = default)
     {
+        using var performanceTiming = EmfPerformanceTiming.Measure(EmfPerformancePhase.ConverterTotal);
         cancellationToken.ThrowIfCancellationRequested();
 
         if (docx.Length == 0)
@@ -165,6 +172,16 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
 
         Directory.CreateDirectory(profileDirectory);
 
+        // A fresh user profile, fixed locale/timezone, and explicit font directories
+        // are presentation inputs, not ambient user preferences. See the contract.
+        await File.WriteAllTextAsync(Path.Combine(profileDirectory, "registrymodifications.xcu"),
+            "<oor:items xmlns:oor=\"http://openoffice.org/2001/registry\"><item oor:path=\"/org.openoffice.Setup/L10N\"><prop oor:name=\"ooLocale\" oor:op=\"fuse\"><value>en-US</value></prop></item></oor:items>", cancellationToken);
+        var fontConfig = Path.Combine(workingDirectory, "fonts.conf");
+        await File.WriteAllTextAsync(fontConfig,
+            "<?xml version=\"1.0\"?><!DOCTYPE fontconfig SYSTEM \"fonts.dtd\"><fontconfig><dir>/usr/share/fonts</dir><dir>/usr/local/share/fonts</dir><cachedir>" +
+            System.Security.SecurityElement.Escape(Path.Combine(workingDirectory, "font-cache")) + "</cachedir></fontconfig>", cancellationToken);
+        var conversionProfile = CaptureProfileHash();
+
         var inputPath =
             Path.Combine(
                 workingDirectory,
@@ -193,6 +210,8 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
                     RedirectStandardError = true
                 };
 
+            ApplyControlledEnvironment(startInfo);
+            startInfo.Environment["FONTCONFIG_FILE"] = fontConfig;
             startInfo.ArgumentList.Add("--headless");
             startInfo.ArgumentList.Add("--nologo");
             startInfo.ArgumentList.Add("--nodefault");
@@ -210,6 +229,7 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
                 StartInfo = startInfo
             };
 
+            using var processTiming = EmfPerformanceTiming.Measure(EmfPerformancePhase.LibreOfficeConversion);
             try
             {
                 if (!process.Start())
@@ -254,6 +274,7 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
             // Drain subprocess output without exposing document text or paths in diagnostics.
             await stdoutTask;
             await stderrTask;
+            processTiming.Dispose();
 
             if (process.ExitCode != 0)
             {
@@ -282,12 +303,72 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
                     cancellationToken);
 
             ValidatePdfSignature(pdf);
+            if (!string.Equals(conversionProfile, CaptureProfileHash(), StringComparison.Ordinal))
+                throw new InvalidDataException("PDF conversion environment changed during preparation.");
             return pdf;
         }
         finally
         {
             TryDeleteDirectory(workingDirectory);
         }
+    }
+
+    internal static void ApplyControlledEnvironment(ProcessStartInfo startInfo)
+    {
+        // Ambient desktop, font and loader settings must not become unrecorded
+        // presentation inputs. Pin the shared profile, never a claim-specific one.
+        foreach (var key in startInfo.Environment.Keys.ToArray())
+            if (new[] { "SAL_", "OOO_", "LO_", "FONTCONFIG_", "GTK_", "GDK_", "QT_", "UNO_", "XDG_" }
+                .Any(prefix => key.StartsWith(prefix, StringComparison.Ordinal)) ||
+                key is "DISPLAY" or "WAYLAND_DISPLAY" or "LD_PRELOAD" or "LD_LIBRARY_PATH")
+                startInfo.Environment.Remove(key);
+        startInfo.Environment["LC_ALL"] = "C.UTF-8";
+        startInfo.Environment["LANG"] = "C.UTF-8";
+        startInfo.Environment["LANGUAGE"] = "en_US";
+        startInfo.Environment["TZ"] = "UTC";
+        startInfo.Environment["SAL_USE_VCLPLUGIN"] = "svp";
+        startInfo.Environment["SAL_FORCEDPI"] = "96";
+    }
+
+    private string CaptureProfileHash()
+    {
+        using var performanceTiming = EmfPerformanceTiming.Measure(EmfPerformancePhase.ConverterProfile);
+        if (!OperatingSystem.IsLinux())
+            throw new NotSupportedException("The controlled reviewer PDF profile currently requires Linux.");
+        var executable = Path.IsPathRooted(_executablePath) ? _executablePath :
+            (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator)
+                .Select(dir => Path.Combine(dir, _executablePath)).FirstOrDefault(File.Exists)
+                ?? throw new InvalidDataException("Converter executable cannot be resolved.");
+        executable = Path.GetFullPath(executable);
+        var target = File.ResolveLinkTarget(executable, returnFinalTarget: true)?.FullName ?? executable;
+        var files = new SortedSet<string>(StringComparer.Ordinal) { executable, target };
+        // Pin the installed layout engine, dictionaries/registry, fallback fonts,
+        // and shaping dependencies. User font/config directories are excluded.
+        foreach (var root in new[] { Path.GetDirectoryName(target)!,
+            Path.Combine(Path.GetDirectoryName(target)!, "..", "share", "registry"),
+            "/usr/share/fonts", "/usr/local/share/fonts" })
+            if (Directory.Exists(root))
+                foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                    files.Add(Path.GetFullPath(file));
+        var dependencies = "/usr/lib/" + RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant() switch
+        {
+            "/usr/lib/x64" => "/usr/lib/x86_64-linux-gnu",
+            "/usr/lib/arm64" => "/usr/lib/aarch64-linux-gnu",
+            var other => other
+        };
+        if (Directory.Exists(dependencies))
+            foreach (var prefix in new[] { "libfreetype", "libfontconfig", "libharfbuzz", "libcairo", "libpango", "libicu", "libgraphite", "libpng", "libstdc++", "libgcc_s", "libz.so" })
+                foreach (var file in Directory.EnumerateFiles(dependencies, prefix + "*")) files.Add(file);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData(Encoding.UTF8.GetBytes("emf-pdf-profile-v1|C.UTF-8|UTC|en-US|svp|96dpi|writer_pdf_Export|" +
+            RuntimeInformation.OSDescription + "|" + RuntimeInformation.ProcessArchitecture));
+        foreach (var file in files)
+        {
+            hash.AppendData(Encoding.UTF8.GetBytes(file + "\n"));
+            using var stream = File.OpenRead(file);
+            hash.AppendData(SHA256.HashData(stream));
+        }
+        return Convert.ToHexString(hash.GetHashAndReset());
     }
 
     private static string ResolveExecutablePath()

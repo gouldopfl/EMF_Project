@@ -3162,6 +3162,130 @@ internal static class VeteransClaimsSqliteMigrations
                 CREATE TRIGGER ReviewerBuildManifest_NoDelete
                 BEFORE DELETE ON VeteransClaims_ReviewerBuildManifests
                 BEGIN SELECT RAISE(ABORT, 'Reviewer build manifest is immutable'); END;
+                """),
+            new VeteransClaimsSqliteMigration(
+                94,
+                "FreezeReviewerPackagePresentation",
+                """
+                CREATE TABLE VeteransClaims_ReviewerPresentations (
+                    EvidencePackageId TEXT PRIMARY KEY NOT NULL,
+                    SourceSnapshotSha256 TEXT NOT NULL CHECK (length(SourceSnapshotSha256) = 64 AND SourceSnapshotSha256 NOT GLOB '*[^0-9A-F]*'),
+                    PackagePreparedDate TEXT NOT NULL CHECK (length(PackagePreparedDate) = 10 AND PackagePreparedDate GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND PackagePreparedDate > '0001-01-01' AND date(PackagePreparedDate, '+0 days') IS PackagePreparedDate),
+                    Payload TEXT NOT NULL CHECK (json_valid(Payload) AND json_type(Payload) = 'object'),
+                    Sha256 TEXT NOT NULL CHECK (length(Sha256) = 64 AND Sha256 NOT GLOB '*[^0-9A-F]*'),
+                    DocxSha256 TEXT NOT NULL CHECK (length(DocxSha256) = 64 AND DocxSha256 NOT GLOB '*[^0-9A-F]*'),
+                    PreviousPackageId TEXT NULL,
+                    FOREIGN KEY (PreviousPackageId) REFERENCES VeteransClaims_ReviewerPresentations(EvidencePackageId),
+                    CHECK (PreviousPackageId IS NULL OR (length(trim(PreviousPackageId)) > 0 AND PreviousPackageId != EvidencePackageId)),
+                    CHECK (json_type(Payload, '$.PackageId') IS 'text' AND json_extract(Payload, '$.PackageId') IS EvidencePackageId
+                        AND json_type(Payload, '$.Version') IS 'integer' AND json_extract(Payload, '$.Version') IS 1
+                        AND json_type(Payload, '$.SourceSnapshotSha256') IS 'text' AND json_extract(Payload, '$.SourceSnapshotSha256') IS SourceSnapshotSha256
+                        AND json_type(Payload, '$.PackagePreparedDate') IS 'text' AND json_extract(Payload, '$.PackagePreparedDate') IS PackagePreparedDate
+                        AND json_type(Payload, '$.Sha256') IS 'text' AND json_extract(Payload, '$.Sha256') IS Sha256
+                        AND json_type(Payload, '$.DocxSha256') IS 'text' AND json_extract(Payload, '$.DocxSha256') IS DocxSha256
+                        AND (json_type(Payload, '$.PreviousPackageId') IS NULL OR json_type(Payload, '$.PreviousPackageId') IN ('null', 'text'))
+                        AND json_extract(Payload, '$.PreviousPackageId') IS PreviousPackageId
+                        AND json_type(Payload, '$.Cover') IS 'object'
+                        AND json_type(Payload, '$.Cover.ReviewerRole') IS 'text'
+                        AND coalesce(length(trim(json_extract(Payload, '$.Cover.ReviewerRole'))), 0) > 0
+                        AND json_type(Payload, '$.RenderProfile') IS 'text'
+                        AND coalesce(length(trim(json_extract(Payload, '$.RenderProfile'))), 0) > 0
+                        AND json_type(Payload, '$.PreparationRendererBuild') IS 'text'
+                        AND coalesce(length(trim(json_extract(Payload, '$.PreparationRendererBuild'))), 0) > 0
+                        AND json_type(Payload, '$.DocxBase64') IS 'text'
+                        AND coalesce(length(json_extract(Payload, '$.DocxBase64')), 0) > 0),
+                    FOREIGN KEY (EvidencePackageId) REFERENCES VeteransClaims_ReviewerPackageSnapshots(EvidencePackageId)
+                ) WITHOUT ROWID;
+                CREATE TABLE VeteransClaims_ReviewerFrozenPdfs (
+                    EvidencePackageId TEXT PRIMARY KEY NOT NULL,
+                    PresentationSha256 TEXT NOT NULL CHECK (length(PresentationSha256) = 64 AND PresentationSha256 NOT GLOB '*[^0-9A-F]*'),
+                    Payload TEXT NOT NULL CHECK (json_valid(Payload) AND json_type(Payload) = 'object'),
+                    Sha256 TEXT NOT NULL CHECK (length(Sha256) = 64 AND Sha256 NOT GLOB '*[^0-9A-F]*'),
+                    PdfSha256 TEXT NOT NULL CHECK (length(PdfSha256) = 64 AND PdfSha256 NOT GLOB '*[^0-9A-F]*'),
+                    ConverterIdentity TEXT NOT NULL CHECK (length(trim(ConverterIdentity)) > 0),
+                    ConverterVersion TEXT NOT NULL CHECK (length(trim(ConverterVersion)) > 0),
+                    CHECK (json_type(Payload, '$.PackageId') IS 'text' AND json_extract(Payload, '$.PackageId') IS EvidencePackageId
+                        AND json_type(Payload, '$.Version') IS 'integer' AND json_extract(Payload, '$.Version') IS 1
+                        AND json_type(Payload, '$.PresentationSha256') IS 'text' AND json_extract(Payload, '$.PresentationSha256') IS PresentationSha256
+                        AND json_type(Payload, '$.Sha256') IS 'text' AND json_extract(Payload, '$.Sha256') IS Sha256
+                        AND json_type(Payload, '$.PdfSha256') IS 'text' AND json_extract(Payload, '$.PdfSha256') IS PdfSha256
+                        AND json_type(Payload, '$.ConverterIdentity') IS 'text' AND json_extract(Payload, '$.ConverterIdentity') IS ConverterIdentity
+                        AND json_type(Payload, '$.ConverterVersion') IS 'text' AND json_extract(Payload, '$.ConverterVersion') IS ConverterVersion
+                        AND json_type(Payload, '$.PdfBase64') IS 'text'
+                        AND coalesce(length(json_extract(Payload, '$.PdfBase64')), 0) > 0),
+                    FOREIGN KEY (EvidencePackageId) REFERENCES VeteransClaims_ReviewerPresentations(EvidencePackageId)
+                ) WITHOUT ROWID;
+                -- Require an already-frozen predecessor in the same claim issue even when
+                -- foreign_keys is disabled. Insert-only lineage cannot form a cycle.
+                CREATE TRIGGER ReviewerPresentation_LineageRequired BEFORE INSERT ON VeteransClaims_ReviewerPresentations
+                WHEN NEW.PreviousPackageId IS NOT NULL AND NOT EXISTS (
+                    SELECT 1 FROM VeteransClaims_ReviewerPresentations prior
+                    JOIN VeteransClaims_EvidencePackages old ON old.Id = prior.EvidencePackageId
+                    JOIN VeteransClaims_EvidencePackages current ON current.Id = NEW.EvidencePackageId
+                    WHERE prior.EvidencePackageId = NEW.PreviousPackageId
+                        AND old.ClaimIssueId = current.ClaimIssueId
+                        AND prior.EvidencePackageId != NEW.EvidencePackageId)
+                BEGIN SELECT RAISE(ABORT, 'Reviewer version requires an existing predecessor in the same claim issue'); END;
+                -- SQLite and .NET resolve duplicate JSON properties differently.
+                CREATE TRIGGER ReviewerPresentation_UniqueJsonKeys BEFORE INSERT ON VeteransClaims_ReviewerPresentations
+                WHEN EXISTS (
+                    SELECT 1 FROM json_tree(CASE WHEN json_valid(NEW.Payload) THEN NEW.Payload ELSE '{}' END) child
+                    JOIN json_tree(CASE WHEN json_valid(NEW.Payload) THEN NEW.Payload ELSE '{}' END) parent
+                        ON parent.id = child.parent
+                    WHERE parent.type = 'object'
+                    GROUP BY child.parent, child.key HAVING count(*) > 1)
+                BEGIN SELECT RAISE(ABORT, 'Frozen reviewer JSON contains duplicate object keys'); END;
+                CREATE TRIGGER ReviewerPresentation_NoReplace BEFORE INSERT ON VeteransClaims_ReviewerPresentations
+                WHEN EXISTS (SELECT 1 FROM VeteransClaims_ReviewerPresentations WHERE EvidencePackageId = NEW.EvidencePackageId)
+                BEGIN SELECT RAISE(ABORT, 'Reviewer presentation already exists'); END;
+                CREATE TRIGGER ReviewerPresentation_NoUpdate BEFORE UPDATE ON VeteransClaims_ReviewerPresentations
+                BEGIN SELECT RAISE(ABORT, 'Reviewer presentation is immutable'); END;
+                CREATE TRIGGER ReviewerPresentation_NoDelete BEFORE DELETE ON VeteransClaims_ReviewerPresentations
+                BEGIN SELECT RAISE(ABORT, 'Reviewer presentation is immutable'); END;
+                CREATE TRIGGER ReviewerPresentation_SourceRequired BEFORE INSERT ON VeteransClaims_ReviewerPresentations
+                WHEN NOT EXISTS (
+                    SELECT 1 FROM VeteransClaims_ReviewerPackageSnapshots s
+                    JOIN VeteransClaims_EvidencePackages p ON p.Id = s.EvidencePackageId
+                    WHERE s.EvidencePackageId = NEW.EvidencePackageId AND s.Version = 1
+                    AND p.ReviewerSnapshotVersion = 1 AND p.ReviewerSnapshotSealed = 1
+                    AND s.Sha256 = NEW.SourceSnapshotSha256)
+                OR EXISTS (SELECT 1 FROM VeteransClaims_ReviewerPackageOutputProvenance o
+                    WHERE o.EvidencePackageId = NEW.EvidencePackageId AND (o.SourceReviewDate != NEW.PackagePreparedDate OR (o.Format = 'docx' AND o.OutputSha256 != NEW.DocxSha256)))
+                BEGIN SELECT RAISE(ABORT, 'Reviewer presentation requires the sealed source and preserved date'); END;
+                -- SQLite and .NET resolve duplicate JSON properties differently.
+                CREATE TRIGGER ReviewerFrozenPdf_UniqueJsonKeys BEFORE INSERT ON VeteransClaims_ReviewerFrozenPdfs
+                WHEN EXISTS (
+                    SELECT 1 FROM json_tree(CASE WHEN json_valid(NEW.Payload) THEN NEW.Payload ELSE '{}' END) child
+                    JOIN json_tree(CASE WHEN json_valid(NEW.Payload) THEN NEW.Payload ELSE '{}' END) parent
+                        ON parent.id = child.parent
+                    WHERE parent.type = 'object'
+                    GROUP BY child.parent, child.key HAVING count(*) > 1)
+                BEGIN SELECT RAISE(ABORT, 'Frozen reviewer JSON contains duplicate object keys'); END;
+                CREATE TRIGGER ReviewerFrozenPdf_NoReplace BEFORE INSERT ON VeteransClaims_ReviewerFrozenPdfs
+                WHEN EXISTS (SELECT 1 FROM VeteransClaims_ReviewerFrozenPdfs WHERE EvidencePackageId = NEW.EvidencePackageId)
+                BEGIN SELECT RAISE(ABORT, 'Reviewer PDF already exists'); END;
+                CREATE TRIGGER ReviewerFrozenPdf_NoUpdate BEFORE UPDATE ON VeteransClaims_ReviewerFrozenPdfs
+                BEGIN SELECT RAISE(ABORT, 'Reviewer PDF is immutable'); END;
+                CREATE TRIGGER ReviewerFrozenPdf_NoDelete BEFORE DELETE ON VeteransClaims_ReviewerFrozenPdfs
+                BEGIN SELECT RAISE(ABORT, 'Reviewer PDF is immutable'); END;
+                CREATE TRIGGER ReviewerFrozenPdf_PresentationRequired BEFORE INSERT ON VeteransClaims_ReviewerFrozenPdfs
+                WHEN NOT EXISTS (SELECT 1 FROM VeteransClaims_ReviewerPresentations
+                    WHERE EvidencePackageId = NEW.EvidencePackageId AND Sha256 = NEW.PresentationSha256)
+                OR EXISTS (SELECT 1 FROM VeteransClaims_ReviewerPackageOutputProvenance o
+                    WHERE o.EvidencePackageId = NEW.EvidencePackageId AND o.Format = 'pdf'
+                        AND (o.OutputSha256 != NEW.PdfSha256 OR o.ConverterIdentity != NEW.ConverterIdentity
+                            OR o.ConverterVersion != NEW.ConverterVersion))
+                BEGIN SELECT RAISE(ABORT, 'Reviewer PDF requires the frozen presentation and matching historical outputs'); END;
+                CREATE TRIGGER ReviewerOutput_FrozenPresentationRequired BEFORE INSERT ON VeteransClaims_ReviewerPackageOutputProvenance
+                WHEN EXISTS (SELECT 1 FROM VeteransClaims_ReviewerPresentations p WHERE p.EvidencePackageId = NEW.EvidencePackageId
+                    AND (p.SourceSnapshotSha256 != NEW.SnapshotSha256 OR p.PackagePreparedDate != NEW.SourceReviewDate
+                        OR (NEW.Format = 'docx' AND p.DocxSha256 != NEW.OutputSha256)))
+                OR (NEW.Format = 'pdf' AND EXISTS (SELECT 1 FROM VeteransClaims_ReviewerPresentations WHERE EvidencePackageId = NEW.EvidencePackageId)
+                    AND NOT EXISTS (SELECT 1 FROM VeteransClaims_ReviewerFrozenPdfs WHERE EvidencePackageId = NEW.EvidencePackageId))
+                OR EXISTS (SELECT 1 FROM VeteransClaims_ReviewerFrozenPdfs p WHERE p.EvidencePackageId = NEW.EvidencePackageId
+                    AND NEW.Format = 'pdf' AND (p.PdfSha256 != NEW.OutputSha256
+                        OR p.ConverterIdentity != NEW.ConverterIdentity OR p.ConverterVersion != NEW.ConverterVersion))
+                BEGIN SELECT RAISE(ABORT, 'Reviewer output differs from frozen presentation'); END;
                 """)
         };
 }

@@ -190,7 +190,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         second.Line("the physician and the nurse in the procedure room.", 80, x: 150);
         var pages = new[] { first.Page(pageNumber: 100), second.Page(pageNumber: 101) };
         var original = pages.Select(p => p.Content.ToArray()).ToArray();
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(Details([Evidence("Synthetic procedure", "", pages: pages)]));
+        var bytes = ReviewerPackageTestPreparation.Render(Details([Evidence("Synthetic procedure", "", pages: pages)]));
         using (var docx = WordprocessingDocument.Open(new MemoryStream(bytes), false))
         {
             var text = docx.MainDocumentPart!.Document!.InnerText;
@@ -693,9 +693,24 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         }).ToArray();
         for (var i = 0; i < images.Length; i++)
         {
-            var crop = VeteransReviewerSourcePageCrop.Crop(images[i]);
-            VeteransReviewerSourcePageCropTests.AssertPreserved(images[i], crop with { Content = embedded[i] });
+            Assert.Equal(images[i], embedded[i]);
             Assert.Equal(images[i], pages[i].Content.ToArray());
+        }
+        foreach (var inline in main.Document.Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.Inline>())
+        {
+            var properties = inline.Ancestors<Paragraph>().Single().ParagraphProperties!;
+            Assert.Equal(JustificationValues.Left, properties.GetFirstChild<Justification>()!.Val!.Value);
+            Assert.Equal("0", properties.GetFirstChild<Indentation>()!.Left!.Value);
+            Assert.Equal(0U, inline.DistanceFromLeft!.Value);
+            Assert.Equal(0U, inline.DistanceFromRight!.Value);
+            var extent = inline.GetFirstChild<DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent>()!;
+            using var bitmap = SKBitmap.Decode(images[(int)inline.GetFirstChild<DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties>()!.Id!.Value - 1]);
+            var maxWidth = (12240 - 2 * VeteransReviewerEvidenceSections.SourceSideMargin) * 635d;
+            var maxHeight = (15840 - VeteransReviewerEvidenceSections.SourceTopMargin -
+                VeteransReviewerEvidenceSections.SourceBottomMargin - 80) * 635d;
+            var scale = Math.Min(maxWidth / bitmap.Width, maxHeight / bitmap.Height);
+            Assert.Equal((long)Math.Round(bitmap.Width * scale), extent.Cx!.Value);
+            Assert.Equal((long)Math.Round(bitmap.Height * scale), extent.Cy!.Value);
         }
         Assert.Contains("Relevance: Synthetic reviewed relevance.", main.Document.Body.InnerText);
         Assert.DoesNotContain("Flattened text", main.Document.Body.InnerText);
@@ -740,7 +755,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             VeteransReviewerPackageAppendix.MedicalLiterature,
             [new PrintableArtifactPage { PageNumber = 1, ContentType = type, Content = new byte[] { 0xff } }],
             "Reviewer text must not hide failure.");
-        var exception = Record.Exception(() => VeteransReviewerPackageDocxRenderer.Render(Details([content])));
+        var exception = Record.Exception(() => ReviewerPackageTestPreparation.Render(Details([content])));
         if (type == "application/unknown")
             Assert.IsType<NotSupportedException>(exception);
         else
@@ -768,7 +783,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
                 RetrievedUtc = DateTimeOffset.UnixEpoch
             }).ToArray();
         using var document = WordprocessingDocument.Open(new MemoryStream(
-            VeteransReviewerPackageDocxRenderer.Render(details, regulations)), false);
+            ReviewerPackageTestPreparation.Render(details, regulations)), false);
         var body = document.MainDocumentPart!.Document!.Body!;
         var opinionHeadings = body.Elements<Paragraph>()
             .Where(p => p.InnerText == "Medical Opinion Requested").ToArray();
@@ -972,9 +987,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             using var embedded = docx.MainDocumentPart.ImageParts.ElementAt(i).GetStream();
             using var copy = new MemoryStream();
             embedded.CopyTo(copy);
-            var crop = VeteransReviewerSourcePageCrop.Crop(pages[i].Content);
-            VeteransReviewerSourcePageCropTests.AssertPreserved(pages[i].Content,
-                crop with { Content = copy.ToArray() });
+            Assert.Equal(pages[i].Content.ToArray(), copy.ToArray());
         }
         using var pdf = UglyToad.PdfPig.PdfDocument.Open(output.Pdf!);
         var sourcePages = pdf.GetPages().Where(p => p.NumberOfImages > 0).ToArray();
@@ -1050,8 +1063,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             using var bytes = new MemoryStream();
             stream.CopyTo(bytes);
             var nativeRaster = await pageRenderer.RenderPageAsync(originalPdf, 1);
-            var crop = VeteransReviewerSourcePageCrop.Crop(nativeRaster);
-            VeteransReviewerSourcePageCropTests.AssertPreserved(nativeRaster, crop with { Content = bytes.ToArray() });
+            Assert.Equal(nativeRaster, bytes.ToArray());
             Assert.DoesNotContain("UNUSABLE EXTRACTION", main.Document!.Body!.InnerText);
             Assert.DoesNotContain("was blank", main.Document.Body.InnerText);
             Assert.DoesNotContain("Source Page ", main.Document.Body.InnerText);
@@ -1238,7 +1250,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
     [InlineData(9)]
     [InlineData(10)]
     [InlineData(12)]
-    public void Render_PartialClinicalPageUsesSourceScaleAndPreservesProportions(double sourceSize)
+    public void Render_PartialClinicalPageMaximizesAvailableBoxAndPreservesProportions(double sourceSize)
     {
         using var fixture = new VeteransReviewerNativeEvidencePageTests.NativePage(2550, 3300, 612, 792);
         fixture.Line("SLEEP MED TELEPHONE NOTE", 552, font: "Bitter-Bold", size: 16, x: 16);
@@ -1252,8 +1264,12 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         var extent = inline.GetFirstChild<DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent>()!;
         var prepared = VeteransReviewerNativeEvidencePage.Prepare(page, true);
         using var bitmap = SKBitmap.Decode(prepared.Content.Span);
-        var scale = extent.Cx!.Value / (double)bitmap.Width / (12700 * 612d / 2550);
-        Assert.InRange(sourceSize * scale, Math.Min(sourceSize, 10) - .01, Math.Min(sourceSize, 10) + .01);
+        var expectedScale = Math.Min(5_943_600d / bitmap.Width, 6_400_800d / bitmap.Height);
+        Assert.Equal((long)Math.Round(bitmap.Width * expectedScale), extent.Cx!.Value);
+        Assert.Equal((long)Math.Round(bitmap.Height * expectedScale), extent.Cy!.Value);
+        var properties = inline.Ancestors<Paragraph>().Single().ParagraphProperties!;
+        Assert.Equal(JustificationValues.Left, properties.GetFirstChild<Justification>()!.Val!.Value);
+        Assert.Equal("0", properties.GetFirstChild<Indentation>()!.Left!.Value);
         Assert.InRange(extent.Cx!.Value / (double)extent.Cy!.Value,
             bitmap.Width / (double)bitmap.Height - .00001, bitmap.Width / (double)bitmap.Height + .00001);
     }
@@ -1297,7 +1313,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         var presentation = VeteransReviewerPackagePrescriptionPresentationTests.DeriveFor(details);
         var renderedDetails = VeteransReviewerPackagePrescriptionPresentation.Attach(details, presentation);
         using var document = WordprocessingDocument.Open(
-            new MemoryStream(VeteransReviewerPackageDocxRenderer.Render(renderedDetails)),
+            new MemoryStream(ReviewerPackageTestPreparation.Render(renderedDetails)),
             false);
         var text = document.MainDocumentPart!.Document!.Body!.InnerText;
 
@@ -1362,7 +1378,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
         };
         var presentation = VeteransReviewerPackagePrescriptionPresentationTests.DeriveFor(details);
         var captured = VeteransReviewerPackageSnapshot.Capture(VeteransReviewerPackagePrescriptionPresentation.Attach(details, presentation), []);
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(VeteransReviewerPackageSnapshot.Restore(captured).Details,
+        var bytes = ReviewerPackageTestPreparation.Render(VeteransReviewerPackageSnapshot.Restore(captured).Details,
             sourceReviewDate: new DateOnly(2026, 9, 26));
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
@@ -1423,7 +1439,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
             ]
         };
 
-        var bytes = VeteransReviewerPackageDocxRenderer.Render(details,
+        var bytes = ReviewerPackageTestPreparation.Render(details,
             sourceReviewDate: new DateOnly(2026, 9, 27));
         using var stream = new MemoryStream(bytes);
         using var document = WordprocessingDocument.Open(stream, false);
@@ -1463,7 +1479,7 @@ public sealed class VeteransReviewerPresentationPhase2Tests
     }
 
     private static WordprocessingDocument Open(VeteransReviewerArtifactContent[] contents) =>
-        WordprocessingDocument.Open(new MemoryStream(VeteransReviewerPackageDocxRenderer.Render(Details(contents))), false);
+        WordprocessingDocument.Open(new MemoryStream(ReviewerPackageTestPreparation.Render(Details(contents))), false);
 
     private static VeteransReviewerArtifactContent Evidence(string title, string text,
         string appendix = VeteransReviewerPackageAppendix.MedicalEvidence,

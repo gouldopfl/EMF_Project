@@ -310,7 +310,7 @@ public sealed class VeteransReviewerEvidenceSourceServiceTests
         }).Append(VeteransReviewerEvidencePresentationTests.Content(
             VeteransReviewerEvidencePresentationTests.Header + "\n" +
             VeteransReviewerEvidencePresentationTests.ClinicalText)).ToArray();
-        var rendered = VeteransReviewerPackageDocxRenderer.Render(
+        var rendered = ReviewerPackageTestPreparation.Render(
             VeteransReviewerEvidencePresentationTests.Details(contents, selectedBasis.Id));
         using var document = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(
             new MemoryStream(rendered), false);

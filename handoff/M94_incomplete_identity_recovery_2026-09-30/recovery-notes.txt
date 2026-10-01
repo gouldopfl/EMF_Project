@@ -1,0 +1,13 @@
+M94 explicit incomplete-identity recovery — 2026-09-30
+
+RecoverIncompleteVersionAsync accepts a prior frozen package, the caller-reviewed intended source for an existing incomplete identity, explicit render settings and cover. Recovery never runs automatically. It shares new-version preparation and verified deployment checks.
+
+Repository completion checks and writes use one SQLite connection and one explicit immediate transaction. Existing package metadata, artifact membership and any already sealed source must match exactly. Missing identities, invalid lineage, changed inputs, legacy identities, existing presentations and output history are rejected. No existing immutable source or presentation is overwritten. Exported historical packages are not given fabricated frozen presentations.
+
+Both old interruption states are supported: identity/membership without source, and identity/membership with sealed source but no presentation. Failure before/after source or presentation insertion rolls back to the original incomplete state, and the same intended identity can be retried. Original/prior package data and output provenance remain unchanged. Repeated recovery of a completed identity is rejected without creating duplicates. Previously committed records are not deleted or replaced.
+
+Non-SQLite preparation is unchanged: verified deployment/resource reads and in-memory DOCX construction occur before persistence. No network, PDF conversion, file export or external completion step follows commit.
+
+Focused verification only, as requested: 25 recovery/version tests passed; one additional legacy-refusal test passed. Combined 26 total, 26 executed, 26 passed, 0 failed, 0 skipped. Failure triggers exist only in disposable test databases. Full repository regression was NOT rerun for this recovery follow-up; the earlier full run predates these changes. Exact TRX counters/timestamps are in validation-results.json.
+
+All three protected hashes still match; Azure OpenAI remains unset and unused. git diff --check passed. HEAD unchanged. No staging, commit, push, live database modification/migration or candidate-package generation. Recovery is now supported in code; no live identities were changed.

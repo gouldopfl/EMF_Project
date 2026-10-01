@@ -19,6 +19,34 @@ public interface IEvidencePackageRepository
         EvidencePackageDetails expectedMembership, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Reviewer snapshots are not supported.");
 
+    bool SupportsReviewerPresentationSnapshots => false;
+    Task<ReviewerPackagePresentationSnapshot?> GetReviewerPresentationAsync(
+        EvidencePackageId packageId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Prepared reviewer presentation is not supported.");
+    // Creates the identity, membership, source and presentation in one transaction.
+    // Implementations must fail without writing if atomic creation is unsupported.
+    Task CreateReviewerPresentationVersionAsync(ReviewerPackageSnapshot snapshot,
+        EvidencePackageDetails membership, ReviewerPackagePresentationSnapshot presentation,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Atomic reviewer presentation version creation is not supported.");
+
+    // Explicit recovery of a caller-reviewed incomplete identity. Never changes
+    // its existing membership/source or reconstructs an exported legacy package.
+    Task RecoverReviewerPresentationVersionAsync(ReviewerPackageSnapshot snapshot,
+        EvidencePackageDetails membership, ReviewerPackagePresentationSnapshot presentation,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Atomic reviewer presentation version recovery is not supported.");
+
+    Task SaveReviewerPresentationAsync(ReviewerPackagePresentationSnapshot presentation,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Prepared reviewer presentation is not supported.");
+    Task<ReviewerPackageFrozenPdf?> GetReviewerFrozenPdfAsync(
+        EvidencePackageId packageId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Frozen reviewer PDF is not supported.");
+    Task SaveReviewerFrozenPdfAsync(ReviewerPackageFrozenPdf pdf,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Frozen reviewer PDF is not supported.");
+
     bool SupportsReviewerOutputProvenance => false;
 
     Task<IReadOnlyList<ReviewerPackageOutputProvenance>> GetReviewerOutputProvenanceAsync(
