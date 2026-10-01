@@ -12,7 +12,7 @@ public static class VeteransReviewerPackagePrivacySanitizer
             @"VA\s+Claim\s+(?:Number|No\.?)|" +
             @"Social\s+Security\s+(?:Number|No\.?)|" +
             @"SSN|MRN|Medical\s+Record\s+(?:Number|No\.?))" +
-            @"(?<separator>\s*[:#]?\s*)" +
+            @"(?!\w)(?<separator>\s*[:#]?\s*)" +
             @"(?<id>\d{3}(?:\s*[-–—]\s*|\s+)?\d{2}(?:\s*[-–—]\s*|\s+)?\d{4})\b",
             RegexOptions.IgnoreCase |
             RegexOptions.CultureInvariant,
@@ -24,7 +24,7 @@ public static class VeteransReviewerPackagePrivacySanitizer
     // permitted last-four presentation in SensitiveIdentifierPattern.
     private static readonly Regex OtherPatientIdentifierPattern = new(
         @"\b(?<label>MRN|FIN|DOD\s+ID\s*\(EDIPI\)|Veterans?\s+ID\s*\(ICN\))" +
-        @"(?<separator>(?:[ \t]*[:#][ \t]*|[ \t]+))" +
+        @"(?!\w)(?<separator>(?:\s*[:#]\s*|\s+))" +
         @"(?<id>\d{10}V\d{6}|\d{6,})(?=\b|DOD\s+ID|Veterans?\s+ID)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
         TimeSpan.FromMilliseconds(100));

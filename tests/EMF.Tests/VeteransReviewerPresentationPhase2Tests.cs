@@ -26,6 +26,29 @@ public sealed class VeteransReviewerPresentationPhase2Tests
 {
     private const string PackageHeader =
         "CONFIDENTIAL — VETERAN MEDICAL INFORMATION | Veterans Evidence Package for Medical Review";
+
+    [ReviewerLibreOfficeTheory]
+    [InlineData(VeteransReviewerPackageAppendix.MedicalEvidence, "Appendix A — Medical Evidence")]
+    [InlineData(VeteransReviewerPackageAppendix.MedicalOpinionEvidence, "Appendix B — Medical Opinion Evidence")]
+    [InlineData(VeteransReviewerPackageAppendix.ServiceRecords, "Appendix C — Service Records")]
+    [InlineData(VeteransReviewerPackageAppendix.LayEvidence, "Appendix D — Lay Evidence")]
+    [InlineData(VeteransReviewerPackageAppendix.AdjudicativeRecords, "Appendix E — Adjudicative Records")]
+    [InlineData(VeteransReviewerPackageAppendix.MedicalLiterature, "Appendix F — Medical / Scientific Literature")]
+    public async Task LibreOffice_AppendixIntroductionSharesFirstEvidenceWithoutMergingLaterRecords(
+        string appendix, string heading)
+    {
+        var bytes = ReviewerPackageTestPreparation.Render(Details([
+            Evidence("Alpha source", "Preserved first source content.", appendix),
+            Evidence("Beta source", "Distinct second source content.", appendix)]));
+        var output = await new LibreOfficeVeteransReviewerPackageDocumentConverter().ConvertDocxToPdfAsync(bytes);
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(output);
+        var first = Assert.Single(pdf.GetPages().Where(p => p.Text.Contains("Preserved first source content.")));
+        Assert.Contains(heading, first.Text);
+        Assert.Contains("Alpha source", first.Text);
+        var second = Assert.Single(pdf.GetPages().Where(p => p.Text.Contains("Distinct second source content.")));
+        Assert.True(second.Number > first.Number);
+        Assert.DoesNotContain("Alpha source", second.Text);
+    }
     [Theory]
     [InlineData(VeteransReviewerPackageAppendix.MedicalEvidence)]
     [InlineData(VeteransReviewerPackageAppendix.MedicalOpinionEvidence)]

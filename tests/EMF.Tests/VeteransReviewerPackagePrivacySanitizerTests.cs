@@ -116,6 +116,9 @@ public sealed class VeteransReviewerPackagePrivacySanitizerTests
     [InlineData("FIN: 219435629", "")]
     [InlineData("DOD ID (EDIPI): 1207832630", "")]
     [InlineData("Veterans ID (ICN): 1022399772V106425", "")]
+    [InlineData("FIN\n219435629", "")]
+    [InlineData("DOD ID (EDIPI):\n1207832630", "")]
+    [InlineData("Veterans ID (ICN)\n1022399772V106425", "")]
     public void Redact_NeutralizesAdditionalPatientIdentifiers(string original, string expected)
     {
         var result = VeteransReviewerPackagePrivacySanitizer.Redact(original);
@@ -153,10 +156,68 @@ public sealed class VeteransReviewerPackagePrivacySanitizerTests
 
     [Theory]
     [InlineData("fingernails")]
+    [InlineData("fingernails or tweezers")]
+    [InlineData("financial")]
+    [InlineData("final")]
+    [InlineData("findings")]
     [InlineData("Examine fingernails and fingertips.")]
     [InlineData("FINancial history reviewed.")]
+    [InlineData("financial: 123456789; final: 123456789; findings: 123456789")]
+    [InlineData("SSN123456789 MRN123456789 FIN123456789")]
     public void Redact_RequiresRealIdentifierField(string text) =>
         Assert.Equal(text, VeteransReviewerPackagePrivacySanitizer.Redact(text));
+
+    [Theory]
+    [InlineData("fingernails or tweezers")]
+    [InlineData("financial")]
+    [InlineData("final")]
+    [InlineData("findings")]
+    public void FinalDocumentSweep_PreservesClinicalWordsAcrossRunsAndSourceBytes(string clinicalText)
+    {
+        var source = new DocumentFormat.OpenXml.Wordprocessing.Body(
+            new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
+                new DocumentFormat.OpenXml.Wordprocessing.Run(new DocumentFormat.OpenXml.Wordprocessing.Text(clinicalText[..3])),
+                new DocumentFormat.OpenXml.Wordprocessing.Run(new DocumentFormat.OpenXml.Wordprocessing.Text(clinicalText[3..]))),
+            new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
+                new DocumentFormat.OpenXml.Wordprocessing.Run(new DocumentFormat.OpenXml.Wordprocessing.Text("SSN: 123-45-5668"))));
+        var originalBytes = System.Text.Encoding.UTF8.GetBytes(source.OuterXml);
+        var reviewer = (DocumentFormat.OpenXml.Wordprocessing.Body)source.CloneNode(true);
+
+        VeteransReviewerDocumentPrivacy.Mask(reviewer);
+
+        Assert.Equal(originalBytes, System.Text.Encoding.UTF8.GetBytes(source.OuterXml));
+        Assert.Equal(new[] { clinicalText, "Patient identifier: 5668" },
+            reviewer.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>().Select(p => p.InnerText));
+        Assert.DoesNotContain("SSN", reviewer.InnerText);
+        var once = reviewer.OuterXml;
+        VeteransReviewerDocumentPrivacy.Mask(reviewer);
+        Assert.Equal(once, reviewer.OuterXml);
+    }
+
+    [Theory]
+    [InlineData("FIN: 219435629\nDOD ID (EDIPI): 1207832630\nVeterans ID (ICN): 1022399772V106425")]
+    [InlineData("DOD ID (EDIPI): 1207832630 1022399772V106425Veterans ID (ICN):\nFIN: 219435629")]
+    [InlineData("1207832630 Veterans ID (ICN): 1022399772V106425DOD ID (EDIPI):\nFIN: 219435629")]
+    public void FinalDocumentSweep_SuppressesInternalFieldsAndKeepsOneAssociationIdentifier(string internalFields)
+    {
+        var source = new DocumentFormat.OpenXml.Wordprocessing.Body(
+            new[] { "SSN: 123-45-5668", "MRN: 123455668", internalFields, "Clinical findings unchanged." }
+                .SelectMany(t => t.Split('\n'))
+                .Select(t => new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
+                    new DocumentFormat.OpenXml.Wordprocessing.Run(new DocumentFormat.OpenXml.Wordprocessing.Text(t[..3])),
+                    new DocumentFormat.OpenXml.Wordprocessing.Run(new DocumentFormat.OpenXml.Wordprocessing.Text(t[3..])))));
+        var original = source.OuterXml;
+        var reviewer = (DocumentFormat.OpenXml.Wordprocessing.Body)source.CloneNode(true);
+
+        VeteransReviewerDocumentPrivacy.Mask(reviewer);
+
+        Assert.Equal(original, source.OuterXml);
+        Assert.Single(reviewer.Elements<DocumentFormat.OpenXml.Wordprocessing.Paragraph>()
+            .Where(p => p.InnerText == "Patient identifier: 5668"));
+        foreach (var token in new[] { "SSN", "MRN", "FIN", "EDIPI", "ICN", "DOD", "219435629", "1207832630", "1022399772V106425" })
+            Assert.DoesNotContain(token, reviewer.InnerText);
+        Assert.Contains("Clinical findings unchanged.", reviewer.InnerText);
+    }
 
     [Fact]
     public void Redact_SuppressesReorderedPowerFormIdentifiersWithoutFragmentingLabels()

@@ -2143,7 +2143,16 @@ public static class VeteransReviewerPackageDocxRenderer
 
         foreach (var appendix in AllReviewerAppendices)
         {
-            sections.Start(body, null);
+            var orderedContents = appendixGroups.TryGetValue(appendix, out var groupContents)
+                ? groupContents.OrderBy(content => string.IsNullOrWhiteSpace(GetEvidenceDate(content)) ? 1 : 0)
+                    .ThenBy(content => GetEvidenceDate(content), StringComparer.Ordinal)
+                    .ThenBy(content => GetDisplayName(content), StringComparer.OrdinalIgnoreCase).ToArray()
+                : [];
+            // The appendix introduction belongs to its first evidence section.
+            // A second next-page section here would strand the introduction,
+            // even when the first source preamble/content can comfortably fit.
+            sections.Start(body, orderedContents.Length == 0
+                ? null : SanitizeXmlText(GetDisplayName(orderedContents[0])));
 
             body.Append(
                 StyledParagraph(
@@ -2152,11 +2161,9 @@ public static class VeteransReviewerPackageDocxRenderer
 
             body.Append(
                 ContentParagraph(
-                    AppendixDescription(appendix)));
+                    AppendixDescription(appendix), keepWithNext: orderedContents.Length > 0));
 
-            if (!appendixGroups.TryGetValue(
-                    appendix,
-                    out var groupContents))
+            if (orderedContents.Length == 0)
             {
                 body.Append(
                     ContentParagraph(
@@ -2164,19 +2171,11 @@ public static class VeteransReviewerPackageDocxRenderer
                 continue;
             }
 
-            foreach (var content in
-                groupContents
-                    .OrderBy(
-                        content =>
-                            string.IsNullOrWhiteSpace(GetEvidenceDate(content))
-                                ? 1
-                                : 0)
-                    .ThenBy(content => GetEvidenceDate(content), StringComparer.Ordinal)
-                    .ThenBy(
-                        content => GetDisplayName(content),
-                        StringComparer.OrdinalIgnoreCase))
+            for (var contentIndex = 0; contentIndex < orderedContents.Length; contentIndex++)
             {
-                sections.Start(body, SanitizeXmlText(GetDisplayName(content)));
+                var content = orderedContents[contentIndex];
+                if (contentIndex > 0)
+                    sections.Start(body, SanitizeXmlText(GetDisplayName(content)));
 
                 AppendSourceContent(
                     mainPart,
