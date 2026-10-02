@@ -19,7 +19,7 @@ public sealed class FileSystemArtifactContentStoreTests
             Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
                 File.GetUnixFileMode(root));
             Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite,
-                File.GetUnixFileMode(Path.Combine(root, "artifact")));
+                File.GetUnixFileMode(Directory.GetFiles(Path.Combine(root, ".content-generations")).Single()));
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
@@ -27,17 +27,19 @@ public sealed class FileSystemArtifactContentStoreTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Operations_RejectSymbolicLinksIncludingDanglingLinks(bool dangling)
+    public async Task Operations_RejectSymbolicLinksInGenerationPathsIncludingDanglingLinks(bool dangling)
     {
         if (OperatingSystem.IsWindows()) return;
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        Directory.CreateDirectory(root);
         try
         {
+            var store = new FileSystemArtifactContentStore(root);
+            await store.WriteAsync(new ArtifactId("artifact"), new byte[] { 1 });
             var outside = Path.Combine(root, "outside");
             if (!dangling) await File.WriteAllTextAsync(outside, "synthetic secret");
-            File.CreateSymbolicLink(Path.Combine(root, "artifact"), outside);
-            var store = new FileSystemArtifactContentStore(root);
+            var generation = Directory.GetFiles(Path.Combine(root, ".content-generations")).Single();
+            File.Delete(generation);
+            File.CreateSymbolicLink(generation, outside);
             var id = new ArtifactId("artifact");
             await Assert.ThrowsAsync<IOException>(() => store.ReadAsync(id));
             await Assert.ThrowsAsync<IOException>(() => store.WriteAsync(id, new byte[] { 1 }));
@@ -111,21 +113,20 @@ public sealed class FileSystemArtifactContentStoreTests
     [Fact]
     public async Task ReadAsync_RejectsOversizedBackingFile()
     {
+        if (!OperatingSystem.IsLinux()) return;
         var root =
             Path.Combine(
                 Path.GetTempPath(),
                 Guid.NewGuid().ToString());
 
-        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(root, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 
         try
         {
             var id =
                 new ArtifactId("artifact-too-large");
 
-            await File.WriteAllBytesAsync(
-                Path.Combine(root, id.Value),
-                new byte[5]);
+            await new FileSystemArtifactContentStore(root).WriteAsync(id, new byte[5]);
 
             var store =
                 new FileSystemArtifactContentStore(
@@ -211,10 +212,7 @@ public sealed class FileSystemArtifactContentStoreTests
             Path.GetTempPath(),
             Guid.NewGuid().ToString());
 
-        var outside =
-            Path.Combine(
-                Path.GetDirectoryName(root)!,
-                "artifact-escape");
+        var outside = Path.Combine(Path.GetDirectoryName(root)!, "emf-outside-" + Guid.NewGuid());
 
         try
         {
@@ -222,15 +220,15 @@ public sealed class FileSystemArtifactContentStoreTests
                 new FileSystemArtifactContentStore(root);
 
             var id =
-                new ArtifactId("../artifact-escape");
+                new ArtifactId("../" + Path.GetFileName(outside));
 
             var content =
                 Encoding.UTF8.GetBytes("must stay inside root");
 
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => store.WriteAsync(id, content));
-
-            Assert.False(File.Exists(outside));
+            await File.WriteAllBytesAsync(outside, new byte[] { 7 });
+            await store.WriteAsync(id, content);
+            Assert.Equal(content, await store.ReadAsync(id));
+            Assert.Equal(new byte[] { 7 }, await File.ReadAllBytesAsync(outside));
         }
         finally
         {
@@ -249,7 +247,7 @@ public sealed class FileSystemArtifactContentStoreTests
     [InlineData(".")]
     [InlineData("..")]
     [InlineData("/rooted-artifact")]
-    public async Task Operations_RejectPathLikeArtifactIds(
+    public async Task Operations_TreatPathLikeArtifactIdsAsLogicalData(
         string value)
     {
         var root = Path.Combine(
@@ -264,14 +262,12 @@ public sealed class FileSystemArtifactContentStoreTests
             var content =
                 Encoding.UTF8.GetBytes("protected content");
 
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => store.WriteAsync(id, content));
-
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => store.ReadAsync(id));
-
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => store.DeleteAsync(id));
+            await store.WriteAsync(id, content);
+            Assert.Equal(content, await store.ReadAsync(id));
+            await store.DeleteAsync(id);
+            Assert.Null(await store.ReadAsync(id));
+            Assert.Equal(new[] { ".content-catalog.sqlite", ".content-coordination", ".content-format", ".content-generations" },
+                Directory.GetFileSystemEntries(root).Select(Path.GetFileName).OrderBy(name => name, StringComparer.Ordinal));
         }
         finally
         {
@@ -287,7 +283,7 @@ public sealed class FileSystemArtifactContentStoreTests
             new FileSystemArtifactContentStore(
                 Path.GetTempPath());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<ArgumentException>(
             () => store.ReadAsync(default));
     }
 
@@ -355,7 +351,7 @@ public sealed class FileSystemArtifactContentStoreTests
                 await store.ReadAsync(id));
 
             Assert.Single(
-                Directory.GetFiles(root));
+                Directory.GetFiles(Path.Combine(root, ".content-generations")));
         }
         finally
         {

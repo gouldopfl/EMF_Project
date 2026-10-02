@@ -10,7 +10,7 @@ namespace EMF.ConsoleApplication;
 
 internal static class ArtifactContentStoreFactory
 {
-    public static IArtifactContentStore? Create()
+    public static IVersionedArtifactContentStore? Create()
     {
         return Create(
             Environment.GetEnvironmentVariable(
@@ -23,7 +23,7 @@ internal static class ArtifactContentStoreFactory
                 "EMF_ARTIFACT_CONTENT_PATH"));
     }
 
-    internal static IArtifactContentStore? Create(
+    internal static IVersionedArtifactContentStore? Create(
         string? vaultUri,
         string? keyName,
         string? keyVersion,
