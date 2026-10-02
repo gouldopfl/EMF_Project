@@ -5,6 +5,9 @@ namespace EMF.Persistence.Storage;
 internal interface IContentStoragePlatform
 {
     void RequirePlatform();
+    void RequireSameFileSystem(string rootPath, string stagingParentPath);
+    ContentSourceIdentity InspectSourceFile(string path);
+    FileStream OpenSourceFile(string path);
     Task<IDisposable> AcquireAdmissionAsync(string rootPath, CancellationToken cancellationToken);
     Task<IDisposable> AcquireAsync(string path, bool exclusive, CancellationToken cancellationToken);
     void FlushDirectory(string path, bool verifyFileSystem = false);

@@ -18,6 +18,9 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
     private readonly IContentStoragePlatform _platform;
     private readonly string _rootPath;
     private readonly long _maxStoredBytes;
+    private readonly SemaphoreSlim _admission = new(1, 1);
+    private volatile bool _admitted;
+    private Dictionary<(string Artifact, string Revision), MigrationOrigin>? _verifiedOrigins;
     // Narrow internal fault/coordination seam, unavailable to production callers.
     internal Func<string, Task>? Checkpoint { get; set; }
 
@@ -29,7 +32,7 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
         _platform = platform;
         if (string.IsNullOrWhiteSpace(rootPath)) throw new ArgumentException("Root path is required.", nameof(rootPath));
         if (maxStoredBytes <= 0 || maxStoredBytes > Array.MaxLength) throw new ArgumentOutOfRangeException(nameof(maxStoredBytes));
-        _rootPath = Path.GetFullPath(rootPath);
+        _rootPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootPath));
         _maxStoredBytes = maxStoredBytes;
     }
     private string PathFor(string name) => Path.Combine(_rootPath, name);
@@ -227,8 +230,40 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
     private async Task AdmitAsync(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        FileSystemArtifactContentMigration.RequireCompletedWorkspace(_rootPath, _platform);
+        if (_admitted) { ValidateAdmittedStructure(); return; }
+        await _admission.WaitAsync(ct);
+        try
+        {
+            if (_admitted) { ValidateAdmittedStructure(); return; }
+            await AdmitCoreAsync(ct);
+            _admitted = true;
+        }
+        finally { _admission.Release(); }
+    }
+
+    private void ValidateAdmittedStructure()
+    {
+        RejectSymbolicLinks(_rootPath);
+        _platform.ValidatePrivatePermissions(_rootPath);
+        foreach (var name in new[] { Gate, Marker, Catalog })
+        {
+            RejectSymbolicLinks(PathFor(name));
+            if (!File.Exists(PathFor(name))) throw new InvalidDataException("Admitted content protocol state is missing.");
+            _platform.ValidatePrivatePermissions(PathFor(name));
+        }
+        RejectSymbolicLinks(PathFor(Generations));
+        if (!Directory.Exists(PathFor(Generations)) || File.ReadAllText(PathFor(Marker)) != "EMF-CONTENT-1")
+            throw new InvalidDataException("Admitted content protocol state is damaged.");
+        _platform.ValidatePrivatePermissions(PathFor(Generations));
+    }
+
+    private async Task AdmitCoreAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
         _platform.RequirePlatform();
         RejectSymbolicLinks(_rootPath);
+        FileSystemArtifactContentMigration.RequireCompletedWorkspace(_rootPath, _platform);
         // Read-only preflight must precede any gate creation or permission mutation.
         if (Directory.Exists(_rootPath)) InspectUnmarkedRoot();
         await At("AdmissionPreflight");
@@ -241,17 +276,18 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
         }
         // Recognized roots use only the normal producer gate/catalog protocol.
         // Directory coordination is solely for an undecided bootstrap layout.
-        if (TryAdmitCurrentRoot()) return;
+        if (await TryAdmitCurrentRootAsync(ct)) return;
         await At("BeforeAdmissionCoordination");
         // The existing directory inode is read-only bootstrap coordination. Unlike
         // the producer gate, acquiring it inserts no entry into a legacy root.
         using var admission = await _platform.AcquireAdmissionAsync(_rootPath, ct);
+        FileSystemArtifactContentMigration.RequireCompletedWorkspace(_rootPath, _platform);
         InspectUnmarkedRoot();
         _platform.ValidatePrivatePermissions(_rootPath);
         _platform.FlushDirectory(_rootPath, true);
         foreach (var name in new[] { Gate, Marker, Catalog, Catalog + "-journal", Generations }) RejectSymbolicLinks(PathFor(name));
         ValidateProtocolPermissions();
-        if (TryAdmitCurrentRoot()) return;
+        if (await TryAdmitCurrentRootAsync(ct)) return;
         using var gate = await _platform.AcquireAsync(PathFor(Gate), true, ct);
         InspectUnmarkedRoot(gateCreatedByCurrentBootstrap: true); // This attempt alone may admit its newly created gate.
         ValidateProtocolPermissions();
@@ -273,12 +309,9 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
             using var connection = OpenCatalog(initializing: true);
             using var transaction = connection.BeginTransaction(deferred: false);
             using var command = connection.CreateCommand(); command.Transaction = transaction;
-            command.CommandText = """
-                CREATE TABLE ContentState(ArtifactId TEXT PRIMARY KEY,Revision TEXT NOT NULL,Generation TEXT,Length INTEGER NOT NULL,Owner TEXT);
-                CREATE TABLE ContentReceipts(EnumerationSequence INTEGER PRIMARY KEY AUTOINCREMENT,OperationId TEXT NOT NULL UNIQUE,Request TEXT NOT NULL,Receipt TEXT NOT NULL,AuditEventId TEXT,PublishedGeneration TEXT,MutationRevision TEXT UNIQUE);
-                PRAGMA user_version=2;
-                """;
+            command.CommandText = ContentCatalogSchema.Foundation;
             command.ExecuteNonQuery(); transaction.Commit();
+            ContentCatalogSchema.Upgrade(connection);
             _platform.FlushDirectory(_rootPath);
             using (var ready = new FileStream(PathFor(Marker), FileMode.Truncate, FileAccess.Write, FileShare.None))
             { ready.Write("EMF-CONTENT-1"u8); ready.Flush(true); }
@@ -286,9 +319,9 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
         }
         if (!File.Exists(PathFor(Catalog)) || !Directory.Exists(PathFor(Generations)) || File.ReadAllText(PathFor(Marker)) != "EMF-CONTENT-1")
             throw new InvalidDataException("Versioned content root is damaged; reconciliation is required.");
-        using var validated = OpenCatalog();
+        using var validated = OpenCatalog(fullMigrationEvidence: true);
     }
-    private bool TryAdmitCurrentRoot()
+    private async Task<bool> TryAdmitCurrentRootAsync(CancellationToken ct)
     {
         if (!File.Exists(PathFor(Marker))) return false;
         RejectSymbolicLinks(PathFor(Marker));
@@ -300,7 +333,20 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
         if (File.ReadAllText(PathFor(Marker)) != "EMF-CONTENT-1") return false;
         if (!File.Exists(PathFor(Catalog)) || !Directory.Exists(PathFor(Generations)))
             throw new InvalidDataException("Versioned content root is damaged; reconciliation is required.");
-        using var checkedCatalog = OpenCatalog();
+        // Recognized version 2 roots upgrade only under the stable exclusive
+        // generation gate. A current root requires no additional gate acquisition.
+        using (var inspection = OpenCatalog(initializing: true))
+        {
+            using var version = inspection.CreateCommand();
+            version.CommandText = "PRAGMA user_version";
+            if (Convert.ToInt32(version.ExecuteScalar(), CultureInfo.InvariantCulture) == 2)
+            {
+                using var gate = await _platform.AcquireAsync(PathFor(Gate), true, ct);
+                ContentCatalogSchema.Upgrade(inspection, (connection, transaction) => ValidateCatalogState(connection, transaction, foundationOnly: true));
+                _platform.FlushDirectory(_rootPath);
+            }
+        }
+        using var checkedCatalog = OpenCatalog(fullMigrationEvidence: true);
         return true;
     }
 
@@ -342,8 +388,9 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
             }
     }
 
-    private SqliteConnection OpenCatalog(bool initializing = false)
+    private SqliteConnection OpenCatalog(bool initializing = false, bool fullMigrationEvidence = false)
     {
+        if (!initializing) FileSystemArtifactContentMigration.RequireCompletedWorkspace(_rootPath, _platform);
         // SQLite can touch rollback/WAL/SHM paths while opening or querying
         // journal mode. Reject unsafe paths before handing the catalog to SQLite.
         _platform.ValidatePrivatePermissions(_rootPath);
@@ -362,26 +409,34 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
                 throw new InvalidDataException("Content catalog requires EXTRA durability.");
             if (!initializing)
             {
-                command.CommandText = "PRAGMA user_version";
-                if (Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture) != 2)
-                    throw new InvalidDataException("Content catalog schema version is unsupported.");
+                ContentCatalogSchema.Validate(connection);
                 command.CommandText = "SELECT ArtifactId, Revision, Generation, Length, Owner FROM ContentState LIMIT 0; SELECT OperationId, Request, Receipt, AuditEventId, PublishedGeneration, MutationRevision, EnumerationSequence FROM ContentReceipts LIMIT 0";
                 command.ExecuteNonQuery();
-                ValidateCatalogState(connection);
+                Dictionary<(string Artifact, string Revision), MigrationOrigin> origins;
+                using (var transaction = connection.BeginTransaction(deferred: true))
+                {
+                    origins = ValidateCatalogState(connection, transaction);
+                    transaction.Commit();
+                }
+                if (fullMigrationEvidence)
+                {
+                    MigrationOrigins.VerifyEvidence(origins, _rootPath, _platform, _maxStoredBytes);
+                    _verifiedOrigins = origins;
+                }
             }
             return connection;
         }
         catch { connection.Dispose(); throw; }
     }
-    private void ValidateCatalogState(SqliteConnection connection)
+    private Dictionary<(string Artifact, string Revision), MigrationOrigin> ValidateCatalogState(
+        SqliteConnection connection, SqliteTransaction transaction, bool foundationOnly = false)
     {
-        // Milestone 1 favors complete admission validation over an unchecked
-        // fast path. Future optimization must preserve these fail-closed checks.
-        using var transaction = connection.BeginTransaction(deferred: true);
         using var command = connection.CreateCommand(); command.Transaction = transaction;
         command.CommandText = "PRAGMA quick_check";
         if (!string.Equals(command.ExecuteScalar() as string, "ok", StringComparison.Ordinal))
             throw new InvalidDataException("Content catalog integrity check failed.");
+        var origins = foundationOnly ? new Dictionary<(string Artifact, string Revision), MigrationOrigin>() :
+            MigrationOrigins.Validate(connection, transaction, _rootPath, _platform, _maxStoredBytes);
         var receipts = new Dictionary<(string Artifact, string Revision), (ArtifactContentMutationReceipt Receipt, string? Generation)>();
         command.CommandText = "SELECT OperationId, Request, Receipt, AuditEventId, PublishedGeneration, MutationRevision, EnumerationSequence FROM ContentReceipts";
         using (var reader = command.ExecuteReader())
@@ -405,9 +460,16 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
                 }
             }
         }
+        if (receipts.Keys.Select(key => key.Revision).Intersect(origins.Keys.Select(key => key.Revision), StringComparer.Ordinal).Any())
+            throw new InvalidDataException("Content revision has contradictory lineage authorities.");
         foreach (var ((artifact, _), published) in receipts)
-            if (published.Receipt.PriorRevision is { } previous && !receipts.ContainsKey((artifact, previous.Value)))
+            if (published.Receipt.PriorRevision is { } previous && !receipts.ContainsKey((artifact, previous.Value)) && !origins.ContainsKey((artifact, previous.Value)))
                 throw new InvalidDataException("Content mutation lineage is incomplete.");
+        var originRoots = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var key in origins.Keys)
+            if (!originRoots.TryAdd(key.Artifact, key.Revision))
+                throw new InvalidDataException("Multiple bootstrap lineage origins.");
+        var visitedLineage = new HashSet<(string Artifact, string Revision)>();
         var stateArtifacts = new HashSet<string>(StringComparer.Ordinal);
         command.CommandText = "SELECT ArtifactId, Revision, Generation, Length, Owner FROM ContentState";
         using (var reader = command.ExecuteReader())
@@ -415,22 +477,50 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
             while (reader.Read())
             {
                 var artifact = new ArtifactId(reader.GetString(0)).Value;
-                stateArtifacts.Add(artifact);
+                if (!stateArtifacts.Add(artifact)) throw new InvalidDataException("Duplicate content state identity.");
                 var revision = ArtifactContentIdentity.Validate(reader.GetString(1));
                 var generation = reader.IsDBNull(2) ? null : reader.GetString(2);
                 var length = reader.GetInt64(3);
                 var owner = reader.IsDBNull(4) ? null : ArtifactContentIdentity.Validate(reader.GetString(4));
-                if (!receipts.TryGetValue((artifact, revision), out var published) || published.Receipt.OwnershipToken?.Value != owner ||
-                    published.Generation != generation ||
-                    (generation is null) != (published.Receipt.Outcome == ArtifactContentMutationOutcome.Deleted) || length < 0 ||
-                    generation is null && length != 0)
+                var hasReceipt = receipts.TryGetValue((artifact, revision), out var published);
+                var hasOrigin = origins.TryGetValue((artifact, revision), out var origin);
+                if (hasReceipt == hasOrigin || length < 0 || generation is null && length != 0 ||
+                    hasReceipt && (published.Receipt.OwnershipToken?.Value != owner || published.Generation != generation ||
+                        (generation is null) != (published.Receipt.Outcome == ArtifactContentMutationOutcome.Deleted)) ||
+                    hasOrigin && (owner is not null || origin!.Generation != generation || origin.Length != length))
                     throw new InvalidDataException("Content catalog state is contradictory.");
                 if (generation is not null) ValidateGeneration(generation, length);
+                ValidateLineage(artifact, revision, receipts, origins, originRoots.ContainsKey(artifact), visitedLineage);
             }
         }
-        if (receipts.Keys.Any(key => !stateArtifacts.Contains(key.Artifact)))
+        if (visitedLineage.Count != receipts.Count + origins.Count)
+            throw new InvalidDataException("Content mutation lineage is branched or disconnected.");
+        if (receipts.Keys.Concat(origins.Keys).Any(key => !stateArtifacts.Contains(key.Artifact)))
             throw new InvalidDataException("Content mutation lineage has no current/tombstone state.");
-        transaction.Commit();
+        if (_admitted && (_verifiedOrigins is null || _verifiedOrigins.Count != origins.Count ||
+            origins.Any(pair => !_verifiedOrigins.TryGetValue(pair.Key, out var verified) || verified != pair.Value)))
+            throw new InvalidDataException("Previously admitted migration provenance changed.");
+        return origins;
+    }
+
+    private static void ValidateLineage(string artifact, string current,
+        Dictionary<(string Artifact, string Revision), (ArtifactContentMutationReceipt Receipt, string? Generation)> receipts,
+        Dictionary<(string Artifact, string Revision), MigrationOrigin> origins, bool hasOrigin,
+        HashSet<(string Artifact, string Revision)> visited)
+    {
+        var revision = current;
+        while (true)
+        {
+            if (!visited.Add((artifact, revision))) throw new InvalidDataException("Content mutation lineage is cyclic.");
+            if (origins.ContainsKey((artifact, revision))) break;
+            if (!receipts.TryGetValue((artifact, revision), out var node))
+                throw new InvalidDataException("Content mutation lineage predecessor is missing.");
+            if (node.Receipt.PriorRevision is { } prior) { revision = prior.Value; continue; }
+            if (hasOrigin || node.Receipt.Outcome != ArtifactContentMutationOutcome.Created)
+                throw new InvalidDataException("Content mutation lineage has an invalid root authority.");
+            break;
+        }
+
     }
     private sealed record State(string Revision, string? Generation, long Length, string? Owner);
     private static State? ReadState(SqliteConnection connection, SqliteTransaction transaction, ArtifactId id)

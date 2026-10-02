@@ -21,6 +21,33 @@ internal sealed class LinuxContentDurability : IContentStoragePlatform
         if (!OperatingSystem.IsLinux() || IntPtr.Size != 8)
             throw new PlatformNotSupportedException("Versioned content requires supported 64-bit Linux local storage.");
     }
+    public void RequireSameFileSystem(string rootPath, string stagingParentPath)
+    {
+        RequirePlatform();
+        if (DirectoryIdentity(rootPath) != DirectoryIdentity(stagingParentPath))
+            throw new PlatformNotSupportedException("Offline content migration requires the root and its staging parent on the same filesystem mount.");
+    }
+
+    private static (uint Major, uint Minor, ulong Mount) DirectoryIdentity(string path)
+    {
+        var buffer = Marshal.AllocHGlobal(256);
+        try
+        {
+            // Device identity alone misses bind-mount boundaries: rename can return
+            // EXDEV even when both paths belong to the same underlying filesystem.
+            const uint requested = 0x1001; // STATX_TYPE | STATX_MNT_ID
+            if (statx(-100, path, 0x100, requested, buffer) != 0)
+                throw new IOException("Cannot inspect migration filesystem identity.");
+            if ((unchecked((uint)Marshal.ReadInt32(buffer)) & requested) != requested)
+                throw new PlatformNotSupportedException("Migration filesystem mount identity is unavailable.");
+            if (((ushort)Marshal.ReadInt16(buffer, 28) & 0xF000) != 0x4000)
+                throw new IOException("Migration root and staging parent must be directories.");
+            return (unchecked((uint)Marshal.ReadInt32(buffer, 136)), unchecked((uint)Marshal.ReadInt32(buffer, 140)),
+                unchecked((ulong)Marshal.ReadInt64(buffer, 144)));
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+    }
+
     private SafeFileHandle OpenGate(string path)
     {
         RequirePlatform();
@@ -101,6 +128,37 @@ internal sealed class LinuxContentDurability : IContentStoragePlatform
         if (directory) required |= UnixFileMode.UserExecute;
         if ((mode & unauthorized) != 0 || (mode & required) != required)
             throw new IOException("Content storage permissions are unsafe; owner-only access is required.");
+    }
+
+    public ContentSourceIdentity InspectSourceFile(string path)
+    {
+        RequirePlatform();
+        var buffer = Marshal.AllocHGlobal(256);
+        try
+        {
+            if (statx(-100, path, 0x100, 0x7FF, buffer) != 0)
+                throw new IOException("Cannot inspect retained legacy source.");
+            if ((Marshal.ReadInt32(buffer) & 0x7FF) != 0x7FF ||
+                ((ushort)Marshal.ReadInt16(buffer, 28) & 0xF000) != 0x8000 ||
+                Marshal.ReadInt32(buffer, 16) != 1 || unchecked((uint)Marshal.ReadInt32(buffer, 20)) != geteuid())
+                throw new IOException("Legacy sources must be owned regular files without links.");
+            // Rename changes ctime. Identity, size, mode and mtime are retained;
+            // exact bytes are independently rechecked against the private digest.
+            var stamp = string.Join(":", new long[] { Marshal.ReadInt32(buffer, 136), Marshal.ReadInt32(buffer, 140),
+                Marshal.ReadInt64(buffer, 32), Marshal.ReadInt16(buffer, 28), Marshal.ReadInt32(buffer, 20),
+                Marshal.ReadInt32(buffer, 24), Marshal.ReadInt64(buffer, 40), Marshal.ReadInt64(buffer, 112), Marshal.ReadInt32(buffer, 120) });
+            return new(Marshal.ReadInt64(buffer, 40), stamp);
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+    }
+
+    public FileStream OpenSourceFile(string path)
+    {
+        RequirePlatform();
+        // NOATIME avoids altering retained evidence metadata while inspecting it.
+        var fd = open(path, 0x20000 | 0x80000 | 0x40000, 0); // RDONLY|NOFOLLOW|CLOEXEC|NOATIME
+        if (fd < 0) throw new IOException("Cannot open retained legacy source without changing access metadata.");
+        return new FileStream(new SafeFileHandle((IntPtr)fd, true), FileAccess.Read);
     }
 
     public void FlushDirectory(string path, bool verifyFileSystem = false)

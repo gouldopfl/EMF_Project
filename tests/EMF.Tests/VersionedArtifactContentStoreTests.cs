@@ -471,10 +471,83 @@ public sealed class VersionedArtifactContentStoreTests
         using var f = new Fixture(); await f.Create();
         using var conn = Catalog(f.Root); using var cmd = conn.CreateCommand();
         cmd.CommandText = "PRAGMA journal_mode"; Assert.Equal("delete", cmd.ExecuteScalar());
-        cmd.CommandText = "PRAGMA user_version"; Assert.Equal(2L, cmd.ExecuteScalar());
+        cmd.CommandText = "PRAGMA user_version"; Assert.Equal(3L, cmd.ExecuteScalar());
         // synchronous is connection-local; provider verifies EXTRA on each open.
         cmd.CommandText = "SELECT Receipt FROM ContentReceipts";
         Assert.DoesNotContain("Payload", (string)cmd.ExecuteScalar()!);
+    }
+
+    [Fact]
+    public async Task VersionTwoCatalogUpgradesWithoutChangingReceiptsOrRevisions()
+    {
+        using var f = new Fixture();
+        var created = await f.Create();
+        using (var connection = Catalog(f.Root))
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "DROP TRIGGER IF EXISTS ContentReceiptOriginInsert; DROP TRIGGER IF EXISTS ContentReceiptOriginUpdate; DROP TABLE ContentMigrationArtifacts; DROP TABLE ContentMigrationRun; DROP TABLE ContentSchemaMigrations; PRAGMA user_version=2";
+            command.ExecuteNonQuery();
+        }
+        var reopened = new FileSystemArtifactContentStore(f.Root);
+        Assert.Equal(created.CurrentRevision, (await reopened.ReadVersionedAsync(f.Id))!.Revision);
+        Assert.Equal(created.Receipt, await reopened.GetMutationOutcomeAsync(created.Receipt.OperationId));
+        // Reopening again must preserve the completed migration ledger exactly.
+        await new FileSystemArtifactContentStore(f.Root).ReadAsync(f.Id);
+        using var catalog = Catalog(f.Root); using var query = catalog.CreateCommand();
+        query.CommandText = "SELECT group_concat(Version, ',') FROM (SELECT Version FROM ContentSchemaMigrations ORDER BY Version)";
+        Assert.Equal("2,3", query.ExecuteScalar());
+        query.CommandText = "SELECT count(*) FROM ContentReceipts"; Assert.Equal(1L, query.ExecuteScalar());
+        query.CommandText = "SELECT count(*) FROM ContentMigrationArtifacts"; Assert.Equal(0L, query.ExecuteScalar());
+    }
+
+    [Theory]
+    [InlineData("state")]
+    [InlineData("receipt")]
+    [InlineData("predecessor")]
+    public async Task DamagedVersionTwoSemanticStateRollsBackBeforeVersionThree(string damage)
+    {
+        using var f = new Fixture(); await f.Create(); await f.Store.WriteAsync(f.Id, new byte[] { 2 });
+        using var connection = Catalog(f.Root); using var command = connection.CreateCommand();
+        command.CommandText = "DROP TRIGGER ContentReceiptOriginInsert; DROP TRIGGER ContentReceiptOriginUpdate; DROP TABLE ContentMigrationArtifacts; DROP TABLE ContentMigrationRun; DROP TABLE ContentSchemaMigrations; PRAGMA user_version=2";
+        command.ExecuteNonQuery();
+        command.CommandText = damage switch
+        {
+            "state" => "UPDATE ContentState SET Revision='orphan-current'",
+            "receipt" => "UPDATE ContentReceipts SET Receipt='{}'",
+            _ => "DELETE FROM ContentReceipts WHERE EnumerationSequence=(SELECT min(EnumerationSequence) FROM ContentReceipts)"
+        };
+        command.ExecuteNonQuery();
+        await Assert.ThrowsAnyAsync<Exception>(() => new FileSystemArtifactContentStore(f.Root).ReadAsync(f.Id));
+        command.CommandText = "PRAGMA user_version"; Assert.Equal(2L, command.ExecuteScalar());
+        command.CommandText = "SELECT count(*) FROM sqlite_master WHERE name IN ('ContentSchemaMigrations','ContentMigrationRun','ContentMigrationArtifacts')";
+        Assert.Equal(0L, command.ExecuteScalar());
+    }
+
+    [Fact]
+    public async Task FailedSchemaUpgradeRollsBackItsTablesAndLedger()
+    {
+        using var f = new Fixture(); await f.Create();
+        using var connection = Catalog(f.Root); using var command = connection.CreateCommand();
+        command.CommandText = "DROP TRIGGER ContentReceiptOriginInsert; DROP TRIGGER ContentReceiptOriginUpdate; DROP TRIGGER ContentOriginReceiptInsert; DROP TRIGGER ContentOriginReceiptUpdate; DROP TABLE ContentMigrationRun; DROP TABLE ContentSchemaMigrations; PRAGMA user_version=2";
+        command.ExecuteNonQuery();
+        // A conflicting owned table forces migration 3 to fail after ledger creation.
+        Assert.Throws<Microsoft.Data.Sqlite.SqliteException>(() => ContentCatalogSchema.Upgrade(connection, (_, _) => { }));
+        command.CommandText = "PRAGMA user_version"; Assert.Equal(2L, command.ExecuteScalar());
+        command.CommandText = "SELECT count(*) FROM sqlite_master WHERE name IN ('ContentSchemaMigrations','ContentMigrationRun')";
+        Assert.Equal(0L, command.ExecuteScalar());
+    }
+
+    [Fact]
+    public async Task DamagedSchemaLedgerRejectsAdmission()
+    {
+        using var f = new Fixture(); await f.Create();
+        using (var connection = Catalog(f.Root))
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "DELETE FROM ContentSchemaMigrations WHERE Version=3";
+            command.ExecuteNonQuery();
+        }
+        await Assert.ThrowsAsync<InvalidDataException>(() => f.Store.ReadAsync(f.Id));
     }
 
     [Theory]
@@ -845,6 +918,9 @@ public sealed class VersionedArtifactContentStoreTests
         public int AdmissionAcquisitions { get; private set; }
         public int SharedGateAcquisitions { get; private set; }
         public void RequirePlatform() => _inner.RequirePlatform();
+        public void RequireSameFileSystem(string rootPath, string stagingParentPath) => _inner.RequireSameFileSystem(rootPath, stagingParentPath);
+        public ContentSourceIdentity InspectSourceFile(string path) => _inner.InspectSourceFile(path);
+        public FileStream OpenSourceFile(string path) => _inner.OpenSourceFile(path);
         public Task<IDisposable> AcquireAdmissionAsync(string rootPath, CancellationToken cancellationToken)
         { AdmissionAcquisitions++; return _inner.AcquireAdmissionAsync(rootPath, cancellationToken); }
         public Task<IDisposable> AcquireAsync(string path, bool exclusive, CancellationToken cancellationToken)
@@ -869,6 +945,9 @@ public sealed class VersionedArtifactContentStoreTests
     private sealed class UnsupportedPlatform : IContentStoragePlatform
     {
         public bool Checked { get; private set; }
+        public void RequireSameFileSystem(string rootPath, string stagingParentPath) => throw new InvalidOperationException();
+        public ContentSourceIdentity InspectSourceFile(string path) => throw new InvalidOperationException();
+        public FileStream OpenSourceFile(string path) => throw new InvalidOperationException();
         public void RequirePlatform() { Checked = true; throw new PlatformNotSupportedException("Synthetic unsupported platform."); }
         public Task<IDisposable> AcquireAdmissionAsync(string rootPath, CancellationToken cancellationToken) => throw new InvalidOperationException();
         public Task<IDisposable> AcquireAsync(string path, bool exclusive, CancellationToken cancellationToken) => throw new InvalidOperationException();
