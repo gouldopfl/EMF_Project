@@ -920,6 +920,7 @@ public sealed class VersionedArtifactContentStoreTests
         public void RequirePlatform() => _inner.RequirePlatform();
         public void RequireSameFileSystem(string rootPath, string stagingParentPath) => _inner.RequireSameFileSystem(rootPath, stagingParentPath);
         public ContentSourceIdentity InspectSourceFile(string path) => _inner.InspectSourceFile(path);
+        public IGenerationNamespaceWatch CreateGenerationNamespaceWatch(string directory) => _inner.CreateGenerationNamespaceWatch(directory);
         public FileStream OpenSourceFile(string path) => _inner.OpenSourceFile(path);
         public Task<IDisposable> AcquireAdmissionAsync(string rootPath, CancellationToken cancellationToken)
         { AdmissionAcquisitions++; return _inner.AcquireAdmissionAsync(rootPath, cancellationToken); }
@@ -947,6 +948,7 @@ public sealed class VersionedArtifactContentStoreTests
         public bool Checked { get; private set; }
         public void RequireSameFileSystem(string rootPath, string stagingParentPath) => throw new InvalidOperationException();
         public ContentSourceIdentity InspectSourceFile(string path) => throw new InvalidOperationException();
+        public IGenerationNamespaceWatch CreateGenerationNamespaceWatch(string directory) => throw new InvalidOperationException();
         public FileStream OpenSourceFile(string path) => throw new InvalidOperationException();
         public void RequirePlatform() { Checked = true; throw new PlatformNotSupportedException("Synthetic unsupported platform."); }
         public Task<IDisposable> AcquireAdmissionAsync(string rootPath, CancellationToken cancellationToken) => throw new InvalidOperationException();

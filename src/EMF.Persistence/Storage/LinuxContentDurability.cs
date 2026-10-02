@@ -16,6 +16,11 @@ internal sealed class LinuxContentDurability : IContentStoragePlatform
     [DllImport("libc", SetLastError = true)] private static extern int fstatfs(int fd, IntPtr buffer);
     [DllImport("libc", SetLastError = true)] private static extern int statx(int dirfd, string path, int flags, uint mask, IntPtr buffer);
     [DllImport("libc")] private static extern uint geteuid();
+    public IGenerationNamespaceWatch CreateGenerationNamespaceWatch(string directory)
+    {
+        RequirePlatform();
+        return new LinuxGenerationNamespaceWatch(directory);
+    }
     public void RequirePlatform()
     {
         if (!OperatingSystem.IsLinux() || IntPtr.Size != 8)

@@ -445,6 +445,7 @@ public sealed class ArtifactContentMigrationTests
         public void RequirePlatform() => _inner.RequirePlatform();
         public void RequireSameFileSystem(string rootPath, string stagingParentPath) => _inner.RequireSameFileSystem(rootPath, stagingParentPath);
         public ContentSourceIdentity InspectSourceFile(string path) => _inner.InspectSourceFile(path);
+        public IGenerationNamespaceWatch CreateGenerationNamespaceWatch(string directory) => _inner.CreateGenerationNamespaceWatch(directory);
         public FileStream OpenSourceFile(string path) { Interlocked.Increment(ref _sourceReads); return _inner.OpenSourceFile(path); }
         public Task<IDisposable> AcquireAdmissionAsync(string path, CancellationToken ct) => _inner.AcquireAdmissionAsync(path, ct);
         public Task<IDisposable> AcquireAsync(string path, bool exclusive, CancellationToken ct) => _inner.AcquireAsync(path, exclusive, ct);

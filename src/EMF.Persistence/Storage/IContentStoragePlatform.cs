@@ -1,9 +1,10 @@
 namespace EMF.Persistence.Storage;
 
-// Only OS-dependent durability, coordination and private permissions belong here.
+// Only OS-dependent durability, coordination, namespace watching and private permissions belong here.
 // Catalog, revision, receipt and bootstrap semantics stay in the common store.
 internal interface IContentStoragePlatform
 {
+    IGenerationNamespaceWatch CreateGenerationNamespaceWatch(string directory);
     void RequirePlatform();
     void RequireSameFileSystem(string rootPath, string stagingParentPath);
     ContentSourceIdentity InspectSourceFile(string path);

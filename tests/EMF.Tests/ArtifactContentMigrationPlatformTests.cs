@@ -52,6 +52,7 @@ public sealed class ArtifactContentMigrationPlatformTests
         public void ValidatePrivatePermissions(string path) => _inner.ValidatePrivatePermissions(path);
         public void CreatePrivateDirectory(string path) => _inner.CreatePrivateDirectory(path);
         public ContentSourceIdentity InspectSourceFile(string path) => throw new InvalidOperationException();
+        public IGenerationNamespaceWatch CreateGenerationNamespaceWatch(string directory) => throw new InvalidOperationException();
         public FileStream OpenSourceFile(string path) => throw new InvalidOperationException();
         public Task<IDisposable> AcquireAdmissionAsync(string rootPath, CancellationToken cancellationToken) => throw new InvalidOperationException();
         public Task<IDisposable> AcquireAsync(string path, bool exclusive, CancellationToken cancellationToken) => throw new InvalidOperationException();

@@ -8,7 +8,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EMF.Persistence.Storage;
 
-public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentStore
+public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactContentStore
 {
     public const long DefaultMaxStoredBytes = 150L * 1024 * 1024;
     private const string Gate = ".content-coordination";
@@ -18,6 +18,7 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
     private readonly IContentStoragePlatform _platform;
     private readonly string _rootPath;
     private readonly long _maxStoredBytes;
+    internal bool IncrementalGenerationInspection { get; set; }
     private readonly SemaphoreSlim _admission = new(1, 1);
     private volatile bool _admitted;
     private Dictionary<(string Artifact, string Revision), MigrationOrigin>? _verifiedOrigins;
@@ -377,7 +378,9 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
                 catch (FileNotFoundException) when (name == Catalog + "-journal") { }
             }
         }
-        if (Directory.Exists(PathFor(Generations)))
+        // The collector's private store validates this namespace through bounded
+        // watch-backed inspection. Ordinary store admission keeps its full checks.
+        if (Directory.Exists(PathFor(Generations)) && !IncrementalGenerationInspection)
             foreach (var path in Directory.EnumerateFileSystemEntries(PathFor(Generations)))
             {
                 RejectSymbolicLinks(path);
@@ -429,7 +432,7 @@ public sealed class FileSystemArtifactContentStore : IVersionedArtifactContentSt
         catch { connection.Dispose(); throw; }
     }
     private Dictionary<(string Artifact, string Revision), MigrationOrigin> ValidateCatalogState(
-        SqliteConnection connection, SqliteTransaction transaction, bool foundationOnly = false)
+        SqliteConnection connection, SqliteTransaction? transaction, bool foundationOnly = false)
     {
         using var command = connection.CreateCommand(); command.Transaction = transaction;
         command.CommandText = "PRAGMA quick_check";

@@ -10,7 +10,7 @@ internal sealed record MigrationOrigin(string Generation, long Length, string St
 internal static class MigrationOrigins
 {
     internal static Dictionary<(string Artifact, string Revision), MigrationOrigin> Validate(
-        SqliteConnection connection, SqliteTransaction transaction, string root,
+        SqliteConnection connection, SqliteTransaction? transaction, string root,
         IContentStoragePlatform platform, long maxBytes)
     {
         var origins = new Dictionary<(string Artifact, string Revision), MigrationOrigin>();
