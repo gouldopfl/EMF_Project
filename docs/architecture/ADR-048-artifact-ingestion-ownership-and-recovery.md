@@ -60,6 +60,24 @@ Cleanup claim compares expected intent revision/state and ownership in a metadat
 
 No legitimate adopter can commit through CleanupClaimed. Provisional content cannot be rewrapped/replaced as an ordinary committed object before adoption; participating mutation coordinators enforce the lifecycle state. If another writer bypasses this rule, ownership is ambiguous and recovery fails closed. Intent fencing and physical revision are separate safeguards, not a second physical locking system.
 
+## Irreversible adoption persistence invariant (normative)
+
+Once metadata adoption commits, Persistence MUST durably and monotonically record that the provisional Artifact was adopted. The immutable adoption marker MUST commit in the same metadata transaction as Artifact/provenance adoption, authoritative classification adoption and MetadataCommitted. It MUST remain independent of mutable intent, recovery and audit-delivery status. Persistence MUST reject subsequent mutation, clearing or deletion of this marker; deleting or losing an intent row MUST NOT delete adoption evidence. No transition, repair, cancellation, recovery action, missing intent row or RequiresReview state may make adopted content eligible for ingestion compensation again.
+
+A cleanup claim MUST atomically verify all of the following within the metadata coordination boundary that excludes adoption:
+
+- The lifecycle state is cleanup-eligible.
+- No immutable adoption marker exists for the provisional Artifact.
+- No committed adoption evidence exists for the provisional Artifact.
+- The expected intent revision and state still match.
+- Provisional ownership still matches.
+
+MetadataCommitted, Completed, immutable adoption evidence, contradictory state or unresolved lifecycle damage MUST deny cleanup. Ambiguous or damaged state MUST become durable RequiresReview work, never cleanup permission. Absence of an intent or marker alone is not proof of non-adoption. Before executing or replaying physical cleanup, recovery MUST revalidate the persisted claim and adoption evidence; a stale or contradictory CleanupClaimed state cannot authorize deletion. Physical deletion additionally requires the classification/authorization fences and exact OwnershipToken and Revision checks specified above.
+
+Recovery MUST honor irreversible adoption evidence even when mutable intent state incorrectly says ContentCreated or CleanupClaimed. It MUST reconcile or record RequiresReview without deleting the adopted content. RequiresReview answers whether automation may safely continue; it does not change ownership or adoption truth. Audit-delivery failures after adoption MUST leave committed adoption intact and retain pending delivery/reconciliation work, rather than report the adoption as uncommitted.
+
+DeduplicatedToCanonicalArtifact does not mean the provisional Artifact was adopted. Its durable canonical-result linkage MUST distinguish that disposition from provisional adoption so independently authorized cleanup can remove only the unused provisional object. Canonical adoption evidence and content MUST remain untouched.
+
 ## Cancellation and crash recovery
 
 Caller cancellation after content creation cannot erase the durable intent or disable recovery. Immediate compensation uses its own bounded service token and cleanup budget. Propagate caller cancellation with safe recovery-pending information when appropriate; do not mask it with raw cleanup/provider exceptions. Cleanup failure retains claim/recovery work, uses sanitized categories and bounded retries, and is observable. Do not hold plaintext while recovering.
@@ -97,6 +115,16 @@ Deploy schema/capability changes before enabling new workflows, stop incompatibl
 ## Verification and alternatives
 
 Preserved ingestion-cancellation regression must pass. Add focused cases for metadata exception, successful dedup to canonical ID, adoption/cleanup race, conditional replacement race, cleanup cancellation/failure, crash at every table transition and repeat recovery. Verify no deletion of canonical/adopted content.
+
+Milestone 5 MUST additionally prove the irreversible adoption persistence contract with these regressions:
+
+- A stale cleanup worker cannot acquire or execute a cleanup claim after adoption commits.
+- A crash immediately after adoption commit recovers into bookkeeping/audit completion without deletion.
+- Audit delivery failure leaves adoption intact and its delivery obligation pending.
+- A missing or corrupt intent alongside committed adoption evidence becomes review/reconciliation work without deletion.
+- Repeated recovery never returns adopted content to ContentCreated or CleanupClaimed or otherwise restores compensation eligibility.
+- Direct attempts to mutate, clear or delete the immutable adoption marker after commit are rejected by persistence.
+- When mutable intent says ContentCreated or CleanupClaimed but immutable adoption evidence exists, recovery honors the adoption evidence, records review/reconciliation as necessary and never deletes content.
 
 Rejected compensation-only (no crash recovery), owner-only (no transactional adoption), age-based orphan scans and lookup-then-delete. Staging-before-metadata alone creates committed-but-unavailable content; durable intent plus fenced owned creation is preferred. References: ADR-017/021/031/033, ADR-047/049.
 
