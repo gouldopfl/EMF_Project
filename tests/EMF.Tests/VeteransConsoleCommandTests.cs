@@ -1,3 +1,4 @@
+using EMF.Integrity;
 using EMF.Persistence.Repositories;
 using EMF.Orchestration.Services;
 using EMF.ConsoleApplication;
@@ -22,6 +23,24 @@ namespace EMF.Tests;
 [Collection(ReviewerDeploymentEnvironmentCollection.Name)]
 public sealed partial class VeteransConsoleCommandTests
 {
+    private static async Task<EMF.Core.Contracts.Ingestion.IArtifactIngestionCoordinator> CreateSyntheticIngestionCoordinatorAsync(
+        string databasePath, EMF.Core.Contracts.Storage.IVersionedArtifactContentStore contentStore, string contentPath)
+    {
+        if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException("Linux ingestion tests require Linux.");
+        Directory.CreateDirectory(contentPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        await contentStore.ReadVersionedAsync(new ArtifactId("synthetic-admission-probe"));
+        var repository = new SqliteEvidenceRepository(databasePath); await repository.InitializeAsync();
+        File.SetUnixFileMode(databasePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        var persistence = new SqliteArtifactIngestionPersistence(databasePath); await persistence.InitializeAsync();
+        var audit = new EMF.Security.Persistence.Sqlite.Auditing.SqliteSecurityAuditSink(Path.Combine(contentPath, "synthetic-ingestion-audit.sqlite"));
+        await audit.InitializeAsync();
+        return new EMF.Security.Ingestion.ArtifactIngestionCoordinator(persistence, contentStore,
+            new EMF.Persistence.Storage.FileSystemArtifactContentStagingStore(Path.Combine(contentPath, "synthetic-ingestion-staging")),
+            new EMF.Security.Encryption.Envelope.Services.DevelopmentEnvelopeEncryptionService(new EMF.Tests.TestInfrastructure.ArtifactIngestionFixture.Keys()),
+            new EMF.Tests.TestInfrastructure.ArtifactIngestionFixture.Context(), new EMF.Tests.TestInfrastructure.ArtifactIngestionFixture.ClassificationPolicy(),
+            new EMF.Tests.TestInfrastructure.ArtifactIngestionFixture.AuthorizationPolicy(), audit, new Sha256ContentFingerprintService());
+    }
+
     [Fact]
     public async Task EvidenceIngest_PersistsEvidence()
     {
@@ -56,7 +75,8 @@ public sealed partial class VeteransConsoleCommandTests
                         databasePath,
                         sourcePath,
                         contentStore,
-                        output);
+                        output,
+                        await CreateSyntheticIngestionCoordinatorAsync(databasePath, contentStore, contentPath));
 
             var rendered = output.ToString();
 
@@ -109,7 +129,8 @@ public sealed partial class VeteransConsoleCommandTests
                         databasePath,
                         sourcePath,
                         contentStore,
-                        firstOutput);
+                        firstOutput,
+                        await CreateSyntheticIngestionCoordinatorAsync(databasePath, contentStore, contentPath));
 
             using var secondOutput = new StringWriter();
 
@@ -119,7 +140,8 @@ public sealed partial class VeteransConsoleCommandTests
                         databasePath,
                         sourcePath,
                         contentStore,
-                        secondOutput);
+                        secondOutput,
+                        await CreateSyntheticIngestionCoordinatorAsync(databasePath, contentStore, contentPath));
 
             Assert.Equal(0, firstExitCode);
             Assert.Equal(0, secondExitCode);
@@ -206,7 +228,8 @@ public sealed partial class VeteransConsoleCommandTests
                         databasePath,
                         sourcePath,
                         contentStore,
-                        ingestOutput);
+                        ingestOutput,
+                        await CreateSyntheticIngestionCoordinatorAsync(databasePath, contentStore, contentPath));
 
             Assert.Equal(0, ingestExitCode);
 
@@ -244,7 +267,9 @@ public sealed partial class VeteransConsoleCommandTests
                         2,
                         new DateOnly(2026, 9, 9),
                         "Second Page Clinical Note",
-                        contentStore,
+                        new EMF.Security.Storage.EncryptedArtifactContentStore(contentStore,
+                            new EMF.Security.Encryption.Envelope.Services.DevelopmentEnvelopeEncryptionService(
+                                new EMF.Tests.TestInfrastructure.ArtifactIngestionFixture.Keys())),
                         output);
 
             var rendered = output.ToString();

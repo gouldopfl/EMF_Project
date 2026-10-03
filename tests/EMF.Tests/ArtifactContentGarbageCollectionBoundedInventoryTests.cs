@@ -73,9 +73,12 @@ public sealed partial class ArtifactContentGarbageCollectionTests
         using var f = new Fixture();
         await f.Store.WriteAsync(f.Id, new byte[] { 1 });
         for (var i = 0; i < 12; i++) AddSyntheticGeneration(f, i.ToString("x32"));
-        // Choose the last native enumeration entry, so no ordering assumption about
-        // the filesystem is needed to place damage beyond several bounded calls.
-        var last = Directory.EnumerateFileSystemEntries(f.Generations).Last();
+        // Damage the last synthetic orphan, not the current generation (which
+        // catalog validation must reject before bounded enumeration starts).
+        // Native enumeration order can place the current generation last.
+        var syntheticNames = Enumerable.Range(0, 12).Select(i => i.ToString("x32")).ToHashSet(StringComparer.Ordinal);
+        var last = Directory.EnumerateFileSystemEntries(f.Generations)
+            .Last(path => syntheticNames.Contains(Path.GetFileName(path)));
         File.SetUnixFileMode(last, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
         using var gc = new FileSystemArtifactContentGarbageCollector(f.Root);
         string? token = null;

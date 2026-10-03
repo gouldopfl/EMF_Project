@@ -4,6 +4,8 @@ namespace EMF.Security.Models;
 
 public static class SecurityPermissions
 {
+    public static PermissionId ArtifactIngest { get; } = new("artifact.ingest");
+    public static PermissionId ArtifactIngestionRecover { get; } = new("artifact.ingestion.recover");
     public static PermissionId ArtifactEnvelopeRewrap
     {
         get;

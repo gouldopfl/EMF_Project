@@ -1,674 +1,87 @@
-using EMF.Core.Contracts;
-using EMF.Core.Contracts.Storage;
+using EMF.Integrity;
+using EMF.Core.Contracts.Ingestion;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Core.Models.Integrity;
 using EMF.Orchestration.Contracts;
+using EMF.Orchestration.Models;
 using EMF.Orchestration.Services;
+using EMF.Tests.TestInfrastructure;
 
 namespace EMF.Tests;
 
 public sealed class EvidenceFileIngestionServiceTests
 {
     [Fact]
-    public async Task IngestAsync_RejectsFactoryArtifactIdentityMismatch()
+    public async Task IngestAsync_PersistsFileThroughDurableOwnedCoordinator()
     {
-        var path = Path.GetTempFileName();
-        try
-        {
-            await File.WriteAllTextAsync(path, "evidence content");
-            var repository = new RecordingRepository();
-            var store = new RecordingContentStore();
-            var service = new EvidenceFileIngestionService(
-                repository, store,
-                new StubFingerprintService(),
-                new StubIdGenerator(),
-                new WrongIdentityFactory());
-
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => service.IngestAsync(path));
-
-            Assert.Empty(store.Written);
-            Assert.Empty(repository.Persisted);
-        }
-        finally { File.Delete(path); }
+        await using var f = await ArtifactIngestionFixture.CreateAsync();
+        var service = new EvidenceFileIngestionService(f.Service(), f.Fingerprints, new FixedId(f.Id), new ArtifactFactory());
+        var result = await service.IngestAsync(f.SourcePath);
+        Assert.Equal(f.Id, result.Artifact.Id); Assert.Equal("file", result.Artifact.ArtifactType); Assert.False(result.AlreadyExisted);
+        Assert.True(result.IsAdopted); Assert.Equal(ArtifactIngestionState.Completed, result.LifecycleState);
+        Assert.NotNull(await f.Repository.GetArtifactAsync(f.Id)); Assert.NotNull(await f.Physical.ReadAsync(f.Id));
     }
-
-    private sealed class WrongIdentityFactory : IArtifactFactory
+    [Theory]
+    [InlineData("artifact")]
+    [InlineData("fingerprint")]
+    [InlineData("provenance")]
+    [InlineData("source")]
+    public async Task IngestAsync_RejectsInvalidFactoryBindingsBeforePreparingLifecycle(string invalid)
     {
-        public EMF.Orchestration.Models.ArtifactCreationResult Create(
-            EMF.Discovery.Models.DiscoveredItem item,
-            ArtifactId artifactId,
-            ContentFingerprint? fingerprint) =>
-            new ArtifactFactory().Create(
-                item,
-                new ArtifactId("wrong-artifact"),
-                fingerprint);
+        await using var f = await ArtifactIngestionFixture.CreateAsync();
+        var service = new EvidenceFileIngestionService(f.Service(), f.Fingerprints, new FixedId(f.Id), new InvalidFactory(invalid));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.IngestAsync(f.SourcePath));
+        Assert.Null(await f.Physical.ReadAsync(f.Id)); Assert.Null(await f.Repository.GetArtifactAsync(f.Id));
+        await using var session = await f.Persistence.AcquireAsync(f.SecurityContext.Operation.OperationId); Assert.Null(session.Intent);
     }
-
     [Fact]
-    public async Task IngestAsync_RejectsFactoryFingerprintMismatch()
+    public async Task IngestAsync_RejectsOversizedFileBeforePreparingLifecycle()
     {
-        var path = Path.GetTempFileName();
-        try
-        {
-            await File.WriteAllTextAsync(path, "evidence content");
-            var repository = new RecordingRepository();
-            var store = new RecordingContentStore();
-            var service = new EvidenceFileIngestionService(
-                repository, store,
-                new StubFingerprintService(),
-                new StubIdGenerator(),
-                new WrongFingerprintFactory());
-
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => service.IngestAsync(path));
-
-            Assert.Empty(store.Written);
-            Assert.Empty(repository.Persisted);
-        }
-        finally { File.Delete(path); }
+        await using var f = await ArtifactIngestionFixture.CreateAsync();
+        var service = new EvidenceFileIngestionService(f.Service(), f.Fingerprints, new FixedId(f.Id), new ArtifactFactory(), maxFileBytes: 1);
+        await Assert.ThrowsAsync<InvalidDataException>(() => service.IngestAsync(f.SourcePath)); Assert.Null(await f.Physical.ReadAsync(f.Id));
     }
-
-    private sealed class WrongFingerprintFactory : IArtifactFactory
-    {
-        public EMF.Orchestration.Models.ArtifactCreationResult Create(
-            EMF.Discovery.Models.DiscoveredItem item,
-            ArtifactId artifactId,
-            ContentFingerprint? fingerprint) =>
-            new ArtifactFactory().Create(
-                item, artifactId,
-                new ContentFingerprint
-                {
-                    Algorithm = "SHA256",
-                    Value = "different-fingerprint"
-                });
-    }
-
     [Fact]
-    public async Task IngestAsync_RejectsFactoryProvenanceIdentityMismatch()
+    public async Task IngestAsync_AuditFailureReportsCommittedResultWithPendingDelivery()
     {
-        var path = Path.GetTempFileName();
-        try
-        {
-            await File.WriteAllTextAsync(path, "evidence content");
-            var repository = new RecordingRepository();
-            var store = new RecordingContentStore();
-            var service = new EvidenceFileIngestionService(
-                repository, store,
-                new StubFingerprintService(),
-                new StubIdGenerator(),
-                new WrongProvenanceIdentityFactory());
-
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => service.IngestAsync(path));
-
-            Assert.Empty(store.Written);
-            Assert.Empty(repository.Persisted);
-        }
-        finally { File.Delete(path); }
+        await using var f = await ArtifactIngestionFixture.CreateAsync();
+        var service = new EvidenceFileIngestionService(f.Service(audit: new ArtifactIngestionFixture.AuditOutage()), f.Fingerprints, new FixedId(f.Id), new ArtifactFactory());
+        var result = await service.IngestAsync(f.SourcePath);
+        Assert.True(result.IsAdopted); Assert.Equal(IngestionAuditDelivery.Pending, result.AuditDelivery);
+        Assert.Equal(ArtifactIngestionState.MetadataCommitted, result.LifecycleState);
     }
-
-    private sealed class WrongProvenanceIdentityFactory : IArtifactFactory
-    {
-        public EMF.Orchestration.Models.ArtifactCreationResult Create(
-            EMF.Discovery.Models.DiscoveredItem item,
-            ArtifactId artifactId,
-            ContentFingerprint? fingerprint)
-        {
-            var valid = new ArtifactFactory().Create(
-                item, artifactId, fingerprint);
-
-            return new EMF.Orchestration.Models.ArtifactCreationResult
-            {
-                Artifact = valid.Artifact,
-                Provenance = new Provenance
-                {
-                    ArtifactId = new ArtifactId("wrong-artifact"),
-                    Source = valid.Provenance.Source,
-                    RecordedBy = valid.Provenance.RecordedBy
-                }
-            };
-        }
-    }
-
     [Fact]
-    public async Task IngestAsync_RejectsFactoryProvenanceSourceMismatch()
+    public async Task IngestAsync_CancellationAfterCreationLeavesDurableRecoverableOwnership()
     {
-        var path = Path.GetTempFileName();
-        try
-        {
-            await File.WriteAllTextAsync(path, "evidence content");
-            var repository = new RecordingRepository();
-            var store = new RecordingContentStore();
-            var service = new EvidenceFileIngestionService(
-                repository, store,
-                new StubFingerprintService(),
-                new StubIdGenerator(),
-                new WrongProvenanceSourceFactory());
-
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => service.IngestAsync(path));
-
-            Assert.Empty(store.Written);
-            Assert.Empty(repository.Persisted);
-        }
-        finally { File.Delete(path); }
+        await using var f = await ArtifactIngestionFixture.CreateAsync();
+        var store = new ArtifactIngestionFixture.FaultStore(f.Physical) { CancelAfterCreate = true };
+        var service = new EvidenceFileIngestionService(f.Service(physical: store), f.Fingerprints, new FixedId(f.Id), new ArtifactFactory());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.IngestAsync(f.SourcePath));
+        var intent = await f.IntentAsync(); Assert.Equal(ArtifactIngestionState.Cleaned, intent.State);
+        Assert.NotNull(await f.Physical.GetMutationOutcomeAsync(intent.OperationId));
+        File.Delete(f.SourcePath); // recovery must not reopen the original source
+        Assert.Equal(ArtifactIngestionState.Cleaned, (await f.Restart().RecoverOperationAsync(intent.OperationId)).State);
+        Assert.Null(await f.Physical.ReadAsync(f.Id));
     }
-
-    private sealed class WrongProvenanceSourceFactory : IArtifactFactory
-    {
-        public EMF.Orchestration.Models.ArtifactCreationResult Create(
-            EMF.Discovery.Models.DiscoveredItem item,
-            ArtifactId artifactId,
-            ContentFingerprint? fingerprint)
-        {
-            var valid = new ArtifactFactory().Create(
-                item, artifactId, fingerprint);
-
-            return new EMF.Orchestration.Models.ArtifactCreationResult
-            {
-                Artifact = valid.Artifact,
-                Provenance = new Provenance
-                {
-                    ArtifactId = artifactId,
-                    Source = "different-source",
-                    RecordedBy = valid.Provenance.RecordedBy
-                }
-            };
-        }
-    }
-
     [Fact]
-    public async Task IngestAsync_PersistsFile()
+    public void LegacyConstructorFailsCapabilityAdmission()
     {
-        var path = Path.GetTempFileName();
-
-        try
-        {
-            await File.WriteAllTextAsync(
-                path,
-                "evidence content");
-
-            var repository = new RecordingRepository();
-            var store = new RecordingContentStore();
-
-            var service =
-                new EvidenceFileIngestionService(
-                    repository,
-                    store,
-                    new StubFingerprintService(),
-                    new StubIdGenerator(),
-                    new ArtifactFactory());
-
-            var result =
-                await service.IngestAsync(path);
-
-            Assert.Equal(
-                Path.GetFileName(path),
-                result.Artifact.Name);
-
-            Assert.Equal(
-                "file",
-                result.Artifact.ArtifactType);
-
-            Assert.False(result.AlreadyExisted);
-            Assert.Single(repository.Persisted);
-            Assert.Single(store.Written);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
+#pragma warning disable CS0618
+        Assert.Throws<NotSupportedException>(() => new EvidenceFileIngestionService(null!, null!, new Sha256ContentFingerprintService(), new FixedId(new("synthetic")), new ArtifactFactory()));
+#pragma warning restore CS0618
     }
-
-    [Fact]
-    public async Task IngestAsync_DeletesContentWhenPersistenceFails()
+    private sealed class FixedId(ArtifactId id) : IArtifactIdGenerator { public ArtifactId Generate() => id; }
+    private sealed class InvalidFactory(string invalid) : IArtifactFactory
     {
-        var path = Path.GetTempFileName();
-
-        try
+        public ArtifactCreationResult Create(EMF.Discovery.Models.DiscoveredItem item, ArtifactId id, ContentFingerprint? fingerprint)
         {
-            await File.WriteAllTextAsync(
-                path,
-                "evidence content");
-
-            var repository =
-                new RecordingRepository
-                {
-                    FailPersistence = true
-                };
-
-            var store = new RecordingContentStore();
-
-            var service =
-                new EvidenceFileIngestionService(
-                    repository,
-                    store,
-                    new StubFingerprintService(),
-                    new StubIdGenerator(),
-                    new ArtifactFactory());
-
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => service.IngestAsync(path));
-
-            Assert.Single(store.Deleted);
+            var valid = new ArtifactFactory().Create(item, id, fingerprint);
+            return new() { Artifact = new Artifact { Id = invalid == "artifact" ? new("synthetic-wrong") : id,
+                Name = valid.Artifact.Name, ArtifactType = valid.Artifact.ArtifactType,
+                Fingerprint = invalid == "fingerprint" ? new() { Algorithm = "SHA256", Value = "synthetic-wrong" } : fingerprint },
+                Provenance = new() { ArtifactId = invalid == "provenance" ? new("synthetic-wrong") : id,
+                    Source = invalid == "source" ? "synthetic-wrong" : item.SourcePath, RecordedBy = "synthetic" } };
         }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Fact]
-    public async Task IngestAsync_AggregatesCleanupFailure()
-    {
-        var path = Path.GetTempFileName();
-
-        try
-        {
-            await File.WriteAllTextAsync(
-                path,
-                "evidence content");
-
-            var repository =
-                new RecordingRepository
-                {
-                    FailPersistence = true
-                };
-
-            var store =
-                new RecordingContentStore
-                {
-                    FailDelete = true
-                };
-
-            var service =
-                new EvidenceFileIngestionService(
-                    repository,
-                    store,
-                    new StubFingerprintService(),
-                    new StubIdGenerator(),
-                    new ArtifactFactory());
-
-            var exception =
-                await Assert.ThrowsAsync<AggregateException>(
-                    () => service.IngestAsync(path));
-
-            Assert.Equal(
-                2,
-                exception.InnerExceptions.Count);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Fact]
-    public async Task IngestAsync_RejectsOversizedFile()
-    {
-        var path = Path.GetTempFileName();
-
-        try
-        {
-            await File.WriteAllBytesAsync(path, [1, 2]);
-
-            var service =
-                new EvidenceFileIngestionService(
-                    new RecordingRepository(),
-                    new RecordingContentStore(),
-                    new StubFingerprintService(),
-                    new StubIdGenerator(),
-                    new ArtifactFactory(),
-                    maxFileBytes: 1);
-
-            await Assert.ThrowsAsync<InvalidDataException>(
-                () => service.IngestAsync(path));
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Fact]
-    public async Task IngestAsync_RepairsMissingContentForExistingFile()
-    {
-        var path = Path.GetTempFileName();
-
-        try
-        {
-            await File.WriteAllTextAsync(
-                path,
-                "evidence content");
-
-            var fullPath = Path.GetFullPath(path);
-
-            var existing =
-                new Artifact
-                {
-                    Id = new ArtifactId("existing-evidence"),
-                    Name = Path.GetFileName(path),
-                    ArtifactType = "file",
-                    Fingerprint =
-                        new ContentFingerprint
-                        {
-                            Algorithm = "SHA256",
-                            Value = "test-fingerprint"
-                        }
-                };
-
-            var repository =
-                new RecordingRepository
-                {
-                    ExistingArtifact = existing,
-                    ExistingProvenance =
-                        new Provenance
-                        {
-                            ArtifactId = existing.Id,
-                            Source = fullPath,
-                            RecordedBy = "EMF.Discovery"
-                        }
-                };
-
-            var store = new RecordingContentStore();
-
-            var service =
-                new EvidenceFileIngestionService(
-                    repository,
-                    store,
-                    new StubFingerprintService(),
-                    new StubIdGenerator(),
-                    new ArtifactFactory());
-
-            var result =
-                await service.IngestAsync(path);
-
-            Assert.Equal(
-                existing.Id,
-                result.Artifact.Id);
-
-            Assert.True(result.AlreadyExisted);
-            Assert.Single(store.Written);
-            Assert.Equal(existing.Id, store.Written[0]);
-            Assert.Empty(repository.Persisted);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Fact]
-    public async Task IngestAsync_ReusesExistingContentWhenFingerprintMatches()
-    {
-        var path = Path.GetTempFileName();
-
-        try
-        {
-            await File.WriteAllTextAsync(path, "evidence content");
-            var fullPath = Path.GetFullPath(path);
-
-            var existing = new Artifact
-            {
-                Id = new ArtifactId("existing-evidence"),
-                Name = Path.GetFileName(path),
-                ArtifactType = "file",
-                Fingerprint = new ContentFingerprint
-                {
-                    Algorithm = "SHA256",
-                    Value = "test-fingerprint"
-                }
-            };
-
-            var repository = new RecordingRepository
-            {
-                ExistingArtifact = existing,
-                ExistingProvenance = new Provenance
-                {
-                    ArtifactId = existing.Id,
-                    Source = fullPath,
-                    RecordedBy = "EMF.Discovery"
-                }
-            };
-
-            var store = new RecordingContentStore
-            {
-                ExistingContent = await File.ReadAllBytesAsync(path)
-            };
-
-            var service = new EvidenceFileIngestionService(
-                repository,
-                store,
-                new StubFingerprintService(),
-                new StubIdGenerator(),
-                new ArtifactFactory());
-
-            var result = await service.IngestAsync(path);
-
-            Assert.True(result.AlreadyExisted);
-            Assert.Empty(store.Written);
-            Assert.Empty(repository.Persisted);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Fact]
-    public async Task IngestAsync_RejectsExistingContentFingerprintMismatch()
-    {
-        var path = Path.GetTempFileName();
-
-        try
-        {
-            await File.WriteAllTextAsync(path, "evidence content");
-            var fullPath = Path.GetFullPath(path);
-
-            var existing = new Artifact
-            {
-                Id = new ArtifactId("existing-evidence"),
-                Name = Path.GetFileName(path),
-                ArtifactType = "file",
-                Fingerprint = new ContentFingerprint
-                {
-                    Algorithm = "SHA256",
-                    Value = "wrong-fingerprint"
-                }
-            };
-
-            var repository = new RecordingRepository
-            {
-                ExistingArtifact = existing,
-                ExistingProvenance = new Provenance
-                {
-                    ArtifactId = existing.Id,
-                    Source = fullPath,
-                    RecordedBy = "EMF.Discovery"
-                }
-            };
-
-            var store = new RecordingContentStore
-            {
-                ExistingContent = await File.ReadAllBytesAsync(path)
-            };
-
-            var service = new EvidenceFileIngestionService(
-                repository, store,
-                new StubFingerprintService(),
-                new StubIdGenerator(),
-                new ArtifactFactory());
-
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => service.IngestAsync(path));
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    private sealed class RecordingRepository :
-        IEvidenceRepository
-    {
-        public List<Artifact> Persisted { get; } = [];
-
-        public bool FailPersistence { get; init; }
-
-        public Artifact? ExistingArtifact { get; init; }
-
-        public Provenance? ExistingProvenance { get; init; }
-
-        public Task AddArtifactWithProvenanceAsync(
-            Artifact artifact,
-            Provenance provenance,
-            CancellationToken cancellationToken = default)
-        {
-            if (FailPersistence)
-            {
-                throw new InvalidOperationException(
-                    "forced persistence failure");
-            }
-
-            Persisted.Add(artifact);
-            return Task.CompletedTask;
-        }
-
-        public Task<Artifact?> FindArtifactAsync(
-            string source,
-            ContentFingerprint fingerprint,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(ExistingArtifact);
-
-        public Task<IReadOnlyList<Provenance>> GetProvenanceAsync(
-            ArtifactId artifactId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<Provenance>>(
-                ExistingProvenance is null
-                    ? []
-                    : [ExistingProvenance]);
-
-        public Task AddArtifactAsync(
-            Artifact artifact,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task AddRelationshipAsync(
-            Relationship relationship,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<Artifact?> GetArtifactAsync(
-            ArtifactId artifactId,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<EvidenceAggregate?> GetEvidenceAggregateAsync(
-            ArtifactId artifactId,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<Artifact>> GetArtifactsByMetadataAsync(
-            string key,
-            string value,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task MergeArtifactMetadataAsync(
-            ArtifactId artifactId,
-            IReadOnlyDictionary<string, object> metadata,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<Relationship>> GetRelationshipsAsync(
-            ArtifactId artifactId,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task AddProvenanceAsync(
-            Provenance provenance,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task AddArtifactWithProvenanceAndRelationshipsAsync(
-            Artifact artifact,
-            Provenance provenance,
-            IReadOnlyCollection<Relationship> relationships,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-    }
-
-    private sealed class RecordingContentStore :
-        IArtifactContentStore
-    {
-        public List<ArtifactId> Written { get; } = [];
-
-        public List<ArtifactId> Deleted { get; } = [];
-
-        public bool FailDelete { get; init; }
-
-        public byte[]? ExistingContent { get; init; }
-
-        public Task WriteAsync(
-            ArtifactId artifactId,
-            ReadOnlyMemory<byte> content,
-            CancellationToken cancellationToken = default)
-        {
-            Written.Add(artifactId);
-            return Task.CompletedTask;
-        }
-
-        public Task<byte[]?> ReadAsync(
-            ArtifactId artifactId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(ExistingContent);
-
-        public Task DeleteAsync(
-            ArtifactId artifactId,
-            CancellationToken cancellationToken = default)
-        {
-            Deleted.Add(artifactId);
-
-            if (FailDelete)
-            {
-                throw new InvalidOperationException(
-                    "forced cleanup failure");
-            }
-
-            return Task.CompletedTask;
-        }
-    }
-
-    private sealed class StubIdGenerator :
-        IArtifactIdGenerator
-    {
-        public ArtifactId Generate() =>
-            new("evidence-001");
-    }
-
-    private sealed class StubFingerprintService :
-        IContentFingerprintService
-    {
-        public Task<ContentFingerprint> ComputeAsync(
-            string sourcePath,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(
-                new ContentFingerprint
-                {
-                    Algorithm = "SHA256",
-                    Value = "test-fingerprint"
-                });
-
-        public Task<ContentFingerprint> ComputeAsync(
-            ReadOnlyMemory<byte> content,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(
-                new ContentFingerprint
-                {
-                    Algorithm = "SHA256",
-                    Value = "test-fingerprint"
-                });
     }
 }

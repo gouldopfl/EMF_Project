@@ -3928,7 +3928,8 @@ public static class VeteransConsoleCommand
         string databasePath,
         string sourcePath,
         IArtifactContentStore? contentStore,
-        TextWriter output)
+        TextWriter output,
+        EMF.Core.Contracts.Ingestion.IArtifactIngestionCoordinator? ingestionCoordinator = null)
     {
         if (contentStore is null)
         {
@@ -3938,15 +3939,15 @@ public static class VeteransConsoleCommand
             return 2;
         }
 
-        var repository =
-            new SqliteEvidenceRepository(databasePath);
-
-        await repository.InitializeAsync();
+        if (ingestionCoordinator is null)
+        {
+            await output.WriteLineAsync("Evidence ingestion requires configured authenticated ADR-048 lifecycle coordination.");
+            return 2;
+        }
 
         var service =
             new EvidenceFileIngestionService(
-                repository,
-                contentStore,
+                ingestionCoordinator,
                 new Sha256ContentFingerprintService(),
                 new GuidArtifactIdGenerator(),
                 new ArtifactFactory());
