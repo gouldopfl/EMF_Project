@@ -32,7 +32,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
                 new EncryptedEnvelope
                 {
                     FormatVersion =
-                        EncryptedEnvelopeFormat.CurrentVersion,
+                        EncryptedEnvelopeFormat.ContextBoundVersion,
                     Ciphertext = [1, 2, 3],
                     Nonce = new byte[12],
                     AuthenticationTag = new byte[16],
@@ -55,7 +55,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
                 new RecordingSecurityAuditSink();
 
             var service =
-                new ArtifactEnvelopeRewrappingService(
+                CreateService(
                     contentStore,
                     new TestRewrappingService(),
                     policy,
@@ -144,6 +144,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
             var artifactId = new ArtifactId("artifact-tampered");
             var original = new EncryptedEnvelope
             {
+                FormatVersion = 2,
                 Ciphertext = [1, 2, 3],
                 Nonce = new byte[12],
                 AuthenticationTag = new byte[16],
@@ -162,7 +163,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
                 originalBytes);
 
             RecordingSecurityAuditSink tamperingAuditSink = new();
-            var service = new ArtifactEnvelopeRewrappingService(
+            var service = CreateService(
                 contentStore,
                 new TamperingRewrappingService(),
                 new AllowPolicy(),
@@ -200,6 +201,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
 
         var original = new EncryptedEnvelope
         {
+            FormatVersion = 2,
             Ciphertext = [1, 2, 3],
             Nonce = new byte[12],
             AuthenticationTag = new byte[16],
@@ -215,28 +217,21 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
             new FailingReplacementContentStore(originalBytes);
 
         RecordingSecurityAuditSink replacementAuditSink = new();
-        var service = new ArtifactEnvelopeRewrappingService(
+        var service = CreateService(
             contentStore,
             new TestRewrappingService(),
             new AllowPolicy(),
             replacementAuditSink);
 
-        await Assert.ThrowsAsync<IOException>(
-            () => service.RewrapAsync(
-                CreateRequest(artifactId)));
+        var outcome = await service.RewrapAsync(CreateRequest(artifactId));
+        Assert.Equal(ArtifactEnvelopeRewrappingOutcome.RequiresReview, outcome.Outcome);
 
         Assert.Equal(
             originalBytes,
             await contentStore.ReadAsync(artifactId));
 
-        var auditRecord =
-            Assert.Single(replacementAuditSink.Records);
-        Assert.Equal(
-            AuthorizationDecision.Allow,
-            auditRecord.PolicyDecision);
-        Assert.Equal(
-            SecurityAuditOutcome.Failed,
-            auditRecord.Outcome);
+        Assert.Empty(replacementAuditSink.Records);
+        Assert.Equal(ArtifactAuditDeliveryState.RequiresReview, outcome.AuditDelivery);
     }
 
     [Fact]
@@ -247,6 +242,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
             new ArtifactId("artifact-wrapping-failure");
         var original = new EncryptedEnvelope
         {
+            FormatVersion = 2,
             Ciphertext = [1, 2, 3],
             Nonce = new byte[12],
             AuthenticationTag = new byte[16],
@@ -260,7 +256,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         var contentStore =
             new FailingReplacementContentStore(originalBytes);
         RecordingSecurityAuditSink wrappingFailureAuditSink = new();
-        var service = new ArtifactEnvelopeRewrappingService(
+        var service = CreateService(
             contentStore,
             new FailingRewrappingService(),
             new AllowPolicy(),
@@ -289,7 +285,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
     {
         var artifactId = new ArtifactId("artifact-missing");
         var auditSink = new RecordingSecurityAuditSink();
-        var service = new ArtifactEnvelopeRewrappingService(
+        var service = CreateService(
             new MissingContentStore(),
             new TestRewrappingService(),
             new AllowPolicy(),
@@ -318,6 +314,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         var artifactId = new ArtifactId("artifact-current");
         var original = new EncryptedEnvelope
         {
+            FormatVersion = 2,
             Ciphertext = [1, 2, 3],
             Nonce = new byte[12],
             AuthenticationTag = new byte[16],
@@ -331,7 +328,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         var contentStore =
             new FailingReplacementContentStore(originalBytes);
         RecordingSecurityAuditSink currentAuditSink = new();
-        var service = new ArtifactEnvelopeRewrappingService(
+        var service = CreateService(
             contentStore,
             new AlreadyCurrentRewrappingService(),
             new AllowPolicy(),
@@ -365,7 +362,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         var contentStore =
             new FailingReplacementContentStore(corruptContent);
         RecordingSecurityAuditSink corruptAuditSink = new();
-        var service = new ArtifactEnvelopeRewrappingService(
+        var service = CreateService(
             contentStore,
             new TestRewrappingService(),
             new AllowPolicy(),
@@ -391,7 +388,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
     {
         var policy = new AllowPolicy();
         RecordingSecurityAuditSink cancelledAuditSink = new();
-        var service = new ArtifactEnvelopeRewrappingService(
+        var service = CreateService(
             new MissingContentStore(),
             new TestRewrappingService(),
             policy,
@@ -423,7 +420,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
     {
         RecordingSecurityAuditSink deniedAuditSink = new();
         var service =
-            new ArtifactEnvelopeRewrappingService(
+            CreateService(
                 new FileSystemArtifactContentStore(
                     Path.GetTempPath()),
                 new TestRewrappingService(),

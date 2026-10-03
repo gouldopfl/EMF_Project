@@ -15,6 +15,9 @@ internal static class SecurityAuditHashChainWriter
             connection.BeginTransaction(
                 deferred: false);
 
+        var integrity = await SqliteSecurityAuditIntegrityVerifier.VerifyAsync(connection, transaction, cancellationToken);
+        if (!integrity.IsValid) throw new InvalidOperationException("Security audit hash chain is not appendable.");
+
         var previousRecordHash =
             await GetPreviousRecordHashAsync(
                 connection,

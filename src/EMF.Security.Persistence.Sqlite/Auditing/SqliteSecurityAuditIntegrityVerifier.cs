@@ -55,25 +55,7 @@ public sealed class
 
         command.Transaction = transaction;
 
-        command.CommandText =
-            """
-            SELECT
-                Id,
-                Operation,
-                ResourceType,
-                ResourceId,
-                SubjectId,
-                PolicyDecision,
-                Destination,
-                Outcome,
-                OccurredUtc,
-                FactsJson,
-                IntegrityVersion,
-                PreviousRecordHash,
-                RecordHash
-            FROM SecurityAuditRecords
-            ORDER BY Id;
-            """;
+        command.CommandText = $"SELECT {CanonicalSecurityAuditWriter.Projection} FROM SecurityAuditRecords ORDER BY Id;";
 
         await using var reader =
             await command.ExecuteReaderAsync(
@@ -84,6 +66,8 @@ public sealed class
         string? expectedPreviousHash = null;
         long? lastProtectedRecordId = null;
         var protectedRecordsStarted = false;
+        var v2Started = false;
+        var eventIds = new HashSet<string>(StringComparer.Ordinal);
 
         while (await reader.ReadAsync(
                    cancellationToken))
@@ -104,7 +88,7 @@ public sealed class
             {
                 if (protectedRecordsStarted ||
                     previousRecordHash is not null ||
-                    recordHash is not null)
+                    recordHash is not null || Enumerable.Range(13, 5).Any(i => !reader.IsDBNull(i)))
                 {
                     return Invalid(
                         protectedRecordCount,
@@ -118,8 +102,7 @@ public sealed class
                 continue;
             }
 
-            if (integrityVersion !=
-                SecurityAuditRecordHasher.CurrentVersion)
+            if (integrityVersion is not (1 or 2) || integrityVersion == 1 && v2Started)
             {
                 return Invalid(
                     protectedRecordCount,
@@ -151,7 +134,21 @@ public sealed class
                     "Previous audit record hash does not match.");
             }
 
-            var computedHash =
+            string computedHash;
+            try
+            {
+                if (integrityVersion == 2)
+                {
+                    v2Started = true;
+                    var record = CanonicalSecurityAuditWriter.Decode(reader);
+                    if (!eventIds.Add(record.AuditEventId!.Value.Value)) throw new ArgumentException("Duplicate audit identity.");
+                    computedHash = EMF.Security.Auditing.SecurityAuditCanonicalEvent.Hash(previousRecordHash,
+                        EMF.Security.Auditing.SecurityAuditCanonicalEvent.Encode(record));
+                }
+                else
+                {
+                    if (Enumerable.Range(13, 5).Any(i => !reader.IsDBNull(i))) throw new ArgumentException("Historical identities were changed.");
+                    computedHash =
                 SecurityAuditRecordHasher.ComputeHash(
                     integrityVersion,
                     previousRecordHash,
@@ -164,6 +161,14 @@ public sealed class
                     reader.GetString(7),
                     reader.GetString(8),
                     reader.GetString(9));
+
+                }
+            }
+            catch (Exception error) when (error is ArgumentException or FormatException or System.Text.Json.JsonException or InvalidOperationException)
+            {
+                return Invalid(protectedRecordCount, legacyRecordCount, recordId,
+                    SecurityAuditIntegrityFailureCategory.RecordHashMismatch, "Malformed canonical audit record.");
+            }
 
             if (!string.Equals(
                     recordHash,

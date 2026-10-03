@@ -220,7 +220,11 @@ public sealed class AzureEnvelopeEncryptionServiceTests
         if (cancelled)
             Assert.IsAssignableFrom<OperationCanceledException>(failure);
         else
-            Assert.IsType<InvalidOperationException>(failure);
+        {
+            var sanitized = Assert.IsType<EMF.Security.Encryption.Envelope.EnvelopeProviderFailure>(failure);
+            Assert.Equal(EMF.Security.Encryption.Envelope.EnvelopeFailureCategory.UnknownProviderFailure, sanitized.Category);
+            Assert.Null(sanitized.InnerException);
+        }
         Assert.NotNull(cryptography.TemporaryDek);
         Assert.True(cryptography.TemporaryDek!.All(value => value == 0));
     }

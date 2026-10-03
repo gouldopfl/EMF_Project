@@ -37,6 +37,10 @@ public sealed class
                 Algorithm = "AES-256-GCM"
             };
 
+        // Valid AES-GCM fixture: rewrap must authenticate the existing ciphertext.
+        using (var aes = new AesGcm(Enumerable.Repeat((byte)42, 32).ToArray(), 16))
+            aes.Encrypt(original.Nonce, new byte[] { 1, 2, 3 }, original.Ciphertext, original.AuthenticationTag,
+                EncryptedEnvelopeFormat.GetAuthenticatedData(original.FormatVersion, original.Algorithm));
         var rewrapped =
             await service.RewrapAsync(original);
 
@@ -95,7 +99,7 @@ public sealed class
                     EncryptedEnvelopeFormat.Aes256GcmAlgorithm
             };
 
-        await Assert.ThrowsAsync<CryptographicException>(
+        await Assert.ThrowsAnyAsync<CryptographicException>(
             () => service.RewrapAsync(envelope));
     }
 
@@ -123,7 +127,7 @@ public sealed class
                     EncryptedEnvelopeFormat.Aes256GcmAlgorithm
             };
 
-        await Assert.ThrowsAsync<CryptographicException>(
+        await Assert.ThrowsAnyAsync<CryptographicException>(
             () => service.RewrapAsync(envelope));
     }
 
@@ -162,9 +166,7 @@ public sealed class
             CancellationToken cancellationToken = default)
         {
             AzureKeyReference? result =
-                keyIdentifier == "emf-key/v1"
-                    ? _historical
-                    : null;
+                keyIdentifier == "emf-key/v1" ? _historical : keyIdentifier == "emf-key/v2" ? _current : null;
 
             return Task.FromResult(result);
         }

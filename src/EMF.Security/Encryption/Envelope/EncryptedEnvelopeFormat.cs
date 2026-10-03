@@ -6,6 +6,7 @@ namespace EMF.Security.Encryption.Envelope;
 
 public static class EncryptedEnvelopeFormat
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     public const int LegacyVersion = 0;
     public const int CurrentVersion = 1;
     public const int ContextBoundVersion = 2;
@@ -26,13 +27,20 @@ public static class EncryptedEnvelopeFormat
             envelope.Nonce is not { Length: 12 } ||
             envelope.AuthenticationTag is not { Length: 16 } ||
             envelope.WrappedDataEncryptionKey is not
-                { Length: > 0 } ||
-            string.IsNullOrWhiteSpace(
-                envelope.KeyEncryptionKeyId))
+            { Length: > 0 } ||
+            envelope.WrappedDataEncryptionKey.Length > 16384 ||
+            string.IsNullOrWhiteSpace(envelope.KeyEncryptionKeyId) ||
+            envelope.KeyEncryptionKeyId.Length > 1024 || envelope.KeyEncryptionKeyId.Any(char.IsControl))
         {
             throw new CryptographicException(
                 "Encrypted envelope structure is invalid.");
         }
+        try
+        {
+            if (StrictUtf8.GetByteCount(envelope.KeyEncryptionKeyId) > 1024)
+                throw new CryptographicException("Envelope key identity exceeds its bound.");
+        }
+        catch (EncoderFallbackException) { throw new CryptographicException("Envelope key identity is invalid."); }
     }
 
 

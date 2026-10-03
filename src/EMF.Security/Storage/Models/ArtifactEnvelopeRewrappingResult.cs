@@ -4,6 +4,8 @@ namespace EMF.Security.Storage.Models;
 
 public sealed class ArtifactEnvelopeRewrappingResult
 {
+    public Auditing.Models.SecurityMutationOperationId OperationId { get; init; }
+    public ArtifactAuditDeliveryState AuditDelivery { get; init; }
     public required ArtifactId ArtifactId { get; init; }
 
     public required ArtifactEnvelopeRewrappingOutcome
@@ -16,3 +18,5 @@ public sealed class ArtifactEnvelopeRewrappingResult
 
     public required DateTimeOffset CompletedUtc { get; init; }
 }
+
+public enum ArtifactAuditDeliveryState { Pending, Completed, RequiresReview }

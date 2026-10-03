@@ -44,7 +44,7 @@ public sealed class EncryptedArtifactContentStore :
         var envelope =
             await _encryption.EncryptWithContextAsync(
                 content,
-                GetContext(artifactId),
+                ArtifactEnvelopeContext.Create(artifactId),
                 cancellationToken);
 
         ValidateArtifactEnvelope(envelope);
@@ -100,7 +100,7 @@ public sealed class EncryptedArtifactContentStore :
 
         return await _encryption.DecryptWithContextAsync(
             envelope,
-            GetContext(artifactId),
+            ArtifactEnvelopeContext.Create(artifactId),
             cancellationToken);
     }
 
@@ -114,7 +114,7 @@ public sealed class EncryptedArtifactContentStore :
         var envelope = JsonSerializer.Deserialize<EncryptedEnvelope>(snapshot.Content)
             ?? throw new CryptographicException("Encrypted artifact envelope is invalid.");
         ValidateArtifactEnvelope(envelope);
-        return new(await _encryption.DecryptWithContextAsync(envelope, GetContext(id), cancellationToken), snapshot.Revision);
+        return new(await _encryption.DecryptWithContextAsync(envelope, ArtifactEnvelopeContext.Create(id), cancellationToken), snapshot.Revision);
     }
     public Task<ArtifactContentMutationReceipt?> GetMutationOutcomeAsync(ArtifactContentOperationId operationId,
         CancellationToken cancellationToken = default) => Versioned.GetMutationOutcomeAsync(operationId, cancellationToken);
@@ -147,7 +147,7 @@ public sealed class EncryptedArtifactContentStore :
         ArgumentNullException.ThrowIfNull(context);
         if (await underlying.GetMutationOutcomeAsync(context.OperationId, ct) is not null)
             throw new ArtifactContentIdempotencyException(); // cannot reconstruct randomized physical request
-        var envelope = await _encryption.EncryptWithContextAsync(content, GetContext(id), ct);
+        var envelope = await _encryption.EncryptWithContextAsync(content, ArtifactEnvelopeContext.Create(id), ct);
         ValidateArtifactEnvelope(envelope);
         return new(underlying, id, expected, JsonSerializer.SerializeToUtf8Bytes(envelope), context);
     }
@@ -165,9 +165,5 @@ public sealed class EncryptedArtifactContentStore :
         }
     }
 
-    private static byte[] GetContext(
-        ArtifactId artifactId) =>
-        Encoding.UTF8.GetBytes(
-            $"EMF-ARTIFACT-ID\0{artifactId.Value}");
 
 }

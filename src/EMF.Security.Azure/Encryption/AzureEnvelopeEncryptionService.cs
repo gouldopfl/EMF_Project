@@ -45,7 +45,7 @@ public sealed class AzureEnvelopeEncryptionService :
         cancellationToken.ThrowIfCancellationRequested();
 
         var keyReference =
-            await _keyProvider.GetCurrentKeyAsync(cancellationToken);
+            await AzureEnvelopeProviderBoundary.CallAsync(() => _keyProvider.GetCurrentKeyAsync(cancellationToken), EnvelopeKeyOperation.ResolveCurrentKey);
 
         if (string.IsNullOrWhiteSpace(keyReference.KeyVersion))
             throw new CryptographicException("Key version is required.");
@@ -77,14 +77,14 @@ public sealed class AzureEnvelopeEncryptionService :
                 authenticatedData);
 
             var cryptography =
-                _cryptographyFactory.Create(keyReference);
+                await AzureEnvelopeProviderBoundary.CallAsync(() => Task.FromResult(_cryptographyFactory.Create(keyReference)), EnvelopeKeyOperation.UnwrapKey);
 
             if (cryptography is null)
                 throw new CryptographicException(
                     "Encryption key cryptography factory returned no implementation.");
 
             var wrappedDek =
-                await cryptography.WrapKeyAsync(dek, cancellationToken);
+                await AzureEnvelopeProviderBoundary.CallAsync(() => cryptography.WrapKeyAsync(dek, cancellationToken), EnvelopeKeyOperation.WrapKey);
 
             return new EncryptedEnvelope
             {
@@ -131,27 +131,13 @@ public sealed class AzureEnvelopeEncryptionService :
         cancellationToken.ThrowIfCancellationRequested();
         EncryptedEnvelopeFormat.Validate(envelope);
 
-        var authenticatedData =
-            envelope.FormatVersion ==
-                EncryptedEnvelopeFormat.ContextBoundVersion
-                ? EncryptedEnvelopeFormat
-                    .GetContextBoundAuthenticatedData(
-                        envelope.Algorithm,
-                        authenticatedContext
-                            ?? throw new CryptographicException(
-                                "Authenticated context is required."))
-                : EncryptedEnvelopeFormat.GetAuthenticatedData(
-                    envelope.FormatVersion,
-                    envelope.Algorithm);
 
         var parts = envelope.KeyEncryptionKeyId.Split('/', 2);
 
         if (parts.Length != 2)
             throw new CryptographicException("Invalid key identifier.");
 
-        var keyReference = await _keyProvider.GetKeyAsync(
-            envelope.KeyEncryptionKeyId,
-            cancellationToken);
+        var keyReference = await AzureEnvelopeProviderBoundary.CallAsync(() => _keyProvider.GetKeyAsync(envelope.KeyEncryptionKeyId, cancellationToken), EnvelopeKeyOperation.ResolveHistoricalKey);
 
         if (keyReference is null)
             throw new CryptographicException("Encryption key not found.");
@@ -170,15 +156,13 @@ public sealed class AzureEnvelopeEncryptionService :
         }
 
         var cryptography =
-            _cryptographyFactory.Create(keyReference);
+            await AzureEnvelopeProviderBoundary.CallAsync(() => Task.FromResult(_cryptographyFactory.Create(keyReference)), EnvelopeKeyOperation.UnwrapKey);
 
         if (cryptography is null)
             throw new CryptographicException(
                 "Encryption key cryptography factory returned no implementation.");
 
-        var dek = await cryptography.UnwrapKeyAsync(
-            envelope.WrappedDataEncryptionKey,
-            cancellationToken);
+        var dek = await AzureEnvelopeProviderBoundary.CallAsync(() => cryptography.UnwrapKeyAsync(envelope.WrappedDataEncryptionKey, cancellationToken), EnvelopeKeyOperation.UnwrapKey);
 
         try
         {
@@ -188,26 +172,7 @@ public sealed class AzureEnvelopeEncryptionService :
                     "Invalid data encryption key length.");
             }
 
-            var plaintext = new byte[envelope.Ciphertext.Length];
-
-            try
-            {
-                using var aes = new AesGcm(dek, 16);
-                aes.Decrypt(
-                    envelope.Nonce,
-                    envelope.Ciphertext,
-                    envelope.AuthenticationTag,
-                    plaintext,
-                    authenticatedData);
-
-                return plaintext;
-            }
-            catch
-            {
-                CryptographicOperations.ZeroMemory(
-                    plaintext);
-                throw;
-            }
+            return EnvelopeContentAuthentication.Decrypt(envelope, dek, authenticatedContext);
         }
         finally
         {

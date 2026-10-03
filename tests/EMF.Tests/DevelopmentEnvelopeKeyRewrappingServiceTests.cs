@@ -102,7 +102,7 @@ public sealed class
         var rewrapped =
             await new DevelopmentEnvelopeKeyRewrappingService(
                 provider)
-                .RewrapAsync(original);
+                .RewrapAuthenticatedAsync(original, context);
 
         Assert.Equal(
             original.FormatVersion,
@@ -145,9 +145,10 @@ public sealed class
             new DevelopmentEnvelopeKeyRewrappingService(
                 provider);
 
-        await Assert.ThrowsAsync<
-            CryptographicException>(
-                () => rewrapping.RewrapAsync(original));
+        var failure = await Assert.ThrowsAsync<EMF.Security.Encryption.Envelope.EnvelopeProviderFailure>(
+            () => rewrapping.RewrapAsync(original));
+        Assert.Equal(EMF.Security.Encryption.Envelope.EnvelopeFailureCategory.KeyUnavailable, failure.Category);
+        Assert.Null(failure.InnerException);
     }
     [Fact]
     public async Task RewrapAsync_MismatchedHistoricalKeyId_Fails()
@@ -174,7 +175,7 @@ public sealed class
             new DevelopmentEnvelopeKeyRewrappingService(
                 provider);
 
-        await Assert.ThrowsAsync<CryptographicException>(
+        await Assert.ThrowsAnyAsync<CryptographicException>(
             () => rewrapping.RewrapAsync(original));
     }
 

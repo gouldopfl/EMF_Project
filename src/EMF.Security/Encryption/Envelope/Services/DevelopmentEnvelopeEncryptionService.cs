@@ -138,18 +138,6 @@ public sealed class DevelopmentEnvelopeEncryptionService :
         cancellationToken.ThrowIfCancellationRequested();
         EncryptedEnvelopeFormat.Validate(envelope);
 
-        var authenticatedData =
-            envelope.FormatVersion ==
-                EncryptedEnvelopeFormat.ContextBoundVersion
-                ? EncryptedEnvelopeFormat
-                    .GetContextBoundAuthenticatedData(
-                        envelope.Algorithm,
-                        authenticatedContext
-                            ?? throw new CryptographicException(
-                                "Authenticated context is required."))
-                : EncryptedEnvelopeFormat.GetAuthenticatedData(
-                    envelope.FormatVersion,
-                    envelope.Algorithm);
 
         var key =
             await _keyProvider.GetKeyAsync(
@@ -174,29 +162,7 @@ public sealed class DevelopmentEnvelopeEncryptionService :
 
         try
         {
-            var plaintext =
-                new byte[envelope.Ciphertext.Length];
-
-            try
-            {
-                using var aes =
-                    new AesGcm(dek, TagSize);
-
-                aes.Decrypt(
-                    envelope.Nonce,
-                    envelope.Ciphertext,
-                    envelope.AuthenticationTag,
-                    plaintext,
-                    authenticatedData);
-
-                return plaintext;
-            }
-            catch
-            {
-                CryptographicOperations.ZeroMemory(
-                    plaintext);
-                throw;
-            }
+            return EnvelopeContentAuthentication.Decrypt(envelope, dek, authenticatedContext);
         }
         finally
         {

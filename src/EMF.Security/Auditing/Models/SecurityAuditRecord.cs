@@ -4,6 +4,12 @@ namespace EMF.Security.Auditing.Models;
 
 public sealed class SecurityAuditRecord
 {
+    public SecurityAuditEventId? AuditEventId { get; init; }
+    public SecurityMutationOperationId? OperationId { get; init; }
+    public string? OriginalActorId { get; init; }
+    public string? ServiceActorId { get; init; }
+    public string? RecoveryActorId { get; init; }
+
     public required string Operation { get; init; }
 
     public required string ResourceType { get; init; }

@@ -2,6 +2,7 @@ namespace EMF.Core.Models.Identities;
 
 public readonly record struct ArtifactId
 {
+    [System.Text.Json.Serialization.JsonConstructor]
     public ArtifactId(string value)
     {
         Value =

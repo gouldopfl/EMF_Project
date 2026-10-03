@@ -20,7 +20,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         var audit = new RecordingSecurityAuditSink();
 
         var service =
-            new ArtifactEnvelopeRewrappingService(
+            CreateService(
                 new MissingContentStore(),
                 new TestRewrappingService(),
                 new FailingAuthorizationPolicy(cancellation),
@@ -51,7 +51,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         var audit = new RecordingSecurityAuditSink();
 
         var service =
-            new ArtifactEnvelopeRewrappingService(
+            CreateService(
                 new MissingContentStore(),
                 new TestRewrappingService(),
                 new FailingAuthorizationPolicy(failure),
@@ -82,7 +82,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         var audit = new RecordingSecurityAuditSink();
 
         var service =
-            new ArtifactEnvelopeRewrappingService(
+            CreateService(
                 new FailingReadContentStore(cancellation),
                 new TestRewrappingService(),
                 new AllowPolicy(),
@@ -114,7 +114,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         var audit = new RecordingSecurityAuditSink();
 
         var service =
-            new ArtifactEnvelopeRewrappingService(
+            CreateService(
                 new FailingReadContentStore(failure),
                 new TestRewrappingService(),
                 new AllowPolicy(),
@@ -144,6 +144,7 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
     {
         var original = new EncryptedEnvelope
         {
+            FormatVersion = 2,
             Ciphertext = [1, 2, 3],
             Nonce = new byte[12],
             AuthenticationTag = new byte[16],
@@ -154,12 +155,20 @@ public sealed partial class ArtifactEnvelopeRewrappingServiceTests
         var stored = JsonSerializer.SerializeToUtf8Bytes(original);
         var contentStore = new FailingReplacementContentStore(stored);
         var audit = new RecordingSecurityAuditSink();
-        var service = new ArtifactEnvelopeRewrappingService(
+        var service = CreateService(
             contentStore,
             replacementFailure ? new TestRewrappingService() : new FailingRewrappingService(),
             new AllowPolicy(), audit);
         var artifactId = new ArtifactId("synthetic-key-audit-failure");
 
+        if (replacementFailure)
+        {
+            var result = await service.RewrapAsync(CreateRequest(artifactId));
+            Assert.Equal(EMF.Security.Storage.Models.ArtifactEnvelopeRewrappingOutcome.RequiresReview, result.Outcome);
+            Assert.Empty(audit.Records);
+            Assert.Equal(stored, await contentStore.ReadAsync(artifactId));
+            return;
+        }
         var failure = await Record.ExceptionAsync(() => service.RewrapAsync(CreateRequest(artifactId)));
 
         Assert.NotNull(failure);

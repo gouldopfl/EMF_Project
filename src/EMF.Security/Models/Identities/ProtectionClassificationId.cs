@@ -2,6 +2,7 @@ namespace EMF.Security.Models.Identities;
 
 public readonly record struct ProtectionClassificationId
 {
+    [System.Text.Json.Serialization.JsonConstructor]
     public ProtectionClassificationId(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
