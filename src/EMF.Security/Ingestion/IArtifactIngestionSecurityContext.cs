@@ -9,7 +9,7 @@ namespace EMF.Security.Ingestion;
 // Implemented by the authenticated host, not populated from ingestion request fields.
 // A retry returns the same logical operation and authorized-operation binding.
 public sealed record AuthenticatedIngestionOperation(ArtifactContentOperationId OperationId,
-    IngestionAuthorizedOperationId AuthorizedOperationId, string ActorId);
+    IngestionAuthorizedOperationId AuthorizedOperationId, string ActorId, ArtifactContentOperationId? ParentOperationId = null);
 public interface IArtifactIngestionSecurityContext
 {
     Task<AuthenticatedIngestionOperation> GetIngestionOperationAsync(CancellationToken cancellationToken = default);

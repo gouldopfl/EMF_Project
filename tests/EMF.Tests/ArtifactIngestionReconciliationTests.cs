@@ -607,7 +607,7 @@ public sealed class ArtifactIngestionReconciliationTests
     [Fact]
     public async Task Unknown_future_ingestion_schema_is_rejected()
     {
-        await using var f = await ArtifactIngestionFixture.CreateAsync(); await f.SqlAsync("INSERT INTO ArtifactIngestionSchema VALUES(2)");
+        await using var f = await ArtifactIngestionFixture.CreateAsync(); await f.SqlAsync("INSERT INTO ArtifactIngestionSchema VALUES(3)");
         await Assert.ThrowsAsync<InvalidDataException>(() => f.Persistence.InitializeAsync());
     }
     [Fact]

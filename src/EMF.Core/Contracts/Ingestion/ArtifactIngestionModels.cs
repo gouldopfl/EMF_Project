@@ -47,10 +47,21 @@ public sealed record ArtifactIngestionIntent(
     ArtifactId? CanonicalArtifactId = null, string? CleanupActorId = null, string? SafeFailureCategory = null,
     DateTimeOffset? AdoptionUtc = null, IngestionAuditObligation? RecoveryAuditObligation = null);
 
-public sealed record IngestionOperationBinding(IngestionAuthorizedOperationId OperationId, string OriginalActorId);
+public sealed record IngestionOperationBinding(IngestionAuthorizedOperationId OperationId, string OriginalActorId,
+    ArtifactContentOperationId? ParentOperationId = null);
+
+// Append-only candidate identity. Creation evidence is appended separately; neither is adoption truth.
+public sealed record IngestionCandidateBinding(ArtifactContentOperationId OperationId, ArtifactContentOperationId? ParentOperationId,
+    ArtifactId ArtifactId, string CandidateId, string CandidateHash, string RequestHash,
+    ArtifactContentOwnershipToken OwnershipToken, IngestionClassificationId ClassificationId,
+    IngestionClassificationRevision ClassificationRevision, IngestionAuthorizedOperationId AuthorizedOperationId,
+    ArtifactContentAuditEventId CreateEventId, ArtifactContentAuditEventId AdoptionEventId,
+    ArtifactContentAuditEventId CleanupEventId, string ProtectionContract = "ArtifactEnvelope.ContextBound.v2",
+    int BindingVersion = 1);
 public sealed record IngestionClassificationAuthority(ArtifactId ArtifactId, IngestionClassificationId ClassificationId,
     IngestionClassificationRevision Revision, bool IsAdopted, ArtifactContentOwnershipToken? OwnershipToken,
     IngestionAuthorizedOperationId? AuthorizedOperationId);
+// Retained recovery input only. ADR-048 adoption/cleanup evidence and current authorization remain authoritative.
 public sealed record IngestionMetadataDraft(Artifact Artifact, Provenance Provenance);
 public sealed record IngestionAuditObligation(ArtifactContentAuditEventId EventId, ArtifactContentOperationId OperationId,
     ArtifactId ArtifactId, IngestionClassificationId ClassificationId, IngestionClassificationRevision ClassificationRevision,

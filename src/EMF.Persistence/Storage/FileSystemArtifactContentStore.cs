@@ -8,7 +8,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EMF.Persistence.Storage;
 
-public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactContentStore
+public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactContentStore
 {
     public const long DefaultMaxStoredBytes = 150L * 1024 * 1024;
     private const string Gate = ".content-coordination";
@@ -18,6 +18,9 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
     private readonly IContentStoragePlatform _platform;
     private readonly string _rootPath;
     private readonly long _maxStoredBytes;
+    private readonly ArtifactContentInspectionLimits _inspectionLimits;
+    internal Action<string>? InspectionCheckpoint { get; set; }
+    private ContentInspectionBudget Inspection(CancellationToken ct) => new(_inspectionLimits, ct, InspectionCheckpoint);
     internal bool IncrementalGenerationInspection { get; set; }
     private readonly SemaphoreSlim _admission = new(1, 1);
     private volatile bool _admitted;
@@ -25,12 +28,15 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
     // Narrow internal fault/coordination seam, unavailable to production callers.
     internal Func<string, Task>? Checkpoint { get; set; }
 
-    public FileSystemArtifactContentStore(string rootPath, long maxStoredBytes = DefaultMaxStoredBytes)
-        : this(rootPath, maxStoredBytes, ContentStoragePlatform.Select()) { }
+    public FileSystemArtifactContentStore(string rootPath, long maxStoredBytes = DefaultMaxStoredBytes,
+        ArtifactContentInspectionLimits? inspectionLimits = null)
+        : this(rootPath, maxStoredBytes, ContentStoragePlatform.Select(), inspectionLimits) { }
 
-    internal FileSystemArtifactContentStore(string rootPath, long maxStoredBytes, IContentStoragePlatform platform)
+    internal FileSystemArtifactContentStore(string rootPath, long maxStoredBytes, IContentStoragePlatform platform,
+        ArtifactContentInspectionLimits? inspectionLimits = null)
     {
         _platform = platform;
+        _inspectionLimits = inspectionLimits ?? new(); _inspectionLimits.Validate();
         if (string.IsNullOrWhiteSpace(rootPath)) throw new ArgumentException("Root path is required.", nameof(rootPath));
         if (maxStoredBytes <= 0 || maxStoredBytes > Array.MaxLength) throw new ArgumentOutOfRangeException(nameof(maxStoredBytes));
         _rootPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootPath));
@@ -59,9 +65,10 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
 
     public async Task<ArtifactContentSnapshot?> ReadVersionedAsync(ArtifactId id, CancellationToken cancellationToken = default)
     {
+        using var inspection = Inspection(cancellationToken);
         ValidateId(id);
-        await AdmitAsync(cancellationToken);
-        using var connection = OpenCatalog();
+        await AdmitAsync(cancellationToken, inspection);
+        using var connection = OpenCatalog(inspection: inspection);
         using var transaction = connection.BeginTransaction(deferred: true);
         var state = ReadState(connection, transaction, id);
         if (state?.Generation is null) return null;
@@ -85,18 +92,20 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
     public async Task<ArtifactContentMutationReceipt?> GetMutationOutcomeAsync(ArtifactContentOperationId operationId,
         CancellationToken cancellationToken = default)
     {
+        using var inspection = Inspection(cancellationToken);
         ArtifactContentIdentity.Validate(operationId.Value);
-        await AdmitAsync(cancellationToken);
-        using var connection = OpenCatalog();
+        await AdmitAsync(cancellationToken, inspection);
+        using var connection = OpenCatalog(inspection: inspection);
         return FindReceipt(connection, null, operationId)?.Receipt;
     }
     public async Task<IReadOnlyList<ArtifactContentAuditObligation>> ReadAuditObligationsAsync(
         ArtifactContentReceiptCursor? afterCursor, int limit, CancellationToken cancellationToken = default)
     {
+        using var inspection = Inspection(cancellationToken);
         if (limit is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(limit));
         if (afterCursor is { Value: <= 0 }) throw new ArgumentException("Receipt cursor is invalid.", nameof(afterCursor));
-        await AdmitAsync(cancellationToken);
-        using var connection = OpenCatalog();
+        await AdmitAsync(cancellationToken, inspection);
+        using var connection = OpenCatalog(inspection: inspection);
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT EnumerationSequence, Receipt FROM ContentReceipts WHERE AuditEventId IS NOT NULL AND EnumerationSequence > $after ORDER BY EnumerationSequence LIMIT $limit";
         command.Parameters.AddWithValue("$after", afterCursor?.Value ?? 0);
@@ -114,10 +123,63 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
         if (content.Length > _maxStoredBytes) throw new InvalidDataException("Artifact content exceeds the maximum stored size.");
         // Freeze caller-owned memory so request identity and durable bytes agree.
         var stableContent = content.ToArray();
-        try { return await MutateCoreAsync(id, kind, expected, stableContent, context, ct); }
+        try
+        {
+            await using var prepared = await PrepareMutationAsync(id, kind, expected, stableContent, context, ct);
+            try { return await prepared.ExecuteAsync(ct); }
+            catch (ContentCommitAcknowledgementException)
+            {
+                using var inspection = Inspection(ct);
+                using var recovery = OpenCatalog(inspection: inspection);
+                var known = FindReceipt(recovery, null, context.OperationId);
+                if (known is not null && known.Request == ((PreparedPhysicalMutation)prepared).Request) return new(known.Receipt);
+                throw;
+            }
+        }
         finally { CryptographicOperations.ZeroMemory(stableContent); }
     }
-    private async Task<ArtifactContentMutationResult> MutateCoreAsync(ArtifactId id, ArtifactContentMutationKind kind,
+    public async Task<IPreparedArtifactContentMutation> PreparePhysicalCreateAsync(ArtifactId id, ReadOnlyMemory<byte> content,
+        ArtifactContentMutationContext context, CancellationToken cancellationToken = default)
+    {
+        if (content.Length > _maxStoredBytes) throw new InvalidDataException("Artifact content exceeds the maximum stored size.");
+        var stable = content.ToArray();
+        try { return await PrepareMutationAsync(id, ArtifactContentMutationKind.Create, null, stable, context, cancellationToken); }
+        finally { CryptographicOperations.ZeroMemory(stable); }
+    }
+    public Task<IPreparedArtifactContentMutation> PreparePhysicalDeleteAsync(ArtifactId id, ArtifactContentRevision expected,
+        ArtifactContentMutationContext context, CancellationToken cancellationToken = default)
+        => PrepareMutationAsync(id, ArtifactContentMutationKind.Delete, expected, default, context, cancellationToken);
+    public async Task<ArtifactContentRevision?> ReadCurrentRevisionAsync(ArtifactId id, CancellationToken cancellationToken = default)
+    {
+        await using var probe = await PrepareRevisionValidationAsync(id, cancellationToken);
+        return await probe.ReadCurrentRevisionAsync(cancellationToken);
+    }
+    public async Task<IArtifactContentRevisionProbe> PrepareRevisionValidationAsync(ArtifactId id, CancellationToken cancellationToken = default)
+    {
+        using var inspection = Inspection(cancellationToken);
+        ValidateId(id); await AdmitAsync(cancellationToken, inspection);
+        var connection = OpenCatalog(inspection: inspection); // Full integrity scan is detached; its read transaction ends here.
+        try { return new RevisionProbe(this, id, connection, ReadState(connection, null, id)); }
+        catch { connection.Dispose(); throw; }
+    }
+    private sealed class RevisionProbe(FileSystemArtifactContentStore store, ArtifactId id, SqliteConnection connection, State? admitted) : IArtifactContentRevisionProbe
+    {
+        private bool _disposed;
+        public Task<ArtifactContentRevision?> ReadCurrentRevisionAsync(CancellationToken cancellationToken = default)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this); cancellationToken.ThrowIfCancellationRequested();
+            store.ValidateAdmittedStructure();
+            var current = ReadState(connection, null, id);
+            // A legitimate mutation changes revision. Same-revision state substitution is damage.
+            if (current?.Revision == admitted?.Revision && current != admitted)
+                throw new InvalidDataException("Current generation changed without a physical revision.");
+            if (current?.Generation is null) return Task.FromResult<ArtifactContentRevision?>(null);
+            store.ValidateGeneration(current.Generation, current.Length);
+            return Task.FromResult<ArtifactContentRevision?>(new(current.Revision));
+        }
+        public ValueTask DisposeAsync() { if (!_disposed) { _disposed = true; connection.Dispose(); } return ValueTask.CompletedTask; }
+    }
+    private async Task<IPreparedArtifactContentMutation> PrepareMutationAsync(ArtifactId id, ArtifactContentMutationKind kind,
         ArtifactContentRevision? expected, ReadOnlyMemory<byte> content, ArtifactContentMutationContext context, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
@@ -132,34 +194,67 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
         if (context.RequiresAuditObligation && context.AuditEventId is null)
             throw new ArgumentException("Required content mutation audit obligation identity is missing.");
         if (content.Length > _maxStoredBytes) throw new InvalidDataException("Artifact content exceeds the maximum stored size.");
-        await AdmitAsync(ct);
-        using var gate = await _platform.AcquireAsync(PathFor(Gate), false, ct);
-        // Private canonical identity never becomes the public revision or log data.
-        var request = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+        using (var admissionInspection = Inspection(ct))
+            await AdmitAsync(ct, admissionInspection);
+        var gate = await _platform.AcquireAsync(PathFor(Gate), false, ct);
+        try
         {
-            Artifact = id.Value, Kind = kind, Expected = expected?.Value,
-            Owner = context.OwnershipToken?.Value, Audit = context.AuditEventId?.Value, RequiredAudit = context.RequiresAuditObligation,
-            Payload = Convert.ToHexString(SHA256.HashData(content.Span))
-        })));
-        string? candidate = null;
-        if (kind is not (ArtifactContentMutationKind.Delete or ArtifactContentMutationKind.LegacyDelete))
-        {
-            candidate = Guid.NewGuid().ToString("N");
-            var temp = GenerationPath(candidate + ".tmp");
-            await using (var stream = _platform.CreatePrivateFile(temp, asynchronous: true))
+            // Private canonical identity never becomes the public revision or log data.
+            var request = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
             {
-                await stream.WriteAsync(content, ct);
-                await stream.FlushAsync(ct);
-                stream.Flush(flushToDisk: true);
+                Artifact = id.Value, Kind = kind, Expected = expected?.Value,
+                Owner = context.OwnershipToken?.Value, Audit = context.AuditEventId?.Value, RequiredAudit = context.RequiresAuditObligation,
+                Payload = Convert.ToHexString(SHA256.HashData(content.Span))
+            })));
+            string? candidate = null;
+            if (kind is not (ArtifactContentMutationKind.Delete or ArtifactContentMutationKind.LegacyDelete))
+            {
+                candidate = Guid.NewGuid().ToString("N");
+                var temp = GenerationPath(candidate + ".tmp");
+                await using (var stream = _platform.CreatePrivateFile(temp, asynchronous: true))
+                {
+                    await stream.WriteAsync(content, ct);
+                    await stream.FlushAsync(ct);
+                    stream.Flush(flushToDisk: true);
+                }
+                ct.ThrowIfCancellationRequested();
+                await At("BeforeGenerationRename");
+                File.Move(temp, GenerationPath(candidate));
+                await At("GenerationPublished");
+                _platform.FlushDirectory(PathFor(Generations));
+                await At("CandidateDurable");
             }
-            ct.ThrowIfCancellationRequested();
-            await At("BeforeGenerationRename");
-            File.Move(temp, GenerationPath(candidate));
-            await At("GenerationPublished");
-            _platform.FlushDirectory(PathFor(Generations));
-            await At("CandidateDurable");
+            using var inspection = Inspection(ct); // Fresh bounded revalidation after physical I/O, before the authority fence.
+            var connection = OpenCatalog(inspection: inspection); // Complete catalog/namespace validation; no inspection CTS reaches payload I/O.
+            try
+            {
+                await At("CatalogIntegrityPrepared");
+                inspection.Check();
+                return new PreparedPhysicalMutation(this, id, kind, expected, context, request, candidate, content.Length, gate, connection, ReadState(connection, null, id));
+            }
+            catch { connection.Dispose(); throw; }
         }
-        using var connection = OpenCatalog();
+        catch { gate.Dispose(); throw; }
+    }
+    private sealed class PreparedPhysicalMutation(FileSystemArtifactContentStore store, ArtifactId id,
+        ArtifactContentMutationKind kind, ArtifactContentRevision? expected, ArtifactContentMutationContext context,
+        string request, string? candidate, int length, IDisposable gate, SqliteConnection connection, State? admitted) : IPreparedArtifactContentMutation
+    {
+        internal string Request => request;
+        private int _executed;
+        private bool _disposed;
+        public Task<ArtifactContentMutationResult> ExecuteAsync(CancellationToken cancellationToken = default)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (Interlocked.Exchange(ref _executed, 1) != 0) throw new InvalidOperationException("Prepared mutation is single-use; reconcile by OperationId.");
+            return store.PromotePreparedAsync(connection, id, kind, expected, context, request, candidate, length, admitted, cancellationToken);
+        }
+        public ValueTask DisposeAsync() { if (!_disposed) { _disposed = true; connection.Dispose(); gate.Dispose(); } return ValueTask.CompletedTask; }
+    }
+    private async Task<ArtifactContentMutationResult> PromotePreparedAsync(SqliteConnection connection, ArtifactId id, ArtifactContentMutationKind kind,
+        ArtifactContentRevision? expected, ArtifactContentMutationContext context, string request, string? candidate, int length, State? admitted, CancellationToken ct)
+    {
+        ValidateAdmittedStructure();
         ct.ThrowIfCancellationRequested();
         using var transaction = connection.BeginTransaction(deferred: false);
         var prior = FindReceipt(connection, transaction, context.OperationId);
@@ -170,6 +265,8 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
             return new(prior.Receipt);
         }
         var state = ReadState(connection, transaction, id);
+        if (state?.Revision == admitted?.Revision && state != admitted)
+            throw new InvalidDataException("Current generation changed without a physical revision.");
         // Reject a damaged current generation even on destructive mutation.
         if (state?.Generation is { } current) ValidateGeneration(current, state.Length);
         var present = state?.Generation is not null;
@@ -194,7 +291,7 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
             command.CommandText = "INSERT INTO ContentState(ArtifactId,Revision,Generation,Length,Owner) VALUES($id,$rev,$gen,$length,$owner) ON CONFLICT(ArtifactId) DO UPDATE SET Revision=$rev,Generation=$gen,Length=$length,Owner=$owner";
             command.Parameters.AddWithValue("$id", id.Value); command.Parameters.AddWithValue("$rev", next!);
             command.Parameters.AddWithValue("$gen", outcome == ArtifactContentMutationOutcome.Deleted ? DBNull.Value : candidate!);
-            command.Parameters.AddWithValue("$length", outcome == ArtifactContentMutationOutcome.Deleted ? 0 : content.Length);
+            command.Parameters.AddWithValue("$length", outcome == ArtifactContentMutationOutcome.Deleted ? 0 : length);
             command.Parameters.AddWithValue("$owner", (object?)nextOwner ?? DBNull.Value); command.ExecuteNonQuery();
         }
         var receipt = new ArtifactContentMutationReceipt(context.OperationId, id, kind,
@@ -214,22 +311,25 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
         await At("BeforeCommit");
         ct.ThrowIfCancellationRequested();
         try { transaction.Commit(); }
-        catch
+        catch (Exception error)
         {
-            // A failed acknowledgement is not proof of rollback. Reconcile using
-            // a new connection, never issue another operation identity.
+            // Never infer rollback. Prepared callers release their authority session
+            // before detached receipt reconciliation; no full integrity scan runs here.
             transaction.Dispose();
-            using var recovery = OpenCatalog();
-            var known = FindReceipt(recovery, null, context.OperationId);
-            if (known is not null && known.Request == request) return new(known.Receipt);
-            throw;
+            throw new ContentCommitAcknowledgementException(error);
         }
         await At("Committed");
         return new(receipt);
     }
 
-    private async Task AdmitAsync(CancellationToken ct)
+    private sealed class ContentCommitAcknowledgementException(Exception error)
+        : IOException("Physical commit acknowledgement is unknown; reconcile the original OperationId.", error);
+
+    private async Task AdmitAsync(CancellationToken ct, ContentInspectionBudget? inspection = null)
     {
+        using var ownedInspection = inspection is null ? Inspection(ct) : null;
+        inspection ??= ownedInspection!;
+        inspection.Check();
         ct.ThrowIfCancellationRequested();
         FileSystemArtifactContentMigration.RequireCompletedWorkspace(_rootPath, _platform);
         if (_admitted) { ValidateAdmittedStructure(); return; }
@@ -237,10 +337,22 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
         try
         {
             if (_admitted) { ValidateAdmittedStructure(); return; }
-            await AdmitCoreAsync(ct);
+            await AdmitCoreAsync(ct, inspection);
+            inspection.Check();
             _admitted = true;
         }
+        catch (SqliteException) when (inspection.IsStopped)
+        { inspection.ThrowIfStopped(); throw; }
         finally { _admission.Release(); }
+    }
+
+    private string ReadFormatMarker()
+    {
+        // A format marker has a fixed small vocabulary; never allocate arbitrary
+        // attacker-controlled file contents while inspecting an admitted root.
+        if (new FileInfo(PathFor(Marker)).Length > 64)
+            throw new InvalidDataException("Content format marker exceeds its size bound.");
+        return File.ReadAllText(PathFor(Marker));
     }
 
     private void ValidateAdmittedStructure()
@@ -254,19 +366,19 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
             _platform.ValidatePrivatePermissions(PathFor(name));
         }
         RejectSymbolicLinks(PathFor(Generations));
-        if (!Directory.Exists(PathFor(Generations)) || File.ReadAllText(PathFor(Marker)) != "EMF-CONTENT-1")
+        if (!Directory.Exists(PathFor(Generations)) || ReadFormatMarker() != "EMF-CONTENT-1")
             throw new InvalidDataException("Admitted content protocol state is damaged.");
         _platform.ValidatePrivatePermissions(PathFor(Generations));
     }
 
-    private async Task AdmitCoreAsync(CancellationToken ct)
+    private async Task AdmitCoreAsync(CancellationToken ct, ContentInspectionBudget inspection)
     {
         ct.ThrowIfCancellationRequested();
         _platform.RequirePlatform();
         RejectSymbolicLinks(_rootPath);
         FileSystemArtifactContentMigration.RequireCompletedWorkspace(_rootPath, _platform);
         // Read-only preflight must precede any gate creation or permission mutation.
-        if (Directory.Exists(_rootPath)) InspectUnmarkedRoot();
+        if (Directory.Exists(_rootPath)) InspectUnmarkedRoot(inspection: inspection);
         await At("AdmissionPreflight");
         var parent = Path.GetDirectoryName(_rootPath)!;
         if (!Directory.Exists(parent)) throw new InvalidDataException("Content root parent must exist before admission.");
@@ -277,28 +389,28 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
         }
         // Recognized roots use only the normal producer gate/catalog protocol.
         // Directory coordination is solely for an undecided bootstrap layout.
-        if (await TryAdmitCurrentRootAsync(ct)) return;
+        if (await TryAdmitCurrentRootAsync(ct, inspection)) return;
         await At("BeforeAdmissionCoordination");
         // The existing directory inode is read-only bootstrap coordination. Unlike
         // the producer gate, acquiring it inserts no entry into a legacy root.
         using var admission = await _platform.AcquireAdmissionAsync(_rootPath, ct);
         FileSystemArtifactContentMigration.RequireCompletedWorkspace(_rootPath, _platform);
-        InspectUnmarkedRoot();
+        InspectUnmarkedRoot(inspection: inspection);
         _platform.ValidatePrivatePermissions(_rootPath);
         _platform.FlushDirectory(_rootPath, true);
         foreach (var name in new[] { Gate, Marker, Catalog, Catalog + "-journal", Generations }) RejectSymbolicLinks(PathFor(name));
-        ValidateProtocolPermissions();
-        if (await TryAdmitCurrentRootAsync(ct)) return;
+        ValidateProtocolPermissions(inspection);
+        if (await TryAdmitCurrentRootAsync(ct, inspection)) return;
         using var gate = await _platform.AcquireAsync(PathFor(Gate), true, ct);
-        InspectUnmarkedRoot(gateCreatedByCurrentBootstrap: true); // This attempt alone may admit its newly created gate.
-        ValidateProtocolPermissions();
+        InspectUnmarkedRoot(gateCreatedByCurrentBootstrap: true, inspection: inspection); // This attempt alone may admit its newly created gate.
+        ValidateProtocolPermissions(inspection);
         _platform.FlushDirectory(_rootPath);
         var initialized = File.Exists(PathFor(Marker));
         if (!initialized)
         {
             if (File.Exists(PathFor(Catalog)) || Directory.Exists(PathFor(Generations)))
                 throw new InvalidDataException("Incomplete versioned content root requires reconciliation.");
-            if (Directory.EnumerateFileSystemEntries(_rootPath).Any(p => Path.GetFileName(p) != Gate))
+            if (Directory.EnumerateFileSystemEntries(_rootPath).Any(p => { inspection.Entry(p); return Path.GetFileName(p) != Gate; }))
                 throw new ArtifactContentMigrationRequiredException();
             // Marker precedes catalog creation: interrupted bootstrap is damage,
             // never a reason to erase or silently reinterpret this root.
@@ -307,7 +419,8 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
             _platform.FlushDirectory(_rootPath);
             _platform.CreatePrivateDirectory(PathFor(Generations));
             using (var file = _platform.CreatePrivateFile(PathFor(Catalog))) file.Flush(true);
-            using var connection = OpenCatalog(initializing: true);
+            using var connection = OpenCatalog(initializing: true, inspection: inspection);
+            using var sqlInspection = inspection.InspectSql(connection);
             using var transaction = connection.BeginTransaction(deferred: false);
             using var command = connection.CreateCommand(); command.Transaction = transaction;
             command.CommandText = ContentCatalogSchema.Foundation;
@@ -318,43 +431,50 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
             { ready.Write("EMF-CONTENT-1"u8); ready.Flush(true); }
             _platform.FlushDirectory(_rootPath);
         }
-        if (!File.Exists(PathFor(Catalog)) || !Directory.Exists(PathFor(Generations)) || File.ReadAllText(PathFor(Marker)) != "EMF-CONTENT-1")
+        if (!File.Exists(PathFor(Catalog)) || !Directory.Exists(PathFor(Generations)) || ReadFormatMarker() != "EMF-CONTENT-1")
             throw new InvalidDataException("Versioned content root is damaged; reconciliation is required.");
-        using var validated = OpenCatalog(fullMigrationEvidence: true);
+        using var validated = OpenCatalog(fullMigrationEvidence: true, inspection: inspection);
     }
-    private async Task<bool> TryAdmitCurrentRootAsync(CancellationToken ct)
+    private async Task<bool> TryAdmitCurrentRootAsync(CancellationToken ct, ContentInspectionBudget inspection)
     {
         if (!File.Exists(PathFor(Marker))) return false;
         RejectSymbolicLinks(PathFor(Marker));
         _platform.ValidatePrivatePermissions(_rootPath);
         _platform.FlushDirectory(_rootPath, true);
-        ValidateProtocolPermissions();
+        ValidateProtocolPermissions(inspection);
         if (!File.Exists(PathFor(Gate)))
             throw new InvalidDataException("Versioned content coordination identity is missing; reconciliation is required.");
-        if (File.ReadAllText(PathFor(Marker)) != "EMF-CONTENT-1") return false;
+        if (ReadFormatMarker() != "EMF-CONTENT-1") return false;
         if (!File.Exists(PathFor(Catalog)) || !Directory.Exists(PathFor(Generations)))
             throw new InvalidDataException("Versioned content root is damaged; reconciliation is required.");
         // Recognized version 2 roots upgrade only under the stable exclusive
         // generation gate. A current root requires no additional gate acquisition.
-        using (var inspection = OpenCatalog(initializing: true))
+        using (var catalogInspection = OpenCatalog(initializing: true, inspection: inspection))
         {
-            using var version = inspection.CreateCommand();
-            version.CommandText = "PRAGMA user_version";
-            if (Convert.ToInt32(version.ExecuteScalar(), CultureInfo.InvariantCulture) == 2)
+            int currentVersion;
+            using (inspection.InspectSql(catalogInspection))
+            using (var version = catalogInspection.CreateCommand())
+            {
+                version.CommandText = "PRAGMA user_version";
+                currentVersion = Convert.ToInt32(version.ExecuteScalar(), CultureInfo.InvariantCulture);
+            }
+            if (currentVersion == 2)
             {
                 using var gate = await _platform.AcquireAsync(PathFor(Gate), true, ct);
-                ContentCatalogSchema.Upgrade(inspection, (connection, transaction) => ValidateCatalogState(connection, transaction, foundationOnly: true));
+                using var sqlInspection = inspection.InspectSql(catalogInspection);
+                ContentCatalogSchema.Upgrade(catalogInspection, (connection, transaction) => ValidateCatalogState(connection, transaction, foundationOnly: true, inspection: inspection));
                 _platform.FlushDirectory(_rootPath);
             }
         }
-        using var checkedCatalog = OpenCatalog(fullMigrationEvidence: true);
+        using var checkedCatalog = OpenCatalog(fullMigrationEvidence: true, inspection: inspection);
         return true;
     }
 
-    private void InspectUnmarkedRoot(bool gateCreatedByCurrentBootstrap = false)
+    private void InspectUnmarkedRoot(bool gateCreatedByCurrentBootstrap = false, ContentInspectionBudget? inspection = null)
     {
+        using var work = inspection?.Inspect();
         if (File.Exists(PathFor(Marker))) return;
-        var names = Directory.EnumerateFileSystemEntries(_rootPath).Select(Path.GetFileName).ToArray();
+        var names = Directory.EnumerateFileSystemEntries(_rootPath).Select(path => { inspection?.Entry(path); return Path.GetFileName(path); }).ToArray();
         if (names.Any(name => name is Marker or Catalog or Generations || name!.StartsWith(Catalog + "-", StringComparison.Ordinal)))
             throw new InvalidDataException("Incomplete versioned content root requires reconciliation.");
         // A pre-protocol Artifact could be named exactly like the producer gate.
@@ -365,8 +485,9 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
             throw new ArtifactContentMigrationRequiredException();
     }
 
-    private void ValidateProtocolPermissions()
+    private void ValidateProtocolPermissions(ContentInspectionBudget? inspection = null)
     {
+        using var work = inspection?.Inspect();
         foreach (var name in new[] { Gate, Marker, Catalog, Catalog + "-journal", Catalog + "-wal", Catalog + "-shm", Generations })
         {
             var path = PathFor(name);
@@ -383,6 +504,7 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
         if (Directory.Exists(PathFor(Generations)) && !IncrementalGenerationInspection)
             foreach (var path in Directory.EnumerateFileSystemEntries(PathFor(Generations)))
             {
+                inspection?.Entry(path);
                 RejectSymbolicLinks(path);
                 try { _platform.ValidatePrivatePermissions(path); }
                 // A concurrent writer may publish an uncommitted temporary generation.
@@ -391,18 +513,24 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
             }
     }
 
-    private SqliteConnection OpenCatalog(bool initializing = false, bool fullMigrationEvidence = false)
+    private SqliteConnection OpenCatalog(bool initializing = false, bool fullMigrationEvidence = false, ContentInspectionBudget? inspection = null)
     {
+        using var ownedInspection = inspection is null ? Inspection(default) : null;
+        inspection ??= ownedInspection!;
+        using var work = inspection.Inspect();
+        inspection.Check();
         if (!initializing) FileSystemArtifactContentMigration.RequireCompletedWorkspace(_rootPath, _platform);
         // SQLite can touch rollback/WAL/SHM paths while opening or querying
         // journal mode. Reject unsafe paths before handing the catalog to SQLite.
         _platform.ValidatePrivatePermissions(_rootPath);
-        ValidateProtocolPermissions();
+        ValidateProtocolPermissions(inspection);
         var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         { DataSource = PathFor(Catalog), Mode = SqliteOpenMode.ReadWrite, Pooling = false, DefaultTimeout = 2 }.ToString());
         try
         {
+            inspection.Database(PathFor(Catalog));
             connection.Open();
+            using var sqlInspection = inspection.InspectSql(connection);
             using var command = connection.CreateCommand();
             command.CommandText = "PRAGMA journal_mode";
             if (!string.Equals((string?)command.ExecuteScalar(), "delete", StringComparison.OrdinalIgnoreCase))
@@ -418,34 +546,45 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
                 Dictionary<(string Artifact, string Revision), MigrationOrigin> origins;
                 using (var transaction = connection.BeginTransaction(deferred: true))
                 {
-                    origins = ValidateCatalogState(connection, transaction);
+                    origins = ValidateCatalogState(connection, transaction, inspection: inspection);
                     transaction.Commit();
                 }
                 if (fullMigrationEvidence)
                 {
-                    MigrationOrigins.VerifyEvidence(origins, _rootPath, _platform, _maxStoredBytes);
+                    MigrationOrigins.VerifyEvidence(origins, _rootPath, _platform, _maxStoredBytes, inspection);
                     _verifiedOrigins = origins;
                 }
             }
+            inspection.Check();
             return connection;
         }
+        catch (SqliteException) when (inspection.IsStopped)
+        { connection.Dispose(); inspection.ThrowIfStopped(); throw; }
+        catch (SqliteException error) when (error.SqliteErrorCode == SQLitePCL.raw.SQLITE_TOOBIG)
+        { connection.Dispose(); throw new InvalidDataException("Content inspection exceeded its admitted row byte bound.", error); }
         catch { connection.Dispose(); throw; }
     }
     private Dictionary<(string Artifact, string Revision), MigrationOrigin> ValidateCatalogState(
-        SqliteConnection connection, SqliteTransaction? transaction, bool foundationOnly = false)
+        SqliteConnection connection, SqliteTransaction? transaction, bool foundationOnly = false, ContentInspectionBudget? inspection = null)
     {
+        using var ownedInspection = inspection is null ? Inspection(default) : null;
+        inspection ??= ownedInspection!;
+        using var work = inspection.Inspect();
         using var command = connection.CreateCommand(); command.Transaction = transaction;
         command.CommandText = "PRAGMA quick_check";
         if (!string.Equals(command.ExecuteScalar() as string, "ok", StringComparison.Ordinal))
             throw new InvalidDataException("Content catalog integrity check failed.");
         var origins = foundationOnly ? new Dictionary<(string Artifact, string Revision), MigrationOrigin>() :
-            MigrationOrigins.Validate(connection, transaction, _rootPath, _platform, _maxStoredBytes);
+            MigrationOrigins.Validate(connection, transaction, _rootPath, _platform, _maxStoredBytes, inspection);
         var receipts = new Dictionary<(string Artifact, string Revision), (ArtifactContentMutationReceipt Receipt, string? Generation)>();
         command.CommandText = "SELECT OperationId, Request, Receipt, AuditEventId, PublishedGeneration, MutationRevision, EnumerationSequence FROM ContentReceipts";
         using (var reader = command.ExecuteReader())
         {
             while (reader.Read())
             {
+                inspection.Row();
+                for (var column = 0; column < reader.FieldCount; column++)
+                    if (!reader.IsDBNull(column) && reader.GetFieldType(column) == typeof(string)) inspection.Text(reader.GetString(column));
                 var receipt = DecodeReceipt(reader.GetString(2));
                 var audit = reader.IsDBNull(3) ? null : reader.GetString(3);
                 var request = reader.GetString(1);
@@ -463,15 +602,21 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
                 }
             }
         }
-        if (receipts.Keys.Select(key => key.Revision).Intersect(origins.Keys.Select(key => key.Revision), StringComparer.Ordinal).Any())
+        if (receipts.Keys.Select(key => { inspection.Step(); return key.Revision; }).Intersect(origins.Keys.Select(key => { inspection.Step(); return key.Revision; }), StringComparer.Ordinal).Any())
             throw new InvalidDataException("Content revision has contradictory lineage authorities.");
         foreach (var ((artifact, _), published) in receipts)
+        {
+            inspection.Step();
             if (published.Receipt.PriorRevision is { } previous && !receipts.ContainsKey((artifact, previous.Value)) && !origins.ContainsKey((artifact, previous.Value)))
                 throw new InvalidDataException("Content mutation lineage is incomplete.");
+        }
         var originRoots = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var key in origins.Keys)
+        {
+            inspection.Step();
             if (!originRoots.TryAdd(key.Artifact, key.Revision))
                 throw new InvalidDataException("Multiple bootstrap lineage origins.");
+        }
         var visitedLineage = new HashSet<(string Artifact, string Revision)>();
         var stateArtifacts = new HashSet<string>(StringComparer.Ordinal);
         command.CommandText = "SELECT ArtifactId, Revision, Generation, Length, Owner FROM ContentState";
@@ -479,6 +624,9 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
         {
             while (reader.Read())
             {
+                inspection.Row();
+                for (var column = 0; column < reader.FieldCount; column++)
+                    if (!reader.IsDBNull(column) && reader.GetFieldType(column) == typeof(string)) inspection.Text(reader.GetString(column));
                 var artifact = new ArtifactId(reader.GetString(0)).Value;
                 if (!stateArtifacts.Add(artifact)) throw new InvalidDataException("Duplicate content state identity.");
                 var revision = ArtifactContentIdentity.Validate(reader.GetString(1));
@@ -493,27 +641,29 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
                     hasOrigin && (owner is not null || origin!.Generation != generation || origin.Length != length))
                     throw new InvalidDataException("Content catalog state is contradictory.");
                 if (generation is not null) ValidateGeneration(generation, length);
-                ValidateLineage(artifact, revision, receipts, origins, originRoots.ContainsKey(artifact), visitedLineage);
+                ValidateLineage(artifact, revision, receipts, origins, originRoots.ContainsKey(artifact), visitedLineage, inspection);
             }
         }
         if (visitedLineage.Count != receipts.Count + origins.Count)
             throw new InvalidDataException("Content mutation lineage is branched or disconnected.");
-        if (receipts.Keys.Concat(origins.Keys).Any(key => !stateArtifacts.Contains(key.Artifact)))
+        if (receipts.Keys.Concat(origins.Keys).Any(key => { inspection.Step(); return !stateArtifacts.Contains(key.Artifact); }))
             throw new InvalidDataException("Content mutation lineage has no current/tombstone state.");
         if (_admitted && (_verifiedOrigins is null || _verifiedOrigins.Count != origins.Count ||
-            origins.Any(pair => !_verifiedOrigins.TryGetValue(pair.Key, out var verified) || verified != pair.Value)))
+            origins.Any(pair => { inspection.Step(); return !_verifiedOrigins.TryGetValue(pair.Key, out var verified) || verified != pair.Value; })))
             throw new InvalidDataException("Previously admitted migration provenance changed.");
+        inspection.Check();
         return origins;
     }
 
     private static void ValidateLineage(string artifact, string current,
         Dictionary<(string Artifact, string Revision), (ArtifactContentMutationReceipt Receipt, string? Generation)> receipts,
         Dictionary<(string Artifact, string Revision), MigrationOrigin> origins, bool hasOrigin,
-        HashSet<(string Artifact, string Revision)> visited)
+        HashSet<(string Artifact, string Revision)> visited, ContentInspectionBudget inspection)
     {
         var revision = current;
         while (true)
         {
+            inspection.Step();
             if (!visited.Add((artifact, revision))) throw new InvalidDataException("Content mutation lineage is cyclic.");
             if (origins.ContainsKey((artifact, revision))) break;
             if (!receipts.TryGetValue((artifact, revision), out var node))
@@ -526,7 +676,7 @@ public sealed partial class FileSystemArtifactContentStore : IVersionedArtifactC
 
     }
     private sealed record State(string Revision, string? Generation, long Length, string? Owner);
-    private static State? ReadState(SqliteConnection connection, SqliteTransaction transaction, ArtifactId id)
+    private static State? ReadState(SqliteConnection connection, SqliteTransaction? transaction, ArtifactId id)
     {
         using var command = connection.CreateCommand(); command.Transaction = transaction;
         command.CommandText = "SELECT Revision,Generation,Length,Owner FROM ContentState WHERE ArtifactId=$id";

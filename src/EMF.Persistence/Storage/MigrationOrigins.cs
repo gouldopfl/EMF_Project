@@ -11,7 +11,7 @@ internal static class MigrationOrigins
 {
     internal static Dictionary<(string Artifact, string Revision), MigrationOrigin> Validate(
         SqliteConnection connection, SqliteTransaction? transaction, string root,
-        IContentStoragePlatform platform, long maxBytes)
+        IContentStoragePlatform platform, long maxBytes, ContentInspectionBudget? inspection = null)
     {
         var origins = new Dictionary<(string Artifact, string Revision), MigrationOrigin>();
         using var command = connection.CreateCommand();
@@ -24,6 +24,9 @@ internal static class MigrationOrigins
         {
             if (reader.Read())
             {
+                inspection?.Row();
+                for (var column = 0; column < reader.FieldCount; column++)
+                    if (!reader.IsDBNull(column) && reader.GetFieldType(column) == typeof(string)) inspection?.Text(reader.GetString(column));
                 migrationId = reader.GetString(1);
                 retention = reader.GetString(3);
                 artifactCount = reader.GetInt64(5);
@@ -48,6 +51,9 @@ internal static class MigrationOrigins
         {
             while (reader.Read())
             {
+                inspection?.Row();
+                for (var column = 0; column < reader.FieldCount; column++)
+                    if (!reader.IsDBNull(column) && reader.GetFieldType(column) == typeof(string)) inspection?.Text(reader.GetString(column));
                 if (migrationId is null) throw new InvalidDataException("Content migration origin has no checkpoint.");
                 var artifact = new ArtifactId(reader.GetString(0)).Value;
                 // This restriction applies only to retained pre-protocol filenames.
@@ -72,29 +78,32 @@ internal static class MigrationOrigins
             throw new InvalidDataException("Content migration inventory is incomplete.");
         if (artifactCount == 0 && retention is not null && Directory.EnumerateFileSystemEntries(Path.Combine(root, retention)).Any())
             throw new InvalidDataException("Empty retained legacy inventory is contradictory.");
+        inspection?.Check();
         return origins;
     }
 
     // Called deliberately at admission after the catalog read transaction ends.
     internal static void VerifyEvidence(Dictionary<(string Artifact, string Revision), MigrationOrigin> origins,
-        string root, IContentStoragePlatform platform, long maxBytes)
+        string root, IContentStoragePlatform platform, long maxBytes, ContentInspectionBudget? inspection = null)
     {
+        using var work = inspection?.Inspect();
         foreach (var ((artifact, _), origin) in origins)
         {
+            inspection?.Check();
             ValidateDirectory(Path.Combine(root, origin.Retention), platform);
             FileSystemArtifactContentMigration.CheckSource(Path.Combine(root, origin.Retention, artifact),
-                origin.Length, origin.Stamp, origin.Digest, platform, maxBytes);
+                origin.Length, origin.Stamp, origin.Digest, platform, maxBytes, inspection);
             var generationPath = Path.Combine(root, ".content-generations", origin.Generation);
             platform.ValidatePrivatePermissions(generationPath);
             if (platform.InspectSourceFile(generationPath).Length != origin.Length ||
-                FileSystemArtifactContentMigration.HashFile(generationPath, platform, maxBytes) != origin.Digest)
+                FileSystemArtifactContentMigration.HashFile(generationPath, platform, maxBytes, inspection) != origin.Digest)
                 throw new InvalidDataException("Imported content generation is damaged.");
         }
         foreach (var group in origins.GroupBy(pair => pair.Value.Retention))
         {
             var sourceNames = group.Select(pair => pair.Key.Artifact).ToHashSet(StringComparer.Ordinal);
             if (Directory.EnumerateFileSystemEntries(Path.Combine(root, group.Key))
-                .Any(path => !sourceNames.Contains(Path.GetFileName(path))))
+                .Any(path => { inspection?.Entry(path); return !sourceNames.Contains(Path.GetFileName(path)); }))
                 throw new InvalidDataException("Retained legacy inventory is contradictory.");
         }
     }

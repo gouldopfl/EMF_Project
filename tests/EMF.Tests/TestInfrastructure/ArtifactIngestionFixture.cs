@@ -163,10 +163,12 @@ internal sealed class ArtifactIngestionFixture : IAsyncDisposable
     internal sealed class CountingEncryption(IEnvelopeEncryptionService inner) : IEnvelopeEncryptionService
     {
         public int Encryptions { get; private set; }
-        public Task<EncryptedEnvelope> EncryptWithContextAsync(ReadOnlyMemory<byte> content, ReadOnlyMemory<byte> context, CancellationToken ct = default)
-        { Encryptions++; return inner.EncryptWithContextAsync(content, context, ct); }
-        public Task<byte[]> DecryptWithContextAsync(EncryptedEnvelope envelope, ReadOnlyMemory<byte> context, CancellationToken ct = default)
-            => inner.DecryptWithContextAsync(envelope, context, ct);
+        public Func<Task>? EncryptHook { get; set; }
+        public Func<Task>? DecryptHook { get; set; }
+        public async Task<EncryptedEnvelope> EncryptWithContextAsync(ReadOnlyMemory<byte> content, ReadOnlyMemory<byte> context, CancellationToken ct = default)
+        { Encryptions++; if (EncryptHook is not null) await EncryptHook(); return await inner.EncryptWithContextAsync(content, context, ct); }
+        public async Task<byte[]> DecryptWithContextAsync(EncryptedEnvelope envelope, ReadOnlyMemory<byte> context, CancellationToken ct = default)
+            { if (DecryptHook is not null) await DecryptHook(); return await inner.DecryptWithContextAsync(envelope, context, ct); }
         public Task<EncryptedEnvelope> EncryptAsync(ReadOnlyMemory<byte> content, CancellationToken ct = default) => inner.EncryptAsync(content, ct);
         public Task<byte[]> DecryptAsync(EncryptedEnvelope envelope, CancellationToken ct = default) => inner.DecryptAsync(envelope, ct);
     }
@@ -184,6 +186,7 @@ internal sealed class ArtifactIngestionFixture : IAsyncDisposable
         private bool _fired;
         private string Checkpoint => checkpoint;
         private bool BeforeCommit => beforeCommit;
+        public Task<IDisposable> AcquireExecutionAsync(ArtifactContentOperationId id, CancellationToken ct = default) => inner.AcquireExecutionAsync(id, ct);
         public async Task<IArtifactIngestionSession> AcquireAsync(ArtifactContentOperationId id, CancellationToken ct = default)
             => new FaultSession(await inner.AcquireAsync(id, ct), this);
         public Task<IReadOnlyList<IngestionRecoveryWork>> ReadRecoveryWorkAsync(long after, int limit, CancellationToken ct = default) => inner.ReadRecoveryWorkAsync(after, limit, ct);
@@ -203,6 +206,10 @@ internal sealed class ArtifactIngestionFixture : IAsyncDisposable
             public ArtifactId? ProvisionalArtifactId => innerSession.ProvisionalArtifactId;
             public bool IsDamaged => innerSession.IsDamaged;
             public bool HasReview => innerSession.HasReview;
+            public bool CandidatePreparationStarted => innerSession.CandidatePreparationStarted;
+            public IngestionCandidateBinding? CandidateBinding => innerSession.CandidateBinding;
+            public ArtifactContentMutationReceipt? CandidateCreationReceipt => innerSession.CandidateCreationReceipt;
+            public Task BeginCandidatePreparationAsync(ArtifactIngestionIntent intent, CancellationToken ct = default) => innerSession.BeginCandidatePreparationAsync(intent, ct);
             public Task<bool> HasAdoptionEvidenceAsync(ArtifactId id, CancellationToken ct = default) => innerSession.HasAdoptionEvidenceAsync(id, ct);
             public Task<IngestionClassificationAuthority?> ResolveAuthorityAsync(ArtifactId id, CancellationToken ct = default) => innerSession.ResolveAuthorityAsync(id, ct);
             public Task<IngestionMetadataDraft?> ReadDraftAsync(CancellationToken ct = default) => innerSession.ReadDraftAsync(ct);
@@ -223,7 +230,8 @@ internal sealed class ArtifactIngestionFixture : IAsyncDisposable
             public Task ReopenAuditDeliveryAsync(ArtifactIngestionIntent intent, CancellationToken ct = default) => innerSession.ReopenAuditDeliveryAsync(intent, ct);
             public async Task CommitAsync(CancellationToken ct = default)
             {
-                var state = Intent is { State: ArtifactIngestionState.Prepared, CandidateHash: not null } ? "Candidate" : Intent?.State.ToString();
+                var state = Intent is { State: ArtifactIngestionState.Prepared, CandidateHash: not null } ? "Candidate"
+                    : Intent?.State == ArtifactIngestionState.Prepared && CandidatePreparationStarted ? "PreparationStarted" : Intent?.State.ToString();
                 var fire = !owner._fired && state == owner.Checkpoint;
                 if (fire && owner.BeforeCommit)
                 { owner._fired = true; if (owner.OnFault is not null) await owner.OnFault(); if (!owner.ContinueAfterCheckpoint) throw new SimulatedCrashException(); }
@@ -234,7 +242,13 @@ internal sealed class ArtifactIngestionFixture : IAsyncDisposable
             public ValueTask DisposeAsync() => innerSession.DisposeAsync();
         }
     }
-    internal sealed class FaultStore(IVersionedArtifactContentStore inner) : IVersionedArtifactContentStore
+    internal sealed class CheckpointStaging(IArtifactContentStagingStore inner, Func<Task> checkpoint) : IArtifactContentStagingStore
+    {
+        public Task<byte[]?> ReadAsync(ArtifactContentOperationId id, CancellationToken ct = default) => inner.ReadAsync(id, ct);
+        public async Task StageAsync(ArtifactContentOperationId id, ReadOnlyMemory<byte> candidate, CancellationToken ct = default)
+        { await inner.StageAsync(id, candidate, ct); await checkpoint(); }
+    }
+    internal sealed class FaultStore(IVersionedArtifactContentStore inner) : IPreparedArtifactContentStore
     {
         public bool LoseCreateResponse { get; set; }
         public bool LoseDeleteResponse { get; set; }
@@ -246,6 +260,39 @@ internal sealed class ArtifactIngestionFixture : IAsyncDisposable
         public Func<Task>? BeforeDelete { get; set; }
         public Func<Task>? AfterCreate { get; set; }
         public Func<Task>? AfterDelete { get; set; }
+        public Task<IArtifactContentRevisionProbe> PrepareRevisionValidationAsync(ArtifactId id, CancellationToken ct = default)
+            => ((IPreparedArtifactContentStore)inner).PrepareRevisionValidationAsync(id, ct);
+        public Task<ArtifactContentRevision?> ReadCurrentRevisionAsync(ArtifactId id, CancellationToken ct = default)
+            => ((IPreparedArtifactContentStore)inner).ReadCurrentRevisionAsync(id, ct);
+        public async Task<IPreparedArtifactContentMutation> PreparePhysicalCreateAsync(ArtifactId id, ReadOnlyMemory<byte> content, ArtifactContentMutationContext context, CancellationToken ct = default)
+            => new FaultPrepared(await ((IPreparedArtifactContentStore)inner).PreparePhysicalCreateAsync(id, content, context, ct), this);
+        public async Task<IPreparedArtifactContentMutation> PreparePhysicalDeleteAsync(ArtifactId id, ArtifactContentRevision revision, ArtifactContentMutationContext context, CancellationToken ct = default)
+            => new FaultPreparedDelete(await ((IPreparedArtifactContentStore)inner).PreparePhysicalDeleteAsync(id, revision, context, ct), this);
+        private sealed class FaultPreparedDelete(IPreparedArtifactContentMutation prepared, FaultStore owner) : IPreparedArtifactContentMutation
+        {
+            public async Task<ArtifactContentMutationResult> ExecuteAsync(CancellationToken ct = default)
+            {
+                owner.Deletes++; if (owner.BeforeDelete is not null) await owner.BeforeDelete();
+                if (owner.FailDelete) throw new IOException("synthetic cleanup failure");
+                var result = await prepared.ExecuteAsync(ct);
+                if (owner.AfterDelete is not null) await owner.AfterDelete();
+                if (owner.LoseDeleteResponse) throw new IOException("synthetic lost delete response");
+                return result;
+            }
+            public ValueTask DisposeAsync() => prepared.DisposeAsync();
+        }
+        private sealed class FaultPrepared(IPreparedArtifactContentMutation prepared, FaultStore owner) : IPreparedArtifactContentMutation
+        {
+            public async Task<ArtifactContentMutationResult> ExecuteAsync(CancellationToken ct = default)
+            {
+                owner.Creates++; var result = await prepared.ExecuteAsync(ct);
+                if (owner.AfterCreate is not null) await owner.AfterCreate();
+                if (owner.CancelAfterCreate) throw new SimulatedCrashException();
+                if (owner.LoseCreateResponse) throw new IOException("synthetic lost create response");
+                return result;
+            }
+            public ValueTask DisposeAsync() => prepared.DisposeAsync();
+        }
         public async Task<ArtifactContentMutationResult> CreateIfAbsentAsync(ArtifactId id, ReadOnlyMemory<byte> content, ArtifactContentMutationContext context, CancellationToken ct = default)
         {
             Creates++; var result = await inner.CreateIfAbsentAsync(id, content, context, ct);

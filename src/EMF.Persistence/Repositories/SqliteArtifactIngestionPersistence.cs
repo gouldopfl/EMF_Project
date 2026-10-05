@@ -58,10 +58,43 @@ public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersi
             throw new InvalidOperationException("Ingestion requires initialized evidence metadata persistence.");
         command.CommandText = "CREATE TABLE IF NOT EXISTS ArtifactIngestionSchema(Version INTEGER PRIMARY KEY CHECK(Version>0)); SELECT COALESCE(MAX(Version),0) FROM ArtifactIngestionSchema;";
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
-        if (version > 1) throw new InvalidDataException("Unsupported ingestion schema.");
+        if (version > 2) throw new InvalidDataException("Unsupported ingestion schema.");
         if (version == 0)
         {
             command.CommandText = Schema;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await VerifySchemaAsync(connection, transaction, cancellationToken, version == 2 ? 2 : 1);
+        if (version < 2)
+        {
+            command.CommandText = PreparationSchema;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            var retained = new List<(string Operation, long Revision, string Draft, string? Candidate, ArtifactIngestionIntent Intent, IngestionOperationBinding Binding)>();
+            command.CommandText = "SELECT i.OperationId,i.Revision,d.DraftJson,json_extract(i.IntentJson,'$.CandidateHash'),i.IntentJson,o.BindingJson FROM ArtifactIngestionIntents i JOIN ArtifactIngestionDrafts d ON d.OperationId=i.OperationId JOIN ArtifactIngestionOperations o ON o.OperationId=i.OperationId";
+            using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+                while (await reader.ReadAsync(cancellationToken)) retained.Add((reader.GetString(0), reader.GetInt64(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3), Decode<ArtifactIngestionIntent>(reader.GetString(4)), Decode<IngestionOperationBinding>(reader.GetString(5))));
+            foreach (var item in retained)
+            {
+                command.Parameters.Clear();
+                command.CommandText = "INSERT INTO ArtifactIngestionCandidatePreparations VALUES($op,$revision,$draft)";
+                command.Parameters.AddWithValue("$op", item.Operation); command.Parameters.AddWithValue("$revision", item.Revision);
+                command.Parameters.AddWithValue("$draft", DraftBinding(item.Draft));
+                await command.ExecuteNonQueryAsync(cancellationToken);
+                if (item.Candidate is not null)
+                {
+                    command.Parameters.Clear(); command.CommandText = "INSERT INTO ArtifactIngestionCandidates VALUES($op,$candidate,$binding)";
+                    command.Parameters.AddWithValue("$op", item.Operation); command.Parameters.AddWithValue("$candidate", item.Candidate);
+                    command.Parameters.AddWithValue("$binding", JsonSerializer.Serialize(CandidateBindingFor(item.Intent, item.Binding, DraftBinding(item.Draft))));
+                    await command.ExecuteNonQueryAsync(cancellationToken);
+                    if (item.Intent.CreateReceipt is { } receipt)
+                    {
+                        command.Parameters.Clear(); command.CommandText = "INSERT INTO ArtifactIngestionCandidateCreations VALUES($op,$receipt)";
+                        command.Parameters.AddWithValue("$op", item.Operation); command.Parameters.AddWithValue("$receipt", JsonSerializer.Serialize(receipt));
+                        await command.ExecuteNonQueryAsync(cancellationToken);
+                    }
+                }
+            }
+            command.Parameters.Clear(); command.CommandText = "DELETE FROM ArtifactIngestionSchema; INSERT INTO ArtifactIngestionSchema VALUES(2);";
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
         await VerifySchemaAsync(connection, transaction, cancellationToken);
@@ -139,18 +172,66 @@ public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersi
         INSERT INTO ArtifactIngestionSchema VALUES(1);
         """;
 
+    private const string PreparationSchema = """
+        CREATE TABLE ArtifactIngestionCandidatePreparations(OperationId TEXT PRIMARY KEY, ExpectedRevision INTEGER NOT NULL CHECK(ExpectedRevision>0), DraftHash TEXT NOT NULL CHECK(length(DraftHash)=64));
+        CREATE TABLE ArtifactIngestionCandidates(OperationId TEXT PRIMARY KEY, CandidateHash TEXT NOT NULL CHECK(length(CandidateHash)=64), BindingJson TEXT NOT NULL);
+        CREATE TABLE ArtifactIngestionCandidateCreations(OperationId TEXT PRIMARY KEY, ReceiptJson TEXT NOT NULL);
+        CREATE TRIGGER ArtifactIngestionCandidateCreationNoUpdate BEFORE UPDATE ON ArtifactIngestionCandidateCreations
+            BEGIN SELECT RAISE(ABORT,'Immutable candidate creation'); END;
+        CREATE TRIGGER ArtifactIngestionCandidateCreationNoDelete BEFORE DELETE ON ArtifactIngestionCandidateCreations
+            BEGIN SELECT RAISE(ABORT,'Immutable candidate creation'); END;
+        CREATE TRIGGER ArtifactIngestionCandidateCreationNoReplace BEFORE INSERT ON ArtifactIngestionCandidateCreations
+            WHEN EXISTS(SELECT 1 FROM ArtifactIngestionCandidateCreations WHERE OperationId=NEW.OperationId)
+            BEGIN SELECT RAISE(ABORT,'Immutable candidate creation'); END;
+        CREATE TRIGGER ArtifactIngestionCandidateNoUpdate BEFORE UPDATE ON ArtifactIngestionCandidates
+            BEGIN SELECT RAISE(ABORT,'Immutable candidate binding'); END;
+        CREATE TRIGGER ArtifactIngestionCandidateNoDelete BEFORE DELETE ON ArtifactIngestionCandidates
+            BEGIN SELECT RAISE(ABORT,'Immutable candidate binding'); END;
+        CREATE TRIGGER ArtifactIngestionCandidateNoReplace BEFORE INSERT ON ArtifactIngestionCandidates
+            WHEN EXISTS(SELECT 1 FROM ArtifactIngestionCandidates WHERE OperationId=NEW.OperationId)
+            BEGIN SELECT RAISE(ABORT,'Immutable candidate binding'); END;
+        CREATE TRIGGER ArtifactIngestionCandidatePreparationNoUpdate BEFORE UPDATE ON ArtifactIngestionCandidatePreparations
+            BEGIN SELECT RAISE(ABORT,'Immutable candidate preparation'); END;
+        CREATE TRIGGER ArtifactIngestionCandidatePreparationNoDelete BEFORE DELETE ON ArtifactIngestionCandidatePreparations
+            BEGIN SELECT RAISE(ABORT,'Immutable candidate preparation'); END;
+        CREATE TRIGGER ArtifactIngestionCandidatePreparationNoReplace BEFORE INSERT ON ArtifactIngestionCandidatePreparations
+            WHEN EXISTS(SELECT 1 FROM ArtifactIngestionCandidatePreparations WHERE OperationId=NEW.OperationId)
+            BEGIN SELECT RAISE(ABORT,'Immutable candidate preparation'); END;
+        """;
+
+    public async Task<IDisposable> AcquireExecutionAsync(ArtifactContentOperationId operationId, CancellationToken cancellationToken = default)
+    {
+        ArtifactContentIdentity.Validate(operationId.Value);
+        var root = _databasePath + ".ingestion-execution";
+        if (new DirectoryInfo(root).LinkTarget is not null) throw new IOException("Execution coordination contains a symbolic link.");
+        _platform.CreatePrivateDirectory(root); _platform.ValidatePrivatePermissions(root);
+        var name = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.ASCII.GetBytes(operationId.Value)));
+        return await _platform.AcquireAsync(Path.Combine(root, name), true, cancellationToken);
+    }
+
+    // Versioned exact persisted UTF-8 representation binding; never a physical revision.
+    private static string DraftBinding(string json) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+        System.Text.Encoding.UTF8.GetBytes("EMF.IngestionDraftJson.v1\0" + json)));
+
+    private static IngestionCandidateBinding CandidateBindingFor(ArtifactIngestionIntent intent, IngestionOperationBinding binding, string requestHash)
+        => new(intent.OperationId, binding.ParentOperationId, intent.ArtifactId,
+            "candidate." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.ASCII.GetBytes(intent.OperationId.Value))),
+            intent.CandidateHash ?? throw new InvalidDataException("Missing candidate identity."), requestHash,
+            intent.OwnershipToken, intent.ClassificationId, intent.ClassificationRevision, intent.AuthorizedOperationId,
+            intent.CreateEventId, intent.AdoptionEventId, intent.CleanupEventId);
+
     private static string NormalizeSchema(string sql) => Regex.Replace(
         Regex.Replace(sql.Trim().TrimEnd(';'), "IF NOT EXISTS\\s+", "", RegexOptions.IgnoreCase), "\\s+", "");
-    private static async Task VerifySchemaAsync(SqliteConnection connection, SqliteTransaction? transaction, CancellationToken ct)
+    private static async Task VerifySchemaAsync(SqliteConnection connection, SqliteTransaction? transaction, CancellationToken ct, int expectedVersion = 2)
     {
         using var command = connection.CreateCommand(); command.Transaction = transaction;
         try
         {
             command.CommandText = "SELECT COUNT(*),MAX(Version) FROM ArtifactIngestionSchema";
             using (var reader = await command.ExecuteReaderAsync(ct))
-                if (!await reader.ReadAsync(ct) || reader.GetInt32(0) != 1 || reader.GetInt32(1) != 1)
+                if (!await reader.ReadAsync(ct) || reader.GetInt32(0) != 1 || reader.GetInt32(1) != expectedVersion)
                     throw new InvalidDataException("Ingestion migration ledger is unsupported or damaged.");
-            var definitions = Regex.Matches(Schema, @"CREATE TABLE (?:IF NOT EXISTS )?(\w+).*?;|CREATE TRIGGER (\w+).*?END;", RegexOptions.Singleline);
+            var definitions = Regex.Matches(Schema + (expectedVersion == 2 ? PreparationSchema : ""), @"CREATE TABLE (?:IF NOT EXISTS )?(\w+).*?;|CREATE TRIGGER (\w+).*?END;", RegexOptions.Singleline);
             foreach (Match definition in definitions)
             {
                 var name = definition.Groups[1].Success ? definition.Groups[1].Value : definition.Groups[2].Value;
@@ -302,6 +383,9 @@ public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersi
         public ArtifactContentOperationId OperationId => operationId;
         public bool IsDamaged { get; private set; }
         public bool HasReview { get; private set; }
+        public bool CandidatePreparationStarted { get; private set; }
+        public IngestionCandidateBinding? CandidateBinding { get; private set; }
+        public ArtifactContentMutationReceipt? CandidateCreationReceipt { get; private set; }
         private ArtifactIngestionIntent? _baseline;
         private bool _committed;
         private SqliteCommand Command(string sql, params (string, object?)[] values)
@@ -363,6 +447,31 @@ public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersi
                 try { await ReadCleanupClaimAsync(ct); }
                 catch (InvalidDataException) { IsDamaged = true; }
             }
+            var preparationRevision = await Scalar("SELECT ExpectedRevision FROM ArtifactIngestionCandidatePreparations WHERE OperationId=$op", ct, ("$op", operationId.Value));
+            CandidatePreparationStarted = preparationRevision is not null;
+            if (preparationRevision is not null && (Intent is null || Convert.ToInt64(preparationRevision) > Intent.Revision)) IsDamaged = true;
+            if (CandidatePreparationStarted)
+            {
+                var draftJson = await Scalar("SELECT DraftJson FROM ArtifactIngestionDrafts WHERE OperationId=$op", ct, ("$op", operationId.Value)) as string;
+                var boundDraft = await Scalar("SELECT DraftHash FROM ArtifactIngestionCandidatePreparations WHERE OperationId=$op", ct, ("$op", operationId.Value)) as string;
+                if (draftJson is null || DraftBinding(draftJson) != boundDraft) IsDamaged = true;
+            }
+            var boundCandidate = await Scalar("SELECT CandidateHash FROM ArtifactIngestionCandidates WHERE OperationId=$op", ct, ("$op", operationId.Value)) as string;
+            if (boundCandidate != Intent?.CandidateHash || boundCandidate is not null && !CandidatePreparationStarted) IsDamaged = true;
+            try
+            {
+                var bindingJson = await Scalar("SELECT BindingJson FROM ArtifactIngestionCandidates WHERE OperationId=$op", ct, ("$op", operationId.Value)) as string;
+                CandidateBinding = bindingJson is null ? null : Decode<IngestionCandidateBinding>(bindingJson);
+                if (boundCandidate is not null)
+                {
+                    var requestHash = await Scalar("SELECT DraftHash FROM ArtifactIngestionCandidatePreparations WHERE OperationId=$op", ct, ("$op", operationId.Value)) as string;
+                    if (Intent is null || OperationBinding is null || requestHash is null || CandidateBinding != CandidateBindingFor(Intent, OperationBinding, requestHash)) IsDamaged = true;
+                }
+                var creationJson = await Scalar("SELECT ReceiptJson FROM ArtifactIngestionCandidateCreations WHERE OperationId=$op", ct, ("$op", operationId.Value)) as string;
+                CandidateCreationReceipt = creationJson is null ? null : Decode<ArtifactContentMutationReceipt>(creationJson);
+                if (CandidateCreationReceipt != Intent?.CreateReceipt) IsDamaged = true;
+            }
+            catch (InvalidDataException) { IsDamaged = true; }
             HasReview = await Scalar("SELECT 1 FROM ArtifactIngestionReviews WHERE OperationId=$op", ct, ("$op", operationId.Value)) is not null;
         }
         private static void Validate(ArtifactIngestionIntent intent, IngestionOperationBinding binding)
@@ -378,6 +487,7 @@ public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersi
                     || !Enum.IsDefined(intent.State) || !Enum.IsDefined(intent.Disposition) || intent.Revision < 1)
                     throw new ArgumentException();
                 _ = new ArtifactId(intent.ArtifactId.Value);
+                if (binding.ParentOperationId is { } parent) ArtifactContentIdentity.Validate(parent.Value);
                 if (intent.CleanupActorId is { } actor && (string.IsNullOrWhiteSpace(actor)
                     || new System.Text.UTF8Encoding(false, true).GetByteCount(actor) > 256 || actor.Any(char.IsControl))) throw new ArgumentException();
             }
@@ -477,11 +587,34 @@ public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersi
                 ("$id", intent.ArtifactId.Value), ("$classification", intent.ClassificationId.Value), ("$revision", intent.ClassificationRevision.Value));
             Intent = _baseline = intent; OperationBinding = binding; ProvisionalArtifactId = intent.ArtifactId;
         }
+        public async Task BeginCandidatePreparationAsync(ArtifactIngestionIntent expected, CancellationToken cancellationToken = default)
+        {
+            Expect(expected);
+            if (expected.State != ArtifactIngestionState.Prepared || expected.CandidateHash is not null || CandidatePreparationStarted)
+                throw new InvalidDataException("Candidate preparation conflict.");
+            var draftJson = await Scalar("SELECT DraftJson FROM ArtifactIngestionDrafts WHERE OperationId=$op", cancellationToken, ("$op", operationId.Value)) as string
+                ?? throw new InvalidDataException("Missing candidate request.");
+            await Execute("INSERT INTO ArtifactIngestionCandidatePreparations VALUES($op,$revision,$draft)", cancellationToken,
+                ("$op", operationId.Value), ("$revision", expected.Revision), ("$draft", DraftBinding(draftJson)));
+            CandidatePreparationStarted = true;
+        }
         public async Task SetCandidateAsync(ArtifactIngestionIntent expected, string candidateHash, CancellationToken cancellationToken = default)
         {
             Expect(expected);
-            if (expected.State != ArtifactIngestionState.Prepared || candidateHash.Length != 64 || candidateHash.Any(c => !char.IsAsciiHexDigit(c))
-                || expected.CandidateHash is not null && expected.CandidateHash != candidateHash) throw new InvalidDataException("Candidate identity conflict.");
+            if (expected.State != ArtifactIngestionState.Prepared || candidateHash.Length != 64 || candidateHash.Any(c => !char.IsAsciiHexDigit(c))) throw new InvalidDataException("Candidate identity conflict.");
+            if (expected.CandidateHash is not null && expected.CandidateHash != candidateHash) throw new ArtifactContentIdempotencyException();
+            if (!CandidatePreparationStarted) throw new InvalidDataException("Candidate preparation was not admitted.");
+            var prior = await Scalar("SELECT CandidateHash FROM ArtifactIngestionCandidates WHERE OperationId=$op", cancellationToken, ("$op", operationId.Value)) as string;
+            if (prior is not null)
+            {
+                if (prior != candidateHash) throw new ArtifactContentIdempotencyException();
+                return; // Recognition only; immutable admission is never updated.
+            }
+            var requestHash = await Scalar("SELECT DraftHash FROM ArtifactIngestionCandidatePreparations WHERE OperationId=$op", cancellationToken, ("$op", operationId.Value)) as string
+                ?? throw new InvalidDataException("Missing candidate request binding.");
+            CandidateBinding = CandidateBindingFor(expected with { CandidateHash = candidateHash }, OperationBinding!, requestHash);
+            await Execute("INSERT INTO ArtifactIngestionCandidates VALUES($op,$candidate,$binding)", cancellationToken,
+                ("$op", operationId.Value), ("$candidate", candidateHash), ("$binding", JsonSerializer.Serialize(CandidateBinding)));
             await Save(expected, expected with { CandidateHash = candidateHash }, cancellationToken);
         }
         private async Task Audit(ArtifactContentAuditEventId eventId, IngestionAuditAction action, string actor, bool recovery, DateTimeOffset time, CancellationToken ct, string? category = null)
@@ -521,6 +654,9 @@ public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersi
                 || receipt.Outcome != ArtifactContentMutationOutcome.Created || receipt.CurrentRevision is null || receipt.PriorRevision is not null
                 || receipt.AuditEventId != expected.CreateEventId || receipt.AuditObligationVersion != 1 || expected.CandidateHash is null)
                 throw new InvalidDataException("Creation receipt conflict.");
+            await Execute("INSERT INTO ArtifactIngestionCandidateCreations VALUES($op,$receipt)", cancellationToken,
+                ("$op", operationId.Value), ("$receipt", JsonSerializer.Serialize(receipt)));
+            CandidateCreationReceipt = receipt;
             await Save(expected, expected with { State = ArtifactIngestionState.ContentCreated, CreateReceipt = receipt }, cancellationToken);
             await Audit(expected.CreateEventId, IngestionAuditAction.Created, OperationBinding!.OriginalActorId, false, receipt.OccurredUtc, cancellationToken);
         }

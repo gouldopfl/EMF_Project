@@ -16,6 +16,10 @@ namespace EMF.Security.Ingestion;
 
 public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
 {
+    public const int MaximumPlaintextBytes = 100 * 1024 * 1024;
+    public const int MaximumCandidateBytes = 150 * 1024 * 1024;
+    public static readonly TimeSpan ExecutionBudget = TimeSpan.FromMinutes(2);
+    public static readonly TimeSpan RecoveryBudget = TimeSpan.FromSeconds(30);
     private readonly IArtifactIngestionPersistence _persistence;
     private readonly IVersionedArtifactContentStore _physical;
     private readonly IArtifactContentStagingStore _staging;
@@ -76,6 +80,10 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
     public async Task<ArtifactIngestionOutcome> IngestAsync(IngestionMetadataDraft draft, ReadOnlyMemory<byte> content, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
+        if (content.Length > MaximumPlaintextBytes) throw new InvalidDataException("Ingestion plaintext exceeds the admitted bound.");
+        using var executionBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        executionBudget.CancelAfter(ExecutionBudget);
+        cancellationToken = executionBudget.Token;
         var operation = await _context.GetIngestionOperationAsync(cancellationToken);
         Actor(operation.ActorId); ArtifactContentIdentity.Validate(operation.OperationId.Value); ArtifactContentIdentity.Validate(operation.AuthorizedOperationId.Value);
         if (draft.Artifact.Id != draft.Provenance.ArtifactId || draft.Artifact.Fingerprint is null
@@ -84,6 +92,8 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
         // Canonical audit resource bounds are validated before protected creation.
         if (System.Text.Encoding.UTF8.GetByteCount(draft.Artifact.Id.Value) > 128)
             throw new ArgumentException("Artifact identity exceeds ingestion audit schema bounds.");
+        _ = PreparedStore; // Admit capability before persisting any new intent.
+        using var execution = await _persistence.AcquireExecutionAsync(operation.OperationId, cancellationToken);
         await using (var session = await _persistence.AcquireAsync(operation.OperationId, cancellationToken))
         {
             if (session.IsDamaged)
@@ -108,13 +118,13 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
                 // Validate the approved audit schema before admitting this operation.
                 _ = SecurityAuditCanonicalEvent.Encode(Event(new(intent.CreateEventId, intent.OperationId, intent.ArtifactId,
                     intent.ClassificationId, intent.ClassificationRevision, operation.ActorId, operation.ActorId, false, IngestionAuditAction.Created, intent.PreparedUtc)));
-                await session.PrepareAsync(intent, new(operation.AuthorizedOperationId, operation.ActorId), draft, cancellationToken);
+                await session.PrepareAsync(intent, new(operation.AuthorizedOperationId, operation.ActorId, operation.ParentOperationId), draft, cancellationToken);
             }
             else
             {
                 var saved = await session.ReadDraftAsync(cancellationToken);
-                if (session.OperationBinding != new IngestionOperationBinding(operation.AuthorizedOperationId, operation.ActorId)
-                    || saved?.Provenance.Source != draft.Provenance.Source || saved.Artifact.Fingerprint != draft.Artifact.Fingerprint)
+                if (session.OperationBinding != new IngestionOperationBinding(operation.AuthorizedOperationId, operation.ActorId, operation.ParentOperationId)
+                    || saved is null || JsonSerializer.Serialize(saved) != JsonSerializer.Serialize(draft))
                     throw new ArtifactContentIdempotencyException();
                 var authority = await session.ResolveAuthorityAsync(session.Intent.ArtifactId, cancellationToken);
                 if (authority is null || await Authorize(operation.ActorId, authority, false, cancellationToken) != AuthorizationDecision.Allow)
@@ -122,11 +132,48 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
             }
             await session.CommitAsync(cancellationToken);
         }
-        await CreateAsync(operation.OperationId, content, operation.ActorId, false, cancellationToken);
-        var committed = await AdoptAsync(operation.OperationId, operation.ActorId, cancellationToken);
+        return await PromoteAndFinishAsync(operation.OperationId, content, operation.ActorId, execution, cancellationToken);
+    }
+    public async Task<ArtifactIngestionOutcome> ResumeAsync(CancellationToken cancellationToken = default)
+    {
+        using var executionBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        executionBudget.CancelAfter(ExecutionBudget);
+        cancellationToken = executionBudget.Token;
+        var operation = await _context.GetIngestionOperationAsync(cancellationToken);
+        Actor(operation.ActorId); _ = PreparedStore;
+        using var execution = await _persistence.AcquireExecutionAsync(operation.OperationId, cancellationToken);
+        await using (var session = await _persistence.AcquireAsync(operation.OperationId, cancellationToken))
+        {
+            if (session.IsDamaged || session.Intent is null)
+            {
+                await RecordReviewAsync(session, "LifecycleDamage", operation.ActorId, cancellationToken, isRecovery: false);
+                await session.CommitAsync(cancellationToken); throw new ArtifactIngestionReviewException(operation.OperationId);
+            }
+            if (session.OperationBinding != new IngestionOperationBinding(operation.AuthorizedOperationId, operation.ActorId, operation.ParentOperationId))
+                throw new ArtifactContentIdempotencyException();
+            var authority = await session.ResolveAuthorityAsync(session.Intent.ArtifactId, cancellationToken);
+            if (authority is null || await Authorize(operation.ActorId, authority, false, cancellationToken) != AuthorizationDecision.Allow)
+                throw new UnauthorizedAccessException("Artifact ingestion resume was denied.");
+            await session.CommitAsync(cancellationToken);
+        }
+        // Only the original durable draft/candidate may supply restart inputs.
+        return await PromoteAndFinishAsync(operation.OperationId, null, operation.ActorId, execution, cancellationToken);
+    }
+    private async Task<ArtifactIngestionOutcome> PromoteAndFinishAsync(ArtifactContentOperationId operationId,
+        ReadOnlyMemory<byte>? plaintext, string actor, IDisposable execution, CancellationToken cancellationToken)
+    {
+        try { await CreateAsync(operationId, plaintext, actor, false, cancellationToken); }
+        catch (Exception error) when (error is not OperationCanceledException && error is not ArtifactContentIdempotencyException)
+        {
+            // The failed promotion session is disposed before querying a lost response.
+            if (await _physical.GetMutationOutcomeAsync(operationId, cancellationToken) is null) throw;
+            await CreateAsync(operationId, plaintext, actor, false, cancellationToken);
+        }
+        var committed = await AdoptAsync(operationId, actor, cancellationToken);
+        execution.Dispose();
         // Independent bounded delivery work cannot erase a known metadata commit.
         using var deliveryBudget = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        try { return await FinishAuthorizedAsync(operation.OperationId, operation.ActorId, false, deliveryBudget.Token); }
+        try { return await FinishAuthorizedAsync(operationId, actor, false, deliveryBudget.Token); }
         catch (Exception error) when (committed is not null)
         {
             return committed with { AuditDelivery = error is InvalidDataException ? IngestionAuditDelivery.RequiresReview : IngestionAuditDelivery.Pending,
@@ -136,7 +183,10 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
     }
     private async Task CreateAsync(ArtifactContentOperationId operationId, ReadOnlyMemory<byte>? plaintext, string actor, bool recovery, CancellationToken ct)
     {
-        // Serialize candidate selection under the same cross-process operation fence.
+        ArtifactIngestionIntent expected;
+        IngestionMetadataDraft draft;
+        bool mayEncrypt = false;
+        // Caller holds operation execution coordination, never a broad authority fence.
         await using (var session = await _persistence.AcquireAsync(operationId, ct))
         {
             var intent = session.Intent;
@@ -148,84 +198,97 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
             var authority = await session.ResolveAuthorityAsync(intent.ArtifactId, ct);
             if (!ProvisionalMatches(intent, authority) || await Authorize(actor, authority!, recovery, ct) != AuthorizationDecision.Allow)
             { await RecordReviewAsync(session, "ProvisionalAuthorityFailure", actor, ct, isRecovery: recovery); await session.CommitAsync(ct); return; }
-            var receipt = await _physical.GetMutationOutcomeAsync(operationId, ct);
-            if (receipt is not null)
+            draft = await session.ReadDraftAsync(ct) ?? throw new InvalidDataException("Missing ingestion draft.");
+            expected = intent;
+            if (intent.CandidateHash is null && !session.CandidatePreparationStarted && plaintext is not null)
             {
-                if (!CreateReceiptMatches(intent, receipt)) await RecordReviewAsync(session, "CreationReceiptConflict", actor, ct, isRecovery: recovery);
-                else await session.RecordCreatedAsync(intent, receipt, ct);
-                await session.CommitAsync(ct); return;
+                await session.BeginCandidatePreparationAsync(intent, ct);
+                mayEncrypt = true;
             }
-            var candidate = await _staging.ReadAsync(operationId, ct);
-            if (intent.CandidateHash is not null)
-            {
-                if (candidate is null || Digest(candidate) != intent.CandidateHash)
-                { await RecordReviewAsync(session, "CandidateIntegrityFailure", actor, ct, isRecovery: recovery); await session.CommitAsync(ct); return; }
-            }
-            else
-            {
-                if (plaintext is null)
-                {
-                    // No candidate was admitted for mutation. Only this fenced Prepared case
-                    // can end without a physical deletion; a current object is contradictory.
-                    if (await _physical.ReadVersionedAsync(intent.ArtifactId, ct) is not null)
-                        await RecordReviewAsync(session, "UnexpectedPhysicalContent", actor, ct, isRecovery: recovery);
-                    else await session.RecordCleanedAsync(intent, null, actor, ct);
-                    await session.CommitAsync(ct); return;
-                }
-                if (candidate is null)
-                {
-                    var envelope = await _encryption.EncryptWithContextAsync(plaintext.Value, ArtifactEnvelopeContext.Create(intent.ArtifactId), ct);
-                    EncryptedEnvelopeFormat.Validate(envelope);
-                    if (envelope.FormatVersion != EncryptedEnvelopeFormat.ContextBoundVersion) throw new CryptographicException("Ingestion requires context-bound encryption.");
-                    candidate = JsonSerializer.SerializeToUtf8Bytes(envelope);
-                    await _staging.StageAsync(operationId, candidate, ct);
-                }
-                else
-                {
-                    // An interrupted staging acknowledgement must match the logical request.
-                    var envelope = JsonSerializer.Deserialize<EncryptedEnvelope>(candidate) ?? throw new InvalidDataException("Invalid staged candidate.");
-                    var recovered = await _encryption.DecryptWithContextAsync(envelope, ArtifactEnvelopeContext.Create(intent.ArtifactId), ct);
-                    try { if (!CryptographicOperations.FixedTimeEquals(recovered, plaintext.Value.Span)) throw new ArtifactContentIdempotencyException(); }
-                    finally { CryptographicOperations.ZeroMemory(recovered); }
-                }
-                await session.SetCandidateAsync(intent, Digest(candidate), ct);
-            }
-            // Candidate digest and Prepared binding are durable BEFORE physical creation.
             await session.CommitAsync(ct);
         }
-        await using (var session = await _persistence.AcquireAsync(operationId, ct))
+        // Receipt and protected candidate reads, cryptography, and hashing are detached.
+        var receipt = await _physical.GetMutationOutcomeAsync(operationId, ct);
+        var candidate = await _staging.ReadAsync(operationId, ct);
+        if (candidate is null && expected.CandidateHash is null && receipt is null && mayEncrypt)
         {
-            var intent = session.Intent;
-            if (intent?.State != ArtifactIngestionState.Prepared || session.IsDamaged) { await session.CommitAsync(ct); return; }
-            if (await session.HasAdoptionEvidenceAsync(intent.ArtifactId, ct))
-            { await RecordReviewAsync(session, "ContradictoryAdoption", actor, ct, isRecovery: recovery); await session.CommitAsync(ct); return; }
-            var authority = await session.ResolveAuthorityAsync(intent.ArtifactId, ct);
-            if (!ProvisionalMatches(intent, authority) || await Authorize(actor, authority!, recovery, ct) != AuthorizationDecision.Allow)
-            { await RecordReviewAsync(session, "ProvisionalAuthorityFailure", actor, ct, isRecovery: recovery); await session.CommitAsync(ct); return; }
-            var candidate = await _staging.ReadAsync(operationId, ct);
-            if (candidate is null || Digest(candidate) != intent.CandidateHash)
-            { await RecordReviewAsync(session, "CandidateIntegrityFailure", actor, ct, isRecovery: recovery); await session.CommitAsync(ct); return; }
-            var receipt = await _physical.GetMutationOutcomeAsync(operationId, ct);
+            var envelope = await _encryption.EncryptWithContextAsync(plaintext!.Value, ArtifactEnvelopeContext.Create(expected.ArtifactId), ct);
+            EncryptedEnvelopeFormat.Validate(envelope);
+            if (envelope.FormatVersion != EncryptedEnvelopeFormat.ContextBoundVersion) throw new CryptographicException("Ingestion requires context-bound encryption.");
+            candidate = JsonSerializer.SerializeToUtf8Bytes(envelope);
+            if (candidate.Length > MaximumCandidateBytes) throw new InvalidDataException("Ingestion candidate exceeds the admitted bound.");
+            await _staging.StageAsync(operationId, candidate, ct);
+        }
+        if (candidate is null && expected.CandidateHash is null && receipt is null)
+        {
+            // Execution coordination excludes a live producer. A lost randomized candidate
+            // is never regenerated under this logical identity, even when plaintext is supplied.
+            var current = await PreparedStore.ReadCurrentRevisionAsync(expected.ArtifactId, ct);
+            await using var empty = await _persistence.AcquireAsync(operationId, ct);
+            if (!await RevalidateAsync(empty, expected, actor, recovery, ct, draft)) { await empty.CommitAsync(ct); return; }
+            if (current is not null) await RecordReviewAsync(empty, "UnexpectedPhysicalContent", actor, ct, isRecovery: recovery);
+            else await empty.RecordCleanedAsync(expected, null, actor, ct);
+            await empty.CommitAsync(ct); return;
+        }
+        if (candidate?.Length > MaximumCandidateBytes) throw new InvalidDataException("Ingestion candidate exceeds the admitted bound.");
+        var hash = candidate is null ? null : Digest(candidate);
+        if (hash is null || expected.CandidateHash is not null && hash != expected.CandidateHash)
+        {
+            await using var damaged = await _persistence.AcquireAsync(operationId, ct);
+            await RecordReviewAsync(damaged, "CandidateIntegrityFailure", actor, ct, isRecovery: recovery); await damaged.CommitAsync(ct); return;
+        }
+        if (expected.CandidateHash is null)
+        {
+            // Lost staging acknowledgement: verify the retained request, never use decryption
+            // as ownership evidence. Ownership comes solely from durable authority/intent.
+            var envelope = JsonSerializer.Deserialize<EncryptedEnvelope>(candidate!) ?? throw new InvalidDataException("Invalid staged candidate.");
+            EncryptedEnvelopeFormat.Validate(envelope);
+            if (envelope.FormatVersion != EncryptedEnvelopeFormat.ContextBoundVersion) throw new CryptographicException("Ingestion requires context-bound encryption.");
+            var recovered = await _encryption.DecryptWithContextAsync(envelope, ArtifactEnvelopeContext.Create(expected.ArtifactId), ct);
+            try
+            {
+                if (plaintext is not null && !CryptographicOperations.FixedTimeEquals(recovered, plaintext.Value.Span)) throw new ArtifactContentIdempotencyException();
+                if (await _fingerprints.ComputeAsync(recovered, ct) != draft.Artifact.Fingerprint) throw new ArtifactContentIdempotencyException();
+            }
+            finally { CryptographicOperations.ZeroMemory(recovered); }
+            await using var binding = await _persistence.AcquireAsync(operationId, ct);
+            if (!await RevalidateAsync(binding, expected, actor, recovery, ct, draft)) { await binding.CommitAsync(ct); return; }
+            await binding.SetCandidateAsync(expected, hash, ct);
+            expected = binding.Intent!;
+            await binding.CommitAsync(ct);
+        }
+        // Provider owns generation/GC coordination before metadata coordination is acquired.
+        // Even lost-response retrieval occurs detached; receipt identity is checked on re-entry.
+        await using var prepared = receipt is null
+            ? await PreparedStore.PreparePhysicalCreateAsync(expected.ArtifactId, candidate!,
+                new(operationId, expected.OwnershipToken, expected.CreateEventId, true), ct) : null;
+        await using (var promotion = await _persistence.AcquireAsync(operationId, ct))
+        {
+            if (!await RevalidateAsync(promotion, expected, actor, recovery, ct, draft)) { await promotion.CommitAsync(ct); return; }
             if (receipt is null)
             {
-                try
-                {
-                    receipt = (await _physical.CreateIfAbsentAsync(intent.ArtifactId, candidate,
-                        new(operationId, intent.OwnershipToken, intent.CreateEventId, true), ct)).Receipt;
-                }
-                catch (Exception e) when (e is not OperationCanceledException)
-                {
-                    try { receipt = await _physical.GetMutationOutcomeAsync(operationId, ct); }
-                    catch { /* no speculative replay after an unavailable outcome */ }
-                    if (receipt is null)
-                    { await RecordReviewAsync(session, "CreationOutcomeUnknown", actor, ct, isRecovery: recovery); await session.CommitAsync(ct); return; }
-                }
+                // Only short physical catalog promotion runs under the authority fence.
+                // Uncertain outcomes escape this session for detached receipt reconciliation.
+                receipt = (await prepared!.ExecuteAsync(ct)).Receipt;
             }
-            await session.EnsureReceiptAuditAsync(receipt, ct);
-            if (!CreateReceiptMatches(intent, receipt)) await RecordReviewAsync(session, "CreationReceiptConflict", actor, ct, isRecovery: recovery);
-            else await session.RecordCreatedAsync(intent, receipt, ct);
-            await session.CommitAsync(ct);
+            await promotion.EnsureReceiptAuditAsync(receipt, ct);
+            if (!CreateReceiptMatches(expected, receipt)) await RecordReviewAsync(promotion, "CreationReceiptConflict", actor, ct, isRecovery: recovery);
+            else await promotion.RecordCreatedAsync(expected, receipt, ct);
+            await promotion.CommitAsync(ct);
         }
+    }
+    private IPreparedArtifactContentStore PreparedStore => _physical as IPreparedArtifactContentStore
+        ?? throw new NotSupportedException("Ingestion requires detached physical preparation and bounded revision validation.");
+    private async Task<bool> RevalidateAsync(IArtifactIngestionSession session, ArtifactIngestionIntent expected, string actor, bool recovery, CancellationToken ct, IngestionMetadataDraft? expectedDraft = null)
+    {
+        if (session.IsDamaged || session.Intent != expected || session.HasReview
+            || await session.HasAdoptionEvidenceAsync(expected.ArtifactId, ct)
+            || expectedDraft is not null && JsonSerializer.Serialize(await session.ReadDraftAsync(ct)) != JsonSerializer.Serialize(expectedDraft))
+        { await RecordReviewAsync(session, "LifecycleDamage", actor, ct, isRecovery: recovery); return false; }
+        var authority = await session.ResolveAuthorityAsync(expected.ArtifactId, ct);
+        if (!ProvisionalMatches(expected, authority) || await Authorize(actor, authority!, recovery, ct) != AuthorizationDecision.Allow)
+        { await RecordReviewAsync(session, "ProvisionalAuthorityFailure", actor, ct, isRecovery: recovery); return false; }
+        return true;
     }
     private static string Digest(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
     private static bool CreateReceiptMatches(ArtifactIngestionIntent intent, ArtifactContentMutationReceipt receipt) =>
@@ -235,6 +298,36 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
         && receipt.AuditEventId == intent.CreateEventId && receipt.AuditObligationVersion == 1;
     private async Task<ArtifactIngestionOutcome?> AdoptAsync(ArtifactContentOperationId operationId, string actor, CancellationToken ct)
     {
+        ArtifactIngestionIntent? capturedIntent;
+        IngestionMetadataDraft? capturedDraft;
+        IngestionMetadataDraft? capturedCanonical;
+        IngestionClassificationAuthority? capturedCanonicalAuthority;
+        await using (var capture = await _persistence.AcquireAsync(operationId, ct))
+        {
+            capturedIntent = capture.Intent;
+            if (capturedIntent?.State == ArtifactIngestionState.ContentCreated && !capture.IsDamaged)
+            {
+                if (!await RevalidateAsync(capture, capturedIntent, actor, false, ct)) { await capture.CommitAsync(ct); return null; }
+                capturedDraft = await capture.ReadDraftAsync(ct);
+                capturedCanonical = await capture.FindCanonicalAsync(ct);
+                capturedCanonicalAuthority = capturedCanonical is null ? null : await capture.ResolveAuthorityAsync(capturedCanonical.Artifact.Id, ct);
+                if (capturedCanonical is not null && (capturedCanonicalAuthority is not { IsAdopted: true }
+                    || await Authorize(actor, capturedCanonicalAuthority, false, ct) != AuthorizationDecision.Allow))
+                {
+                    // No canonical bytes may be copied before their own authorization.
+                    capturedCanonicalAuthority = null;
+                }
+            }
+            else { capturedDraft = null; capturedCanonical = null; capturedCanonicalAuthority = null; }
+            await capture.CommitAsync(ct);
+        }
+        var receipt = capturedIntent?.State == ArtifactIngestionState.ContentCreated ? await _physical.GetMutationOutcomeAsync(operationId, ct) : null;
+        var physical = capturedIntent?.State == ArtifactIngestionState.ContentCreated ? await _physical.ReadVersionedAsync(capturedIntent.ArtifactId, ct) : null;
+        var physicalHash = physical is null ? null : Digest(physical.Content);
+        var canonicalPhysical = capturedCanonicalAuthority is null ? null : await _physical.ReadVersionedAsync(capturedCanonical!.Artifact.Id, ct);
+        var canonicalIntegrity = canonicalPhysical is not null && await CanonicalIntegrityAsync(capturedCanonical!, canonicalPhysical, ct);
+        await using var physicalProbe = physical is null ? null : await PreparedStore.PrepareRevisionValidationAsync(capturedIntent!.ArtifactId, ct);
+        await using var canonicalProbe = canonicalPhysical is null ? null : await PreparedStore.PrepareRevisionValidationAsync(capturedCanonical!.Artifact.Id, ct);
         await using var session = await _persistence.AcquireAsync(operationId, ct);
         var intent = session.Intent;
         if (intent?.State != ArtifactIngestionState.ContentCreated || session.IsDamaged)
@@ -250,15 +343,17 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
         var authority = await session.ResolveAuthorityAsync(intent.ArtifactId, ct);
         if (!ProvisionalMatches(intent, authority) || await Authorize(actor, authority!, false, ct) != AuthorizationDecision.Allow)
         { await RecordReviewAsync(session, "ProvisionalAuthorityFailure", actor, ct, isRecovery: false); await session.CommitAsync(ct); return null; }
-        var receipt = await _physical.GetMutationOutcomeAsync(operationId, ct);
-        var physical = await _physical.ReadVersionedAsync(intent.ArtifactId, ct);
-        if (receipt is null || receipt != intent.CreateReceipt || !CreateReceiptMatches(intent, receipt)
-            || physical is null || physical.Revision != receipt.CurrentRevision || Digest(physical.Content) != intent.CandidateHash)
+        if (intent != capturedIntent || receipt is null || receipt != intent.CreateReceipt || !CreateReceiptMatches(intent, receipt)
+            || physical is null || physical.Revision != receipt.CurrentRevision || physicalHash != intent.CandidateHash
+            || await physicalProbe!.ReadCurrentRevisionAsync(ct) != physical.Revision)
         { await RecordReviewAsync(session, "CreationEvidenceFailure", actor, ct, isRecovery: false); await session.CommitAsync(ct); return null; }
         var draft = await session.ReadDraftAsync(ct);
-        if (draft is null || !await _classification.CanAdoptAsync(authority!, draft.Artifact, ct))
+        if (draft is null || JsonSerializer.Serialize(draft) != JsonSerializer.Serialize(capturedDraft)
+            || !await _classification.CanAdoptAsync(authority!, draft.Artifact, ct))
         { await RecordReviewAsync(session, "AdoptionClassificationMismatch", actor, ct, isRecovery: false); await session.CommitAsync(ct); return null; }
         var canonical = await session.FindCanonicalAsync(ct);
+        if (JsonSerializer.Serialize(canonical) != JsonSerializer.Serialize(capturedCanonical))
+        { await RecordReviewAsync(session, "CanonicalReconciliationFailure", actor, ct, isRecovery: false); await session.CommitAsync(ct); return null; }
         IngestionClassificationAuthority? canonicalAuthority = null;
         string? cleanupActor = null;
         if (canonical is not null)
@@ -269,7 +364,8 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
             var agrees = canonicalAuthority is { IsAdopted: true } && canonicalAuthority.ClassificationId == authority!.ClassificationId
                 && await _classification.CanonicalClassificationAgreesAsync(authority!, canonicalAuthority, ct)
                 && await Authorize(actor, canonicalAuthority, false, ct) == AuthorizationDecision.Allow;
-            if (agrees) agrees = await CanonicalIntegrityAsync(canonical, ct);
+            if (agrees) agrees = canonicalAuthority == capturedCanonicalAuthority && canonicalIntegrity
+                && await canonicalProbe!.ReadCurrentRevisionAsync(ct) == canonicalPhysical!.Revision;
             if (!agrees)
             {
                 await session.RecordDeduplicationConflictAsync(intent, authority!, canonical.Artifact.Id, cleanupActor, ct);
@@ -286,11 +382,10 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
         await session.CommitAsync(ct);
         return committed;
     }
-    private async Task<bool> CanonicalIntegrityAsync(IngestionMetadataDraft canonical, CancellationToken ct)
+    private async Task<bool> CanonicalIntegrityAsync(IngestionMetadataDraft canonical, ArtifactContentSnapshot snapshot, CancellationToken ct)
     {
         // Canonical repair is a separately authorized lifecycle, never an ingestion overwrite.
-        var snapshot = await _physical.ReadVersionedAsync(canonical.Artifact.Id, ct);
-        if (snapshot is null || canonical.Artifact.Fingerprint is null) return false;
+        if (canonical.Artifact.Fingerprint is null) return false;
         var envelope = JsonSerializer.Deserialize<EncryptedEnvelope>(snapshot.Content) ?? throw new InvalidDataException("Invalid canonical envelope.");
         var plaintext = await _encryption.DecryptWithContextAsync(envelope, ArtifactEnvelopeContext.Create(canonical.Artifact.Id), ct);
         try { return await _fingerprints.ComputeAsync(plaintext, ct) == canonical.Artifact.Fingerprint; }
@@ -298,9 +393,14 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
     }
     public async Task<ArtifactIngestionOutcome> RecoverOperationAsync(ArtifactContentOperationId operationId, CancellationToken cancellationToken = default)
     {
+        using var recoveryBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        recoveryBudget.CancelAfter(RecoveryBudget);
+        cancellationToken = recoveryBudget.Token;
         var actor = await _context.GetRecoveryActorAsync(cancellationToken); Actor(actor);
+        using var execution = await _persistence.AcquireExecutionAsync(operationId, cancellationToken);
         try
         {
+            var recoveryReceipt = await _physical.GetMutationOutcomeAsync(operationId, cancellationToken);
             await using (var session = await _persistence.AcquireAsync(operationId, cancellationToken))
             {
                 var id = session.ProvisionalArtifactId;
@@ -318,7 +418,7 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
                         await RecordReviewAsync(session, "RecoveryAuthorizationDenied", actor, cancellationToken);
                     else
                     {
-                        var receipt = await _physical.GetMutationOutcomeAsync(operationId, cancellationToken);
+                        var receipt = recoveryReceipt;
                         if (receipt is null || receipt != intent.CreateReceipt || !CreateReceiptMatches(intent, receipt))
                             await RecordReviewAsync(session, "CreationEvidenceFailure", actor, cancellationToken);
                         else await session.RecordRecoveryCompletionAsync(actor, cancellationToken);
@@ -353,7 +453,7 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
         await using (var session = await _persistence.AcquireAsync(operation.OperationId, cancellationToken))
         {
             if (session.ProvisionalArtifactId is null && !session.IsDamaged) return null;
-            if (session.OperationBinding is not null && session.OperationBinding != new IngestionOperationBinding(operation.AuthorizedOperationId, operation.ActorId))
+            if (session.OperationBinding is not null && session.OperationBinding != new IngestionOperationBinding(operation.AuthorizedOperationId, operation.ActorId, operation.ParentOperationId))
                 throw new ArtifactContentIdempotencyException();
         }
         return await RecoverOperationAsync(operation.OperationId, cancellationToken);
@@ -361,6 +461,8 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
     private async Task CleanupAsync(ArtifactContentOperationId operationId, string actor, CancellationToken ct)
     {
         // Claim is durably committed before physical deletion.
+        var creationEvidence = await _physical.GetMutationOutcomeAsync(operationId, ct);
+        ArtifactIngestionIntent claimed;
         await using (var session = await _persistence.AcquireAsync(operationId, ct))
         {
             var intent = session.Intent;
@@ -371,11 +473,18 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
             var authority = await session.ResolveAuthorityAsync(intent.ArtifactId, ct);
             if (!ProvisionalMatches(intent, authority) || await Authorize(actor, authority!, true, ct) != AuthorizationDecision.Allow)
             { await RecordReviewAsync(session, "CleanupAuthorityFailure", actor, ct); await session.CommitAsync(ct); return; }
-            var receipt = await _physical.GetMutationOutcomeAsync(operationId, ct);
+            var receipt = creationEvidence;
             if (receipt is null || receipt != intent.CreateReceipt || !CreateReceiptMatches(intent, receipt))
             { await RecordReviewAsync(session, "CreationEvidenceFailure", actor, ct); await session.CommitAsync(ct); return; }
-            await session.ClaimCleanupAsync(intent, authority!, actor, ct); await session.CommitAsync(ct);
+            await session.ClaimCleanupAsync(intent, authority!, actor, ct);
+            claimed = session.Intent!;
+            await session.CommitAsync(ct);
         }
+        creationEvidence = await _physical.GetMutationOutcomeAsync(operationId, ct);
+        var deletionReceipt = await _physical.GetMutationOutcomeAsync(claimed.CleanupOperationId, ct);
+        await using var preparedDelete = deletionReceipt is null ? await PreparedStore.PreparePhysicalDeleteAsync(claimed.ArtifactId,
+            claimed.CreateReceipt!.CurrentRevision!.Value, new(claimed.CleanupOperationId, claimed.OwnershipToken, claimed.CleanupEventId, true), ct) : null;
+        Exception? deletionFailure = null;
         await using (var session = await _persistence.AcquireAsync(operationId, ct))
         {
             var intent = session.Intent;
@@ -383,40 +492,47 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
             // mutable lifecycle state while this cleanup worker was paused.
             if (session.ProvisionalArtifactId is { } id && await session.HasAdoptionEvidenceAsync(id, ct))
             { await RecordReviewAsync(session, "ContradictoryAdoption", actor, ct); await session.CommitAsync(ct); return; }
-            if (intent?.State != ArtifactIngestionState.CleanupClaimed || session.IsDamaged) { await session.CommitAsync(ct); return; }
+            if (session.IsDamaged || intent?.State == ArtifactIngestionState.CleanupClaimed && intent != claimed)
+            { await RecordReviewAsync(session, "LifecycleDamage", actor, ct); await session.CommitAsync(ct); return; }
+            if (intent?.State != ArtifactIngestionState.CleanupClaimed) { await session.CommitAsync(ct); return; }
             var authority = await session.ResolveAuthorityAsync(intent.ArtifactId, ct);
             if (!ProvisionalMatches(intent, authority) || await Authorize(actor, authority!, true, ct) != AuthorizationDecision.Allow)
             { await RecordReviewAsync(session, "CleanupAuthorityFailure", actor, ct); await session.CommitAsync(ct); return; }
             // Revalidate the original creation receipt again after reacquiring the
             // deletion fence. Mutable receipt damage between claim and execution
             // cannot substitute a later generation for the exact created revision.
-            var creation = await _physical.GetMutationOutcomeAsync(operationId, ct);
+            var creation = creationEvidence;
             if (creation is null || creation != intent.CreateReceipt || !CreateReceiptMatches(intent, creation))
             { await RecordReviewAsync(session, "CreationEvidenceFailure", actor, ct); await session.CommitAsync(ct); return; }
             // Recheck the claim under the lease through physical promotion; classification/adoption cannot race it.
             await session.ClaimCleanupAsync(intent, authority!, actor, ct);
-            var receipt = await _physical.GetMutationOutcomeAsync(intent.CleanupOperationId, ct);
+            var receipt = deletionReceipt;
             if (receipt is null)
             {
-                try
-                {
-                    receipt = (await _physical.DeleteIfRevisionMatchesAsync(intent.ArtifactId, intent.CreateReceipt!.CurrentRevision!.Value,
-                        new(intent.CleanupOperationId, intent.OwnershipToken, intent.CleanupEventId, true), ct)).Receipt;
-                }
-                catch (Exception e) when (e is not OperationCanceledException)
-                {
-                    try { receipt = await _physical.GetMutationOutcomeAsync(intent.CleanupOperationId, ct); } catch { }
-                    if (receipt is null)
-                    { await RecordReviewAsync(session, "CleanupOutcomeUnknown", actor, ct); await session.CommitAsync(ct); return; }
-                }
+                try { receipt = (await preparedDelete!.ExecuteAsync(ct)).Receipt; }
+                catch (Exception error) when (error is not OperationCanceledException) { deletionFailure = error; }
             }
-            await session.EnsureReceiptAuditAsync(receipt, ct);
-            if (receipt.OperationId != intent.CleanupOperationId || receipt.ArtifactId != intent.ArtifactId || receipt.Kind != ArtifactContentMutationKind.Delete
-                || receipt.Outcome != ArtifactContentMutationOutcome.Deleted || receipt.PriorRevision != intent.CreateReceipt?.CurrentRevision
-                || receipt.OwnershipToken != intent.OwnershipToken || receipt.AuditEventId != intent.CleanupEventId || receipt.AuditObligationVersion != 1 || receipt.CurrentRevision is null)
-                await RecordReviewAsync(session, "CleanupReceiptConflict", actor, ct);
-            else await session.RecordCleanedAsync(intent, receipt, actor, ct);
-            await session.CommitAsync(ct);
+            if (receipt is not null)
+            {
+                await session.EnsureReceiptAuditAsync(receipt, ct);
+                if (receipt.OperationId != intent.CleanupOperationId || receipt.ArtifactId != intent.ArtifactId || receipt.Kind != ArtifactContentMutationKind.Delete
+                    || receipt.Outcome != ArtifactContentMutationOutcome.Deleted || receipt.PriorRevision != intent.CreateReceipt?.CurrentRevision
+                    || receipt.OwnershipToken != intent.OwnershipToken || receipt.AuditEventId != intent.CleanupEventId || receipt.AuditObligationVersion != 1 || receipt.CurrentRevision is null)
+                    await RecordReviewAsync(session, "CleanupReceiptConflict", actor, ct);
+                else await session.RecordCleanedAsync(intent, receipt, actor, ct);
+                await session.CommitAsync(ct);
+            }
+            // Unknown outcomes roll back/dispose before detached receipt discovery.
+        }
+        if (deletionFailure is not null)
+        {
+            var known = await _physical.GetMutationOutcomeAsync(claimed.CleanupOperationId, ct);
+            if (known is not null) await CleanupAsync(operationId, actor, ct); // Receipt recognition; never another deletion.
+            else
+            {
+                await using var review = await _persistence.AcquireAsync(operationId, ct);
+                await RecordReviewAsync(review, "CleanupOutcomeUnknown", actor, ct); await review.CommitAsync(ct);
+            }
         }
     }
     public async Task<IReadOnlyList<ArtifactIngestionOutcome>> RecoverBatchAsync(long afterCursor, int limit, CancellationToken cancellationToken = default)
@@ -454,20 +570,27 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
             }
             bool needsReview;
             bool authorizedRecovery;
+            await using (var admission = await _persistence.AcquireAsync(operationId.Value, cancellationToken))
+            {
+                authorizedRecovery = await AuthorizeReconciliationAsync(admission, actor, true, cancellationToken);
+                await admission.CommitAsync(cancellationToken);
+            }
+            var conflict = false;
+            if (authorizedRecovery)
+            {
+                try { await VerifyReceiptAcknowledgementAsync(receipt, cancellationToken); }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception error) when (error is SecurityAuditIdentityConflictException or InvalidDataException or ArgumentException) { conflict = true; }
+                catch { /* Chain unavailable: never infer acknowledgement from a local flag. */ }
+            }
             await using (var session = await _persistence.AcquireAsync(operationId.Value, cancellationToken))
             {
                 // No repair, outbox reconstruction or lifecycle transition precedes
                 // the current resource/classification recovery authorization decision.
-                authorizedRecovery = await AuthorizeReconciliationAsync(session, actor, true, cancellationToken);
+                authorizedRecovery = authorizedRecovery && await AuthorizeReconciliationAsync(session, actor, true, cancellationToken);
                 needsReview = session.Intent is null || session.IsDamaged;
                 if (authorizedRecovery)
                 {
-                    var conflict = false;
-                    try { await VerifyReceiptAcknowledgementAsync(receipt, cancellationToken); }
-                    catch (OperationCanceledException) { throw; }
-                    catch (Exception error) when (error is SecurityAuditIdentityConflictException or InvalidDataException or ArgumentException)
-                    { conflict = true; }
-                    catch { /* Chain unavailable: never infer acknowledgement from a local flag. */ }
                     if (conflict || needsReview)
                     {
                         await RecordReviewAsync(session, conflict ? "ReceiptAuditConflict" : "ReceiptWithoutValidIntent", actor, cancellationToken);
@@ -518,6 +641,18 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
         var delivery = IngestionAuditDelivery.Completed;
         var validAuditEvidence = true;
         var reviewOnly = false;
+        ArtifactIngestionIntent? receiptIntent;
+        await using (var lookup = await _persistence.AcquireAsync(operationId, cancellationToken))
+        { receiptIntent = lookup.Intent; await lookup.CommitAsync(cancellationToken); }
+        ArtifactContentMutationReceipt? creationEvidence = null;
+        ArtifactContentMutationReceipt? cleanupEvidence = null;
+        var receiptEvidenceFailure = false;
+        try
+        {
+            if (receiptIntent?.CreateReceipt is not null) creationEvidence = await _physical.GetMutationOutcomeAsync(operationId, cancellationToken);
+            if (receiptIntent?.CleanupReceipt is not null) cleanupEvidence = await _physical.GetMutationOutcomeAsync(receiptIntent.CleanupOperationId, cancellationToken);
+        }
+        catch (InvalidDataException) { receiptEvidenceFailure = true; }
         await using (var repair = await _persistence.AcquireAsync(operationId, cancellationToken))
         {
             var authorized = await AuthorizeReconciliationAsync(repair, actor, recovery, cancellationToken);
@@ -526,16 +661,17 @@ public sealed class ArtifactIngestionCoordinator : IArtifactIngestionCoordinator
             {
                 try
                 {
+                    if (receiptEvidenceFailure) throw new InvalidDataException("Receipt evidence is damaged.");
                     if (repairIntent.CreateReceipt is not null)
                     {
-                        var receipt = await _physical.GetMutationOutcomeAsync(operationId, cancellationToken);
+                        var receipt = creationEvidence;
                         if (receipt is null || receipt != repairIntent.CreateReceipt || !CreateReceiptMatches(repairIntent, receipt))
                             throw new InvalidDataException("Creation receipt evidence is unavailable.");
                         await repair.EnsureReceiptAuditAsync(receipt, cancellationToken);
                     }
                     if (repairIntent.CleanupReceipt is not null)
                     {
-                        var receipt = await _physical.GetMutationOutcomeAsync(repairIntent.CleanupOperationId, cancellationToken);
+                        var receipt = cleanupEvidence;
                         if (receipt is null || receipt != repairIntent.CleanupReceipt) throw new InvalidDataException("Cleanup receipt evidence is unavailable.");
                         await repair.EnsureReceiptAuditAsync(receipt, cancellationToken);
                     }

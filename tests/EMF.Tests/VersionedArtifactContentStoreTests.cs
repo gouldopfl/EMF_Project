@@ -7,6 +7,24 @@ namespace EMF.Tests;
 public sealed class VersionedArtifactContentStoreTests
 {
     [Fact]
+    public async Task Detached_generation_is_not_current_and_promotion_rechecks_absence_and_operation_identity()
+    {
+        using var f = new Fixture();
+        var capable = (IPreparedArtifactContentStore)f.Store;
+        var context = Context();
+        await using var prepared = await capable.PreparePhysicalCreateAsync(f.Id, new byte[] { 1 }, context);
+        Assert.Null(await capable.ReadCurrentRevisionAsync(f.Id));
+        Assert.Null(await f.Store.GetMutationOutcomeAsync(context.OperationId));
+        var winner = await f.Store.CreateIfAbsentAsync(f.Id, new byte[] { 2 }, Context());
+        Assert.Equal(winner.CurrentRevision, await capable.ReadCurrentRevisionAsync(f.Id));
+        var rejected = await prepared.ExecuteAsync();
+        Assert.Equal(ArtifactContentMutationOutcome.AlreadyExists, rejected.Outcome);
+        Assert.Equal(new byte[] { 2 }, await f.Store.ReadAsync(f.Id));
+        Assert.Equal(rejected.Receipt, (await f.Store.CreateIfAbsentAsync(f.Id, new byte[] { 1 }, context)).Receipt);
+        await Assert.ThrowsAsync<ArtifactContentIdempotencyException>(() => f.Store.CreateIfAbsentAsync(f.Id, new byte[] { 3 }, context));
+    }
+
+    [Fact]
     public async Task RevisionsPreventBothFormsOfAbaAndReplaySurvivesLaterMutation()
     {
         var root = Path.Combine(Path.GetTempPath(), "emf-versioned-" + Guid.NewGuid());

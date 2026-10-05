@@ -7,6 +7,9 @@ namespace EMF.Core.Contracts.Ingestion;
 // cleanup claims and classification writers across processes. Dispose without Commit rolls back.
 public interface IArtifactIngestionPersistence
 {
+    // Execution coordination is operation-specific and must be acquired before metadata sessions.
+    // It excludes competing producers/recovery, but carries no authorization or recovery truth.
+    Task<IDisposable> AcquireExecutionAsync(ArtifactContentOperationId operationId, CancellationToken cancellationToken = default);
     Task<IArtifactIngestionSession> AcquireAsync(ArtifactContentOperationId operationId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<IngestionRecoveryWork>> ReadRecoveryWorkAsync(long afterCursor, int limit, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<IngestionAuditObligation>> ReadAuditObligationsAsync(ArtifactContentOperationId operationId, CancellationToken cancellationToken = default);
@@ -27,12 +30,16 @@ public interface IArtifactIngestionSession : IAsyncDisposable
     ArtifactId? ProvisionalArtifactId { get; }
     bool IsDamaged { get; }
     bool HasReview { get; }
+    bool CandidatePreparationStarted { get; }
+    IngestionCandidateBinding? CandidateBinding { get; }
+    ArtifactContentMutationReceipt? CandidateCreationReceipt { get; }
     Task<bool> HasAdoptionEvidenceAsync(ArtifactId artifactId, CancellationToken cancellationToken = default);
     Task<IngestionClassificationAuthority?> ResolveAuthorityAsync(ArtifactId artifactId, CancellationToken cancellationToken = default);
     Task<IngestionMetadataDraft?> ReadDraftAsync(CancellationToken cancellationToken = default);
     Task<IngestionMetadataDraft?> FindCanonicalAsync(CancellationToken cancellationToken = default);
     Task<IngestionMetadataDraft?> ReadResultAsync(CancellationToken cancellationToken = default);
     Task PrepareAsync(ArtifactIngestionIntent intent, IngestionOperationBinding binding, IngestionMetadataDraft draft, CancellationToken cancellationToken = default);
+    Task BeginCandidatePreparationAsync(ArtifactIngestionIntent expected, CancellationToken cancellationToken = default);
     Task SetCandidateAsync(ArtifactIngestionIntent expected, string candidateHash, CancellationToken cancellationToken = default);
     Task RecordCreatedAsync(ArtifactIngestionIntent expected, ArtifactContentMutationReceipt receipt, CancellationToken cancellationToken = default);
     Task AdoptAsync(ArtifactIngestionIntent expected, IngestionClassificationAuthority provisional,
@@ -52,5 +59,8 @@ public interface IArtifactIngestionSession : IAsyncDisposable
 public interface IArtifactIngestionCoordinator
 {
     Task<ArtifactIngestionOutcome> IngestAsync(IngestionMetadataDraft draft, ReadOnlyMemory<byte> content, CancellationToken cancellationToken = default);
+    // Resume the authenticated original operation using retained inputs only; no source path/plaintext request.
+    Task<ArtifactIngestionOutcome> ResumeAsync(CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Retained-input ingestion resume is unsupported.");
     Task<ArtifactIngestionOutcome?> RecoverInterruptedAsync(CancellationToken cancellationToken = default);
 }

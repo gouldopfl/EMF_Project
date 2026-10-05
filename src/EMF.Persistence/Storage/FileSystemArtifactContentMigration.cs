@@ -521,22 +521,34 @@ public sealed class FileSystemArtifactContentMigration
         }
         finally { CryptographicOperations.ZeroMemory(left); CryptographicOperations.ZeroMemory(right); }
     }
-    internal static void CheckSource(string path, long length, string stamp, string digest, IContentStoragePlatform platform, long maxBytes)
+    internal static void CheckSource(string path, long length, string stamp, string digest, IContentStoragePlatform platform, long maxBytes, ContentInspectionBudget? inspection = null)
     {
         RejectLinks(path); var identity = platform.InspectSourceFile(path);
-        if (identity.Length != length || identity.Stamp != stamp || HashFile(path, platform, maxBytes) != digest)
+        if (identity.Length != length || identity.Stamp != stamp || HashFile(path, platform, maxBytes, inspection) != digest)
             throw new IOException("Inventoried legacy source identity or bytes changed.");
     }
-    internal static string HashFile(string path, IContentStoragePlatform platform, long maxBytes)
+    internal static string HashFile(string path, IContentStoragePlatform platform, long maxBytes, ContentInspectionBudget? inspection = null)
     {
+        using var work = inspection?.Inspect();
         RejectLinks(path); var before = platform.InspectSourceFile(path);
         if (before.Length < 0 || before.Length > maxBytes) throw new InvalidDataException("Migration source exceeds the byte budget.");
+        inspection?.Evidence(before.Length); // Reserve the whole file before reading or allocating its hash buffer.
         using var stream = platform.OpenSourceFile(path); using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buffer = new byte[81920]; long total = 0;
         try
         {
-            int count; while ((count = stream.Read(buffer)) != 0)
-            { total += count; if (total > maxBytes) throw new IOException("Migration source exceeds the byte budget."); hash.AppendData(buffer.AsSpan(0, count)); }
+            int count;
+            while (true)
+            {
+                inspection?.Check("BeforeEvidenceRead");
+                if (total == before.Length) break;
+                count = stream.Read(buffer, 0, (int)Math.Min(buffer.Length, before.Length - total));
+                if (count == 0) break;
+                inspection?.Check("EvidenceChunk");
+                total += count;
+                if (total > maxBytes) throw new IOException("Migration source exceeds the byte budget.");
+                hash.AppendData(buffer.AsSpan(0, count));
+            }
             if (total != before.Length || platform.InspectSourceFile(path) != before) throw new IOException("Migration source changed during integrity verification.");
             return Convert.ToHexString(hash.GetHashAndReset());
         }

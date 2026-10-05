@@ -16,6 +16,19 @@ internal sealed class LinuxContentDurability : IContentStoragePlatform
     [DllImport("libc", SetLastError = true)] private static extern int fstatfs(int fd, IntPtr buffer);
     [DllImport("libc", SetLastError = true)] private static extern int statx(int dirfd, string path, int flags, uint mask, IntPtr buffer);
     [DllImport("libc")] private static extern uint geteuid();
+    [StructLayout(LayoutKind.Sequential)]
+    private struct InspectionTimespec { public long Seconds; public long Nanoseconds; }
+    [DllImport("libc", SetLastError = true)]
+    private static extern int clock_gettime(int clockId, out InspectionTimespec time);
+    internal static TimeSpan InspectionProcessingTime()
+    {
+        if (!OperatingSystem.IsLinux() || IntPtr.Size != 8)
+            throw new PlatformNotSupportedException("Bounded content inspection requires supported 64-bit Linux.");
+        // CLOCK_THREAD_CPUTIME_ID: unrelated threads, scheduling, SQLite busy waits,
+        // filesystem wait and physical payload I/O cannot spend this operation's work.
+        if (clock_gettime(3, out var time) != 0) throw new IOException("Cannot measure bounded inspection work.");
+        return TimeSpan.FromTicks(checked(time.Seconds * TimeSpan.TicksPerSecond + time.Nanoseconds / 100));
+    }
     public IGenerationNamespaceWatch CreateGenerationNamespaceWatch(string directory)
     {
         RequirePlatform();
