@@ -113,15 +113,15 @@ public sealed partial class ArtifactContentGarbageCollectionTests
     }
 
     [Fact]
-    public async Task ExclusiveCatalogWindowWaitsForReaderAndBlocksNewReaders()
+    public async Task ExclusiveCatalogWindowWaitsForActiveReaderAndBlocksNewReadersDuringCollection()
     {
         using var f = new Fixture();
         await f.Store.WriteAsync(f.Id, new byte[] { 1 });
+        var watchdog = TimeSpan.FromMinutes(2);
         var selected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseReader = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         f.Store.Checkpoint = async p => { if (p == "ReaderSelected") { selected.SetResult(); await releaseReader.Task; } };
-        var reader = f.Store.ReadVersionedAsync(f.Id);
-        await selected.Task;
+        var reader = Task.Run(() => f.Store.ReadVersionedAsync(f.Id));
         var gated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var rechecked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseGc = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -133,26 +133,35 @@ public sealed partial class ArtifactContentGarbageCollectionTests
                 if (p == "EligibilityRechecked") { rechecked.TrySetResult(); await releaseGc.Task; }
             }
         };
-        var collection = Task.Run(() => gc.CollectAsync());
-        Task<ArtifactContentSnapshot?>? laterReader = null;
+        Task<ArtifactContentGarbageCollectionResult>? collection = null;
         try
         {
-            await gated.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            await Task.Delay(100);
+            await selected.Task.WaitAsync(watchdog);
+            collection = Task.Run(() => gc.CollectAsync());
+            await gated.Task.WaitAsync(watchdog);
             Assert.False(rechecked.Task.IsCompleted);
+            Assert.False(collection.IsCompleted);
             releaseReader.SetResult();
-            Assert.Equal(new byte[] { 1 }, (await reader)!.Content);
-            await rechecked.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            laterReader = Task.Run(() => new FileSystemArtifactContentStore(f.Root).ReadVersionedAsync(f.Id));
-            await Task.Delay(100);
-            Assert.False(laterReader.IsCompleted);
+            Assert.Equal(new byte[] { 1 }, (await reader.WaitAsync(watchdog))!.Content);
+            await rechecked.Task.WaitAsync(watchdog);
+            // Same-operation short-contention success exceeded ADR-047's guarantee.
+            // Configured waiting is bounded and ends in SQLITE_BUSY while GC stays held.
+            // Verify exclusion throughout the window, then successful reading after release.
+            var laterReader = Task.Run(() => new FileSystemArtifactContentStore(f.Root).ReadVersionedAsync(f.Id));
+            var busy = await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(
+                async () => { await laterReader.WaitAsync(watchdog); });
+            Assert.Equal(5, busy.SqliteErrorCode);
+            Assert.False(releaseGc.Task.IsCompleted);
+            Assert.False(collection.IsCompleted);
         }
         finally { releaseReader.TrySetResult(); releaseGc.TrySetResult(); }
-        await collection;
-        Assert.NotNull(await laterReader!);
+        await collection!.WaitAsync(watchdog);
+        Assert.Equal(new byte[] { 1 },
+            (await Task.Run(() => new FileSystemArtifactContentStore(f.Root).ReadVersionedAsync(f.Id))
+                .WaitAsync(watchdog))!.Content);
         f.Store.Checkpoint = null;
         await f.Store.WriteAsync(f.Id, new byte[] { 2 });
-        Assert.Equal(1, (await gc.CollectAsync()).FilesReclaimed);
+        Assert.Equal(1, (await Task.Run(() => gc.CollectAsync()).WaitAsync(watchdog)).FilesReclaimed);
     }
 
     [Theory]
