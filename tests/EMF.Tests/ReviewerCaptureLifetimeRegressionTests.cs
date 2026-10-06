@@ -12,6 +12,7 @@ public sealed class ReviewerCaptureLifetimeRegressionTests
 {
     private sealed class Fixture : IAsyncDisposable
     {
+        private static readonly TimeSpan UsabilityProbeDeadline = TimeSpan.FromMinutes(2);
         private readonly string root = Path.Combine(Path.GetTempPath(), "emf-capture-lifetime-" + Guid.NewGuid().ToString("N"));
         public string Database => Path.Combine(root, "metadata.sqlite");
         public ArtifactId Artifact { get; } = new("synthetic");
@@ -38,12 +39,16 @@ public sealed class ReviewerCaptureLifetimeRegressionTests
             await command.ExecuteNonQueryAsync(); return f;
         }
         public Task<ReviewerCaptureSession> Open(CancellationToken ct = default,
-            Func<string, CancellationToken, Task>? checkpoint = null, int maximumWork = 4096) =>
+            Func<string, CancellationToken, Task>? checkpoint = null, int maximumWork = 4096,
+            TimeSpan? deadline = null) =>
             ReviewerCaptureSession.OpenAsync(Database, OperationSnapshotId.New(), [Artifact], Source,
-                new(TimeSpan.FromSeconds(10), MaximumWork: maximumWork), ct, checkpoint);
+                new(deadline ?? TimeSpan.FromSeconds(10), MaximumWork: maximumWork), ct, checkpoint);
         public async Task AssertUsable()
         {
-            await using var session = await Open(); Assert.NotNull(await session.CaptureAsync());
+            // This real independent capture proves resource usability, not deadline behavior.
+            // Allow loaded CI/VM scheduling and I/O without changing the ordinary test deadline.
+            await using var session = await Open(deadline: UsabilityProbeDeadline);
+            Assert.NotNull(await session.CaptureAsync());
         }
         public ValueTask DisposeAsync() { Directory.Delete(root, true); return ValueTask.CompletedTask; }
     }
@@ -111,7 +116,8 @@ public sealed class ReviewerCaptureLifetimeRegressionTests
             if (phase == "Progress")
             {
                 callbacks++; reached.TrySetResult();
-                if (!release.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("Native barrier timed out.");
+                // Bounded outer waits and their finally own release of this barrier.
+                release.Wait();
             }
             else
             {
@@ -173,10 +179,12 @@ public sealed class ReviewerCaptureLifetimeRegressionTests
             Interlocked.Increment(ref detachments);
             Assert.Equal(SQLitePCL.raw.SQLITE_OK, SQLitePCL.raw.sqlite3_exec(c.Handle!, "SELECT 1"));
             cleanupReached.TrySetResult();
-            if (!cleanupRelease.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("Cleanup barrier timed out.");
+            // Keep cleanup blocked until the test asserts its state; outer waits release in finally.
+            cleanupRelease.Wait();
             if (failCleanup) throw failure;
         };
-        var capture = session.CaptureAsync(captureCaller.Token);
+        // The blocking teardown hook must not occupy xUnit's test-control context.
+        var capture = Task.Run(() => session.CaptureAsync(captureCaller.Token));
         Task? first = null, second = null;
         try
         {

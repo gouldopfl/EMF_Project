@@ -79,19 +79,35 @@ public sealed partial class ArtifactContentGarbageCollectionTests
         var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         f.Store.Checkpoint = async p => { if (p == "CandidateDurable") { reached.SetResult(); await release.Task; } };
-        var producer = f.Store.WriteAsync(f.Id, new byte[] { 2 });
-        await reached.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var gc = new FileSystemArtifactContentGarbageCollector(f.Root);
-        var collection = Task.Run(() => gc.CollectAsync());
+        var gateReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gateAcquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var watchdog = TimeSpan.FromMinutes(2);
+        var gc = new FileSystemArtifactContentGarbageCollector(f.Root)
+        {
+            Checkpoint = p =>
+            {
+                // Observe the acquisition boundary without pausing GC in a test hook.
+                if (p == "BeforeExclusiveGate") gateReached.TrySetResult();
+                if (p == "ExclusiveGateAcquired") gateAcquired.TrySetResult();
+                return Task.CompletedTask;
+            }
+        };
+        // Producer resumption must not depend on the test-control synchronization context.
+        var producer = Task.Run(() => f.Store.WriteAsync(f.Id, new byte[] { 2 }));
+        Task<ArtifactContentGarbageCollectionResult>? collection = null;
         try
         {
-            await Task.Delay(150);
+            await reached.Task.WaitAsync(watchdog);
+            collection = Task.Run(() => gc.CollectAsync());
+            await gateReached.Task.WaitAsync(watchdog);
             Assert.False(collection.IsCompleted);
+            Assert.False(gateAcquired.Task.IsCompleted);
             Assert.Equal(2, Directory.GetFiles(f.Generations).Length);
         }
         finally { release.TrySetResult(); }
-        await producer;
-        await collection;
+        await producer.WaitAsync(watchdog);
+        await collection!.WaitAsync(watchdog);
+        Assert.True(gateAcquired.Task.IsCompletedSuccessfully);
         Assert.Single(Directory.GetFiles(f.Generations));
         Assert.Equal(new byte[] { 2 }, (await f.Store.ReadVersionedAsync(f.Id))!.Content);
     }

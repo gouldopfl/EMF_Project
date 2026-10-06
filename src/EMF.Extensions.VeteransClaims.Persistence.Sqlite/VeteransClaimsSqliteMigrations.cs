@@ -3286,6 +3286,127 @@ internal static class VeteransClaimsSqliteMigrations
                     AND NEW.Format = 'pdf' AND (p.PdfSha256 != NEW.OutputSha256
                         OR p.ConverterIdentity != NEW.ConverterIdentity OR p.ConverterVersion != NEW.ConverterVersion))
                 BEGIN SELECT RAISE(ABORT, 'Reviewer output differs from frozen presentation'); END;
+                """),
+            new VeteransClaimsSqliteMigration(
+                95,
+                "AddReviewerOperationSnapshots",
+                """
+                CREATE TABLE VeteransClaims_ReviewerOperationSnapshots (
+                    OperationSnapshotId TEXT NOT NULL PRIMARY KEY CHECK (
+                        typeof(OperationSnapshotId) = 'text'
+                        AND length(OperationSnapshotId) BETWEEN 1 AND 128
+                        AND length(CAST(OperationSnapshotId AS BLOB)) = length(OperationSnapshotId)
+                        AND OperationSnapshotId NOT GLOB '*[^A-Za-z0-9_.:-]*'),
+                    ReviewerOperationId TEXT NOT NULL CHECK (
+                        typeof(ReviewerOperationId) = 'text'
+                        AND length(ReviewerOperationId) BETWEEN 1 AND 128
+                        AND length(CAST(ReviewerOperationId AS BLOB)) = length(ReviewerOperationId)
+                        AND ReviewerOperationId NOT GLOB '*[^A-Za-z0-9_.:-]*'),
+                    State TEXT NOT NULL CHECK (State IN ('Capturing', 'Materializing', 'Ready')),
+                    Revision INTEGER NOT NULL CHECK (typeof(Revision) = 'integer' AND Revision > 0),
+                    OwnerToken TEXT NOT NULL CHECK (
+                        typeof(OwnerToken) = 'text'
+                        AND length(OwnerToken) BETWEEN 1 AND 128
+                        AND length(CAST(OwnerToken AS BLOB)) = length(OwnerToken)
+                        AND OwnerToken NOT GLOB '*[^A-Za-z0-9_.:-]*'),
+                    Profile TEXT NOT NULL CHECK (Profile = 'Reviewer.AdoptedUtf8.ContractProof.v1'),
+                    RepresentationVersion INTEGER NOT NULL CHECK (
+                        typeof(RepresentationVersion) = 'integer' AND RepresentationVersion = 1),
+                    BundleSha256 TEXT NULL CHECK (
+                        BundleSha256 IS NULL OR (typeof(BundleSha256) = 'text'
+                        AND length(BundleSha256) = 64 AND length(CAST(BundleSha256 AS BLOB)) = 64
+                        AND BundleSha256 NOT GLOB '*[^0-9A-F]*')),
+                    ReadyValidationVersion INTEGER NULL CHECK (
+                        ReadyValidationVersion IS NULL OR (typeof(ReadyValidationVersion) = 'integer'
+                        AND ReadyValidationVersion = 1)),
+                    Disposition TEXT NOT NULL CHECK (Disposition IN ('Active', 'RequiresReview', 'Failed')),
+                    FailureCategory INTEGER NULL CHECK (
+                        FailureCategory IS NULL OR (typeof(FailureCategory) = 'integer'
+                        AND FailureCategory IN (1, 2, 3))),
+                    CHECK (
+                        (State = 'Capturing' AND BundleSha256 IS NULL AND ReadyValidationVersion IS NULL)
+                        OR (State = 'Materializing' AND BundleSha256 IS NOT NULL AND ReadyValidationVersion IS NULL)
+                        OR (State = 'Ready' AND BundleSha256 IS NOT NULL AND ReadyValidationVersion IS 1)),
+                    CHECK (
+                        (Disposition = 'Active' AND FailureCategory IS NULL)
+                        OR (State = 'Capturing' AND Disposition = 'RequiresReview' AND FailureCategory IS 1)
+                        OR (State = 'Capturing' AND Disposition = 'Failed' AND FailureCategory IS 2)
+                        OR (State IN ('Materializing', 'Ready') AND Disposition = 'RequiresReview' AND FailureCategory IS 3))
+                );
+
+                CREATE UNIQUE INDEX UX_VeteransClaims_ReviewerOperationSnapshots_ReviewerOperationId
+                ON VeteransClaims_ReviewerOperationSnapshots (ReviewerOperationId);
+
+                CREATE TRIGGER ReviewerOperationSnapshot_NoDuplicateInsert
+                BEFORE INSERT ON VeteransClaims_ReviewerOperationSnapshots
+                WHEN EXISTS (
+                    SELECT 1 FROM VeteransClaims_ReviewerOperationSnapshots
+                    WHERE OperationSnapshotId = NEW.OperationSnapshotId
+                       OR ReviewerOperationId = NEW.ReviewerOperationId)
+                BEGIN SELECT RAISE(ABORT, 'Reviewer operation snapshot identity already exists'); END;
+
+                CREATE TRIGGER ReviewerOperationSnapshot_InitialInsert
+                BEFORE INSERT ON VeteransClaims_ReviewerOperationSnapshots
+                WHEN NOT (
+                    NEW.State IS 'Capturing' AND NEW.Revision IS 1
+                    AND NEW.Disposition IS 'Active' AND NEW.BundleSha256 IS NULL
+                    AND NEW.ReadyValidationVersion IS NULL AND NEW.FailureCategory IS NULL)
+                BEGIN SELECT RAISE(ABORT, 'Reviewer operation snapshot requires initial Capturing authority'); END;
+
+                CREATE TRIGGER ReviewerOperationSnapshot_NoDelete
+                BEFORE DELETE ON VeteransClaims_ReviewerOperationSnapshots
+                BEGIN SELECT RAISE(ABORT, 'Reviewer operation snapshot authority cannot be deleted'); END;
+
+                CREATE TRIGGER ReviewerOperationSnapshot_AllowedUpdate
+                BEFORE UPDATE ON VeteransClaims_ReviewerOperationSnapshots
+                WHEN NOT (
+                    NEW.OperationSnapshotId IS OLD.OperationSnapshotId
+                    AND NEW.ReviewerOperationId IS OLD.ReviewerOperationId
+                    AND NEW.Profile IS OLD.Profile
+                    AND NEW.RepresentationVersion IS OLD.RepresentationVersion
+                    AND typeof(OLD.Revision) = 'integer' AND typeof(NEW.Revision) = 'integer'
+                    AND OLD.Revision < 9223372036854775807
+                    AND NEW.Revision = OLD.Revision + 1
+                    AND OLD.Disposition IS 'Active'
+                    AND (
+                        (
+                            OLD.State IS 'Capturing' AND NEW.State IS 'Materializing'
+                            AND NEW.OwnerToken IS OLD.OwnerToken
+                            AND OLD.BundleSha256 IS NULL AND NEW.BundleSha256 IS NOT NULL
+                            AND NEW.ReadyValidationVersion IS OLD.ReadyValidationVersion
+                            AND NEW.Disposition IS OLD.Disposition
+                            AND NEW.FailureCategory IS OLD.FailureCategory
+                        )
+                        OR (
+                            OLD.State IS 'Materializing' AND NEW.State IS 'Ready'
+                            AND NEW.OwnerToken IS OLD.OwnerToken
+                            AND NEW.BundleSha256 IS OLD.BundleSha256
+                            AND OLD.ReadyValidationVersion IS NULL AND NEW.ReadyValidationVersion IS 1
+                            AND NEW.Disposition IS OLD.Disposition
+                            AND NEW.FailureCategory IS OLD.FailureCategory
+                        )
+                        OR (
+                            OLD.State IN ('Capturing', 'Materializing') AND NEW.State IS OLD.State
+                            AND NEW.OwnerToken IS NOT OLD.OwnerToken
+                            AND NEW.BundleSha256 IS OLD.BundleSha256
+                            AND NEW.ReadyValidationVersion IS OLD.ReadyValidationVersion
+                            AND NEW.Disposition IS OLD.Disposition
+                            AND NEW.FailureCategory IS OLD.FailureCategory
+                        )
+                        OR (
+                            NEW.State IS OLD.State AND NEW.OwnerToken IS OLD.OwnerToken
+                            AND NEW.BundleSha256 IS OLD.BundleSha256
+                            AND NEW.ReadyValidationVersion IS OLD.ReadyValidationVersion
+                            AND OLD.FailureCategory IS NULL
+                            AND (
+                                (OLD.State IS 'Capturing' AND NEW.Disposition IS 'RequiresReview' AND NEW.FailureCategory IS 1)
+                                OR (OLD.State IS 'Capturing' AND NEW.Disposition IS 'Failed' AND NEW.FailureCategory IS 2)
+                                OR (OLD.State IN ('Materializing', 'Ready') AND NEW.Disposition IS 'RequiresReview' AND NEW.FailureCategory IS 3)
+                            )
+                        )
+                    )
+                )
+                BEGIN SELECT RAISE(ABORT, 'Invalid reviewer operation snapshot authority mutation'); END;
                 """)
         };
 }
