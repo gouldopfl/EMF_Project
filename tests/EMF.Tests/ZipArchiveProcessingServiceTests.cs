@@ -8,6 +8,36 @@ namespace EMF.Tests;
 public sealed class ZipArchiveProcessingServiceTests
 {
     [Fact]
+    public async Task StreamProcessingPassesExactBorrowedStreamToDecoder()
+    {
+        var decoder = new StreamDecoder();
+        var extraction = new RecordingExtractionService();
+        using var stream = new MemoryStream(new byte[] { 1, 2, 3 }, writable: false);
+        var result = await new ZipArchiveProcessingService(decoder, extraction).ProcessAsync(new("parent"), stream);
+        Assert.Same(stream, decoder.Observed);
+        Assert.Single(result); Assert.Equal("entry.txt", extraction.Entries.Single());
+        Assert.True(stream.CanRead);
+    }
+    [Fact]
+    public async Task StreamProcessingDoesNotFallBackToRomOnlyDecoder()
+    {
+        using var stream = new MemoryStream(new byte[3]);
+        await Assert.ThrowsAsync<NotSupportedException>(() => new ZipArchiveProcessingService(new StubDecoder(),
+            new RecordingExtractionService()).ProcessAsync(new("parent"), stream));
+    }
+    private sealed class StreamDecoder : IZipArchiveDecoder
+    {
+        public Stream? Observed;
+        public Task<IReadOnlyList<DecodedArchiveEntry>> DecodeAsync(ReadOnlyMemory<byte> content, CancellationToken ct = default) =>
+            throw new Exception("Parent copying fallback forbidden");
+        public Task<IReadOnlyList<DecodedArchiveEntry>> DecodeAsync(Stream content, CancellationToken ct = default)
+        {
+            Observed = content;
+            return Task.FromResult<IReadOnlyList<DecodedArchiveEntry>>(new[] { new DecodedArchiveEntry { EntryName = "entry.txt", Content = new byte[] { 1 } } });
+        }
+    }
+
+    [Fact]
     public async Task ProcessAsync_PersistsDecodedEntries()
     {
         var extraction = new RecordingExtractionService();

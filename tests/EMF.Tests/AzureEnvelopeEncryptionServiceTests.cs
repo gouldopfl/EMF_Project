@@ -9,6 +9,54 @@ namespace EMF.Tests;
 
 public sealed class AzureEnvelopeEncryptionServiceTests
 {
+    [Theory]
+    [InlineData("success")] [InlineData("authentication")] [InlineData("cancellation")]
+    public async Task BoundedProviderAlwaysClearsDekAcrossAsynchronousUnwrap(string outcome)
+    {
+        using var cts = new CancellationTokenSource();
+        var cryptography = new CapturingBoundedCryptography();
+        var service = new AzureEnvelopeEncryptionService(
+            new FakeKeyProvider(new AzureKeyReference { KeyName = "emf-key", KeyVersion = "v1" }), new FakeFactory(cryptography));
+        var context = "context"u8.ToArray();
+        var envelope = await service.EncryptWithContextAsync(new byte[] { 1, 2, 3 }, context);
+        if (outcome == "authentication") envelope.AuthenticationTag[0] ^= 1;
+        cryptography.AfterUnwrap = () => { if (outcome == "cancellation") cts.Cancel(); };
+        if (outcome == "authentication")
+            await Assert.ThrowsAnyAsync<CryptographicException>(() => service.DecryptWithContextBoundedAsync(envelope, context, new(3), cts.Token));
+        else if (outcome == "cancellation")
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.DecryptWithContextBoundedAsync(envelope, context, new(3), cts.Token));
+        else Assert.Equal(new byte[] { 1, 2, 3 }, await service.DecryptWithContextBoundedAsync(envelope, context, new(3), cts.Token));
+        Assert.True(cryptography.NonzeroAtUnwrap); Assert.NotNull(cryptography.OwnedDek);
+        Assert.All(cryptography.OwnedDek!, b => Assert.Equal(0, b));
+    }
+    private sealed class CapturingBoundedCryptography : IAzureKeyCryptography
+    {
+        public byte[]? OwnedDek; public bool NonzeroAtUnwrap; public Action? AfterUnwrap;
+        public Task<byte[]> WrapKeyAsync(byte[] key, CancellationToken ct = default) => Task.FromResult((byte[])key.Clone());
+        public async Task<byte[]> UnwrapKeyAsync(byte[] key, CancellationToken ct = default)
+        {
+            await Task.Yield();
+            OwnedDek = (byte[])key.Clone(); NonzeroAtUnwrap = OwnedDek.Any(b => b != 0);
+            AfterUnwrap?.Invoke(); return OwnedDek;
+        }
+    }
+
+    [Fact]
+    public async Task BoundedProviderRoundTripUsesExistingFormatAndAadWithoutLiveServices()
+    {
+        var service = new AzureEnvelopeEncryptionService(
+            new FakeKeyProvider(new AzureKeyReference { KeyName = "emf-key", KeyVersion = "v1" }),
+            new FakeFactory(new FakeCryptography()));
+        var context = "artifact-context"u8.ToArray();
+        var envelope = await service.EncryptWithContextAsync("protected"u8.ToArray(), context);
+        Assert.Equal("protected"u8.ToArray(), await service.DecryptWithContextBoundedAsync(envelope, context, new(9)));
+        Assert.Equal("protected"u8.ToArray(), await service.DecryptWithContextAsync(envelope, context));
+        await Assert.ThrowsAsync<CryptographicException>(() => service.DecryptWithContextBoundedAsync(envelope, context, new(8)));
+        await Assert.ThrowsAsync<CryptographicException>(() => service.DecryptWithContextBoundedAsync(envelope, context, new(9, 1)));
+        using var cts = new CancellationTokenSource(); cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.DecryptWithContextBoundedAsync(envelope, context, new(9), cts.Token));
+    }
+
     [Fact]
     public async Task EncryptAsync_RejectsNullCryptographyFactoryResult()
     {

@@ -4,13 +4,14 @@ using EMF.Security.Encryption.Envelope.Models;
 namespace EMF.Security.Encryption.Envelope.Services;
 
 public sealed class DevelopmentEnvelopeEncryptionService :
-    IEnvelopeEncryptionService
+    IEnvelopeEncryptionService, IBoundedEnvelopeDecryptionService
 {
     private const int KeySize = 32;
     private const int NonceSize = 12;
     private const int TagSize = 16;
 
     private readonly IEncryptionKeyProvider _keyProvider;
+    internal Action<byte[]>? BoundedDataKeyUnwrapped { get; set; }
 
     public DevelopmentEnvelopeEncryptionService(
         IEncryptionKeyProvider keyProvider)
@@ -129,10 +130,21 @@ public sealed class DevelopmentEnvelopeEncryptionService :
             authenticatedContext,
             cancellationToken);
 
+    public Task<byte[]> DecryptWithContextBoundedAsync(EncryptedEnvelope envelope,
+        ReadOnlyMemory<byte> authenticatedContext, EnvelopeDecryptionLimits limits,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(limits);
+        EnvelopeContentAuthentication.ValidateBound(envelope, limits.MaximumPlaintextBytes);
+        if (authenticatedContext.Length > limits.MaximumAuthenticatedContextBytes || envelope.FormatVersion != 2)
+            throw new CryptographicException("Bounded context-bound envelope required.");
+        return DecryptCoreAsync(envelope, authenticatedContext, cancellationToken, limits);
+    }
+
     private async Task<byte[]> DecryptCoreAsync(
         EncryptedEnvelope envelope,
         ReadOnlyMemory<byte>? authenticatedContext,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, EnvelopeDecryptionLimits? limits = null)
     {
         ArgumentNullException.ThrowIfNull(envelope);
         cancellationToken.ThrowIfCancellationRequested();
@@ -162,7 +174,10 @@ public sealed class DevelopmentEnvelopeEncryptionService :
 
         try
         {
-            return EnvelopeContentAuthentication.Decrypt(envelope, dek, authenticatedContext);
+            if (limits is not null) BoundedDataKeyUnwrapped?.Invoke(dek);
+            return limits is null
+                ? EnvelopeContentAuthentication.Decrypt(envelope, dek, authenticatedContext)
+                : EnvelopeContentAuthentication.DecryptBounded(envelope, dek, authenticatedContext!.Value, limits, cancellationToken);
         }
         finally
         {

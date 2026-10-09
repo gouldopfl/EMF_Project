@@ -12,6 +12,7 @@ public sealed class ZipArchiveWorkflowActivity :
     private readonly IEvidenceRepository _repository;
     private readonly IArtifactContentStore _contentStore;
     private readonly IZipArchiveProcessingService _processingService;
+    private readonly ZipParentAllocationProfile _profile;
     private const string ProcessorId = "zip-archive";
     private const string ProcessorVersion = "1";
 
@@ -23,13 +24,15 @@ public sealed class ZipArchiveWorkflowActivity :
         IArtifactContentStore contentStore,
         IZipArchiveProcessingService processingService,
         ContainerProcessingGuard processingGuard,
-        ContainerAncestryGuard? ancestryGuard = null)
+        ContainerAncestryGuard? ancestryGuard = null,
+        ZipParentAllocationProfile? allocationProfile = null)
     {
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(contentStore);
         ArgumentNullException.ThrowIfNull(processingService);
         ArgumentNullException.ThrowIfNull(processingGuard);
 
+        _profile = allocationProfile ?? new();
         _repository = repository;
         _contentStore = contentStore;
         _processingService = processingService;
@@ -49,6 +52,10 @@ public sealed class ZipArchiveWorkflowActivity :
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        var boundedStore = _contentStore as IBoundedVersionedArtifactContentStore
+            ?? throw new NotSupportedException("ZIP requires bounded content reads; ordinary reads are not a fallback.");
+        _profile.ValidateProviderMaximum(boundedStore.MaximumStoredRepresentationBytes);
+
         var archives =
             await _repository.GetArtifactsByMetadataAsync(
                 ArtifactMetadataKeys.FileExtension,
@@ -60,38 +67,25 @@ public sealed class ZipArchiveWorkflowActivity :
 
         foreach (var archive in archives)
         {
-            var content =
-                await _contentStore.ReadAsync(
-                    archive.Id,
-                    cancellationToken);
-
-            if (content is null)
-            {
-                failed++;
-                continue;
-            }
-
             try
             {
-                await _ancestryGuard.ValidateAsync(
-                    archive,
-                    cancellationToken);
-
-                var decision =
-                    await _processingGuard.EvaluateAsync(
-                        archive,
-                        content,
-                        ProcessorId,
-                        ProcessorVersion,
-                        cancellationToken);
-
-                if (!decision.ShouldProcess)
-                    continue;
-
-                await _processingService.ProcessAsync(
-                    archive.Id,
-                    content,
-                    cancellationToken);
+                await _ancestryGuard.ValidateAsync(archive, cancellationToken);
+                ContainerProcessingDecision decision;
+                using (await ZipParentReadAdmission.ProcessWide.AcquireAsync(cancellationToken))
+                {
+                    await using var lease = await boundedStore.ReadBoundedVersionedAsync(
+                        archive.Id, _profile.CreateReadRequest(), cancellationToken);
+                    if (lease is null) { failed++; continue; }
+                    if (lease.ArtifactId != archive.Id || lease.Content.Length != lease.ReturnedLength ||
+                        lease.ReturnedLength > _profile.MaximumPlaintextBytes ||
+                        lease.StoredLength > _profile.MaximumProtectedSourceBytes)
+                        throw new InvalidDataException("ZIP parent lease exceeds its admitted profile.");
+                    decision = await _processingGuard.EvaluateAsync(archive, lease.Content,
+                        ProcessorId, ProcessorVersion, cancellationToken);
+                    if (!decision.ShouldProcess) continue;
+                    await using var stream = lease.OpenReadStream();
+                    await _processingService.ProcessAsync(archive.Id, stream, cancellationToken);
+                } // Stream then lease are disposed/cleared before admission is released.
 
                 await _processingGuard.MarkProcessedAsync(
                     archive,

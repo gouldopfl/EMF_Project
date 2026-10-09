@@ -9,4 +9,7 @@ public interface IZipArchiveProcessingService
         ArtifactId archiveArtifactId,
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ZipEntryExtractionResult>> ProcessAsync(ArtifactId archiveArtifactId, Stream content,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Seekable ZIP processing capability is required.");
 }

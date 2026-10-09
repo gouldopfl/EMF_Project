@@ -7,7 +7,7 @@ using EMF.Security.Encryption.Envelope.Models;
 namespace EMF.Security.Azure.Encryption;
 
 public sealed class AzureEnvelopeEncryptionService :
-    IEnvelopeEncryptionService
+    IEnvelopeEncryptionService, IBoundedEnvelopeDecryptionService
 {
     private readonly IAzureKeyReferenceProvider _keyProvider;
     private readonly IAzureKeyCryptographyFactory _cryptographyFactory;
@@ -122,10 +122,21 @@ public sealed class AzureEnvelopeEncryptionService :
             authenticatedContext,
             cancellationToken);
 
+    public Task<byte[]> DecryptWithContextBoundedAsync(EncryptedEnvelope envelope,
+        ReadOnlyMemory<byte> authenticatedContext, EnvelopeDecryptionLimits limits,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(limits);
+        EnvelopeContentAuthentication.ValidateBound(envelope, limits.MaximumPlaintextBytes);
+        if (authenticatedContext.Length > limits.MaximumAuthenticatedContextBytes || envelope.FormatVersion != 2)
+            throw new CryptographicException("Bounded context-bound envelope required.");
+        return DecryptCoreAsync(envelope, authenticatedContext, cancellationToken, limits);
+    }
+
     private async Task<byte[]> DecryptCoreAsync(
         EncryptedEnvelope envelope,
         ReadOnlyMemory<byte>? authenticatedContext,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, EnvelopeDecryptionLimits? limits = null)
     {
         ArgumentNullException.ThrowIfNull(envelope);
         cancellationToken.ThrowIfCancellationRequested();
@@ -172,7 +183,9 @@ public sealed class AzureEnvelopeEncryptionService :
                     "Invalid data encryption key length.");
             }
 
-            return EnvelopeContentAuthentication.Decrypt(envelope, dek, authenticatedContext);
+            return limits is null
+                ? EnvelopeContentAuthentication.Decrypt(envelope, dek, authenticatedContext)
+                : EnvelopeContentAuthentication.DecryptBounded(envelope, dek, authenticatedContext!.Value, limits, cancellationToken);
         }
         finally
         {

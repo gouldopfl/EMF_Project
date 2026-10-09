@@ -9,7 +9,7 @@ using EMF.Security.Encryption.Envelope;
 namespace EMF.Security.Storage;
 
 public sealed class EncryptedArtifactContentStore :
-    IVersionedArtifactContentStore
+    IVersionedArtifactContentStore, IBoundedVersionedArtifactContentStore
 {
     private readonly IArtifactContentStore _inner;
     private readonly IEnvelopeEncryptionService _encryption;
@@ -102,6 +102,58 @@ public sealed class EncryptedArtifactContentStore :
             envelope,
             ArtifactEnvelopeContext.Create(artifactId),
             cancellationToken);
+    }
+
+    private IBoundedVersionedArtifactContentStore Bounded => _inner as IBoundedVersionedArtifactContentStore
+        ?? throw new NotSupportedException("Underlying content store does not support bounded reads.");
+    public long MaximumStoredRepresentationBytes => Bounded.MaximumStoredRepresentationBytes;
+    public async Task<IArtifactContentReadLease?> ReadBoundedVersionedAsync(ArtifactId id,
+        BoundedArtifactContentReadRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var physical = Bounded;
+        var decryption = _encryption as IBoundedEnvelopeDecryptionService
+            ?? throw new NotSupportedException("Encryption provider does not support bounded decryption.");
+        var limits = new EnvelopeDecryptionLimits(request.MaximumReturnedContentBytes);
+        // ArtifactId has no generic length ceiling. Bound UTF-8 before Create allocates context bytes.
+        var encoding = new UTF8Encoding(false, true);
+        if (checked(16L + encoding.GetByteCount(id.Value)) > limits.MaximumAuthenticatedContextBytes)
+            throw new CryptographicException("Artifact authenticated context exceeds its allocation ceiling.");
+        var raw = await physical.ReadBoundedVersionedAsync(id,
+            new(request.MaximumStoredRepresentationBytes, request.MaximumStoredRepresentationBytes, request.ExpectedRevision),
+            cancellationToken);
+        if (raw is null) return null;
+        bool rawDisposalAttempted = false;
+        EncryptedEnvelope? envelope = null;
+        byte[]? plaintext = null;
+        byte[]? context = null;
+        try
+        {
+            if (raw.ArtifactId != id || raw.StoredLength != raw.ReturnedLength ||
+                raw.ReturnedLength != raw.Content.Length || raw.StoredLength > request.MaximumStoredRepresentationBytes ||
+                (request.ExpectedRevision is { } expected && raw.Revision != expected))
+                throw new InvalidDataException("Bounded physical lease evidence is invalid.");
+            envelope = BoundedEncryptedEnvelopeCodec.Read(raw.Content.Span, limits, cancellationToken);
+            context = ArtifactEnvelopeContext.Create(id);
+            plaintext = await decryption.DecryptWithContextBoundedAsync(envelope, context, limits, cancellationToken);
+            if (plaintext.Length > request.MaximumReturnedContentBytes || plaintext.Length != envelope.Ciphertext.Length)
+                throw new CryptographicException("Bounded provider returned invalid plaintext length.");
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = new ArtifactContentReadLease(id, raw.Revision, raw.StoredLength, plaintext);
+            // Keep cleanup ownership until raw disposal has succeeded; alternate leases may throw.
+            rawDisposalAttempted = true;
+            await raw.DisposeAsync();
+            cancellationToken.ThrowIfCancellationRequested();
+            plaintext = null;
+            return result;
+        }
+        finally
+        {
+            if (plaintext is not null) CryptographicOperations.ZeroMemory(plaintext);
+            if (envelope is not null) BoundedEncryptedEnvelopeCodec.Clear(envelope);
+            if (context is not null) CryptographicOperations.ZeroMemory(context);
+            if (!rawDisposalAttempted) await raw.DisposeAsync();
+        }
     }
 
     private IVersionedArtifactContentStore Versioned => _inner as IVersionedArtifactContentStore

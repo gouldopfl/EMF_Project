@@ -13,6 +13,7 @@ public sealed class ZipArchiveDecoder :
     public const long DefaultMaxEntryBytes = 25L * 1024 * 1024;
     public const long DefaultMaxTotalBytes = 100L * 1024 * 1024;
 
+    internal Action<Stream>? ArchiveInputObserved { get; set; }
     private readonly long _maxInputBytes;
     private readonly int _maxEntryCount;
     private readonly long _maxEntryBytes;
@@ -70,8 +71,19 @@ public sealed class ZipArchiveDecoder :
         using var stream =
             new MemoryStream(content.ToArray(), writable: false);
 
-        using var archive =
-            new ZipArchive(stream, ZipArchiveMode.Read);
+        return await DecodeAsync(stream, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<DecodedArchiveEntry>> DecodeAsync(Stream stream,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!stream.CanRead || !stream.CanSeek) throw new ArgumentException("Readable seekable ZIP input required.", nameof(stream));
+        if (stream.Length > _maxInputBytes) throw new InvalidDataException("ZIP input exceeds the maximum allowed size.");
+        stream.Position = 0;
+        ArchiveInputObserved?.Invoke(stream);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
 
         if (archive.Entries.Count > _maxEntryCount)
         {

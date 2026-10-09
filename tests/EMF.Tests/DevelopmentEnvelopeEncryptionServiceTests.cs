@@ -11,6 +11,91 @@ namespace EMF.Tests;
 
 public sealed class DevelopmentEnvelopeEncryptionServiceTests
 {
+    [Theory]
+    [InlineData("success")] [InlineData("authentication")] [InlineData("cancellation")]
+    public async Task BoundedProviderAlwaysClearsUnwrappedDek(string outcome)
+    {
+        var service = CreateService(); var context = "context"u8.ToArray();
+        var envelope = await service.EncryptWithContextAsync(new byte[] { 1, 2, 3 }, context);
+        if (outcome == "authentication") envelope.AuthenticationTag[0] ^= 1;
+        byte[]? captured = null; bool nonzeroAtUnwrap = false;
+        using var cts = new CancellationTokenSource();
+        service.BoundedDataKeyUnwrapped = dek =>
+        {
+            captured = dek; nonzeroAtUnwrap = dek.Any(b => b != 0);
+            if (outcome == "cancellation") cts.Cancel();
+        };
+        if (outcome == "authentication")
+            await Assert.ThrowsAnyAsync<CryptographicException>(() => service.DecryptWithContextBoundedAsync(envelope, context, new(3), cts.Token));
+        else if (outcome == "cancellation")
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.DecryptWithContextBoundedAsync(envelope, context, new(3), cts.Token));
+        else Assert.Equal(new byte[] { 1, 2, 3 }, await service.DecryptWithContextBoundedAsync(envelope, context, new(3), cts.Token));
+        Assert.True(nonzeroAtUnwrap); Assert.NotNull(captured); Assert.All(captured!, b => Assert.Equal(0, b));
+    }
+
+    [Fact]
+    public async Task BoundedProviderRoundTripAndLegacyContextReadRemainCompatible()
+    {
+        var service = CreateService();
+        var context = "artifact-context"u8.ToArray();
+        var envelope = await service.EncryptWithContextAsync("protected"u8.ToArray(), context);
+        Assert.Equal("protected"u8.ToArray(), await service.DecryptWithContextBoundedAsync(envelope, context, new(9)));
+        Assert.Equal("protected"u8.ToArray(), await service.DecryptWithContextAsync(envelope, context));
+        await Assert.ThrowsAsync<CryptographicException>(() => service.DecryptWithContextBoundedAsync(envelope, context, new(8)));
+    }
+    private static (EncryptedEnvelope Envelope, byte[] Dek, byte[] Context) BoundedFixture()
+    {
+        var dek = new byte[32]; var context = "context"u8.ToArray();
+        var cipher = new byte[3]; var nonce = new byte[12]; var tag = new byte[16];
+        using (var aes = new AesGcm(dek, 16))
+            aes.Encrypt(nonce, new byte[] { 1, 2, 3 }, cipher, tag,
+                EncryptedEnvelopeFormat.GetContextBoundAuthenticatedData("AES-256-GCM", context));
+        return (new EncryptedEnvelope { FormatVersion = 2, Ciphertext = cipher, Nonce = nonce,
+            AuthenticationTag = tag, WrappedDataEncryptionKey = new byte[] { 1 }, KeyEncryptionKeyId = "key",
+            Algorithm = "AES-256-GCM" }, dek, context);
+    }
+    [Fact]
+    public void BoundedPlaintextAndContextCeilingsRejectBeforeAllocation()
+    {
+        var f = BoundedFixture(); int allocations = 0;
+        Assert.Throws<CryptographicException>(() => EnvelopeContentAuthentication.DecryptBounded(f.Envelope,
+            f.Dek, f.Context, new(2), default, _ => allocations++, null));
+        Assert.Throws<CryptographicException>(() => EnvelopeContentAuthentication.DecryptBounded(f.Envelope,
+            f.Dek, f.Context, new(3, 1), default, _ => allocations++, null));
+        Assert.Equal(0, allocations);
+    }
+    [Fact]
+    public void BoundedAuthenticationFailureClearsActualAllocatedPlaintext()
+    {
+        var f = BoundedFixture(); f.Envelope.AuthenticationTag[0] ^= 1;
+        byte[]? captured = null;
+        Assert.ThrowsAny<CryptographicException>(() => EnvelopeContentAuthentication.DecryptBounded(f.Envelope,
+            f.Dek, f.Context, new(3), default, bytes => { captured = bytes; Array.Fill(bytes, (byte)9); }, null));
+        Assert.NotNull(captured); Assert.All(captured!, b => Assert.Equal(0, b));
+    }
+    [Theory]
+    [InlineData("before")] [InlineData("allocated")] [InlineData("decrypted")]
+    public void BoundedCancellationClearsBeforeHandoff(string point)
+    {
+        var f = BoundedFixture(); using var cts = new CancellationTokenSource(); byte[]? captured = null;
+        if (point == "before") cts.Cancel();
+        Assert.ThrowsAny<OperationCanceledException>(() => EnvelopeContentAuthentication.DecryptBounded(f.Envelope,
+            f.Dek, f.Context, new(3), cts.Token,
+            bytes => { captured = bytes; Array.Fill(bytes, (byte)9); if (point == "allocated") cts.Cancel(); },
+            () => { if (point == "decrypted") cts.Cancel(); }));
+        if (point == "before") Assert.Null(captured);
+        else { Assert.NotNull(captured); Assert.All(captured!, b => Assert.Equal(0, b)); }
+    }
+    [Fact]
+    public void BoundedSuccessfulDecryptHandsOffObservedArrayOnce()
+    {
+        var f = BoundedFixture(); byte[]? captured = null; int allocations = 0;
+        var result = EnvelopeContentAuthentication.DecryptBounded(f.Envelope, f.Dek, f.Context, new(3), default,
+            bytes => { captured = bytes; allocations++; }, null);
+        Assert.Same(captured, result); Assert.Equal(1, allocations); Assert.Equal(new byte[] { 1, 2, 3 }, result);
+        CryptographicOperations.ZeroMemory(result);
+    }
+
     private static DevelopmentEnvelopeEncryptionService CreateService()
     {
         var key =

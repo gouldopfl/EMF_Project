@@ -23,8 +23,10 @@ public static class InventoryConsoleCommand
     public static async Task<int> RunAsync(
         string[] args) => await RunAsync(args, InventoryRuntimeComposition.FromEnvironment());
 
-    public static async Task<int> RunAsync(string[] args, InventoryRuntimeComposition? runtime)
+    public static async Task<int> RunAsync(string[] args, InventoryRuntimeComposition? runtime,
+        ZipRuntimeComposition? zipRuntime = null)
     {
+        zipRuntime ??= ZipRuntimeComposition.Default;
         var sourcePath = args.Length > 0
             ? args[0]
             : "/opt/emf-lab/datasets/LD-VET-001/extracted";
@@ -183,7 +185,7 @@ public static class InventoryConsoleCommand
 
             var zipProcessingService =
                 new ZipArchiveProcessingService(
-                    new ZipArchiveDecoder(),
+                    new ZipArchiveDecoder(maxInputBytes: zipRuntime.Profile.MaximumPlaintextBytes),
                     zipExtractionService);
 
             activities.Add(
@@ -193,7 +195,8 @@ public static class InventoryConsoleCommand
                     zipProcessingService,
                     new ContainerProcessingGuard(
                         evidenceRepository,
-                        fingerprintService)));
+                        fingerprintService),
+                    allocationProfile: zipRuntime.Profile));
 
             activityIds.Add("email-messages");
             activityIds.Add("email-attachments");

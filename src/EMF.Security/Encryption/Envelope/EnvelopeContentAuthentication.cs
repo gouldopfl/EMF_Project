@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
+using System.Runtime.CompilerServices;
 using EMF.Security.Encryption.Envelope.Models;
+[assembly: InternalsVisibleTo("EMF.Tests")]
 namespace EMF.Security.Encryption.Envelope;
 
 // Shared provider cryptography. Lifecycle callers never receive authentication plaintext.
@@ -21,6 +23,42 @@ public static class EnvelopeContentAuthentication
             return plaintext;
         }
         catch { CryptographicOperations.ZeroMemory(plaintext); throw; }
+    }
+    public static byte[] DecryptBounded(EncryptedEnvelope envelope, ReadOnlySpan<byte> dek,
+        ReadOnlyMemory<byte> context, EnvelopeDecryptionLimits limits, CancellationToken cancellationToken = default)
+        => DecryptBounded(envelope, dek, context, limits, cancellationToken, null, null);
+
+    internal static byte[] DecryptBounded(EncryptedEnvelope envelope, ReadOnlySpan<byte> dek,
+        ReadOnlyMemory<byte> context, EnvelopeDecryptionLimits limits, CancellationToken ct,
+        Action<byte[]>? allocated, Action? decrypted)
+    {
+        ArgumentNullException.ThrowIfNull(limits);
+        EncryptedEnvelopeFormat.Validate(envelope);
+        if (envelope.FormatVersion != EncryptedEnvelopeFormat.ContextBoundVersion ||
+            context.Length > limits.MaximumAuthenticatedContextBytes)
+            throw new CryptographicException("Bounded context-bound envelope required.");
+        ct.ThrowIfCancellationRequested();
+        // The fixed AAD prefix is 27 bytes. Context is checked before that allocation.
+        _ = checked(27 + context.Length);
+        var aad = EncryptedEnvelopeFormat.GetContextBoundAuthenticatedData(envelope.Algorithm, context);
+        byte[]? plaintext = null;
+        try
+        {
+            // Enforced at the actual plaintext allocation site, independently of the codec.
+            if (envelope.Ciphertext.Length > limits.MaximumPlaintextBytes)
+                throw new CryptographicException("Plaintext allocation ceiling exceeded.");
+            ct.ThrowIfCancellationRequested();
+            plaintext = new byte[envelope.Ciphertext.Length];
+            allocated?.Invoke(plaintext);
+            ct.ThrowIfCancellationRequested();
+            using var aes = new AesGcm(dek, 16);
+            aes.Decrypt(envelope.Nonce, envelope.Ciphertext, envelope.AuthenticationTag, plaintext, aad);
+            decrypted?.Invoke();
+            ct.ThrowIfCancellationRequested();
+            return plaintext;
+        }
+        catch { if (plaintext is not null) CryptographicOperations.ZeroMemory(plaintext); throw; }
+        finally { CryptographicOperations.ZeroMemory(aad); }
     }
     public static void ValidateBound(EncryptedEnvelope envelope, int maximumBytes)
     {

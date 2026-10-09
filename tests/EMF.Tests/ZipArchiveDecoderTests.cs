@@ -1,10 +1,52 @@
 using System.IO.Compression;
+using EMF.Core.Contracts.Storage;
 using EMF.Orchestration.Services;
 
 namespace EMF.Tests;
 
 public sealed class ZipArchiveDecoderTests
 {
+    [Fact]
+    public async Task SeekableLeaseStreamDecodesExistingParentAndLeavesCallerStreamOpen()
+    {
+        var bytes = CreateZip(("entry.txt", "bounded-parent"));
+        using var lease = new ArtifactContentReadLease(new("zip"), new("revision"), bytes.Length, bytes);
+        using var stream = lease.OpenReadStream();
+        Stream? archiveInput = null;
+        var decoder = new ZipArchiveDecoder { ArchiveInputObserved = input => archiveInput = input };
+        var entries = await decoder.DecodeAsync(stream);
+        Assert.Same(stream, archiveInput);
+        Assert.Equal("bounded-parent", System.Text.Encoding.UTF8.GetString(entries.Single().Content));
+        Assert.True(stream.CanRead); Assert.True(stream.CanSeek); Assert.Equal(bytes.Length, stream.Length);
+        Assert.True(System.Runtime.InteropServices.MemoryMarshal.TryGetArray(lease.Content, out var segment));
+        Assert.Same(bytes, segment.Array);
+    }
+    [Fact]
+    public async Task StreamCeilingRejectsBeforeAnyArchiveRead()
+    {
+        using var stream = new TrackingStream(new byte[4]);
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ZipArchiveDecoder(maxInputBytes: 3).DecodeAsync(stream));
+        Assert.Equal(0, stream.Reads); Assert.True(stream.CanRead);
+    }
+    [Fact]
+    public async Task FailedArchiveLeavesOwnedInputForCallerCleanup()
+    {
+        byte[] bytes = [1, 2, 3];
+        using var lease = new ArtifactContentReadLease(new("zip"), new("revision"), 3, bytes);
+        using (var stream = lease.OpenReadStream())
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => new ZipArchiveDecoder().DecodeAsync(stream));
+            Assert.True(stream.CanRead); Assert.Equal(new byte[] { 1, 2, 3 }, lease.Content.ToArray());
+        }
+        lease.Dispose(); Assert.All(bytes, b => Assert.Equal(0, b));
+    }
+    private sealed class TrackingStream(byte[] bytes) : MemoryStream(bytes, writable: false)
+    {
+        public int Reads;
+        public override int Read(byte[] buffer, int offset, int count) { Reads++; return base.Read(buffer, offset, count); }
+        public override int Read(Span<byte> buffer) { Reads++; return base.Read(buffer); }
+    }
+
     [Fact]
     public async Task DecodeAsync_ReturnsFileEntries()
     {

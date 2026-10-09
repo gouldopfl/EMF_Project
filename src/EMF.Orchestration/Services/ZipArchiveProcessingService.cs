@@ -31,6 +31,19 @@ public sealed class ZipArchiveProcessingService :
                 content,
                 cancellationToken);
 
+        return await ExtractAsync(archiveArtifactId, entries, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ZipEntryExtractionResult>> ProcessAsync(ArtifactId archiveArtifactId,
+        Stream content, CancellationToken cancellationToken = default)
+    {
+        var entries = await _decoder.DecodeAsync(content, cancellationToken);
+        return await ExtractAsync(archiveArtifactId, entries, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<ZipEntryExtractionResult>> ExtractAsync(ArtifactId archiveArtifactId,
+        IReadOnlyList<DecodedArchiveEntry> entries, CancellationToken cancellationToken)
+    {
         var results =
             new List<ZipEntryExtractionResult>(
                 entries.Count);

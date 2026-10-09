@@ -8,7 +8,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EMF.Persistence.Storage;
 
-public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactContentStore
+public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactContentStore, IBoundedVersionedArtifactContentStore
 {
     public const long DefaultMaxStoredBytes = 150L * 1024 * 1024;
     private const string Gate = ".content-coordination";
@@ -27,6 +27,7 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
     private Dictionary<(string Artifact, string Revision), MigrationOrigin>? _verifiedOrigins;
     // Narrow internal fault/coordination seam, unavailable to production callers.
     internal Func<string, Task>? Checkpoint { get; set; }
+    internal Action<byte[]>? BoundedReadAllocated { get; set; }
 
     public FileSystemArtifactContentStore(string rootPath, long maxStoredBytes = DefaultMaxStoredBytes,
         ArtifactContentInspectionLimits? inspectionLimits = null)
@@ -86,6 +87,45 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
             if (stream.Position != stream.Length) throw new IOException("Immutable content generation changed.");
             transaction.Commit();
             return new(bytes, new(state.Revision));
+        }
+        catch { CryptographicOperations.ZeroMemory(bytes); throw; }
+    }
+    public long MaximumStoredRepresentationBytes => _maxStoredBytes;
+    public async Task<IArtifactContentReadLease?> ReadBoundedVersionedAsync(ArtifactId id,
+        BoundedArtifactContentReadRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        using var inspection = Inspection(cancellationToken);
+        ValidateId(id);
+        await AdmitAsync(cancellationToken, inspection);
+        using var connection = OpenCatalog(inspection: inspection);
+        using var transaction = connection.BeginTransaction(deferred: true);
+        var state = ReadState(connection, transaction, id);
+        if (state?.Generation is null) return null;
+        var revision = new ArtifactContentRevision(state.Revision);
+        if (request.ExpectedRevision is { } expected && revision != expected)
+            throw new InvalidOperationException("Selected current content revision does not match.");
+        if (state.Length < 0) throw new InvalidDataException("Committed content length is invalid.");
+        await At("ReaderSelected");
+        var path = GenerationPath(state.Generation);
+        RejectSymbolicLinks(path);
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+            81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var length = stream.Length;
+        if (length != state.Length || length > _maxStoredBytes || length > Array.MaxLength ||
+            length > request.MaximumStoredRepresentationBytes || length > request.MaximumReturnedContentBytes)
+            throw new InvalidDataException("Committed content generation exceeds bounded read limits or has invalid size.");
+        await At("BeforeReadAllocation");
+        cancellationToken.ThrowIfCancellationRequested();
+        var bytes = new byte[checked((int)length)];
+        try
+        {
+            BoundedReadAllocated?.Invoke(bytes);
+            await stream.ReadExactlyAsync(bytes, cancellationToken);
+            if (stream.Position != length || stream.Length != length) throw new IOException("Immutable content generation changed.");
+            cancellationToken.ThrowIfCancellationRequested();
+            transaction.Commit();
+            return new ArtifactContentReadLease(id, revision, length, bytes);
         }
         catch { CryptographicOperations.ZeroMemory(bytes); throw; }
     }
