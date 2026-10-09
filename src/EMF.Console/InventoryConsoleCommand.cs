@@ -21,7 +21,9 @@ namespace EMF.ConsoleApplication;
 public static class InventoryConsoleCommand
 {
     public static async Task<int> RunAsync(
-        string[] args)
+        string[] args) => await RunAsync(args, InventoryRuntimeComposition.FromEnvironment());
+
+    public static async Task<int> RunAsync(string[] args, InventoryRuntimeComposition? runtime)
     {
         var sourcePath = args.Length > 0
             ? args[0]
@@ -34,24 +36,23 @@ public static class InventoryConsoleCommand
         Console.WriteLine($"Source   : {sourcePath}");
         Console.WriteLine();
 
-        var contentStore =
-            ArtifactContentStoreFactory.Create();
-
-        var discovery = new FileSystemDiscoveryService();
-
-        var routing = new InventoryRoutingService(
-            new[] { new SqliteInventoryProvider() });
-
-        var fingerprintService =
-            new Sha256ContentFingerprintService();
-
-        var orchestration = new InventoryOrchestrationService(
-            discovery,
-            routing,
-            new ArtifactFactory(),
-            new GuidArtifactIdGenerator(),
-            fingerprintService,
-            contentStore);
+        // Stock host cannot manufacture authenticated ingestion or retention protection.
+        // Reject before any workflow admission or database initialization.
+        if (runtime is null)
+        {
+            Console.Error.WriteLine("Inventory requires host-supplied retained-input protection; protected publication additionally requires authenticated ingestion capability.");
+            return 2;
+        }
+        runtime.Validate();
+        var retained = runtime.CreateRetention();
+        await retained.Workspace.RecoverAsync(retained.Journal, 1024, CancellationToken.None);
+        var contentStore = ArtifactContentStoreFactory.Create();
+        var discovery = new InventoryBoundedDiscoveryService(runtime.Limits ?? new());
+        var routing = new InventoryRoutingService(new[] { new SqliteInventoryProvider(runtime.Limits ?? new()) });
+        var fingerprintService = new Sha256ContentFingerprintService();
+        var orchestration = new InventoryOrchestrationService(discovery, routing, new ArtifactFactory(),
+            new GuidArtifactIdGenerator(), fingerprintService, retained.Snapshots, retained.Journal,
+            retained.Workspace, runtime.Limits);
 
 
         var workflowDatabasePath =
@@ -94,14 +95,9 @@ public static class InventoryConsoleCommand
 
         await evidenceRepository.InitializeAsync();
 
-        var inventoryActivity =
-            new InventoryWorkflowActivity(
-                orchestration,
-                new EvidencePersistenceService(evidenceRepository),
-                fingerprintService,
-                contentStore,
-                sourcePath,
-                new DiscoveryOptions());
+        var inventoryActivity = new InventoryWorkflowActivity(orchestration,
+            new EvidencePersistenceService(evidenceRepository), sourcePath, new DiscoveryOptions(),
+            runtime.Mode, runtime.Child);
 
         var inspectionActivity =
             new ArtifactInspectionWorkflowActivity(

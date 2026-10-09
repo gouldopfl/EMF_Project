@@ -1,171 +1,80 @@
+using System.Diagnostics;
 using EMF.Inventory.Contracts;
 using EMF.Inventory.Models;
 using Microsoft.Data.Sqlite;
+using SQLitePCL;
 
 namespace EMF.Inventory.Providers;
 
 public sealed class SqliteInventoryProvider : IInventoryProvider
 {
-    public bool CanHandle(string sourcePath)
+    private readonly InventoryProcessingLimits _limits;
+    public SqliteInventoryProvider() : this(new InventoryProcessingLimits()) { }
+    public SqliteInventoryProvider(InventoryProcessingLimits limits) { _limits = limits; _limits.Validate(); }
+    public bool CanHandle(string sourcePath) => !string.IsNullOrWhiteSpace(sourcePath) &&
+        Path.GetExtension(sourcePath).ToLowerInvariant() is ".db" or ".sqlite" or ".sqlite3";
+
+    public async Task<DatabaseInventory> CreateInventoryAsync(string databasePath, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(sourcePath))
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        if (!File.Exists(databasePath)) throw new FileNotFoundException("SQLite database was not found.", databasePath);
+        if (new FileInfo(databasePath).Length > _limits.MaximumSnapshotBytes) throw new InvalidDataException("Inventory input exceeds byte admission limit.");
+        await using var c = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = databasePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false, DefaultTimeout = 0 }.ToString());
+        await c.OpenAsync(cancellationToken);
+        long work = 0; var watch = Stopwatch.StartNew(); bool exhausted = false;
+        raw.sqlite3_progress_handler(c.Handle!, 1000, _ =>
         {
-            return false;
-        }
-
-        var extension = Path.GetExtension(sourcePath);
-
-        return extension.Equals(".db", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".sqlite", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".sqlite3", StringComparison.OrdinalIgnoreCase);
-    }
-
-    public async Task<DatabaseInventory> CreateInventoryAsync(
-        string databasePath,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(databasePath))
+            work = checked(work + 1000); exhausted = work > _limits.MaximumQueryInstructions || watch.Elapsed > _limits.ExecutionBudget;
+            return cancellationToken.IsCancellationRequested || exhausted ? 1 : 0;
+        }, null!);
+        try
         {
-            throw new ArgumentException("A database path is required.", nameof(databasePath));
-        }
-
-        if (!File.Exists(databasePath))
-        {
-            throw new FileNotFoundException("SQLite database was not found.", databasePath);
-        }
-
-        var inventory = new DatabaseInventory
-        {
-            DatabasePath = Path.GetFullPath(databasePath),
-            DatabaseEngine = "SQLite"
-        };
-
-        var connectionString = new SqliteConnectionStringBuilder
-        {
-            DataSource = databasePath,
-            Mode = SqliteOpenMode.ReadOnly
-        }.ToString();
-
-        await using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
-
-        inventory.DatabaseVersion = await GetDatabaseVersionAsync(
-            connection,
-            cancellationToken);
-
-        var tableNames = await GetTableNamesAsync(
-            connection,
-            cancellationToken);
-
-        foreach (var tableName in tableNames)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var table = new TableInventory
+            var budget = new SchemaBudget(_limits);
+            var inventory = new DatabaseInventory { DatabasePath = Path.GetFullPath(databasePath), DatabaseEngine = "SQLite" };
+            using (var version = c.CreateCommand()) { version.CommandText = "SELECT sqlite_version()"; inventory.DatabaseVersion = (await version.ExecuteScalarAsync(cancellationToken))?.ToString() ?? ""; }
+            var names = new List<string>();
+            using (var cmd = c.CreateCommand())
             {
-                Name = tableName,
-                RowCount = await GetRowCountAsync(
-                    connection,
-                    tableName,
-                    cancellationToken)
-            };
-
-            await LoadColumnsAsync(
-                connection,
-                table,
-                cancellationToken);
-
-            inventory.Tables.Add(table);
-        }
-
-        return inventory;
-    }
-
-    private static async Task<string> GetDatabaseVersionAsync(
-        SqliteConnection connection,
-        CancellationToken cancellationToken)
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT sqlite_version();";
-
-        var result = await command.ExecuteScalarAsync(cancellationToken);
-        return result?.ToString() ?? string.Empty;
-    }
-
-    private static async Task<List<string>> GetTableNamesAsync(
-        SqliteConnection connection,
-        CancellationToken cancellationToken)
-    {
-        var names = new List<string>();
-
-        await using var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            SELECT name
-            FROM sqlite_master
-            WHERE type = 'table'
-              AND name NOT LIKE 'sqlite_%'
-            ORDER BY name;
-            """;
-
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            names.Add(reader.GetString(0));
-        }
-
-        return names;
-    }
-
-    private static async Task<long> GetRowCountAsync(
-        SqliteConnection connection,
-        string tableName,
-        CancellationToken cancellationToken)
-    {
-        var escapedTableName = QuoteIdentifier(tableName);
-
-        await using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT COUNT(*) FROM {escapedTableName};";
-
-        var result = await command.ExecuteScalarAsync(cancellationToken);
-        return Convert.ToInt64(result);
-    }
-
-    private static async Task LoadColumnsAsync(
-        SqliteConnection connection,
-        TableInventory table,
-        CancellationToken cancellationToken)
-    {
-        var escapedTableName = QuoteIdentifier(table.Name);
-
-        await using var command = connection.CreateCommand();
-        command.CommandText = $"PRAGMA table_info({escapedTableName});";
-
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            var column = new ColumnInventory
-            {
-                Name = reader.GetString(1),
-                DataType = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                IsNullable = reader.GetInt64(3) == 0,
-                DefaultValue = reader.IsDBNull(4) ? null : reader.GetValue(4).ToString(),
-                IsPrimaryKey = reader.GetInt64(5) > 0
-            };
-
-            table.Columns.Add(column);
-
-            if (column.IsPrimaryKey)
-            {
-                table.PrimaryKeys.Add(column.Name);
+                cmd.CommandText = "SELECT name,length(name) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
+                using var r = await cmd.ExecuteReaderAsync(cancellationToken);
+                while (await r.ReadAsync(cancellationToken))
+                { if (names.Count >= _limits.MaximumTables) throw new InvalidDataException("Inventory table limit."); budget.Text(r.GetInt64(1)); names.Add(r.GetString(0)); }
             }
+            foreach (var name in names)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var table = new TableInventory { Name = name };
+                using (var count = c.CreateCommand()) { count.CommandText = "SELECT COUNT(*) FROM \"" + name.Replace("\"", "\"\"") + "\""; table.RowCount = Convert.ToInt64(await count.ExecuteScalarAsync(cancellationToken)); }
+                using (var cmd = c.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT name,type,\"notnull\",dflt_value,pk,length(name),length(type),length(dflt_value) FROM pragma_table_info($name) ORDER BY cid";
+                    cmd.Parameters.AddWithValue("$name", name); using var r = await cmd.ExecuteReaderAsync(cancellationToken);
+                    while (await r.ReadAsync(cancellationToken))
+                    {
+                        budget.Column(); for (int i = 5; i < 8; i++) if (!r.IsDBNull(i)) budget.Text(r.GetInt64(i));
+                        var column = new ColumnInventory
+                        {
+                            Name = r.GetString(0),
+                            DataType = r.IsDBNull(1) ? "" : r.GetString(1),
+                            IsNullable = r.GetInt64(2) == 0,
+                            DefaultValue = r.IsDBNull(3) ? null : r.GetString(3),
+                            IsPrimaryKey = r.GetInt64(4) > 0
+                        };
+                        table.Columns.Add(column); if (column.IsPrimaryKey) table.PrimaryKeys.Add(column.Name);
+                    }
+                }
+                inventory.Tables.Add(table);
+            }
+            return inventory;
         }
+        catch (SqliteException e) when (e.SqliteErrorCode == raw.SQLITE_INTERRUPT)
+        { cancellationToken.ThrowIfCancellationRequested(); if (exhausted) throw new InvalidDataException("Inventory schema work budget exhausted.", e); throw; }
+        finally { raw.sqlite3_progress_handler(c.Handle!, 0, null!, null!); }
     }
-
-    private static string QuoteIdentifier(string identifier)
+    private sealed class SchemaBudget(InventoryProcessingLimits limits)
     {
-        return $"\"{identifier.Replace("\"", "\"\"")}\"";
+        private long _text; private int _columns;
+        public void Column() { if (checked(++_columns) > limits.MaximumColumns) throw new InvalidDataException("Inventory column limit."); }
+        public void Text(long length) { if (length < 0 || length > limits.MaximumStringCharacters || checked(_text += length) > limits.MaximumTextCharacters) throw new InvalidDataException("Inventory metadata text limit."); }
     }
 }
