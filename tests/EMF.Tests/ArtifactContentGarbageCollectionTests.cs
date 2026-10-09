@@ -76,37 +76,80 @@ public sealed partial class ArtifactContentGarbageCollectionTests
     {
         using var f = new Fixture();
         await f.Store.WriteAsync(f.Id, new byte[] { 1 });
+        var original = Assert.Single(Directory.GetFiles(f.Generations));
         var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         f.Store.Checkpoint = async p => { if (p == "CandidateDurable") { reached.SetResult(); await release.Task; } };
         var gateReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var gateAcquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var acquiredWhilePaused = 0;
         var watchdog = TimeSpan.FromMinutes(2);
-        var gc = new FileSystemArtifactContentGarbageCollector(f.Root)
+        using var gc = new FileSystemArtifactContentGarbageCollector(f.Root)
         {
             Checkpoint = p =>
             {
-                // Observe the acquisition boundary without pausing GC in a test hook.
+                // Record exclusion independently of when the test continuation resumes.
                 if (p == "BeforeExclusiveGate") gateReached.TrySetResult();
-                if (p == "ExclusiveGateAcquired") gateAcquired.TrySetResult();
+                if (p == "ExclusiveGateAcquired")
+                {
+                    if (!release.Task.IsCompleted) Interlocked.Exchange(ref acquiredWhilePaused, 1);
+                    gateAcquired.TrySetResult();
+                }
                 return Task.CompletedTask;
             }
         };
-        // Producer resumption must not depend on the test-control synchronization context.
         var producer = Task.Run(() => f.Store.WriteAsync(f.Id, new byte[] { 2 }));
         Task<ArtifactContentGarbageCollectionResult>? collection = null;
+        var failures = new List<Exception>();
+        var protectionChecked = false;
+        var collectionObserved = false;
+        var collectionSucceeded = false;
+        async Task<bool> ObserveCollectionAsync()
+        {
+            try { await collection!.ConfigureAwait(false); return true; }
+            catch (TimeoutException error) when (protectionChecked && !gateAcquired.Task.IsCompleted &&
+                error.Message == "Content coordination timed out.")
+            {
+                // Failure to acquire the gate preserves the checked live candidate.
+                return false;
+            }
+        }
         try
         {
             await reached.Task.WaitAsync(watchdog);
+            var candidate = Assert.Single(Directory.GetFiles(f.Generations).Where(path => path != original));
             collection = Task.Run(() => gc.CollectAsync());
             await gateReached.Task.WaitAsync(watchdog);
-            Assert.False(collection.IsCompleted);
+            Assert.True(gateReached.Task.IsCompletedSuccessfully);
             Assert.False(gateAcquired.Task.IsCompleted);
+            Assert.True(File.Exists(candidate), "The live producer candidate must remain present.");
+            Assert.True(File.Exists(original));
             Assert.Equal(2, Directory.GetFiles(f.Generations).Length);
+            protectionChecked = true;
+            if (collection.IsCompleted)
+            {
+                collectionObserved = true;
+                collectionSucceeded = await ObserveCollectionAsync();
+                Assert.False(collectionSucceeded, "GC must not succeed while the producer remains paused.");
+            }
         }
+        catch (Exception error) { failures.Add(error); }
         finally { release.TrySetResult(); }
-        await producer.WaitAsync(watchdog);
-        await collection!.WaitAsync(watchdog);
+        // Join both tasks before fixture disposal, including on assertion failure.
+        try { await producer.ConfigureAwait(false); }
+        catch (Exception error) { failures.Add(error); }
+        if (collection is not null && !collectionObserved)
+        {
+            try { collectionSucceeded = await ObserveCollectionAsync(); }
+            catch (Exception error) { failures.Add(error); }
+        }
+        try { Assert.Equal(0, Volatile.Read(ref acquiredWhilePaused)); }
+        catch (Exception error) { failures.Add(error); }
+        if (failures.Count == 1)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures.Count > 1) throw new AggregateException(failures);
+        // A safe acquisition timeout still requires successful reclamation after resolution.
+        if (!collectionSucceeded) await gc.CollectAsync();
         Assert.True(gateAcquired.Task.IsCompletedSuccessfully);
         Assert.Single(Directory.GetFiles(f.Generations));
         Assert.Equal(new byte[] { 2 }, (await f.Store.ReadVersionedAsync(f.Id))!.Content);
