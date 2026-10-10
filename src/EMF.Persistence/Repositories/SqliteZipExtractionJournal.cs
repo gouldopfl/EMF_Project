@@ -6,7 +6,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EMF.Persistence.Repositories;
 
-public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, IZipRetentionJournal, IZipExtractionExecutionJournal, IZipScanJournal, IZipChildIngestionJournal, IZipAcknowledgementJournal,IZipParentRetentionJournal
+public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, IZipRetentionJournal, IZipExtractionExecutionJournal, IZipScanJournal, IZipChildIngestionJournal, IZipAcknowledgementJournal,IZipParentRetentionJournal, IZipParentAdmissionJournal, IZipOwnershipJournal
 {
     private readonly string _path;
     private readonly IContentStoragePlatform _platform = ContentStoragePlatform.Select();
@@ -75,8 +75,9 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
     private static readonly Lazy<Dictionary<string,string>> ExpectedSchemaV1=new(()=>BuildExpected(SchemaSql));
     private static readonly Lazy<Dictionary<string,string>> ExpectedSchemaV2=new(()=>BuildExpected(SchemaSql+"\n"+ZipRetentionSchema.Sql));
     private static readonly Lazy<Dictionary<string,string>> ExpectedSchemaV3=new(()=>BuildExpected(SchemaSql+"\n"+ZipRetentionSchema.Sql+"\n"+ZipExtractionWorkSchema.Sql));
-    private static readonly Lazy<Dictionary<string,string>> ExpectedSchema=new(()=>BuildExpected(SchemaSql+"\n"+ZipRetentionSchema.Sql+"\n"+ZipExtractionWorkSchema.Sql+"\n"+ZipScanSchema.Sql));
-    private static async Task VerifyAsync(SqliteConnection c, SqliteTransaction? tx, CancellationToken ct,int version=4)
+    private static readonly Lazy<Dictionary<string,string>> ExpectedSchemaV4=new(()=>BuildExpected(SchemaSql+"\n"+ZipRetentionSchema.Sql+"\n"+ZipExtractionWorkSchema.Sql+"\n"+ZipScanSchema.Sql));
+    private static readonly Lazy<Dictionary<string,string>> ExpectedSchema=new(()=>BuildExpected(SchemaSql+"\n"+ZipRetentionSchema.Sql+"\n"+ZipExtractionWorkSchema.Sql+"\n"+ZipScanSchema.Sql+"\n"+ZipParentAdmissionSchema.Sql));
+    private static async Task VerifyAsync(SqliteConnection c, SqliteTransaction? tx, CancellationToken ct,int version=5)
     {
         using var q = c.CreateCommand(); q.Transaction = tx;
         q.CommandText = "SELECT COALESCE(MAX(Version),0) FROM ZipExtractionSchema";
@@ -84,7 +85,7 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
         q.CommandText = "SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL";
         using var r = await q.ExecuteReaderAsync(ct); var observed = new Dictionary<string, string>();
         while (await r.ReadAsync(ct)) observed[r.GetString(0)] = r.GetString(1);
-        foreach (var pair in (version==1?ExpectedSchemaV1.Value:version==2?ExpectedSchemaV2.Value:version==3?ExpectedSchemaV3.Value:ExpectedSchema.Value))
+        foreach (var pair in (version==1?ExpectedSchemaV1.Value:version==2?ExpectedSchemaV2.Value:version==3?ExpectedSchemaV3.Value:version==4?ExpectedSchemaV4.Value:ExpectedSchema.Value))
             if (!observed.TryGetValue(pair.Key, out var sql) || sql != pair.Value)
                 throw new InvalidDataException("ZIP schema or invariant trigger changed.");
     }
@@ -108,7 +109,9 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
         if(version==2)
         { await VerifyAsync(c,tx,ct,2);q.CommandText=ZipExtractionWorkSchema.Sql;await q.ExecuteNonQueryAsync(ct);version=3; }
         if(version==3)
-        { await VerifyAsync(c,tx,ct,3);q.CommandText=ZipScanSchema.Sql;await q.ExecuteNonQueryAsync(ct); }
+        { await VerifyAsync(c,tx,ct,3);q.CommandText=ZipScanSchema.Sql;await q.ExecuteNonQueryAsync(ct);version=4; }
+        if(version==4)
+        { await VerifyAsync(c,tx,ct,4);q.CommandText=ZipParentAdmissionSchema.Sql;await q.ExecuteNonQueryAsync(ct); }
         await VerifyAsync(c, tx, ct); tx.Commit();
     }
     private static async Task<ZipParentSnapshot?> ReadAsync(SqliteConnection c, SqliteTransaction? tx, string op, CancellationToken ct, bool parentEvidenceReviewOnly=false)
@@ -238,10 +241,11 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
         if (duration <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(duration));
         await using var c = await OpenAsync(ct); using var tx = c.BeginTransaction(deferred: false);
         var p = await ReadAsync(c,tx,operationId,ct) ?? throw new InvalidDataException("Missing ZIP parent.");
+        await AdmissionOwnershipEligibleAsync(c,tx,p,ct);
         if (p.OwnerUntil > _time.GetUtcNow() && p.Fence.Owner != owner) throw new ZipFenceException();
         var next = p with { Fence = p.Fence with { Owner=owner,Epoch=checked(p.Fence.Epoch+1),Revision=checked(p.Fence.Revision+1) },
             OwnerUntil = _time.GetUtcNow()+duration };
-        await SaveAsync(c,tx,next,ct); tx.Commit(); return next;
+        await SaveAsync(c,tx,next,ct); ct.ThrowIfCancellationRequested(); tx.Commit(); return next;
     }
     private async Task<ZipParentSnapshot> FencedAsync(SqliteConnection c, SqliteTransaction tx, ZipFence f, CancellationToken ct)
     {

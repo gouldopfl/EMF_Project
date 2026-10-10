@@ -63,8 +63,8 @@ public sealed class ZipExtractionJournalTests
         await using var f=await Fixture.CreateAsync(false);
         var before=await f.ScalarAsync("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
         await f.Journal.InitializeAsync();await f.Journal.InitializeAsync();
-        Assert.Equal(before+10,await f.ScalarAsync("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"));
-        Assert.Equal(4,await f.ScalarAsync("SELECT MAX(Version) FROM ZipExtractionSchema"));
+        Assert.Equal(before+12,await f.ScalarAsync("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"));
+        Assert.Equal(5,await f.ScalarAsync("SELECT MAX(Version) FROM ZipExtractionSchema"));
         Assert.Equal(0,await f.ScalarAsync("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('ArtifactIngestionSchema','WorkflowCheckpoints')"));
         await new SqliteEvidenceRepository(f.Path).InitializeAsync();
     }
@@ -78,7 +78,7 @@ public sealed class ZipExtractionJournalTests
         Assert.Equal(3,await f.ScalarAsync("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('Artifacts','Relationships','Provenance')"));
         await f.SqlAsync("DROP TABLE ZipExtractionEntries");
         await f.Journal.InitializeAsync();
-        Assert.Equal(4,await f.ScalarAsync("SELECT MAX(Version) FROM ZipExtractionSchema"));
+        Assert.Equal(5,await f.ScalarAsync("SELECT MAX(Version) FROM ZipExtractionSchema"));
         Assert.Equal(0,await f.ScalarAsync("SELECT COUNT(*) FROM ZipExtractionParents"));
     }
     [Fact]
@@ -279,9 +279,9 @@ public sealed class ZipExtractionJournalTests
     [Fact]
     public async Task Unsupported_zip_version_is_rejected_without_touching_evidence_tables()
     {
-        await using var f=await Fixture.CreateAsync();await f.SqlAsync("INSERT INTO ZipExtractionSchema VALUES(5)");
+        await using var f=await Fixture.CreateAsync();await f.SqlAsync("INSERT INTO ZipExtractionSchema VALUES(6)");
         await Assert.ThrowsAsync<InvalidDataException>(()=>f.Journal.InitializeAsync());
-        Assert.Equal(5,await f.ScalarAsync("SELECT MAX(Version) FROM ZipExtractionSchema"));
+        Assert.Equal(6,await f.ScalarAsync("SELECT MAX(Version) FROM ZipExtractionSchema"));
         Assert.Equal(3,await f.ScalarAsync("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('Artifacts','Relationships','Provenance')"));
     }
 

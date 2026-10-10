@@ -32,6 +32,24 @@ public sealed class ZipParentRetentionService
         if(source.Content.Length!=source.ReturnedLength||source.ReturnedLength>ZipNumericLimits.Parent)throw new InvalidDataException("Parent source exceeds certified profile.");
         var binding=new ZipRetainedBinding(source.ArtifactId.Value,source.Revision.Value,Hash(source.Content.Span),source.ReturnedLength);
         var r=await _journal.ReserveParentRetentionAsync(operation,parentArtifact,binding,profile,_storage.NamespaceId,ct);await At("Reserved");
+        return await FinishCreationAsync(r,source.Content,ct);
+    }
+    // The caller supplies its original admitted identity. Recovery never reserves
+    // an identity, rereads canonical source, or re-encrypts missing candidates.
+    // Authentication remains the responsibility of the explicit host boundary.
+    public async Task<ZipParentBinding> RecoverCreationAsync(ZipParentRetentionIdentity expected,CancellationToken ct=default)
+    {
+        ArgumentNullException.ThrowIfNull(expected);
+        using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);timeout.CancelAfter(ZipNumericLimits.AttemptTimeout);ct=timeout.Token;
+        using var permit=await ZipParentReadAdmission.ProcessWide.AcquireAsync(ct);
+        var retained=await _journal.ReadParentRetentionAsync(expected.ParentOperationId,ct)??throw new InvalidDataException("Missing original parent retention.");
+        if(retained.Identity!=expected)throw new InvalidDataException("Original parent recovery identity changed.");
+        if(retained.State==ZipRetentionState.Reserved)throw new InvalidDataException("Unprepared parent still requires an authorized exact source read.");
+        return await FinishCreationAsync(retained,null,ct);
+    }
+    private async Task<ZipParentBinding> FinishCreationAsync(ZipParentRetentionRecord r,ReadOnlyMemory<byte>? source,CancellationToken ct)
+    {
+        var operation=r.Identity.ParentOperationId;
         byte[]? candidate=null;EncryptedEnvelope? envelope=null;
         try
         {
@@ -44,7 +62,7 @@ public sealed class ZipParentRetentionService
             if(r.State is ZipRetentionState.RequiresReview or ZipRetentionState.ReleasePending or ZipRetentionState.Released)throw new InvalidDataException("Parent creation is not eligible.");
             var mayEncrypt=false;if(r.State==ZipRetentionState.Reserved){r=await _journal.BeginParentPreparationAsync(r,ct);mayEncrypt=true;await At("PreparationStarted");}
             var known=await _storage.GetReceiptAsync(new(r.Identity.CreateOperationId),ct);candidate=await _storage.ReadCandidateAsync(new(r.Identity.CreateOperationId),ct);
-            if(candidate is null&&mayEncrypt&&known is null){envelope=await _encryption.EncryptWithContextAsync(source.Content,ArtifactEnvelopeContext.Create(Id(r)),ct);candidate=BoundedEncryptedEnvelopeCodec.Write(envelope,_limits,ct);await _storage.StageAsync(new(r.Identity.CreateOperationId),candidate,ct);await At("Staged");}
+            if(candidate is null&&mayEncrypt&&known is null){envelope=await _encryption.EncryptWithContextAsync(source??throw new InvalidDataException("Recovery cannot regenerate parent ciphertext."),ArtifactEnvelopeContext.Create(Id(r)),ct);candidate=BoundedEncryptedEnvelopeCodec.Write(envelope,_limits,ct);await _storage.StageAsync(new(r.Identity.CreateOperationId),candidate,ct);await At("Staged");}
             if(candidate is null)
             {
                 if(known is null||r.CandidateHash is null)throw new InvalidDataException("Existing parent preparation has no frozen candidate; regeneration forbidden.");

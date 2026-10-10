@@ -96,7 +96,7 @@ public sealed class ZipScanJournalTests
     public async Task Version_three_migration_collision_rolls_back_and_restart_preserves_materialization(bool late)
     {
         await using var f=await ZipChildScanTests.Fixture.Create();var parent=f.Parent;var retained=(await f.Journal.ReadRetentionAsync("zip",0))!;
-        await f.Sql("DROP TABLE ZipExtractionScans;DELETE FROM ZipExtractionSchema WHERE Version=4;");
+        await f.Sql("DROP TABLE ZipParentAdmissionEvents;DROP TABLE ZipParentAdmissions;DROP TABLE ZipExtractionScans;DELETE FROM ZipExtractionSchema WHERE Version>=4;");
         await f.Sql(late?"CREATE TRIGGER ZipScanNoReplace BEFORE DELETE ON ZipExtractionRetentions BEGIN SELECT 1; END;":"CREATE TABLE ZipExtractionScans(Collision INTEGER);");
         await Assert.ThrowsAsync<SqliteException>(()=>f.Journal.InitializeAsync());
         await using(var c=new SqliteConnection("Data Source="+f.Evidence.DatabasePath)){await c.OpenAsync();using var q=c.CreateCommand();q.CommandText="SELECT MAX(Version) FROM ZipExtractionSchema";Assert.Equal(3,Convert.ToInt32(await q.ExecuteScalarAsync()));q.CommandText="SELECT COUNT(*) FROM sqlite_master WHERE name='ZipScanBindingImmutable'";Assert.Equal(0,Convert.ToInt32(await q.ExecuteScalarAsync()));}

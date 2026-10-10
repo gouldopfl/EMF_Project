@@ -117,12 +117,12 @@ public sealed class ZipExtractionExecutionJournalTests
         var service=new ZipProtectedRetentionService(f.Journal,f.Journal,storage,new DevelopmentEnvelopeEncryptionService(new ArtifactIngestionFixture.Keys()));
         var created=await service.SealAsync(f.Parent,0,f.Evidence.Content);f.Parent=created.Parent;
         // Remove only the additive, empty V3 objects to retain actual populated V2 journal/retention state.
-        await f.Sql("DROP TABLE ZipExtractionScans; DROP TABLE ZipExtractionCharges; DROP TABLE ZipExtractionVerifications; DELETE FROM ZipExtractionSchema WHERE Version>=3;");
+        await f.Sql("DROP TABLE ZipParentAdmissionEvents; DROP TABLE ZipParentAdmissions; DROP TABLE ZipExtractionScans; DROP TABLE ZipExtractionCharges; DROP TABLE ZipExtractionVerifications; DELETE FROM ZipExtractionSchema WHERE Version>=3;");
         Assert.Equal(2,await f.Scalar("SELECT MAX(Version) FROM ZipExtractionSchema"));
         var collision=late?"CREATE TRIGGER ZipVerificationNoDelete BEFORE DELETE ON ZipExtractionRetentions BEGIN SELECT 1; END;":"CREATE TABLE ZipExtractionCharges(Collision INTEGER);";
         await f.Sql(collision);await Assert.ThrowsAsync<SqliteException>(()=>f.Journal.InitializeAsync());Assert.Equal(2,await f.Scalar("SELECT MAX(Version) FROM ZipExtractionSchema"));
         Assert.Equal(late?0:1,await f.Scalar("SELECT COUNT(*) FROM sqlite_master WHERE name='ZipExtractionCharges'"));Assert.Equal(0,await f.Scalar("SELECT COUNT(*) FROM sqlite_master WHERE name='ZipExtractionVerifications'"));
-        await f.Sql(late?"DROP TRIGGER ZipVerificationNoDelete":"DROP TABLE ZipExtractionCharges");await f.Journal.InitializeAsync();Assert.Equal(4,await f.Scalar("SELECT MAX(Version) FROM ZipExtractionSchema"));
+        await f.Sql(late?"DROP TRIGGER ZipVerificationNoDelete":"DROP TABLE ZipExtractionCharges");await f.Journal.InitializeAsync();Assert.Equal(5,await f.Scalar("SELECT MAX(Version) FROM ZipExtractionSchema"));
         Assert.Equal(created.Retention,await f.Journal.ReadRetentionAsync("op",0));Assert.Equal(created.Parent.Fence,(await f.Journal.ReadAsync("op"))!.Fence);
         Assert.Equal(0,await f.Scalar("SELECT COUNT(*) FROM ZipExtractionCharges"));
     }

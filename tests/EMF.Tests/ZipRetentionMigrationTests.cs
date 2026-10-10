@@ -96,7 +96,7 @@ public sealed class ZipRetentionMigrationTests
         var shared = await SnapshotAsync(fixture.DatabasePath, true);
         Assert.Equal(1, await ScalarAsync(fixture, "SELECT MAX(Version) FROM ZipExtractionSchema"));
         await new SqliteZipExtractionJournal(fixture.DatabasePath).InitializeAsync();
-        Assert.Equal(4, await ScalarAsync(fixture, "SELECT MAX(Version) FROM ZipExtractionSchema"));
+        Assert.Equal(5, await ScalarAsync(fixture, "SELECT MAX(Version) FROM ZipExtractionSchema"));
         var restarted = new SqliteZipExtractionJournal(fixture.DatabasePath);
         Assert.Equal(Json(original), Json(await restarted.ReadAsync(original.Binding.OperationId)));
         Assert.Equal(1, await ScalarAsync(fixture, "SELECT COUNT(*) FROM ZipExtractionReservations"));
@@ -129,7 +129,7 @@ public sealed class ZipRetentionMigrationTests
         await fixture.SqlAsync(lateTriggerCollision ? "DROP TRIGGER ZipRetentionFrozenEvidence" : "DROP TABLE ZipExtractionRetentions");
         var restarted = new SqliteZipExtractionJournal(fixture.DatabasePath);
         await restarted.InitializeAsync();
-        Assert.Equal(4, await ScalarAsync(fixture, "SELECT MAX(Version) FROM ZipExtractionSchema"));
+        Assert.Equal(5, await ScalarAsync(fixture, "SELECT MAX(Version) FROM ZipExtractionSchema"));
         Assert.Equal(Json(original), Json(await restarted.ReadAsync(original.Binding.OperationId)));
         Assert.Equal(0, await ScalarAsync(fixture, "SELECT COUNT(*) FROM ZipExtractionRetentions"));
         Assert.Equal(shared, await SnapshotAsync(fixture.DatabasePath, true));
