@@ -4,6 +4,7 @@ using EMF.Security.Azure.Encryption;
 using EMF.Security.Azure.Keys;
 using EMF.Security.Storage;
 using EMF.Persistence.Storage;
+using EMF.Core.Contracts;
 using EMF.Core.Contracts.Storage;
 using EMF.Core.Models.Identities;
 using EMF.Core.Models.Workflow;
@@ -20,6 +21,9 @@ namespace EMF.ConsoleApplication;
 
 public static class InventoryConsoleCommand
 {
+    internal static IZipArchiveWorkflowActivity CreateZipWorkflowActivity(IEvidenceRepository repository,
+        ZipRuntimeComposition? runtime = null) => (runtime ?? ZipRuntimeComposition.Default).CreateWorkflowActivity(repository);
+
     public static async Task<int> RunAsync(
         string[] args) => await RunAsync(args, InventoryRuntimeComposition.FromEnvironment());
 
@@ -175,28 +179,10 @@ public static class InventoryConsoleCommand
                         evidenceRepository,
                         fingerprintService)));
 
-            var zipExtractionService =
-                new ZipEntryExtractionService(
-                    evidenceRepository,
-                    contentStore,
-                    fingerprintService,
-                    new GuidArtifactIdGenerator(),
-                    new ArtifactFactory());
-
-            var zipProcessingService =
-                new ZipArchiveProcessingService(
-                    new ZipArchiveDecoder(maxInputBytes: zipRuntime.Profile.MaximumPlaintextBytes),
-                    zipExtractionService);
-
-            activities.Add(
-                new ZipArchiveWorkflowActivity(
-                    evidenceRepository,
-                    contentStore,
-                    zipProcessingService,
-                    new ContainerProcessingGuard(
-                        evidenceRepository,
-                        fingerprintService),
-                    allocationProfile: zipRuntime.Profile));
+            // Default ZIP admission fails closed until an authoritative durable
+            // parent-operation workflow host exists. Never route through direct
+            // legacy child publication as a fallback.
+            activities.Add(CreateZipWorkflowActivity(evidenceRepository, zipRuntime));
 
             activityIds.Add("email-messages");
             activityIds.Add("email-attachments");
