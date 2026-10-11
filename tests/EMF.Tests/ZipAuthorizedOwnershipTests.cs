@@ -1,8 +1,4 @@
-using System.Security.Cryptography;
-using EMF.Core.Contracts.Storage;
 using EMF.Core.Contracts.Zip;
-using EMF.Orchestration.Contracts;
-using EMF.Orchestration.Models;
 using EMF.Orchestration.Services;
 using EMF.Tests.TestInfrastructure;
 
@@ -10,147 +6,211 @@ namespace EMF.Tests;
 
 public sealed class ZipAuthorizedOwnershipTests
 {
-    private sealed class Grant(ZipParentAdmission admission, ZipAdmissionFixture.Clock clock) : IZipAuthorizedExecution
-    {
-        public ZipParentAdmission Admission { get; } = admission;
-        public string ExecutingActorId => "synthetic-recovery-actor";
-        public DateTimeOffset ValidUntilUtc { get; set; } = clock.Now.AddMinutes(45);
-        public CancellationToken RevocationToken;
-        public CancellationToken Revoked => RevocationToken;
-        public int Checks; public bool Denied; public Action? OnCheck;
-        public Task RevalidateAsync(CancellationToken ct = default)
-        { ct.ThrowIfCancellationRequested(); Checks++; OnCheck?.Invoke(); if (Denied) throw new UnauthorizedAccessException(); return Task.CompletedTask; }
-        public Task<ZipChildIngestionRuntime> OpenChildAsync(ZipParentSnapshot p, ZipEntryProgress e, CancellationToken ct = default) => throw new NotSupportedException();
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
+    private static ZipAuthorizedOwnershipService Service(ZipOwnershipFixture f) => new(f.Journal, f.Journal, f.Profile, f.Clock);
+    private static SyntheticZipExecutionGrant Grant(ZipOwnershipFixture f, ZipOwnershipPurpose purpose) => new(f.Admission, purpose, f.Clock);
 
-    private static async Task<(ZipParentAdmission Admission, ZipDurableProfile Profile)> Admit(ZipDurableRuntimeFixture f, ZipAdmissionFixture.Clock clock)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Invalidation_during_async_scope_disposal_denies_post_commit_handoff(bool expire)
     {
-        await f.Journal.InitializeAsync();
-        var profile = ZipDurableProfile.Create(f.ParentStorage.NamespaceId, f.ChildStorage.NamespaceId,
-            new("clamd", "test-policy", new string('C', 64)), "synthetic-test-protection");
-        var binding = new ZipAdmissionBinding("workflow", "workflow-operation", "zip-archives", "parent",
-            "source-parent", "source-revision", "synthetic-original-actor", "synthetic-authorized-operation",
-            profile.CanonicalJson, profile.Fingerprint, profile.ParentNamespaceId, profile.ChildNamespaceId);
-        var p = await f.Journal.ResolveOrReserveAdmissionAsync(new("synthetic-test-issuer", "stable-request"), binding);
-        var approval = new ZipAdmissionApproval(p.OperationId, ZipAdmissionValidation.BindingHash(binding), p.Key.IssuerId,
-            "synthetic-decision", "authority-revision", "policy-v1", ZipAuthorityCapabilities.Admit | ZipAuthorityCapabilities.Recover,
-            clock.Now, clock.Now.AddHours(1));
-        p = await f.Journal.AppendAdmissionEventAsync(p, new("approval", ZipAdmissionEventKind.Approved, binding.OriginalActorId, clock.Now, approval));
-        var bytes = ZipDurableRuntimeFixture.Zip();
-        var source = new ZipRetainedBinding(binding.SourceContentId, binding.SourceRevision, Convert.ToHexString(SHA256.HashData(bytes)), bytes.Length);
-        p = await f.Journal.AppendAdmissionEventAsync(p, new("source", ZipAdmissionEventKind.SourceBound, binding.OriginalActorId, clock.Now, Source: source));
-        using var lease = new ArtifactContentReadLease(new(source.ContentId), new(source.Revision), source.Length, bytes);
-        var parent = await f.ParentRetention.RetainAsync(p.OperationId, binding.ParentArtifactId, profile.Fingerprint, lease);
-        p = await f.Journal.AppendAdmissionEventAsync(p, new("parent", ZipAdmissionEventKind.ParentBound, binding.OriginalActorId, clock.Now, Parent: parent));
-        return (p, profile);
+        await using var f = await ZipOwnershipFixture.CreateAsync();
+        await using var grant = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        var disposing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        grant.BeforeScopeDisposal = () => { disposing.TrySetResult(); return release.Task; };
+        var claim = Service(f).ClaimAsync(grant, await f.RequestAsync(grant.Purpose));
+        await disposing.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(1, (await f.Journal.ReadAsync(f.Admission.OperationId))!.Fence.Epoch);
+        if (expire) f.Clock.Now = grant.ValidUntilUtc; else grant.Revoke();
+        release.SetResult();
+        if (expire) await Assert.ThrowsAsync<UnauthorizedAccessException>(() => claim.WaitAsync(TimeSpan.FromSeconds(10)));
+        else await Assert.ThrowsAnyAsync<OperationCanceledException>(() => claim.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(1, (await f.Journal.ReadAsync(f.Admission.OperationId))!.Fence.Epoch);
+        await using var nextInitial = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        var request = await f.RequestAsync(nextInitial.Purpose);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(f).ClaimAsync(nextInitial, request));
+        await using var recovery = Grant(f, ZipOwnershipPurpose.Recovery);
+        var recovered = await Service(f).ClaimAsync(recovery, await f.RequestAsync(recovery.Purpose));
+        Assert.Equal(2, recovered.Fence.Epoch);
+        Assert.Equal(f.Admission, await f.Journal.ReadAdmissionAsync(f.Admission.OperationId));
     }
 
     [Fact]
-    public async Task Takeover_requires_current_host_authority_and_preserves_original_approval()
+    public async Task Recorded_revocation_after_ownership_vetoes_renewal_and_fresh_recovery()
     {
-        await using var evidence = await ArtifactIngestionFixture.CreateAsync();
-        var clock = new ZipAdmissionFixture.Clock(); var f = new ZipDurableRuntimeFixture(evidence, clock);
-        var (p, profile) = await Admit(f, clock); var grant = new Grant(p, clock);
-        var service = new ZipAuthorizedOwnershipService(f.Journal, f.Journal, profile, clock);
-        var first = await service.ClaimAsync(grant, "worker"); Assert.Equal(2, grant.Checks);
-        clock.Now += TimeSpan.FromMinutes(16); grant.Denied = true;
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ClaimAsync(grant, "next-worker"));
-        Assert.Equal(first.Fence, (await f.Journal.ReadAsync(p.OperationId))!.Fence);
-        grant.Denied = false; var next = await service.ClaimAsync(grant, "next-worker");
-        Assert.Equal(first.Fence.Epoch + 1, next.Fence.Epoch);
-        Assert.Equal(p, await f.Journal.ReadAdmissionAsync(p.OperationId));
-        Assert.Equal(p.Approval, (await f.Journal.ReadAdmissionAsync(p.OperationId))!.Approval);
-        await Assert.ThrowsAsync<ZipFenceException>(() => f.Journal.RenewOwnershipAsync(p.OperationId, "worker", first.Fence.Epoch, profile.OwnershipLease));
+        await using var f = await ZipOwnershipFixture.CreateAsync();
+        await using var initial = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        var owned = await Service(f).ClaimAsync(initial, await f.RequestAsync(initial.Purpose));
+        var revoked = await f.Journal.AppendAdmissionEventAsync(f.Admission, new("revocation-after-claim", ZipAdmissionEventKind.Revoked,
+            "synthetic-issuer", f.Clock.Now, SafeReason: "AuthorityRevoked"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => f.Journal.RenewOwnershipAsync(f.Admission.OperationId,
+            owned.Fence.Owner, owned.Fence.Epoch, f.Profile.OwnershipLease));
+        await using var recovery = new SyntheticZipExecutionGrant(revoked, ZipOwnershipPurpose.Recovery, f.Clock);
+        var request = await f.RequestAsync(recovery.Purpose);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(f).ClaimAsync(recovery, request with { ExpectedAdmission = revoked }));
+        var after = (await f.Journal.ReadAsync(f.Admission.OperationId))!;
+        Assert.Equal(owned.Fence, after.Fence); Assert.Equal(owned.OwnerUntil, after.OwnerUntil);
+        Assert.Equal(f.Admission.Approval, revoked.Approval); Assert.Equal(f.Admission.Binding, revoked.Binding);
     }
 
     [Fact]
-    public async Task Revocation_vetoes_renewal_and_recovery_without_changing_ownership_or_original_evidence()
+    public async Task Concurrent_renewal_and_authorized_takeover_keep_exactly_one_current_owner()
     {
-        await using var evidence = await ArtifactIngestionFixture.CreateAsync();
-        var clock = new ZipAdmissionFixture.Clock(); var f = new ZipDurableRuntimeFixture(evidence, clock);
-        var (p, profile) = await Admit(f, clock); var grant = new Grant(p, clock);
-        var service = new ZipAuthorizedOwnershipService(f.Journal, f.Journal, profile, clock);
-        var owned = await service.ClaimAsync(grant, "worker");
-        var revoked = await f.Journal.AppendAdmissionEventAsync(p, new("revocation", ZipAdmissionEventKind.Revoked,
-            "synthetic-issuer-actor", clock.Now, SafeReason: "AuthorityRevoked"));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => f.Journal.RenewOwnershipAsync(p.OperationId, "worker", owned.Fence.Epoch, profile.OwnershipLease));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ClaimAsync(grant, "worker"));
-        Assert.Equal(owned.Fence, (await f.Journal.ReadAsync(p.OperationId))!.Fence);
-        Assert.Equal(owned.OwnerUntil, (await f.Journal.ReadAsync(p.OperationId))!.OwnerUntil);
-        Assert.Equal(p.Approval, revoked.Approval); Assert.Equal(p.Binding, revoked.Binding);
-    }
-
-    [Fact]
-    public async Task Profile_mismatch_fails_before_host_or_parent_payload_work()
-    {
-        await using var evidence = await ArtifactIngestionFixture.CreateAsync();
-        var clock = new ZipAdmissionFixture.Clock(); var f = new ZipDurableRuntimeFixture(evidence, clock);
-        var (p, profile) = await Admit(f, clock); var grant = new Grant(p, clock);
-        var before = await f.Journal.ReadAsync(p.OperationId); var decryptions = f.Count("parent-decrypt");
-        var service = new ZipAuthorizedOwnershipService(f.Journal, f.Journal, profile with { ProtectionContractId = "changed" }, clock);
-        await Assert.ThrowsAsync<InvalidDataException>(() => service.ClaimAsync(grant, "worker"));
-        Assert.Equal(0, grant.Checks); Assert.Equal(decryptions, f.Count("parent-decrypt"));
-        Assert.Equal(before!.Fence, (await f.Journal.ReadAsync(p.OperationId))!.Fence);
-    }
-
-    [Fact]
-    public async Task Live_expiry_during_claim_never_returns_executable_ownership()
-    {
-        await using var evidence = await ArtifactIngestionFixture.CreateAsync();
-        var clock = new ZipAdmissionFixture.Clock(); var f = new ZipDurableRuntimeFixture(evidence, clock);
-        var (p, profile) = await Admit(f, clock); var grant = new Grant(p, clock);
-        grant.OnCheck = () => { if (grant.Checks == 2) clock.Now = grant.ValidUntilUtc; };
-        var service = new ZipAuthorizedOwnershipService(f.Journal, f.Journal, profile, clock);
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ClaimAsync(grant, "worker"));
-        Assert.Equal(p, await f.Journal.ReadAdmissionAsync(p.OperationId));
-    }
-
-    [Fact]
-    public async Task Expired_recorded_authority_vetoes_renewal_and_takeover_despite_live_test_grant()
-    {
-        await using var evidence = await ArtifactIngestionFixture.CreateAsync();
-        var clock = new ZipAdmissionFixture.Clock(); var f = new ZipDurableRuntimeFixture(evidence, clock);
-        var (p, profile) = await Admit(f, clock); var grant = new Grant(p, clock);
-        var service = new ZipAuthorizedOwnershipService(f.Journal, f.Journal, profile, clock);
-        var owned = await service.ClaimAsync(grant, "worker"); clock.Now += TimeSpan.FromMinutes(59);
-        grant.ValidUntilUtc = clock.Now.AddHours(1);
-        owned = await service.ClaimAsync(grant, "worker"); clock.Now += TimeSpan.FromMinutes(2);
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => f.Journal.RenewOwnershipAsync(p.OperationId, "worker", owned.Fence.Epoch, profile.OwnershipLease));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ClaimAsync(grant, "worker"));
-        Assert.Equal(p, await f.Journal.ReadAdmissionAsync(p.OperationId));
-        Assert.Equal(owned.Fence, (await f.Journal.ReadAsync(p.OperationId))!.Fence);
-    }
-
-    [Fact]
-    public async Task Revocation_during_claim_never_returns_executable_ownership()
-    {
-        await using var evidence = await ArtifactIngestionFixture.CreateAsync();
-        var clock = new ZipAdmissionFixture.Clock(); var f = new ZipDurableRuntimeFixture(evidence, clock);
-        var (p, profile) = await Admit(f, clock); using var revoked = new CancellationTokenSource();
-        var grant = new Grant(p, clock) { RevocationToken = revoked.Token };
-        grant.OnCheck = () => { if (grant.Checks == 2) revoked.Cancel(); };
-        var service = new ZipAuthorizedOwnershipService(f.Journal, f.Journal, profile, clock);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.ClaimAsync(grant, "worker"));
-        Assert.Equal(p, await f.Journal.ReadAdmissionAsync(p.OperationId));
-    }
-
-    [Fact]
-    public async Task Concurrent_renewal_and_takeover_never_leave_two_valid_owners()
-    {
-        await using var evidence = await ArtifactIngestionFixture.CreateAsync();
-        var clock = new ZipAdmissionFixture.Clock(); var f = new ZipDurableRuntimeFixture(evidence, clock);
-        var (p, profile) = await Admit(f, clock); var grant = new Grant(p, clock);
-        var service = new ZipAuthorizedOwnershipService(f.Journal, f.Journal, profile, clock);
-        var first = await service.ClaimAsync(grant, "worker"); clock.Now += TimeSpan.FromMinutes(14);
-        await Task.WhenAll(Task.Run(() => f.Journal.RenewOwnershipAsync(p.OperationId, "worker", first.Fence.Epoch, profile.OwnershipLease)),
-            Task.Run(() => Assert.ThrowsAsync<ZipFenceException>(() => service.ClaimAsync(grant, "next-worker"))));
-        var renewed = (await f.Journal.ReadAsync(p.OperationId))!; Assert.Equal(first.Fence, renewed.Fence);
-        clock.Now = renewed.OwnerUntil;
-        await Task.WhenAll(Task.Run(() => Assert.ThrowsAsync<ZipFenceException>(() => f.Journal.RenewOwnershipAsync(p.OperationId, "worker", first.Fence.Epoch, profile.OwnershipLease))),
-            Task.Run(() => service.ClaimAsync(grant, "next-worker")));
-        var next = (await f.Journal.ReadAsync(p.OperationId))!;
+        await using var f = await ZipOwnershipFixture.CreateAsync();
+        await using var initial = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        var service = Service(f);
+        var first = await service.ClaimAsync(initial, await f.RequestAsync(initial.Purpose));
+        var independent = new EMF.Persistence.Repositories.SqliteZipExtractionJournal(f.Evidence.DatabasePath, f.Clock);
+        await using var recovery = Grant(f, ZipOwnershipPurpose.Recovery);
+        f.Clock.Now += TimeSpan.FromMinutes(14);
+        var request = await f.RequestAsync(recovery.Purpose, "next-worker");
+        using var liveRace = new Barrier(2);
+        await Task.WhenAll(
+            Task.Run(async () => { Assert.True(liveRace.SignalAndWait(TimeSpan.FromSeconds(10))); await independent.RenewOwnershipAsync(f.Admission.OperationId, first.Fence.Owner, first.Fence.Epoch, f.Profile.OwnershipLease); }),
+            Task.Run(async () => { Assert.True(liveRace.SignalAndWait(TimeSpan.FromSeconds(10))); await Assert.ThrowsAsync<ZipFenceException>(() => service.ClaimAsync(recovery, request)); }));
+        var renewed = (await f.Journal.ReadAsync(f.Admission.OperationId))!;
+        Assert.Equal(first.Fence, renewed.Fence); Assert.True(renewed.OwnerUntil > first.OwnerUntil);
+        f.Clock.Now = renewed.OwnerUntil;
+        request = await f.RequestAsync(recovery.Purpose, "next-worker");
+        using var expiredRace = new Barrier(2);
+        await Task.WhenAll(
+            Task.Run(async () => { Assert.True(expiredRace.SignalAndWait(TimeSpan.FromSeconds(10))); await Assert.ThrowsAsync<ZipFenceException>(() => independent.RenewOwnershipAsync(f.Admission.OperationId, first.Fence.Owner, first.Fence.Epoch, f.Profile.OwnershipLease)); }),
+            Task.Run(async () => { Assert.True(expiredRace.SignalAndWait(TimeSpan.FromSeconds(10))); await service.ClaimAsync(recovery, request); }));
+        var next = (await f.Journal.ReadAsync(f.Admission.OperationId))!;
         Assert.Equal("next-worker", next.Fence.Owner); Assert.Equal(first.Fence.Epoch + 1, next.Fence.Epoch);
-        Assert.Equal(p, await f.Journal.ReadAdmissionAsync(p.OperationId));
+        await Assert.ThrowsAsync<ZipFenceException>(() => independent.RenewOwnershipAsync(f.Admission.OperationId, first.Fence.Owner, first.Fence.Epoch, f.Profile.OwnershipLease));
+        Assert.Equal(f.Admission, await f.Journal.ReadAdmissionAsync(f.Admission.OperationId));
+    }
+
+    [Fact]
+    public async Task Expired_recorded_authority_vetoes_fresh_live_recovery_and_renewal()
+    {
+        await using var f = await ZipOwnershipFixture.CreateAsync();
+        await using var initial = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        await Service(f).ClaimAsync(initial, await f.RequestAsync(initial.Purpose));
+        f.Clock.Now += TimeSpan.FromMinutes(59);
+        await using var recovery = Grant(f, ZipOwnershipPurpose.Recovery);
+        var owned = await Service(f).ClaimAsync(recovery, await f.RequestAsync(recovery.Purpose));
+        f.Clock.Now += TimeSpan.FromMinutes(2);
+        await using var fresh = Grant(f, ZipOwnershipPurpose.Recovery);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(f).ClaimAsync(fresh,
+            new(fresh.Purpose, f.Admission, owned.Fence, owned.OwnerUntil, "worker", f.Profile.OwnershipLease)));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => f.Journal.RenewOwnershipAsync(f.Admission.OperationId,
+            "worker", owned.Fence.Epoch, f.Profile.OwnershipLease));
+        Assert.Equal(owned.Fence, (await f.Journal.ReadAsync(f.Admission.OperationId))!.Fence);
+        Assert.Equal(f.Admission, await f.Journal.ReadAdmissionAsync(f.Admission.OperationId));
+    }
+
+    [Fact]
+    public async Task Initial_only_live_grant_claims_without_recovery_and_preserves_evidence()
+    {
+        await using var f = await ZipOwnershipFixture.CreateAsync(ZipAuthorityCapabilities.Admit);
+        await using var grant = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        var decryptions = f.Runtime.Count("parent-decrypt");
+        var first = await Service(f).ClaimAsync(grant, await f.RequestAsync(grant.Purpose));
+        Assert.Equal(1, first.Fence.Epoch);
+        Assert.Equal(f.Admission, await f.Journal.ReadAdmissionAsync(f.Admission.OperationId));
+        Assert.Equal(decryptions, f.Runtime.Count("parent-decrypt"));
+    }
+
+    [Fact]
+    public async Task Recovery_uses_fresh_grant_and_same_owner_does_not_reuse_initial_permission()
+    {
+        await using var f = await ZipOwnershipFixture.CreateAsync();
+        await using var initial = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        var service = Service(f);
+        var first = await service.ClaimAsync(initial, await f.RequestAsync(initial.Purpose));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ClaimAsync(initial,
+            new(ZipOwnershipPurpose.Recovery, f.Admission, first.Fence, first.OwnerUntil, "worker", f.Profile.OwnershipLease)));
+        await using var recovery = Grant(f, ZipOwnershipPurpose.Recovery);
+        recovery.Denied = true;
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ClaimAsync(recovery,
+            new(recovery.Purpose, f.Admission, first.Fence, first.OwnerUntil, "worker", f.Profile.OwnershipLease)));
+        recovery.Denied = false;
+        var next = await service.ClaimAsync(recovery, await f.RequestAsync(recovery.Purpose));
+        Assert.Equal(first.Fence.Epoch + 1, next.Fence.Epoch);
+        Assert.Equal(f.Admission, await f.Journal.ReadAdmissionAsync(f.Admission.OperationId));
+    }
+
+    [Fact]
+    public async Task Profile_mismatch_fails_before_host_or_payload_work()
+    {
+        await using var f = await ZipOwnershipFixture.CreateAsync();
+        await using var grant = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        var request = await f.RequestAsync(grant.Purpose);
+        var decryptions = f.Runtime.Count("parent-decrypt");
+        var service = new ZipAuthorizedOwnershipService(f.Journal, f.Journal, f.Profile with { ProtectionContractId = "changed" }, f.Clock);
+        await Assert.ThrowsAsync<InvalidDataException>(() => service.ClaimAsync(grant, request));
+        Assert.Equal(0, grant.Checks); Assert.Equal(decryptions, f.Runtime.Count("parent-decrypt"));
+        Assert.Equal(request.ExpectedFence, (await f.Journal.ReadAsync(f.Admission.OperationId))!.Fence);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Invalidation_after_real_commit_never_returns_ownership(bool expire)
+    {
+        await using var f = await ZipOwnershipFixture.CreateAsync();
+        await using var grant = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        grant.OnCheck = () =>
+        {
+            // Before/after the real journal effect are checks 4/5.
+            if (grant.Checks == 5) { if (expire) f.Clock.Now = grant.ValidUntilUtc; else grant.Revoke(); }
+        };
+        var request = await f.RequestAsync(grant.Purpose);
+        if (expire) await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(f).ClaimAsync(grant, request));
+        else await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Service(f).ClaimAsync(grant, request));
+        Assert.Equal(1, (await f.Journal.ReadAsync(f.Admission.OperationId))!.Fence.Epoch);
+        Assert.Equal(f.Admission, await f.Journal.ReadAdmissionAsync(f.Admission.OperationId));
+        await using var nextInitial = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        var secondInitial = await f.RequestAsync(nextInitial.Purpose);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(f).ClaimAsync(nextInitial, secondInitial));
+        await using var recovery = Grant(f, ZipOwnershipPurpose.Recovery);
+        var recovered = await Service(f).ClaimAsync(recovery, await f.RequestAsync(recovery.Purpose));
+        Assert.Equal(2, recovered.Fence.Epoch);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Revocation_or_root_disposal_during_scope_wait_prevents_claim(bool dispose)
+    {
+        await using var f = await ZipOwnershipFixture.CreateAsync();
+        await using var grant = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        grant.BeforeScopeAcceptance = () => { waiting.SetResult(); return release.Task; };
+        var request = await f.RequestAsync(grant.Purpose);
+        var claim = Service(f).ClaimAsync(grant, request);
+        await waiting.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        if (dispose) await grant.DisposeAsync(); else grant.Revoke();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => claim);
+        release.SetResult();
+        Assert.Equal(request.ExpectedFence, (await f.Journal.ReadAsync(f.Admission.OperationId))!.Fence);
+    }
+
+    [Fact]
+    public async Task Scope_request_mismatch_is_denied_before_claim()
+    {
+        await using var f = await ZipOwnershipFixture.CreateAsync();
+        await using var grant = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        grant.ChangeScope = scope => new SyntheticZipExecutionGrant.Scope(grant, scope.Request with { Owner = "other" }, f.Clock);
+        var request = await f.RequestAsync(grant.Purpose);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(f).ClaimAsync(grant, request));
+        Assert.Equal(request.ExpectedFence, (await f.Journal.ReadAsync(f.Admission.OperationId))!.Fence);
+    }
+
+    [Fact]
+    public async Task Recorded_revocation_vetoes_current_synthetic_permission()
+    {
+        await using var f = await ZipOwnershipFixture.CreateAsync();
+        await using var grant = Grant(f, ZipOwnershipPurpose.InitialExecution);
+        var request = await f.RequestAsync(grant.Purpose);
+        var revoked = await f.Journal.AppendAdmissionEventAsync(f.Admission, new("revoked", ZipAdmissionEventKind.Revoked,
+            "synthetic-issuer", f.Clock.Now, SafeReason: "AuthorityRevoked"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(f).ClaimAsync(grant, request));
+        Assert.Equal(f.Admission.Approval, revoked.Approval);
+        Assert.Equal(request.ExpectedFence, (await f.Journal.ReadAsync(f.Admission.OperationId))!.Fence);
     }
 }

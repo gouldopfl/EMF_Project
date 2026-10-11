@@ -10,18 +10,25 @@ public interface IZipParentOperationHost
 {
     Task<ZipParentAdmission> ResolveAsync(CancellationToken ct = default);
     Task<ZipParentAdmission> ApproveAsync(ZipParentAdmission pending, CancellationToken ct = default);
+    Task<IZipAuthorizedExecution> AuthorizeInitialExecutionAsync(ZipParentAdmission admission, CancellationToken ct = default);
     Task<IZipAuthorizedExecution> AuthorizeRecoveryAsync(ZipParentAdmission admission, CancellationToken ct = default);
     Task<bool> AuthorizeReviewAsync(ZipParentAdmission admission, string safeReason, CancellationToken ct = default);
 }
 
 // A grant is distinct from a concurrency lease. The issuer defines expiry and
-// revocation visibility; disposal ends authority to start further effects.
+// revocation visibility; disposal ends authority to start further effects and
+// cancels outstanding scopes. One transient grant per attempt; never serialize
+// it or reconstruct it from durable approval. Restart requires a fresh grant.
+// Admission, Purpose, ExecutingActorId and ValidUntilUtc are immutable throughout
+// the attempt. Lease renewal cannot refresh or widen this live authority.
 public interface IZipAuthorizedExecution : IAsyncDisposable
 {
     ZipParentAdmission Admission { get; }
+    ZipOwnershipPurpose Purpose { get; }
     string ExecutingActorId { get; }
     DateTimeOffset ValidUntilUtc { get; }
     CancellationToken Revoked { get; }
     Task RevalidateAsync(CancellationToken ct = default);
+    Task<IZipAuthorizedOwnershipScope> AuthorizeOwnershipEffectAsync(ZipOwnershipClaimRequest request, CancellationToken ct = default);
     Task<ZipChildIngestionRuntime> OpenChildAsync(ZipParentSnapshot parent, ZipEntryProgress entry, CancellationToken ct = default);
 }

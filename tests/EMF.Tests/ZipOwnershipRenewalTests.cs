@@ -54,6 +54,8 @@ public sealed class ZipOwnershipRenewalTests
     }
     private sealed class RenewalJournal(int failAt, bool released = false) : IZipOwnershipJournal
     {
+        public Task<ZipParentSnapshot> ClaimOwnershipAsync(ZipOwnershipClaimRequest request, CancellationToken ct = default)
+            => throw new NotSupportedException("Renewal does not establish claim authority.");
         public int Calls;
         public Task<DateTimeOffset> RenewOwnershipAsync(string operationId, string owner, long epoch, TimeSpan duration, CancellationToken ct = default)
         {
