@@ -214,10 +214,16 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
         using var tx = c.BeginTransaction(deferred: true);
         return await ReadAsync(c, tx, operationId, ct);
     }
-    public async Task CreateAsync(ZipParentBinding binding, CancellationToken ct = default)
+    public Task CreateAsync(ZipParentBinding binding, CancellationToken ct = default) => CreateCoreAsync(binding, null, ct);
+    public Task CreateAsync(ZipParentBinding binding, IZipEffectBoundaryGuard guard, CancellationToken ct = default) => CreateCoreAsync(binding, guard ?? throw new ArgumentNullException(nameof(guard)), ct);
+    private async Task CreateCoreAsync(ZipParentBinding binding, IZipEffectBoundaryGuard? guard, CancellationToken ct)
     {
+        using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        ct = effectCancellation?.Token ?? ct;
+        await ValidateEffectAsync(guard, ct);
         Validate(binding);
-        await using var c = await OpenAsync(ct); using var tx = c.BeginTransaction(deferred: false);
+        await using var c = await OpenAsync(ct); using var tx = c.BeginTransaction(deferred: false);await ValidateEffectAsync(guard, ct);
+        if (guard is not null) await ValidateParentCreateAdmissionAsync(c, tx, binding, ct);
         var old = await ReadAsync(c,tx,binding.OperationId,ct);
         if (old is not null)
         { if (Json(old.Binding) != Json(binding)) throw new InvalidDataException("ZIP parent binding changed."); return; }
@@ -225,7 +231,7 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
         q.CommandText = "INSERT INTO ZipExtractionParents VALUES($op,$binding,'',0,1,$until,0,NULL,NULL,-1,$budget,NULL)";
         q.Parameters.AddWithValue("$op",binding.OperationId); q.Parameters.AddWithValue("$binding",Json(binding));
         q.Parameters.AddWithValue("$until",DateTimeOffset.MinValue.ToString("O")); q.Parameters.AddWithValue("$budget",Json(new ZipBudget()));
-        await q.ExecuteNonQueryAsync(ct); tx.Commit();
+        await q.ExecuteNonQueryAsync(ct); await CommitEffectAsync(tx, guard, ct, admissionEligibility: guard is null ? null : () => ValidateParentCreateAdmissionAsync(c, tx, binding, ct));
     }
     private static void Validate(ZipParentBinding b)
     {
@@ -266,8 +272,13 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
     }
     public static string PlanHash(string receipt, IReadOnlyList<ZipEntryPlan> entries) =>
         ZipPlanBinding.Compute(receipt,entries);
-    public async Task<ZipParentSnapshot> AdmitPlanAsync(ZipFence fence, ZipPlan plan, CancellationToken ct = default)
+    public Task<ZipParentSnapshot> AdmitPlanAsync(ZipFence fence, ZipPlan plan, CancellationToken ct = default) => AdmitPlanCoreAsync(fence, plan, null, ct);
+    public Task<ZipParentSnapshot> AdmitPlanAsync(ZipFence fence, ZipPlan plan, IZipEffectBoundaryGuard guard, CancellationToken ct = default) => AdmitPlanCoreAsync(fence, plan, guard ?? throw new ArgumentNullException(nameof(guard)), ct);
+    private async Task<ZipParentSnapshot> AdmitPlanCoreAsync(ZipFence fence, ZipPlan plan, IZipEffectBoundaryGuard? guard, CancellationToken ct)
     {
+        using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        ct = effectCancellation?.Token ?? ct;
+        await ValidateEffectAsync(guard, ct);
         if (plan.Entries.Count > ZipNumericLimits.Entries || plan.Hash != PlanHash(plan.PreflightReceiptJson,plan.Entries))
             throw new InvalidDataException("Invalid ZIP plan.");
         long expanded=0,compressed=0; var files=0; var ids=new HashSet<string>();
@@ -286,8 +297,9 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
             }
         }
         if(expanded>ZipNumericLimits.Aggregate || compressed>ZipNumericLimits.Parent) throw new InvalidDataException("ZIP aggregate outside profile.");
-        await using var c=await OpenAsync(ct); using var tx=c.BeginTransaction(deferred:false);
+        await using var c=await OpenAsync(ct); using var tx=c.BeginTransaction(deferred:false);await ValidateEffectAsync(guard, ct);
         var p=await FencedAsync(c,tx,fence,ct);
+        if (guard is not null) await ValidateExecutionAdmissionAsync(c, tx, p, ct);
         if(p.Plan is not null)
         {
             if(Json(p.Plan)!=Json(plan))throw new InvalidDataException("ZIP admitted plan cannot be replaced.");
@@ -304,14 +316,21 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
             await q.ExecuteNonQueryAsync(ct);
         }
         p=p with{ Plan=plan,State=ZipParentState.Planned,Fence=p.Fence with{PlanHash=plan.Hash,Revision=checked(p.Fence.Revision+1)},Entries=plan.Entries.Select(e=>new ZipEntryProgress(e)).ToArray() };
-        await SaveAsync(c,tx,p,ct);tx.Commit();return p;
+        await SaveAsync(c,tx,p,ct);await CommitEffectAsync(tx, guard, ct, p.OwnerUntil, admissionEligibility: guard is null ? null : () => ValidateExecutionAdmissionAsync(c, tx, p, ct));return p;
     }
-    public async Task<ZipParentSnapshot> ReserveAsync(ZipFence fence, ZipWorkReservation r, CancellationToken ct=default)
+    public Task<ZipParentSnapshot> ReserveAsync(ZipFence fence, ZipWorkReservation r, CancellationToken ct=default) => ReserveCoreAsync(fence, r, null, ct);
+    public Task<ZipParentSnapshot> ReserveAsync(ZipFence fence, ZipWorkReservation r, IZipEffectBoundaryGuard guard, CancellationToken ct = default) => ReserveCoreAsync(fence, r, guard ?? throw new ArgumentNullException(nameof(guard)), ct);
+    private async Task<ZipParentSnapshot> ReserveCoreAsync(ZipFence fence, ZipWorkReservation r, IZipEffectBoundaryGuard? guard, CancellationToken ct)
     {
+        using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        ct = effectCancellation?.Token ?? ct;
+        await ValidateEffectAsync(guard, ct);
         ArgumentException.ThrowIfNullOrWhiteSpace(r.Id);
+        if (guard is not null && r.Kind is not (ZipWorkKind.Preflight or ZipWorkKind.Extraction)) throw new UnauthorizedAccessException("Phase II excludes downstream reservations.");
         if(r.Kind==ZipWorkKind.Scanner)throw new InvalidDataException("ZIP scanner reservations require atomic policy binding via BeginScanAsync.");
         if(r.ExpandedBytes<0 || r.CompressedBytes<0) throw new InvalidDataException("Negative ZIP reservation.");
-        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);var p=await FencedAsync(c,tx,fence,ct);
+        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);await ValidateEffectAsync(guard, ct);var p=await FencedAsync(c,tx,fence,ct);
+        if (guard is not null) await ValidateExecutionAdmissionAsync(c, tx, p, ct);
         using var q=c.CreateCommand();q.Transaction=tx;
         q.CommandText="SELECT ReservationJson FROM ZipExtractionReservations WHERE ParentOperationId=$op AND ReservationId=$id";
         q.Parameters.AddWithValue("$op",fence.OperationId);q.Parameters.AddWithValue("$id",r.Id);
@@ -354,7 +373,7 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
         q.Parameters.AddWithValue("$op",fence.OperationId);q.Parameters.AddWithValue("$id",r.Id);q.Parameters.AddWithValue("$file",(object?)r.FileOrdinal??DBNull.Value);
         q.Parameters.AddWithValue("$kind",(int)r.Kind);q.Parameters.AddWithValue("$json",Json(r));await q.ExecuteNonQueryAsync(ct);
         p=p with{Budget=b,Fence=p.Fence with{Revision=checked(p.Fence.Revision+1)}};
-        await SaveAsync(c,tx,p,ct);tx.Commit();return p;
+        await SaveAsync(c,tx,p,ct);await CommitEffectAsync(tx, guard, ct, p.OwnerUntil, admissionEligibility: guard is null ? null : () => ValidateExecutionAdmissionAsync(c, tx, p, ct));return p;
     }
     private static void ValidateBudget(ZipBudget b)
     {

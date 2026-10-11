@@ -7,7 +7,7 @@ using EMF.Core.Models.Identities;
 namespace EMF.Persistence.Storage;
 
 // Owns a dedicated ZIP-only root. Canonical artifact APIs are deliberately absent.
-public sealed class ZipPrivateContentStorage : IZipPrivateContentStorage
+public sealed class ZipPrivateContentStorage : IZipGuardedPrivateContentStorage
 {
     private readonly FileSystemArtifactContentStore _physical;
     private readonly FileSystemArtifactContentStagingStore _staging;
@@ -54,6 +54,29 @@ public sealed class ZipPrivateContentStorage : IZipPrivateContentStorage
         Id(id);
         try{return await _physical.ReadBoundedVersionedAsync(id,new(MaximumProtectedBytes,MaximumProtectedBytes,expected),ct);}
         catch(InvalidOperationException error){throw new InvalidDataException("ZIP retained revision evidence is contradictory.",error);}
+    }
+    public Task StageGuardedAsync(ArtifactContentOperationId op, ReadOnlyMemory<byte> candidate, IZipEffectBoundaryGuard guard, CancellationToken ct = default)
+        => _staging.StageGuardedAsync(op, candidate, guard, ct);
+    public Task<byte[]?> ReadCandidateGuardedAsync(ArtifactContentOperationId op, IZipEffectBoundaryGuard guard, CancellationToken ct = default)
+        => _staging.ReadGuardedAsync(op, guard, ct);
+    public async Task<ArtifactContentMutationReceipt?> GetReceiptGuardedAsync(ArtifactContentOperationId op, IZipEffectBoundaryGuard guard, CancellationToken ct = default)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        await guard.RevalidateAsync(linked.Token);
+        var receipt = await _physical.GetMutationOutcomeAsync(op, linked.Token);
+        await guard.RevalidateAsync(linked.Token);
+        return receipt;
+    }
+    public Task<IPreparedArtifactContentMutation> PrepareCreateGuardedAsync(ArtifactId id, ReadOnlyMemory<byte> candidate,
+        ArtifactContentMutationContext context, IZipEffectBoundaryGuard guard, CancellationToken ct = default)
+    { Id(id); return _physical.PreparePhysicalCreateGuardedAsync(id, candidate, context, guard, ct); }
+    public async Task<IArtifactContentReadLease?> ReadProtectedGuardedAsync(ArtifactId id, ArtifactContentRevision expected,
+        IZipEffectBoundaryGuard guard, CancellationToken ct = default)
+    {
+        Id(id);
+        try { return await _physical.ReadBoundedVersionedGuardedAsync(id, new(MaximumProtectedBytes, MaximumProtectedBytes, expected), guard, ct); }
+        catch (InvalidOperationException error) when (error.Message == "Selected current content revision does not match.")
+        { throw new InvalidDataException("ZIP retained revision evidence is contradictory.", error); }
     }
     public async Task<IZipPreparedCandidateCleanup> PrepareCandidateCleanupAsync(ArtifactContentOperationId op,string hash,CancellationToken ct=default)
     {

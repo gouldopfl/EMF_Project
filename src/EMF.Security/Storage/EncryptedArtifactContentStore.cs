@@ -1,3 +1,4 @@
+using EMF.Core.Contracts.Zip;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -9,7 +10,7 @@ using EMF.Security.Encryption.Envelope;
 namespace EMF.Security.Storage;
 
 public sealed class EncryptedArtifactContentStore :
-    IVersionedArtifactContentStore, IBoundedVersionedArtifactContentStore
+    IVersionedArtifactContentStore, IBoundedVersionedArtifactContentStore, IZipGuardedBoundedArtifactContentStore
 {
     private readonly IArtifactContentStore _inner;
     private readonly IEnvelopeEncryptionService _encryption;
@@ -107,21 +108,41 @@ public sealed class EncryptedArtifactContentStore :
     private IBoundedVersionedArtifactContentStore Bounded => _inner as IBoundedVersionedArtifactContentStore
         ?? throw new NotSupportedException("Underlying content store does not support bounded reads.");
     public long MaximumStoredRepresentationBytes => Bounded.MaximumStoredRepresentationBytes;
-    public async Task<IArtifactContentReadLease?> ReadBoundedVersionedAsync(ArtifactId id,
+    public Task<IArtifactContentReadLease?> ReadBoundedVersionedAsync(ArtifactId id,
         BoundedArtifactContentReadRequest request, CancellationToken cancellationToken = default)
+        => ReadBoundedCoreAsync(id, request, null, cancellationToken);
+
+    public async Task<IArtifactContentReadLease?> ReadBoundedVersionedGuardedAsync(ArtifactId id,
+        BoundedArtifactContentReadRequest request, IZipEffectBoundaryGuard guard,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(guard);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, guard.Invalidated);
+        await guard.RevalidateAsync(linked.Token);
+        return await ReadBoundedCoreAsync(id, request, guard, linked.Token);
+    }
+
+    private async Task<IArtifactContentReadLease?> ReadBoundedCoreAsync(ArtifactId id,
+        BoundedArtifactContentReadRequest request, IZipEffectBoundaryGuard? guard, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         var physical = Bounded;
         var decryption = _encryption as IBoundedEnvelopeDecryptionService
             ?? throw new NotSupportedException("Encryption provider does not support bounded decryption.");
+        var guardedPhysical = guard is null ? null : (_inner as IZipGuardedBoundedArtifactContentStore
+            ?? throw new NotSupportedException("Underlying content store does not accept ZIP read authority."));
+        var guardedDecryption = guard is null ? null : (_encryption as IZipGuardedEnvelopeEncryptionService
+            ?? throw new NotSupportedException("Encryption provider does not accept ZIP authority."));
         var limits = new EnvelopeDecryptionLimits(request.MaximumReturnedContentBytes);
         // ArtifactId has no generic length ceiling. Bound UTF-8 before Create allocates context bytes.
         var encoding = new UTF8Encoding(false, true);
         if (checked(16L + encoding.GetByteCount(id.Value)) > limits.MaximumAuthenticatedContextBytes)
             throw new CryptographicException("Artifact authenticated context exceeds its allocation ceiling.");
-        var raw = await physical.ReadBoundedVersionedAsync(id,
-            new(request.MaximumStoredRepresentationBytes, request.MaximumStoredRepresentationBytes, request.ExpectedRevision),
-            cancellationToken);
+        var physicalRequest = new BoundedArtifactContentReadRequest(request.MaximumStoredRepresentationBytes,
+            request.MaximumStoredRepresentationBytes, request.ExpectedRevision);
+        var raw = guard is null
+            ? await physical.ReadBoundedVersionedAsync(id, physicalRequest, cancellationToken)
+            : await guardedPhysical!.ReadBoundedVersionedGuardedAsync(id, physicalRequest, guard, cancellationToken);
         if (raw is null) return null;
         bool rawDisposalAttempted = false;
         EncryptedEnvelope? envelope = null;
@@ -133,9 +154,15 @@ public sealed class EncryptedArtifactContentStore :
                 raw.ReturnedLength != raw.Content.Length || raw.StoredLength > request.MaximumStoredRepresentationBytes ||
                 (request.ExpectedRevision is { } expected && raw.Revision != expected))
                 throw new InvalidDataException("Bounded physical lease evidence is invalid.");
-            envelope = BoundedEncryptedEnvelopeCodec.Read(raw.Content.Span, limits, cancellationToken);
-            context = ArtifactEnvelopeContext.Create(id);
-            plaintext = await decryption.DecryptWithContextBoundedAsync(envelope, context, limits, cancellationToken);
+            if (guard is not null) await guard.RevalidateAsync(cancellationToken);
+            using (AcceptZipEffect(guard,cancellationToken))
+            {
+                envelope = BoundedEncryptedEnvelopeCodec.Read(raw.Content.Span, limits, cancellationToken);
+                context = ArtifactEnvelopeContext.Create(id);
+            }
+            plaintext = guard is null
+                ? await decryption.DecryptWithContextBoundedAsync(envelope, context, limits, cancellationToken)
+                : await guardedDecryption!.DecryptWithContextBoundedGuardedAsync(envelope, context, limits, guard, cancellationToken);
             if (plaintext.Length > request.MaximumReturnedContentBytes || plaintext.Length != envelope.Ciphertext.Length)
                 throw new CryptographicException("Bounded provider returned invalid plaintext length.");
             cancellationToken.ThrowIfCancellationRequested();
@@ -143,6 +170,9 @@ public sealed class EncryptedArtifactContentStore :
             // Keep cleanup ownership until raw disposal has succeeded; alternate leases may throw.
             rawDisposalAttempted = true;
             await raw.DisposeAsync();
+            if (guard is not null) await guard.RevalidateAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            using (AcceptZipEffect(guard,cancellationToken)) { }
             cancellationToken.ThrowIfCancellationRequested();
             plaintext = null;
             return result;
@@ -217,5 +247,12 @@ public sealed class EncryptedArtifactContentStore :
         }
     }
 
+
+    private static IDisposable? AcceptZipEffect(IZipEffectBoundaryGuard? guard,CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return guard is null ? null : guard.Accept(ct)
+            ?? throw new UnauthorizedAccessException("ZIP authority returned no acceptance capability.");
+    }
 
 }

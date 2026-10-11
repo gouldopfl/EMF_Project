@@ -1,10 +1,11 @@
+using EMF.Core.Contracts.Zip;
 using System.Security.Cryptography;
 using EMF.Security.Encryption.Envelope.Models;
 
 namespace EMF.Security.Encryption.Envelope.Services;
 
 public sealed class DevelopmentEnvelopeEncryptionService :
-    IEnvelopeEncryptionService, IBoundedEnvelopeDecryptionService
+    IEnvelopeEncryptionService, IBoundedEnvelopeDecryptionService, IZipGuardedEnvelopeEncryptionService
 {
     private const int KeySize = 32;
     private const int NonceSize = 12;
@@ -34,14 +35,56 @@ public sealed class DevelopmentEnvelopeEncryptionService :
             authenticatedContext,
             cancellationToken);
 
+    public async Task<EncryptedEnvelope> EncryptWithContextGuardedAsync(ReadOnlyMemory<byte> plaintext,
+        ReadOnlyMemory<byte> authenticatedContext, IZipEffectBoundaryGuard guard,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(guard);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, guard.Invalidated);
+        await guard.RevalidateAsync(linked.Token);
+        var envelope = await EncryptCoreAsync(plaintext, authenticatedContext, linked.Token, guard);
+        try
+        {
+            await guard.RevalidateAsync(linked.Token);
+            using (AcceptZipEffect(guard,linked.Token)) { }
+            linked.Token.ThrowIfCancellationRequested();
+            return envelope;
+        }
+        catch { BoundedEncryptedEnvelopeCodec.Clear(envelope); throw; }
+    }
+
+    public async Task<byte[]> DecryptWithContextBoundedGuardedAsync(EncryptedEnvelope envelope,
+        ReadOnlyMemory<byte> authenticatedContext, EnvelopeDecryptionLimits limits,
+        IZipEffectBoundaryGuard guard, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(guard);
+        ArgumentNullException.ThrowIfNull(limits);
+        EnvelopeContentAuthentication.ValidateBound(envelope, limits.MaximumPlaintextBytes);
+        if (authenticatedContext.Length > limits.MaximumAuthenticatedContextBytes || envelope.FormatVersion != 2)
+            throw new CryptographicException("Bounded context-bound envelope required.");
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, guard.Invalidated);
+        await guard.RevalidateAsync(linked.Token);
+        var plaintext = await DecryptCoreAsync(envelope, authenticatedContext, linked.Token, limits, guard);
+        try
+        {
+            await guard.RevalidateAsync(linked.Token);
+            using (AcceptZipEffect(guard,linked.Token)) { }
+            linked.Token.ThrowIfCancellationRequested();
+            return plaintext;
+        }
+        catch { CryptographicOperations.ZeroMemory(plaintext); throw; }
+    }
+
     private async Task<EncryptedEnvelope> EncryptCoreAsync(
         ReadOnlyMemory<byte> plaintext,
         ReadOnlyMemory<byte>? authenticatedContext,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, IZipEffectBoundaryGuard? guard = null)
     {
         var keyId =
             await _keyProvider.GetCurrentKeyIdAsync(
                 cancellationToken);
+
+        if (guard is not null) await guard.RevalidateAsync(cancellationToken);
 
         if (string.IsNullOrWhiteSpace(keyId))
             throw new CryptographicException("No current key.");
@@ -50,6 +93,8 @@ public sealed class DevelopmentEnvelopeEncryptionService :
             await _keyProvider.GetKeyAsync(
                 keyId,
                 cancellationToken);
+
+        if (guard is not null) await guard.RevalidateAsync(cancellationToken);
 
         if (key is null ||
             key.KeyMaterial is not { Length: KeySize } ||
@@ -73,28 +118,38 @@ public sealed class DevelopmentEnvelopeEncryptionService :
                     EncryptedEnvelopeFormat.CurrentVersion,
                     EncryptedEnvelopeFormat.Aes256GcmAlgorithm);
 
-        var nonce = RandomNumberGenerator.GetBytes(NonceSize);
-        var ciphertext = new byte[plaintext.Length];
-        var tag = new byte[TagSize];
-        var dek = RandomNumberGenerator.GetBytes(KeySize);
-
+        byte[] nonce = [], ciphertext = [], tag = [], dek = [];
+        byte[]? wrappedDek = null;
+        bool handedOff = false;
         try
         {
-            using (var aes = new AesGcm(dek, TagSize))
+            if (guard is not null) await guard.RevalidateAsync(cancellationToken);
+            using (AcceptZipEffect(guard,cancellationToken))
             {
-                aes.Encrypt(
-                    nonce,
-                    plaintext.Span,
-                    ciphertext,
-                    tag,
-                    authenticatedData);
+                nonce = RandomNumberGenerator.GetBytes(NonceSize);
+                ciphertext = new byte[plaintext.Length];
+                tag = new byte[TagSize];
+                dek = RandomNumberGenerator.GetBytes(KeySize);
+            }
+            using (AcceptZipEffect(guard,cancellationToken))
+            {
+                using (var aes = new AesGcm(dek, TagSize))
+                {
+                    aes.Encrypt(
+                        nonce,
+                        plaintext.Span,
+                        ciphertext,
+                        tag,
+                        authenticatedData);
+                }
+
+                wrappedDek =
+                    DevelopmentDataEncryptionKeyWrapper.Wrap(
+                        key.KeyMaterial,
+                        dek);
             }
 
-            var wrappedDek =
-                DevelopmentDataEncryptionKeyWrapper.Wrap(
-                    key.KeyMaterial,
-                    dek);
-
+            handedOff = true;
             return new EncryptedEnvelope
             {
                 FormatVersion =
@@ -113,6 +168,14 @@ public sealed class DevelopmentEnvelopeEncryptionService :
         finally
         {
             CryptographicOperations.ZeroMemory(dek);
+            CryptographicOperations.ZeroMemory(authenticatedData);
+            if (!handedOff)
+            {
+                CryptographicOperations.ZeroMemory(ciphertext);
+                CryptographicOperations.ZeroMemory(nonce);
+                CryptographicOperations.ZeroMemory(tag);
+                if (wrappedDek is not null) CryptographicOperations.ZeroMemory(wrappedDek);
+            }
         }
     }
 
@@ -144,7 +207,7 @@ public sealed class DevelopmentEnvelopeEncryptionService :
     private async Task<byte[]> DecryptCoreAsync(
         EncryptedEnvelope envelope,
         ReadOnlyMemory<byte>? authenticatedContext,
-        CancellationToken cancellationToken, EnvelopeDecryptionLimits? limits = null)
+        CancellationToken cancellationToken, EnvelopeDecryptionLimits? limits = null, IZipEffectBoundaryGuard? guard = null)
     {
         ArgumentNullException.ThrowIfNull(envelope);
         cancellationToken.ThrowIfCancellationRequested();
@@ -155,6 +218,8 @@ public sealed class DevelopmentEnvelopeEncryptionService :
             await _keyProvider.GetKeyAsync(
                 envelope.KeyEncryptionKeyId,
                 cancellationToken);
+
+        if (guard is not null) await guard.RevalidateAsync(cancellationToken);
 
         if (key is null ||
             key.KeyMaterial is not { Length: KeySize } ||
@@ -167,22 +232,29 @@ public sealed class DevelopmentEnvelopeEncryptionService :
                 "Invalid encryption key.");
         }
 
-        var dek =
-            DevelopmentDataEncryptionKeyWrapper.Unwrap(
-                key.KeyMaterial,
-                envelope.WrappedDataEncryptionKey);
-
+        byte[] dek = [];
         try
         {
+            using (AcceptZipEffect(guard,cancellationToken))
+                dek = DevelopmentDataEncryptionKeyWrapper.Unwrap(
+                    key.KeyMaterial,
+                    envelope.WrappedDataEncryptionKey);
             if (limits is not null) BoundedDataKeyUnwrapped?.Invoke(dek);
             return limits is null
                 ? EnvelopeContentAuthentication.Decrypt(envelope, dek, authenticatedContext)
-                : EnvelopeContentAuthentication.DecryptBounded(envelope, dek, authenticatedContext!.Value, limits, cancellationToken);
+                : EnvelopeContentAuthentication.DecryptBounded(envelope, dek, authenticatedContext!.Value, limits, cancellationToken, guard);
         }
         finally
         {
             CryptographicOperations.ZeroMemory(dek);
         }
+    }
+
+    private static IDisposable? AcceptZipEffect(IZipEffectBoundaryGuard? guard,CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return guard is null ? null : guard.Accept(ct)
+            ?? throw new UnauthorizedAccessException("ZIP authority returned no acceptance capability.");
     }
 
 }

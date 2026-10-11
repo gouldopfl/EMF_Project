@@ -9,6 +9,7 @@ public interface IZipParentAdmissionJournal
     Task<ZipParentAdmission?> ReadAdmissionByKeyAsync(ZipAdmissionKey key, CancellationToken ct = default);
     Task<IReadOnlyList<ZipParentAdmission>> ReadRecoveryAdmissionsAsync(string? afterOperationId, int limit, CancellationToken ct = default);
     Task<ZipParentAdmission> AppendAdmissionEventAsync(ZipParentAdmission expected, ZipAdmissionEvent evidence, CancellationToken ct = default);
+    Task<ZipParentAdmission> AppendAdmissionEventAsync(ZipParentAdmission expected, ZipAdmissionEvent evidence, IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     // Process-wide/cross-process serialization for pre-journal retention; not authority.
     Task<IDisposable> AcquireAdmissionExecutionAsync(string operationId, CancellationToken ct = default);
 }

@@ -31,7 +31,7 @@ public sealed class ZipProtectedRetentionService
     private static ArtifactContentMutationContext Context(ZipRetentionRecord r,bool release)=>new(new(release?r.Identity.ReleaseOperationId:r.Identity.CreateOperationId),new ArtifactContentOwnershipToken(r.Identity.OwnerToken));
     private void Namespace(ZipRetentionRecord r)
     { if(r.Identity.NamespaceId!=_storage.NamespaceId)throw new InvalidDataException("ZIP private namespace binding changed."); }
-    private async Task<ZipRetentionRecord?> ReadRetentionAsync(ZipParentSnapshot parent,int fileOrdinal,bool required,CancellationToken ct)
+    private async Task<ZipRetentionRecord?> ReadRetentionAsync(ZipParentSnapshot parent,int fileOrdinal,bool required,CancellationToken ct,bool governed=false)
     {
         try
         {
@@ -39,48 +39,68 @@ public sealed class ZipProtectedRetentionService
             if(required&&record is null)throw new InvalidDataException("Missing durable ZIP retention evidence.");
             return record;
         }
-        catch(Exception error) when(error is InvalidDataException or IOException or System.Text.Json.JsonException)
+        catch(Exception error) when((error is InvalidDataException or IOException or System.Text.Json.JsonException)&&!governed)
         {
             using var review=new CancellationTokenSource(ZipNumericLimits.AttemptTimeout);
             await _parents.ReviewAsync(parent.Fence,"RetentionJournalEvidenceFailure",review.Token);throw;
         }
     }
-    private async Task ValidateCandidateAsync(ZipRetentionRecord r,ReadOnlyMemory<byte> candidate,CancellationToken ct)
+    private async Task ValidateCandidateAsync(ZipRetentionRecord r,ReadOnlyMemory<byte> candidate,CancellationToken ct,IZipEffectBoundaryGuard? guard=null)
     {
-        if(candidate.Length>_storage.MaximumProtectedBytes||(r.CandidateHash is not null&&Hash(candidate.Span)!=r.CandidateHash))
+        await ZipPhaseIIWork.CheckAsync(guard,ct);
+        if(candidate.Length>_storage.MaximumProtectedBytes||(r.CandidateHash is not null&&ZipPhaseIIWork.Hash(candidate.Span,guard,ct)!=r.CandidateHash))
             throw new InvalidDataException("ZIP frozen protected candidate changed.");
         EncryptedEnvelope? envelope=null;byte[]? plain=null;
         try
         {
-            envelope=BoundedEncryptedEnvelopeCodec.Read(candidate.Span,_limits,ct);
-            plain=await _decryption.DecryptWithContextBoundedAsync(envelope,ArtifactEnvelopeContext.Create(Id(r)),_limits,ct);
-            if(plain.LongLength!=r.Identity.Length||Hash(plain)!=r.Identity.PlaintextSha256)throw new InvalidDataException("ZIP retained plaintext binding changed.");
+            envelope=ZipPhaseIIWork.Decode(candidate.Span,_limits,guard,ct);
+            plain=await ZipPhaseIIWork.Decrypt(_decryption,envelope,ArtifactEnvelopeContext.Create(Id(r)),_limits,guard,ct);
+            await ZipPhaseIIWork.CheckAsync(guard,ct);
+            if(plain.LongLength!=r.Identity.Length||ZipPhaseIIWork.Hash(plain,guard,ct)!=r.Identity.PlaintextSha256)throw new InvalidDataException("ZIP retained plaintext binding changed.");
         }
         finally{if(plain is not null)CryptographicOperations.ZeroMemory(plain);if(envelope is not null)BoundedEncryptedEnvelopeCodec.Clear(envelope);}
     }
-    public async Task<ZipRetentionUpdate> SealAsync(ZipParentSnapshot parent,int fileOrdinal,ReadOnlyMemory<byte>? plaintext,CancellationToken ct=default)
+    internal Task<ZipRetentionUpdate> SealAsync(ZipParentSnapshot parent,int fileOrdinal,ReadOnlyMemory<byte>? plaintext,CancellationToken ct=default)
+        => SealCoreAsync(parent,fileOrdinal,plaintext,null,ct);
+    public Task<ZipRetentionUpdate> SealAsync(ZipParentSnapshot parent,int fileOrdinal,ReadOnlyMemory<byte>? plaintext,ZipExecutionAttempt attempt,CancellationToken ct=default)
+        => SealCoreAsync(parent,fileOrdinal,plaintext,attempt ?? throw new ArgumentNullException(nameof(attempt)),ct);
+    private async Task<ZipRetentionUpdate> SealCoreAsync(ZipParentSnapshot parent,int fileOrdinal,ReadOnlyMemory<byte>? plaintext,ZipExecutionAttempt? attempt,CancellationToken ct)
     {
+        ZipRetentionRecord? retention = null;
+        await using var guard = attempt?.RetentionBoundary(() => parent,fileOrdinal,() => retention,_storage.NamespaceId);
+        using var governed = guard is null ? CancellationTokenSource.CreateLinkedTokenSource(ct) : CancellationTokenSource.CreateLinkedTokenSource(ct,guard.Invalidated);
+        ct = governed.Token;
+        await ZipPhaseIIWork.CheckAsync(guard,ct);
+        if(attempt is not null&&_storage.NamespaceId!=attempt.Admission.Binding.ChildNamespaceId)throw new UnauthorizedAccessException("Child namespace differs from admission.");
         ct.ThrowIfCancellationRequested();
         using var budget=CancellationTokenSource.CreateLinkedTokenSource(ct);budget.CancelAfter(ZipNumericLimits.AttemptTimeout);ct=budget.Token;
         var fenceCheck=await _parents.ReadAsync(parent.Binding.OperationId,ct);if(fenceCheck?.Fence!=parent.Fence)throw new ZipFenceException();
-        var retention=await ReadRetentionAsync(parent,fileOrdinal,false,ct);
+        retention=await ReadRetentionAsync(parent,fileOrdinal,false,ct,attempt is not null);
+        await ZipPhaseIIWork.CheckAsync(guard,ct);
         if(retention is null)
         {
             if(plaintext is null)throw new InvalidDataException("ZIP child has no durable preparation identity.");
             var entry=parent.Entries.Single(e=>e.Plan.FileOrdinal==fileOrdinal);
             if(plaintext.Value.Length!=entry.Plan.ExpandedLength||plaintext.Value.Length>ZipNumericLimits.Child)throw new InvalidDataException("ZIP child length exceeds binding.");
-            var reserved=await _journal.ReserveRetentionAsync(parent.Fence,fileOrdinal,_storage.NamespaceId,Hash(plaintext.Value.Span),ct);
+            await ZipPhaseIIWork.CheckAsync(guard,ct);
+            string plaintextHash;
+            plaintextHash=ZipPhaseIIWork.Hash(plaintext.Value.Span,guard,ct);
+            var reserved=guard is null ? await _journal.ReserveRetentionAsync(parent.Fence,fileOrdinal,_storage.NamespaceId,plaintextHash,ct)
+                : await _journal.ReserveRetentionAsync(parent.Fence,fileOrdinal,_storage.NamespaceId,plaintextHash,guard,ct);
             parent=reserved.Parent;retention=reserved.Retention;await At("Reserved");
         }
         byte[]? candidate=null;EncryptedEnvelope? envelope=null;
         try
         {
+            await ZipPhaseIIWork.CheckAsync(guard,ct);
             Namespace(retention);
-            if(plaintext is not null&&(plaintext.Value.Length!=retention.Identity.Length||Hash(plaintext.Value.Span)!=retention.Identity.PlaintextSha256))
+            if(plaintext is not null&&(plaintext.Value.Length!=retention.Identity.Length||ZipPhaseIIWork.Hash(plaintext.Value.Span,guard,ct)!=retention.Identity.PlaintextSha256))
                 throw new InvalidDataException("ZIP retained request changed.");
             if(retention.State==ZipRetentionState.Created)
             {
-                using var verified=await OpenAsync(parent,fileOrdinal,ct);
+                var verified=await OpenCoreAsync(parent,fileOrdinal,guard,ct);
+                await verified.DisposeAsync();
+                if(guard is not null) await guard.FinishAsync(ct);
                 return new(parent,retention);
             }
             if(retention.State is ZipRetentionState.ReleasePending or ZipRetentionState.Released or ZipRetentionState.RequiresReview)
@@ -89,43 +109,52 @@ public sealed class ZipProtectedRetentionService
             if(retention.State==ZipRetentionState.Reserved)
             {
                 if(plaintext is null)throw new InvalidDataException("Unstarted retention needs its admitted plaintext.");
-                var started=await _journal.BeginRetentionPreparationAsync(parent.Fence,retention,ct);
+                var started=guard is null ? await _journal.BeginRetentionPreparationAsync(parent.Fence,retention,ct) : await _journal.BeginRetentionPreparationAsync(parent.Fence,retention,guard,ct);
                 parent=started.Parent;retention=started.Retention;mayEncrypt=true;await At("PreparationStarted");
             }
             var known=await _storage.GetReceiptAsync(new(retention.Identity.CreateOperationId),ct);
-            candidate=await _storage.ReadCandidateAsync(new(retention.Identity.CreateOperationId),ct);
+            candidate=await ZipPhaseIIWork.Candidate(_storage,new(retention.Identity.CreateOperationId),guard,ct);
             if(candidate is null&&mayEncrypt&&known is null)
             {
-                envelope=await _encryption.EncryptWithContextAsync(plaintext!.Value,ArtifactEnvelopeContext.Create(Id(retention)),ct);
-                candidate=BoundedEncryptedEnvelopeCodec.Write(envelope,_limits,ct);
-                await _storage.StageAsync(new(retention.Identity.CreateOperationId),candidate,ct);await At("Staged");
+                envelope=await ZipPhaseIIWork.Encrypt(_encryption,plaintext!.Value,ArtifactEnvelopeContext.Create(Id(retention)),guard,ct);
+                candidate=ZipPhaseIIWork.Encode(envelope,_limits,guard,ct);
+                await ZipPhaseIIWork.Stage(_storage,new(retention.Identity.CreateOperationId),candidate,guard,ct);await At("Staged");
             }
             if(candidate is null)
             {
                 if(known is null||retention.CandidateHash is null)throw new InvalidDataException("ZIP bound randomized candidate is missing; regeneration forbidden.");
-                using var raw=await _storage.ReadProtectedAsync(Id(retention),known.CurrentRevision??throw new InvalidDataException(),ct)
+                using var raw=await ZipPhaseIIWork.Read(_storage,Id(retention),known.CurrentRevision??throw new InvalidDataException(),guard,ct)
                     ??throw new InvalidDataException("ZIP receipt has no exact retained content.");
-                if(Hash(raw.Content.Span)!=retention.CandidateHash)throw new InvalidDataException("ZIP physical candidate hash changed.");
-                await ValidateCandidateAsync(retention,raw.Content,ct);
+                if(ZipPhaseIIWork.Hash(raw.Content.Span,guard,ct)!=retention.CandidateHash)throw new InvalidDataException("ZIP physical candidate hash changed.");
+                await ValidateCandidateAsync(retention,raw.Content,ct,guard);
             }
-            else await ValidateCandidateAsync(retention,candidate,ct);
+            else await ValidateCandidateAsync(retention,candidate,ct,guard);
             if(retention.State==ZipRetentionState.Preparing)
             {
                 if(known is not null)throw new InvalidDataException("Unbound candidate has unexpected physical receipt.");
-                var frozen=await _journal.BindRetentionCandidateAsync(parent.Fence,retention,Hash(candidate!),ct);
+                var frozen=guard is null ? await _journal.BindRetentionCandidateAsync(parent.Fence,retention,ZipPhaseIIWork.Hash(candidate!,guard,ct),ct) : await _journal.BindRetentionCandidateAsync(parent.Fence,retention,ZipPhaseIIWork.Hash(candidate!,guard,ct),guard,ct);
                 parent=frozen.Parent;retention=frozen.Retention;await At("CandidateBound");
             }
             if(known is not null)
             {
-                using var raw=await _storage.ReadProtectedAsync(Id(retention),known.CurrentRevision??throw new InvalidDataException(),ct)
+                using var raw=await ZipPhaseIIWork.Read(_storage,Id(retention),known.CurrentRevision??throw new InvalidDataException(),guard,ct)
                     ??throw new InvalidDataException("Missing exact created revision.");
-                if(Hash(raw.Content.Span)!=retention.CandidateHash)throw new InvalidDataException("Created candidate differs from frozen binding.");
+                if(ZipPhaseIIWork.Hash(raw.Content.Span,guard,ct)!=retention.CandidateHash)throw new InvalidDataException("Created candidate differs from frozen binding.");
             }
-            await using var physical=known is null?await _storage.PrepareCreateAsync(Id(retention),candidate!,Context(retention,false),ct):null;
-            await using var prepared=physical is null?null:new CheckpointMutation(physical,()=>At("PhysicalCreated"));
-            var created=await _journal.PromoteRetentionAsync(parent.Fence,retention,prepared,known,ct);await At("Created");return created;
+            ZipRetentionUpdate created;
+            await using(var physical=known is null?await ZipPhaseIIWork.Prepare(_storage,Id(retention),candidate!,Context(retention,false),guard,ct):null)
+            {
+                await using IPreparedArtifactContentMutation? prepared=physical is null?null:guard is null ? new CheckpointMutation(physical,()=>At("PhysicalCreated"))
+                    : new GuardedCheckpointMutation(physical,guard,()=>At("PhysicalCreated"));
+                created=guard is null ? await _journal.PromoteRetentionAsync(parent.Fence,retention,prepared,known,ct)
+                    : await _journal.PromoteRetentionAsync(parent.Fence,retention,prepared,known,guard,ct);
+                parent=created.Parent;retention=created.Retention;
+                await At("Created");
+            }
+            if(guard is not null) await guard.FinishAsync(ct);
+            return created;
         }
-        catch(Exception error) when(error is InvalidDataException or IOException or CryptographicException)
+        catch(Exception error) when((error is InvalidDataException or IOException or CryptographicException)&&attempt is null)
         {
             using var cleanup=new CancellationTokenSource(ZipNumericLimits.AttemptTimeout);
             var currentRetention=await _journal.ReadRetentionAsync(parent.Binding.OperationId,fileOrdinal,cleanup.Token);
@@ -135,11 +164,14 @@ public sealed class ZipProtectedRetentionService
         }
         finally{if(candidate is not null)CryptographicOperations.ZeroMemory(candidate);if(envelope is not null)BoundedEncryptedEnvelopeCodec.Clear(envelope);}
     }
-    public async Task<IArtifactContentReadLease> OpenAsync(ZipParentSnapshot parent,int fileOrdinal,CancellationToken ct=default)
+    public Task<IArtifactContentReadLease> OpenAsync(ZipParentSnapshot parent,int fileOrdinal,CancellationToken ct=default)
+        => OpenCoreAsync(parent,fileOrdinal,null,ct);
+    private async Task<IArtifactContentReadLease> OpenCoreAsync(ZipParentSnapshot parent,int fileOrdinal,IZipEffectBoundaryGuard? guard,CancellationToken ct)
     {
+        await ZipPhaseIIWork.CheckAsync(guard,ct);
         using var budget=CancellationTokenSource.CreateLinkedTokenSource(ct);budget.CancelAfter(ZipNumericLimits.AttemptTimeout);ct=budget.Token;
         var current=await _parents.ReadAsync(parent.Binding.OperationId,ct);if(current?.Fence!=parent.Fence)throw new ZipFenceException();
-        var r=(await ReadRetentionAsync(parent,fileOrdinal,true,ct))!;
+        var r=(await ReadRetentionAsync(parent,fileOrdinal,true,ct,guard is not null))!;
         byte[]? plain=null;EncryptedEnvelope? envelope=null;long storedLength=0;
         try
         {
@@ -147,19 +179,22 @@ public sealed class ZipProtectedRetentionService
             if(r.State!=ZipRetentionState.Created||r.CandidateHash is null)throw new InvalidDataException("Retention is not readable.");
             var receipt=await _storage.GetReceiptAsync(new(r.Identity.CreateOperationId),ct);
             if(receipt is null||receipt!=r.CreateReceipt)throw new InvalidDataException("Retained receipt changed.");
-            await using(var raw=await _storage.ReadProtectedAsync(Id(r),r.CreateReceipt!.CurrentRevision!.Value,ct)??throw new InvalidDataException("Missing exact retained revision."))
+            await using(var raw=await ZipPhaseIIWork.Read(_storage,Id(r),r.CreateReceipt!.CurrentRevision!.Value,guard,ct)??throw new InvalidDataException("Missing exact retained revision."))
             {
                 storedLength=raw.StoredLength;
-                if(Hash(raw.Content.Span)!=r.CandidateHash)throw new InvalidDataException("Retained candidate changed.");
-                envelope=BoundedEncryptedEnvelopeCodec.Read(raw.Content.Span,_limits,ct);
-                plain=await _decryption.DecryptWithContextBoundedAsync(envelope,ArtifactEnvelopeContext.Create(Id(r)),_limits,ct);
-                if(plain.LongLength!=r.Identity.Length||Hash(plain)!=r.Identity.PlaintextSha256)throw new InvalidDataException("Retained plaintext changed.");
+                if(ZipPhaseIIWork.Hash(raw.Content.Span,guard,ct)!=r.CandidateHash)throw new InvalidDataException("Retained candidate changed.");
+                envelope=ZipPhaseIIWork.Decode(raw.Content.Span,_limits,guard,ct);
+                plain=await ZipPhaseIIWork.Decrypt(_decryption,envelope,ArtifactEnvelopeContext.Create(Id(r)),_limits,guard,ct);
+                if(plain.LongLength!=r.Identity.Length||ZipPhaseIIWork.Hash(plain,guard,ct)!=r.Identity.PlaintextSha256)throw new InvalidDataException("Retained plaintext changed.");
             }
             current=await _parents.ReadAsync(parent.Binding.OperationId,ct);if(current?.Fence!=parent.Fence)throw new ZipFenceException();
-            ct.ThrowIfCancellationRequested();var lease=new ArtifactContentReadLease(Id(r),r.CreateReceipt!.CurrentRevision!.Value,
-                storedLength,plain);plain=null;return lease;
+            await ZipPhaseIIWork.CheckAsync(guard,ct);
+            IArtifactContentReadLease lease;
+            using(var acceptance=ZipPhaseIIWork.Accept(guard,ct))
+                lease=new ArtifactContentReadLease(Id(r),r.CreateReceipt!.CurrentRevision!.Value,storedLength,plain);
+            ct.ThrowIfCancellationRequested();plain=null;return lease;
         }
-        catch(Exception error) when(error is InvalidDataException or IOException or CryptographicException)
+        catch(Exception error) when((error is InvalidDataException or IOException or CryptographicException)&&guard is null)
         {
             using var review=new CancellationTokenSource(ZipNumericLimits.AttemptTimeout);
             await _journal.ReviewRetentionAsync(parent.Fence,r,"RetentionReadEvidenceFailure",review.Token);throw;
@@ -201,6 +236,13 @@ public sealed class ZipProtectedRetentionService
     {
         public async Task<ZipCandidateCleanupReceipt> ExecuteAsync(CancellationToken ct=default)
         { var result=await inner.ExecuteAsync(ct);await checkpoint();return result; }
+        public ValueTask DisposeAsync()=>ValueTask.CompletedTask;
+    }
+    private sealed class GuardedCheckpointMutation(IPreparedArtifactContentMutation inner,IZipEffectBoundaryGuard guard,Func<Task> checkpoint) : IZipGuardedPreparedContentMutation
+    {
+        public IZipEffectBoundaryGuard BoundaryGuard => guard;
+        public async Task<ArtifactContentMutationResult> ExecuteAsync(CancellationToken ct=default)
+        {var result=await inner.ExecuteAsync(ct);await checkpoint();return result;}
         public ValueTask DisposeAsync()=>ValueTask.CompletedTask;
     }
     private sealed class CheckpointMutation(IPreparedArtifactContentMutation inner,Func<Task> checkpoint) : IPreparedArtifactContentMutation

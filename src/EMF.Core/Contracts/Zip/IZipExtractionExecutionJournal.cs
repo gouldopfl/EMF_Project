@@ -8,7 +8,10 @@ public sealed record ZipVerifiedChild(string ReservationId,int FileOrdinal,long 
 public interface IZipExtractionExecutionJournal
 {
     Task<ZipParentSnapshot> ChargeAsync(ZipFence fence,ZipExtractionCharge charge,CancellationToken ct=default);
+    Task<ZipParentSnapshot> ChargeAsync(ZipFence fence,ZipExtractionCharge charge,IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     Task<ZipParentSnapshot> VerifyChildAsync(ZipFence fence,ZipVerifiedChild child,CancellationToken ct=default);
+    Task<ZipParentSnapshot> VerifyChildAsync(ZipFence fence,ZipVerifiedChild child,IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     Task<ZipParentSnapshot> MaterializedAsync(ZipFence fence,int fileOrdinal,ZipRetentionRecord retention,CancellationToken ct=default);
+    Task<ZipParentSnapshot> MaterializedAsync(ZipFence fence,int fileOrdinal,ZipRetentionRecord retention,IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     Task<ZipParentSnapshot> RejectExtractionAsync(ZipFence fence,int fileOrdinal,string safeReason,CancellationToken ct=default);
 }

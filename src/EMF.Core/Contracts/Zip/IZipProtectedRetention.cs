@@ -36,10 +36,15 @@ public interface IZipRetentionJournal
 {
     Task<ZipRetentionRecord?> ReadRetentionAsync(string parentOperation,int fileOrdinal,CancellationToken ct=default);
     Task<ZipRetentionUpdate> ReserveRetentionAsync(ZipFence fence,int fileOrdinal,string namespaceId,string plaintextHash,CancellationToken ct=default);
+    Task<ZipRetentionUpdate> ReserveRetentionAsync(ZipFence fence,int fileOrdinal,string namespaceId,string plaintextHash,IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     Task<ZipRetentionUpdate> BeginRetentionPreparationAsync(ZipFence fence,ZipRetentionRecord expected,CancellationToken ct=default);
+    Task<ZipRetentionUpdate> BeginRetentionPreparationAsync(ZipFence fence,ZipRetentionRecord expected,IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     Task<ZipRetentionUpdate> BindRetentionCandidateAsync(ZipFence fence,ZipRetentionRecord expected,string hash,CancellationToken ct=default);
+    Task<ZipRetentionUpdate> BindRetentionCandidateAsync(ZipFence fence,ZipRetentionRecord expected,string hash,IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     Task<ZipRetentionUpdate> PromoteRetentionAsync(ZipFence fence,ZipRetentionRecord expected,IPreparedArtifactContentMutation? prepared,
         ArtifactContentMutationReceipt? known,CancellationToken ct=default);
+    Task<ZipRetentionUpdate> PromoteRetentionAsync(ZipFence fence,ZipRetentionRecord expected,IPreparedArtifactContentMutation? prepared,
+        ArtifactContentMutationReceipt? known,IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     Task<ZipRetentionUpdate> ClaimRetentionReleaseAsync(ZipFence fence,ZipRetentionRecord expected,CancellationToken ct=default);
     Task<ZipRetentionUpdate> PromoteRetentionReleaseAsync(ZipFence fence,ZipRetentionRecord expected,IPreparedArtifactContentMutation? prepared,
         ArtifactContentMutationReceipt? known,CancellationToken ct=default);

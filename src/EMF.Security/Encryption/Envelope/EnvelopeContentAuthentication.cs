@@ -1,3 +1,4 @@
+using EMF.Core.Contracts.Zip;
 using System.Security.Cryptography;
 using System.Runtime.CompilerServices;
 using EMF.Security.Encryption.Envelope.Models;
@@ -28,9 +29,14 @@ public static class EnvelopeContentAuthentication
         ReadOnlyMemory<byte> context, EnvelopeDecryptionLimits limits, CancellationToken cancellationToken = default)
         => DecryptBounded(envelope, dek, context, limits, cancellationToken, null, null);
 
+    public static byte[] DecryptBounded(EncryptedEnvelope envelope, ReadOnlySpan<byte> dek,
+        ReadOnlyMemory<byte> context, EnvelopeDecryptionLimits limits, CancellationToken ct,
+        IZipEffectBoundaryGuard? guard)
+        => DecryptBounded(envelope, dek, context, limits, ct, null, null, guard);
+
     internal static byte[] DecryptBounded(EncryptedEnvelope envelope, ReadOnlySpan<byte> dek,
         ReadOnlyMemory<byte> context, EnvelopeDecryptionLimits limits, CancellationToken ct,
-        Action<byte[]>? allocated, Action? decrypted)
+        Action<byte[]>? allocated, Action? decrypted, IZipEffectBoundaryGuard? guard = null)
     {
         ArgumentNullException.ThrowIfNull(limits);
         EncryptedEnvelopeFormat.Validate(envelope);
@@ -48,14 +54,17 @@ public static class EnvelopeContentAuthentication
             if (envelope.Ciphertext.Length > limits.MaximumPlaintextBytes)
                 throw new CryptographicException("Plaintext allocation ceiling exceeded.");
             ct.ThrowIfCancellationRequested();
-            plaintext = new byte[envelope.Ciphertext.Length];
+            using (AcceptZipEffect(guard,ct)) plaintext = new byte[envelope.Ciphertext.Length];
             allocated?.Invoke(plaintext);
             ct.ThrowIfCancellationRequested();
-            using var aes = new AesGcm(dek, 16);
-            aes.Decrypt(envelope.Nonce, envelope.Ciphertext, envelope.AuthenticationTag, plaintext, aad);
+            using (AcceptZipEffect(guard,ct))
+            {
+                using var aes = new AesGcm(dek, 16);
+                aes.Decrypt(envelope.Nonce, envelope.Ciphertext, envelope.AuthenticationTag, plaintext, aad);
+            }
             decrypted?.Invoke();
             ct.ThrowIfCancellationRequested();
-            return plaintext;
+            using (AcceptZipEffect(guard,ct)) return plaintext;
         }
         catch { if (plaintext is not null) CryptographicOperations.ZeroMemory(plaintext); throw; }
         finally { CryptographicOperations.ZeroMemory(aad); }
@@ -82,4 +91,11 @@ public static class EnvelopeContentAuthentication
         try { /* Authentication alone: no consumer is given this buffer. */ }
         finally { CryptographicOperations.ZeroMemory(plaintext); }
     }
+    private static IDisposable? AcceptZipEffect(IZipEffectBoundaryGuard? guard,CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return guard is null ? null : guard.Accept(ct)
+            ?? throw new UnauthorizedAccessException("ZIP authority returned no acceptance capability.");
+    }
+
 }

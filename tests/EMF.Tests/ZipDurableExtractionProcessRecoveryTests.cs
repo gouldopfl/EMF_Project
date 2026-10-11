@@ -107,7 +107,7 @@ public sealed class ZipDurableExtractionProcessRecoveryTests
             if(request.Boundary=="E")f.Journal.AcknowledgementCheckpoint=n=>{if(n=="Committed")Pause().GetAwaiter().GetResult();};
         }
         try
-        {var result=await f.Driver.ResumeAsync("zip",request.Recover?"restart":"worker",TimeSpan.FromMinutes(30));await File.WriteAllTextAsync(Path.Combine(root,"zip-worker-result.json"),JsonSerializer.Serialize(new Outcome(Environment.ProcessId,result,null)));}
+        {var result=await f.Driver.ResumeLegacyTestHarnessAsync("zip",request.Recover?"restart":"worker",TimeSpan.FromMinutes(30));await File.WriteAllTextAsync(Path.Combine(root,"zip-worker-result.json"),JsonSerializer.Serialize(new Outcome(Environment.ProcessId,result,null)));}
         catch(InvalidDataException error) when(request.Recover)
         {var current=(await f.Journal.ReadAsync("zip"))!;await File.WriteAllTextAsync(Path.Combine(root,"zip-worker-result.json"),JsonSerializer.Serialize(new Outcome(Environment.ProcessId,current,error.GetType().Name)));}
     }

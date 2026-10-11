@@ -13,13 +13,18 @@ public interface IZipParentRetentionJournal
 {
     Task<ZipParentRetentionRecord?> ReadParentRetentionAsync(string operation,CancellationToken ct=default);
     Task<ZipParentRetentionRecord> ReserveParentRetentionAsync(string operation,string parentArtifact,ZipRetainedBinding source,string profile,string namespaceId,CancellationToken ct=default);
+    Task<ZipParentRetentionRecord> ReserveParentRetentionAsync(string operation,string parentArtifact,ZipRetainedBinding source,string profile,string namespaceId,IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     Task<ZipParentRetentionRecord> BeginParentPreparationAsync(ZipParentRetentionRecord expected,CancellationToken ct=default);
+    Task<ZipParentRetentionRecord> BeginParentPreparationAsync(ZipParentRetentionRecord expected,IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     Task<ZipParentRetentionRecord> BindParentCandidateAsync(ZipParentRetentionRecord expected,string hash,CancellationToken ct=default);
+    Task<ZipParentRetentionRecord> BindParentCandidateAsync(ZipParentRetentionRecord expected,string hash,IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     Task<ZipParentRetentionRecord> PromoteParentRetentionAsync(ZipParentRetentionRecord expected,IPreparedArtifactContentMutation? prepared,ArtifactContentMutationReceipt? known,CancellationToken ct=default);
+    Task<ZipParentRetentionRecord> PromoteParentRetentionAsync(ZipParentRetentionRecord expected,IPreparedArtifactContentMutation? prepared,ArtifactContentMutationReceipt? known,IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     Task<ZipParentRetentionRecord> ReviewParentCreationAsync(ZipParentRetentionRecord expected,string safeReason,CancellationToken ct=default);
     Task<ZipParentSnapshot> ReviewParentEvidenceAsync(ZipFence fence,string safeReason,CancellationToken ct=default);
     Task<ZipParentSnapshot> ClaimParentEvidenceReviewAsync(string operation,string owner,TimeSpan duration,CancellationToken ct=default);
     Task<ZipParentSnapshot> ChargeParentReadAsync(ZipFence fence,CancellationToken ct=default);
+    Task<ZipParentSnapshot> ChargeParentReadAsync(ZipFence fence,IZipEffectBoundaryGuard guard, CancellationToken ct = default) => throw new NotSupportedException("Guarded ZIP journal effects are required.");
     Task<ZipParentSnapshot> CompleteParentAsync(ZipFence fence,CancellationToken ct=default);
     Task<ZipParentReleaseUpdate> ClaimParentReleaseAsync(ZipFence fence,ZipParentRetentionRecord expected,CancellationToken ct=default);
     Task<ZipParentReleaseUpdate> PromoteParentReleaseAsync(ZipFence fence,ZipParentRetentionRecord expected,IPreparedArtifactContentMutation? prepared,ArtifactContentMutationReceipt? known,CancellationToken ct=default);

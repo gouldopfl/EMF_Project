@@ -103,7 +103,7 @@ public sealed class ZipOwnershipRenewalTests
         await using var evidence = await ArtifactIngestionFixture.CreateAsync();
         // This integration path opens the real-time ingestion adapter as well.
         var f = new ZipDurableRuntimeFixture(evidence);
-        var owned = await f.CreateParent(); var released = await f.Driver.RunAsync(owned);
+        var owned = await f.CreateParent(); var released = await f.Driver.RunLegacyTestHarnessAsync(owned);
         Assert.Equal(ZipParentState.Released, released.State);
         await Assert.ThrowsAsync<ZipOwnershipReleasedException>(() => f.Journal.RenewOwnershipAsync("zip", "worker", released.Fence.Epoch, TimeSpan.FromMinutes(15)));
         Assert.Equal(released.Fence, (await f.Read()).Fence);

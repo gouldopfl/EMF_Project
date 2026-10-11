@@ -48,11 +48,15 @@ internal sealed class ZipDurableRuntimeFixture
         await ParentRetention.RetainAsync("zip","parent",new string('B',64),source);return await Journal.ClaimAsync("zip","worker",TimeSpan.FromMinutes(30));
     }
     internal async Task<ZipParentSnapshot> Read()=> (await Journal.ReadAsync("zip"))!;
-    internal sealed class Crypto(ZipDurableRuntimeFixture owner,string label):IEnvelopeEncryptionService,IBoundedEnvelopeDecryptionService
+    internal sealed class Crypto(ZipDurableRuntimeFixture owner,string label):IEnvelopeEncryptionService,IBoundedEnvelopeDecryptionService,IZipGuardedEnvelopeEncryptionService
     {
         internal byte[]? LastPlaintext;
         private readonly DevelopmentEnvelopeEncryptionService _inner=new(new ArtifactIngestionFixture.Keys());
         public Task<EncryptedEnvelope> EncryptWithContextAsync(ReadOnlyMemory<byte> p,ReadOnlyMemory<byte> a,CancellationToken ct=default){owner.Log(label+"-encrypt");return _inner.EncryptWithContextAsync(p,a,ct);}
+        public Task<EncryptedEnvelope> EncryptWithContextGuardedAsync(ReadOnlyMemory<byte> p,ReadOnlyMemory<byte> a,IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+        {owner.Log(label+"-encrypt");return _inner.EncryptWithContextGuardedAsync(p,a,guard,ct);}
+        public async Task<byte[]> DecryptWithContextBoundedGuardedAsync(EncryptedEnvelope e,ReadOnlyMemory<byte> a,EnvelopeDecryptionLimits l,IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+        {owner.Log(label+"-decrypt");return LastPlaintext=await _inner.DecryptWithContextBoundedGuardedAsync(e,a,l,guard,ct);}
         public Task<byte[]> DecryptWithContextAsync(EncryptedEnvelope e,ReadOnlyMemory<byte> a,CancellationToken ct=default)=>_inner.DecryptWithContextAsync(e,a,ct);
         public Task<EncryptedEnvelope> EncryptAsync(ReadOnlyMemory<byte> p,CancellationToken ct=default)=>_inner.EncryptAsync(p,ct);
         public Task<byte[]> DecryptAsync(EncryptedEnvelope e,CancellationToken ct=default)=>_inner.DecryptAsync(e,ct);

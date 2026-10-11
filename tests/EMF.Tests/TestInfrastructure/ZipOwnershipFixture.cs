@@ -15,7 +15,7 @@ internal sealed class ZipOwnershipFixture : IAsyncDisposable
     internal ZipDurableProfile Profile = null!;
     internal SqliteZipExtractionJournal Journal => Runtime.Journal;
     internal static async Task<ZipOwnershipFixture> CreateAsync(
-        ZipAuthorityCapabilities capabilities = ZipAuthorityCapabilities.Admit | ZipAuthorityCapabilities.Recover)
+        ZipAuthorityCapabilities capabilities = ZipAuthorityCapabilities.Admit | ZipAuthorityCapabilities.Recover, bool two = false, byte[]? sourceBytes = null)
     {
         var f = new ZipOwnershipFixture { Evidence = await ArtifactIngestionFixture.CreateAsync() };
         try
@@ -30,7 +30,7 @@ internal sealed class ZipOwnershipFixture : IAsyncDisposable
             var approval = new ZipAdmissionApproval(p.OperationId, ZipAdmissionValidation.BindingHash(binding), p.Key.IssuerId,
                 "synthetic-decision", "authority-revision", "policy-v1", capabilities, f.Clock.Now, f.Clock.Now.AddHours(1));
             p = await f.Journal.AppendAdmissionEventAsync(p, new("approval", ZipAdmissionEventKind.Approved, binding.OriginalActorId, f.Clock.Now, approval));
-            var bytes = ZipDurableRuntimeFixture.Zip();
+            var bytes = sourceBytes ?? ZipDurableRuntimeFixture.Zip(two);
             var source = new ZipRetainedBinding(binding.SourceContentId, binding.SourceRevision, Convert.ToHexString(SHA256.HashData(bytes)), bytes.Length);
             p = await f.Journal.AppendAdmissionEventAsync(p, new("source", ZipAdmissionEventKind.SourceBound, binding.OriginalActorId, f.Clock.Now, Source: source));
             using var lease = new ArtifactContentReadLease(new(source.ContentId), new(source.Revision), source.Length, bytes);

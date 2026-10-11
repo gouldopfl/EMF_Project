@@ -164,10 +164,16 @@ public sealed partial class SqliteZipExtractionJournal
         return result;
     }
 
-    public async Task<ZipParentAdmission> AppendAdmissionEventAsync(ZipParentAdmission expected, ZipAdmissionEvent evidence, CancellationToken ct = default)
+    public Task<ZipParentAdmission> AppendAdmissionEventAsync(ZipParentAdmission expected, ZipAdmissionEvent evidence, CancellationToken ct = default) => AppendAdmissionEventCoreAsync(expected, evidence, null, ct);
+    public Task<ZipParentAdmission> AppendAdmissionEventAsync(ZipParentAdmission expected, ZipAdmissionEvent evidence, IZipEffectBoundaryGuard guard, CancellationToken ct = default) => AppendAdmissionEventCoreAsync(expected, evidence, guard ?? throw new ArgumentNullException(nameof(guard)), ct);
+    private async Task<ZipParentAdmission> AppendAdmissionEventCoreAsync(ZipParentAdmission expected, ZipAdmissionEvent evidence, IZipEffectBoundaryGuard? guard, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(expected); ArgumentNullException.ThrowIfNull(evidence);
-        await using var c = await OpenAsync(ct); using var tx = c.BeginTransaction(deferred: false);
+        using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        ct = effectCancellation?.Token ?? ct;
+        await ValidateEffectAsync(guard, ct);
+        if (guard is not null && evidence.Kind is not (ZipAdmissionEventKind.SourceBound or ZipAdmissionEventKind.ParentBound)) throw new UnauthorizedAccessException("Initial retention cannot authorize other admission effects.");
+        await using var c = await OpenAsync(ct); using var tx = c.BeginTransaction(deferred: false);await ValidateEffectAsync(guard, ct);
         var p = await ReadAdmissionCoreAsync(c, tx, expected.OperationId, ct) ?? throw new InvalidDataException("Missing original ZIP admission.");
         using var q = c.CreateCommand(); q.Transaction = tx;
         q.CommandText = "SELECT OperationId,EvidenceJson FROM ZipParentAdmissionEvents WHERE EventId=$event";
@@ -201,7 +207,7 @@ public sealed partial class SqliteZipExtractionJournal
         q.CommandText = "INSERT INTO ZipParentAdmissionEvents VALUES($op,$sequence,$event,$evidence)";
         q.Parameters.AddWithValue("$op", p.OperationId); q.Parameters.AddWithValue("$sequence", next.Revision);
         q.Parameters.AddWithValue("$evidence", Json(evidence));
-        await q.ExecuteNonQueryAsync(ct); ct.ThrowIfCancellationRequested(); tx.Commit(); return next;
+        await q.ExecuteNonQueryAsync(ct); ct.ThrowIfCancellationRequested(); await CommitEffectAsync(tx, guard, ct, evidenceUntil: next.LatestAuthorityEvidence?.ExpiresUtc); return next;
     }
 
     public async Task<IDisposable> AcquireAdmissionExecutionAsync(string operationId, CancellationToken ct = default)

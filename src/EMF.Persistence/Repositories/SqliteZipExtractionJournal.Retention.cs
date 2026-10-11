@@ -29,11 +29,17 @@ public sealed partial class SqliteZipExtractionJournal
     }
     public async Task<ZipRetentionRecord?> ReadRetentionAsync(string parentOperation,int fileOrdinal,CancellationToken ct=default)
     { await using var c=await OpenAsync(ct);return await RetentionAsync(c,null,parentOperation,fileOrdinal,ct); }
-    public async Task<ZipRetentionUpdate> ReserveRetentionAsync(ZipFence fence,int ordinal,string namespaceId,string hash,CancellationToken ct=default)
+    public Task<ZipRetentionUpdate> ReserveRetentionAsync(ZipFence fence,int ordinal,string namespaceId,string hash,CancellationToken ct=default) => ReserveRetentionCoreAsync(fence, ordinal, namespaceId, hash, null, ct);
+    public Task<ZipRetentionUpdate> ReserveRetentionAsync(ZipFence fence,int ordinal,string namespaceId,string hash, IZipEffectBoundaryGuard guard, CancellationToken ct = default) => ReserveRetentionCoreAsync(fence, ordinal, namespaceId, hash, guard ?? throw new ArgumentNullException(nameof(guard)), ct);
+    private async Task<ZipRetentionUpdate> ReserveRetentionCoreAsync(ZipFence fence,int ordinal,string namespaceId,string hash, IZipEffectBoundaryGuard? guard, CancellationToken ct)
     {
+        using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        ct = effectCancellation?.Token ?? ct;
+        await ValidateEffectAsync(guard, ct);
         if(hash.Length!=64||namespaceId.Length!=64)throw new InvalidDataException("Invalid ZIP retained fingerprint/namespace.");
         _=Convert.FromHexString(hash);_=Convert.FromHexString(namespaceId);
-        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);var p=await FencedAsync(c,tx,fence,ct);
+        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);await ValidateEffectAsync(guard, ct);var p=await FencedAsync(c,tx,fence,ct);
+        if (guard is not null) await ValidateExecutionAdmissionAsync(c, tx, p, ct);
         if(p.State is not (ZipParentState.Planned or ZipParentState.Processing)||ordinal!=fence.ConfirmedOrdinal+1)throw new ZipFenceException();
         var entry=p.Entries.Single(e=>e.Plan.FileOrdinal==ordinal).Plan;
         var old=await RetentionAsync(c,tx,fence.OperationId,ordinal,ct);
@@ -48,28 +54,41 @@ public sealed partial class SqliteZipExtractionJournal
         q.CommandText="INSERT INTO ZipExtractionRetentions VALUES($op,$file,$binding,$state)";
         q.Parameters.AddWithValue("$op",fence.OperationId);q.Parameters.AddWithValue("$file",ordinal);q.Parameters.AddWithValue("$binding",Json(id));q.Parameters.AddWithValue("$state",Json(retention));
         await q.ExecuteNonQueryAsync(ct);p=p with{Fence=p.Fence with{Revision=checked(p.Fence.Revision+1)}};
-        await SaveAsync(c,tx,p,ct);tx.Commit();return new(p,retention);
+        await SaveAsync(c,tx,p,ct);await CommitEffectAsync(tx, guard, ct, p.OwnerUntil, admissionEligibility: guard is null ? null : () => ValidateExecutionAdmissionAsync(c, tx, p, ct));return new(p,retention);
     }
     private async Task<ZipRetentionUpdate> ChangeRetentionAsync(ZipFence fence,ZipRetentionRecord expected,
-        Func<SqliteConnection,SqliteTransaction,ZipParentSnapshot,Task<ZipRetentionRecord>> change,CancellationToken ct)
+        Func<SqliteConnection,SqliteTransaction,ZipParentSnapshot,Task<ZipRetentionRecord>> change,CancellationToken ct, IZipEffectBoundaryGuard? guard = null)
     {
-        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);var p=await FencedAsync(c,tx,fence,ct);
+        using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        ct = effectCancellation?.Token ?? ct;
+        await ValidateEffectAsync(guard, ct);
+        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);await ValidateEffectAsync(guard, ct);var p=await FencedAsync(c,tx,fence,ct);
+        if (guard is not null) await ValidateExecutionAdmissionAsync(c, tx, p, ct);
         var old=await RetentionAsync(c,tx,fence.OperationId,expected.Identity.FileOrdinal,ct);
         if(old is null||Json(old)!=Json(expected)||old.Identity.ParentOperationId!=fence.OperationId)throw new ZipFenceException();
+        await ValidateEffectAsync(guard, ct);
+        if (guard is not null && p.OwnerUntil <= _time.GetUtcNow()) throw new ZipFenceException();
         var next=await change(c,tx,p);
         if(next.Identity!=old.Identity)throw new InvalidDataException("ZIP retention identity changed.");
         next=next with{Revision=checked(old.Revision+1)};
         using var q=c.CreateCommand();q.Transaction=tx;q.CommandText="UPDATE ZipExtractionRetentions SET StateJson=$json WHERE ParentOperationId=$op AND FileOrdinal=$file";
         q.Parameters.AddWithValue("$json",Json(next));q.Parameters.AddWithValue("$op",fence.OperationId);q.Parameters.AddWithValue("$file",expected.Identity.FileOrdinal);await q.ExecuteNonQueryAsync(ct);
         p=p with{State=next.State==ZipRetentionState.RequiresReview?ZipParentState.RequiresReview:p.State,Fence=p.Fence with{Revision=checked(p.Fence.Revision+1)}};
-        await SaveAsync(c,tx,p,ct);tx.Commit();return new(p,next);
+        await SaveAsync(c,tx,p,ct);await CommitEffectAsync(tx, guard, ct, p.OwnerUntil, admissionEligibility: guard is null ? null : () => ValidateExecutionAdmissionAsync(c, tx, p, ct));return new(p,next);
     }
     public Task<ZipRetentionUpdate> BeginRetentionPreparationAsync(ZipFence f,ZipRetentionRecord e,CancellationToken ct=default)=>
         ChangeRetentionAsync(f,e,(_,_,p)=>Task.FromResult(p.State is (ZipParentState.Planned or ZipParentState.Processing)&&e.State==ZipRetentionState.Reserved?e with{State=ZipRetentionState.Preparing}:throw new InvalidOperationException("Encryption preparation already started.")),ct);
+    public Task<ZipRetentionUpdate> BeginRetentionPreparationAsync(ZipFence f,ZipRetentionRecord e,IZipEffectBoundaryGuard guard,CancellationToken ct=default)=>
+        ChangeRetentionAsync(f,e,(_,_,p)=>Task.FromResult(p.State is (ZipParentState.Planned or ZipParentState.Processing)&&e.State==ZipRetentionState.Reserved?e with{State=ZipRetentionState.Preparing}:throw new InvalidOperationException("Encryption preparation already started.")),ct,guard ?? throw new ArgumentNullException(nameof(guard)));
     public Task<ZipRetentionUpdate> BindRetentionCandidateAsync(ZipFence f,ZipRetentionRecord e,string hash,CancellationToken ct=default)
     {
         if(hash.Length!=64)throw new InvalidDataException("Invalid candidate hash.");_=Convert.FromHexString(hash);
         return ChangeRetentionAsync(f,e,(_,_,p)=>Task.FromResult(p.State is (ZipParentState.Planned or ZipParentState.Processing)&&e.State==ZipRetentionState.Preparing?e with{State=ZipRetentionState.CandidateBound,CandidateHash=hash}:throw new InvalidOperationException("Candidate cannot be rebound.")),ct);
+    }
+    public Task<ZipRetentionUpdate> BindRetentionCandidateAsync(ZipFence f,ZipRetentionRecord e,string hash,IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+    {
+        if(hash.Length!=64)throw new InvalidDataException("Invalid candidate hash.");_=Convert.FromHexString(hash);
+        return ChangeRetentionAsync(f,e,(_,_,p)=>Task.FromResult(p.State is (ZipParentState.Planned or ZipParentState.Processing)&&e.State==ZipRetentionState.Preparing?e with{State=ZipRetentionState.CandidateBound,CandidateHash=hash}:throw new InvalidOperationException("Candidate cannot be rebound.")),ct,guard ?? throw new ArgumentNullException(nameof(guard)));
     }
     private static void Receipt(ZipRetentionRecord e,ArtifactContentMutationReceipt r,bool release)
     {
@@ -87,6 +106,14 @@ public sealed partial class SqliteZipExtractionJournal
             var receipt=known??(await (prepared??throw new InvalidDataException("Missing prepared mutation.")).ExecuteAsync(ct)).Receipt;
             Receipt(e,receipt,false);return e with{State=ZipRetentionState.Created,CreateReceipt=receipt};
         },ct);
+    public Task<ZipRetentionUpdate> PromoteRetentionAsync(ZipFence f,ZipRetentionRecord e,IPreparedArtifactContentMutation? prepared,
+        ArtifactContentMutationReceipt? known,IZipEffectBoundaryGuard guard,CancellationToken ct=default)=>ChangeRetentionAsync(f,e,async(_,_,p)=>
+        {
+            GuardedPrepared(prepared, known, guard);
+            if(e.State!=ZipRetentionState.CandidateBound||p.State is not (ZipParentState.Planned or ZipParentState.Processing))throw new InvalidOperationException("Retention promotion is not admitted.");
+            var receipt=known??(await (prepared??throw new InvalidDataException("Missing prepared mutation.")).ExecuteAsync(ct)).Receipt;
+            Receipt(e,receipt,false);return e with{State=ZipRetentionState.Created,CreateReceipt=receipt};
+        },ct,guard ?? throw new ArgumentNullException(nameof(guard)));
     private static async Task ReleaseEligibleAsync(SqliteConnection c,SqliteTransaction tx,ZipParentSnapshot p,ZipRetentionRecord e,CancellationToken ct)
     {
         if(p.State is not (ZipParentState.Planned or ZipParentState.Processing or ZipParentState.Completed) || p.Fence.ConfirmedOrdinal<e.Identity.FileOrdinal)

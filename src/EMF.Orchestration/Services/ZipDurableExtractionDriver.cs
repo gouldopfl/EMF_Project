@@ -8,17 +8,86 @@ public sealed class ZipDurableExtractionDriver(IZipExtractionJournal parents,IZi
     ZipParentRetentionService parentRetention,ZipProtectedRetentionService childRetention,ZipEntryPlanner planner,
     ZipSequentialExtractor extractor,ZipChildScanService scanner,ZipChildIngestionService ingestion)
 {
+    // Snapshots and concurrency claims are not executable authority.
+    public Task<ZipParentSnapshot> RunAsync(ZipParentSnapshot snapshot,CancellationToken ct=default)
+        => Task.FromException<ZipParentSnapshot>(new UnauthorizedAccessException("A live authorized ZIP attempt is required."));
+    public Task<ZipParentSnapshot> ResumeAsync(string operation,string owner,TimeSpan lease,CancellationToken ct=default)
+        => Task.FromException<ZipParentSnapshot>(new UnauthorizedAccessException("Recovery requires a fresh authorized ZIP attempt."));
+    public async Task<ZipPhaseIIResult> RunAsync(ZipExecutionAttempt attempt,CancellationToken ct=default)
+    {
+        ArgumentNullException.ThrowIfNull(attempt);
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(ct,attempt.Invalidated);ct=linked.Token;
+        await attempt.RevalidateAsync(ct);
+        var p=await parents.ReadAsync(attempt.Claimed.Binding.OperationId,ct)??throw new InvalidDataException("Missing ZIP parent.");
+        attempt.Validate(p);
+        if(p.Fence!=attempt.Claimed.Fence)throw new ZipFenceException();
+        IArtifactContentReadLease? input=null;
+        IDisposable? permit=null;
+        ZipPhaseIIResult result;
+        try
+        {
+            if(p.State is ZipParentState.RequiresReview or ZipParentState.Completed or ZipParentState.Released)
+                result=new(ZipPhaseIIStop.OutsidePhaseIIBoundary,p);
+            else
+            {
+                permit=await ZipParentReadAdmission.ProcessWide.AcquireAsync(ct);
+                await attempt.RevalidateAsync(ct);
+                var fresh=await parents.ReadAsync(p.Binding.OperationId,ct)??throw new ZipFenceException();
+                if(fresh.Fence!=p.Fence)throw new ZipFenceException();attempt.Validate(fresh);
+                if(p.State==ZipParentState.AdmissionPending)
+                {
+                    (p,input)=await parentRetention.OpenAsync(p,attempt,ct);
+                    await At("ParentOpened");
+                    p=await planner.AdmitAsync(parents,p,input,attempt,ct);await At("A");
+                }
+                await attempt.RevalidateAsync(ct);
+                var ordinal=checked(p.Fence.ConfirmedOrdinal+1);
+                var entry=p.Entries.SingleOrDefault(e=>e.Plan.FileOrdinal==ordinal);
+                if(entry is null)result=new(ZipPhaseIIStop.AwaitingLaterCompletion,p);
+                else if(entry.State==ZipEntryState.Materialized)result=new(ZipPhaseIIStop.AwaitingScanner,p,ordinal);
+                else if(entry.State!=ZipEntryState.Planned)result=new(ZipPhaseIIStop.OutsidePhaseIIBoundary,p,ordinal);
+                else
+                {
+                    var existing=await childJournal.ReadRetentionAsync(p.Binding.OperationId,ordinal,ct);
+                    if(existing is not null&&existing.State!=ZipRetentionState.Reserved)
+                    {
+                        var recovered=await childRetention.SealAsync(p,ordinal,null,attempt,ct);p=recovered.Parent;
+                        await using var guard=attempt.ExtractionBoundary(()=>p,ordinal);
+                        p=await work.MaterializedAsync(p.Fence,ordinal,recovered.Retention,guard,ct);
+                        await guard.FinishAsync(ct);
+                    }
+                    else
+                    {
+                        if(input is null)(p,input)=await parentRetention.OpenAsync(p,attempt,ct);
+                        await At("BeforeExtraction");
+                        p=await extractor.MaterializeNextAsync(p,input,attempt,ct);
+                    }
+                    await At("B");
+                    if(p.Entries.Single(e=>e.Plan.FileOrdinal==ordinal).State!=ZipEntryState.Materialized)
+                        throw new InvalidDataException("ZIP materialization did not reach its covered stop.");
+                    result=new(ZipPhaseIIStop.AwaitingScanner,p,ordinal);
+                }
+            }
+        }
+        catch(Exception error) when(error is InvalidDataException or IOException or System.Security.Cryptography.CryptographicException)
+        {result=new(ZipPhaseIIStop.EvidenceFailure,p,SafeReason:"PhaseIIEvidenceFailure");}
+        finally{try{if(input is not null)await input.DisposeAsync();}finally{permit?.Dispose();}}
+        // No scan reservation/read/submission, ingestion, ACK, review, completion,
+        // release or cleanup exists on this path. Materialized implies no permission.
+        await attempt.RevalidateAsync(ct);ct.ThrowIfCancellationRequested();attempt.Validate(p);
+        return result;
+    }
     internal Func<string,Task>? Checkpoint{get;set;}
     private Task At(string name)=>Checkpoint?.Invoke(name)??Task.CompletedTask;
-    public async Task<ZipParentSnapshot> ResumeAsync(string operation,string owner,TimeSpan lease,CancellationToken ct=default)
+    internal async Task<ZipParentSnapshot> ResumeLegacyTestHarnessAsync(string operation,string owner,TimeSpan lease,CancellationToken ct=default)
     {
         ZipParentSnapshot p;
         try{p=await parents.ClaimAsync(operation,owner,lease,ct);}
         catch(Exception error) when(error is InvalidDataException or System.Text.Json.JsonException or FormatException or ArgumentException)
         {return await parentJournal.ClaimParentEvidenceReviewAsync(operation,owner,lease,ct);}
-        return await RunAsync(p,ct);
+        return await RunLegacyTestHarnessAsync(p,ct);
     }
-    public async Task<ZipParentSnapshot> RunAsync(ZipParentSnapshot admitted,CancellationToken ct=default)
+    internal async Task<ZipParentSnapshot> RunLegacyTestHarnessAsync(ZipParentSnapshot admitted,CancellationToken ct=default)
     {
         ct.ThrowIfCancellationRequested();ZipParentSnapshot p;
         try{p=await parents.ReadAsync(admitted.Binding.OperationId,ct)??throw new InvalidDataException("Missing ZIP operation.");}
@@ -66,3 +135,7 @@ public sealed class ZipDurableExtractionDriver(IZipExtractionJournal parents,IZi
         finally{if(input is not null)await input.DisposeAsync();}
     }
 }
+
+// Transient stop results, never new durable states or grants.
+public enum ZipPhaseIIStop { AwaitingScanner, AwaitingLaterCompletion, OutsidePhaseIIBoundary, EvidenceFailure }
+public sealed record ZipPhaseIIResult(ZipPhaseIIStop Stop,ZipParentSnapshot Parent,int? FileOrdinal=null,string? SafeReason=null);

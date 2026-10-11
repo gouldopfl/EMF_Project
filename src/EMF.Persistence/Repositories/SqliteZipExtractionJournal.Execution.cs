@@ -56,9 +56,15 @@ public sealed partial class SqliteZipExtractionJournal
             charge.ExpandedBytes>reservation.ExpandedBytes||charge.ParentReadBytes>ZipNumericLimits.ParentReads)
             throw new InvalidDataException("ZIP work charge exceeds admitted attempt.");
     }
-    public async Task<ZipParentSnapshot> ChargeAsync(ZipFence f,ZipExtractionCharge charge,CancellationToken ct=default)
+    public Task<ZipParentSnapshot> ChargeAsync(ZipFence f,ZipExtractionCharge charge,CancellationToken ct=default) => ChargeCoreAsync(f, charge, null, ct);
+    public Task<ZipParentSnapshot> ChargeAsync(ZipFence f,ZipExtractionCharge charge, IZipEffectBoundaryGuard guard, CancellationToken ct = default) => ChargeCoreAsync(f, charge, guard ?? throw new ArgumentNullException(nameof(guard)), ct);
+    private async Task<ZipParentSnapshot> ChargeCoreAsync(ZipFence f,ZipExtractionCharge charge, IZipEffectBoundaryGuard? guard, CancellationToken ct)
     {
-        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);var p=await FencedAsync(c,tx,f,ct);
+        using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        ct = effectCancellation?.Token ?? ct;
+        await ValidateEffectAsync(guard, ct);
+        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);await ValidateEffectAsync(guard, ct);var p=await FencedAsync(c,tx,f,ct);
+        if (guard is not null) await ValidateExecutionAdmissionAsync(c, tx, p, ct);
         if(p.State is not (ZipParentState.Planned or ZipParentState.Processing)||charge.FileOrdinal!=f.ConfirmedOrdinal+1)throw new ZipFenceException();
         using var q=c.CreateCommand();q.Transaction=tx;q.Parameters.AddWithValue("$op",f.OperationId);q.Parameters.AddWithValue("$id",charge.Id);
         q.CommandText="SELECT ChargeJson FROM ZipExtractionCharges WHERE ParentOperationId=$op AND ChargeId=$id";
@@ -73,13 +79,19 @@ public sealed partial class SqliteZipExtractionJournal
         var budget=AddCharge(p.Budget,charge);ValidateBudget(budget);
         q.Parameters.AddWithValue("$file",charge.FileOrdinal);q.Parameters.AddWithValue("$json",Json(charge));
         q.CommandText="INSERT INTO ZipExtractionCharges VALUES($op,$id,$reservation,$file,$json)";await q.ExecuteNonQueryAsync(ct);
-        p=p with{Budget=budget,State=ZipParentState.Processing,Fence=p.Fence with{Revision=checked(f.Revision+1)}};await SaveAsync(c,tx,p,ct);tx.Commit();return p;
+        p=p with{Budget=budget,State=ZipParentState.Processing,Fence=p.Fence with{Revision=checked(f.Revision+1)}};await SaveAsync(c,tx,p,ct);await CommitEffectAsync(tx, guard, ct, p.OwnerUntil, admissionEligibility: guard is null ? null : () => ValidateExecutionAdmissionAsync(c, tx, p, ct));return p;
     }
-    public async Task<ZipParentSnapshot> VerifyChildAsync(ZipFence f,ZipVerifiedChild child,CancellationToken ct=default)
+    public Task<ZipParentSnapshot> VerifyChildAsync(ZipFence f,ZipVerifiedChild child,CancellationToken ct=default) => VerifyChildCoreAsync(f, child, null, ct);
+    public Task<ZipParentSnapshot> VerifyChildAsync(ZipFence f,ZipVerifiedChild child, IZipEffectBoundaryGuard guard, CancellationToken ct = default) => VerifyChildCoreAsync(f, child, guard ?? throw new ArgumentNullException(nameof(guard)), ct);
+    private async Task<ZipParentSnapshot> VerifyChildCoreAsync(ZipFence f,ZipVerifiedChild child, IZipEffectBoundaryGuard? guard, CancellationToken ct)
     {
+        using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        ct = effectCancellation?.Token ?? ct;
+        await ValidateEffectAsync(guard, ct);
         if(child.Sha256 is null||child.Sha256.Length!=64||child.Sha256.Any(ch=>!char.IsAsciiHexDigit(ch)||char.IsAsciiLetterLower(ch)))
             throw new InvalidDataException("Invalid canonical child fingerprint.");
-        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);var p=await FencedAsync(c,tx,f,ct);
+        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);await ValidateEffectAsync(guard, ct);var p=await FencedAsync(c,tx,f,ct);
+        if (guard is not null) await ValidateExecutionAdmissionAsync(c, tx, p, ct);
         if(child.FileOrdinal!=f.ConfirmedOrdinal+1||p.State is not (ZipParentState.Planned or ZipParentState.Processing))throw new ZipFenceException();
         var entry=p.Entries.Single(e=>e.Plan.FileOrdinal==child.FileOrdinal).Plan;
         if(entry.IsEncrypted||entry.IsDirectory||entry.ExpandedLength!=child.Length||entry.Crc32!=child.Crc32||child.PlanHash!=p.Fence.PlanHash)throw new InvalidDataException("ZIP integrity proof disagrees with plan.");
@@ -94,11 +106,17 @@ public sealed partial class SqliteZipExtractionJournal
         if(await q.ExecuteScalarAsync(ct) is string old)
         {var proof=Decode<ZipVerifiedChild>(old);if(proof with{ReservationId=child.ReservationId}!=child)throw new InvalidDataException("ZIP verified child changed across replay.");return p;}
         q.Parameters.AddWithValue("$json",Json(child));q.CommandText="INSERT INTO ZipExtractionVerifications VALUES($op,$file,$json)";await q.ExecuteNonQueryAsync(ct);
-        p=p with{Fence=f with{Revision=checked(f.Revision+1)}};await SaveAsync(c,tx,p,ct);tx.Commit();return p;
+        p=p with{Fence=f with{Revision=checked(f.Revision+1)}};await SaveAsync(c,tx,p,ct);await CommitEffectAsync(tx, guard, ct, p.OwnerUntil, admissionEligibility: guard is null ? null : () => ValidateExecutionAdmissionAsync(c, tx, p, ct));return p;
     }
-    public async Task<ZipParentSnapshot> MaterializedAsync(ZipFence f,int ordinal,ZipRetentionRecord retention,CancellationToken ct=default)
+    public Task<ZipParentSnapshot> MaterializedAsync(ZipFence f,int ordinal,ZipRetentionRecord retention,CancellationToken ct=default) => MaterializedCoreAsync(f, ordinal, retention, null, ct);
+    public Task<ZipParentSnapshot> MaterializedAsync(ZipFence f,int ordinal,ZipRetentionRecord retention, IZipEffectBoundaryGuard guard, CancellationToken ct = default) => MaterializedCoreAsync(f, ordinal, retention, guard ?? throw new ArgumentNullException(nameof(guard)), ct);
+    private async Task<ZipParentSnapshot> MaterializedCoreAsync(ZipFence f,int ordinal,ZipRetentionRecord retention, IZipEffectBoundaryGuard? guard, CancellationToken ct)
     {
-        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);var p=await FencedAsync(c,tx,f,ct);
+        using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        ct = effectCancellation?.Token ?? ct;
+        await ValidateEffectAsync(guard, ct);
+        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);await ValidateEffectAsync(guard, ct);var p=await FencedAsync(c,tx,f,ct);
+        if (guard is not null) await ValidateExecutionAdmissionAsync(c, tx, p, ct);
         if(p.State is not (ZipParentState.Planned or ZipParentState.Processing)||ordinal!=f.ConfirmedOrdinal+1)throw new ZipFenceException();
         var r=await RetentionAsync(c,tx,f.OperationId,ordinal,ct);
         if(r is null||Json(r)!=Json(retention)||r.State!=ZipRetentionState.Created)throw new InvalidDataException("ZIP materialization has no exact protected retention.");
@@ -121,7 +139,7 @@ public sealed partial class SqliteZipExtractionJournal
         q.CommandText="UPDATE ZipExtractionEntries SET ProgressJson=$progress WHERE ParentOperationId=$op AND FileOrdinal=$file";
         q.Parameters.AddWithValue("$op",f.OperationId);q.Parameters.AddWithValue("$file",ordinal);
         q.Parameters.AddWithValue("$progress",Json(entry with{State=ZipEntryState.Materialized,Retained=new(r.Identity.ObjectId,r.CreateReceipt!.CurrentRevision!.Value.Value,r.Identity.PlaintextSha256,r.Identity.Length)}));await q.ExecuteNonQueryAsync(ct);
-        p=p with{State=ZipParentState.Processing,Fence=f with{Revision=checked(f.Revision+1)}};await SaveAsync(c,tx,p,ct);tx.Commit();return (await ReadAsync(f.OperationId,ct))!;
+        p=p with{State=ZipParentState.Processing,Fence=f with{Revision=checked(f.Revision+1)}};await SaveAsync(c,tx,p,ct);await CommitEffectAsync(tx, guard, ct, p.OwnerUntil, admissionEligibility: guard is null ? null : () => ValidateExecutionAdmissionAsync(c, tx, p, ct));return (await ReadAsync(f.OperationId,ct))!;
     }
     public async Task<ZipParentSnapshot> RejectExtractionAsync(ZipFence f,int ordinal,string reason,CancellationToken ct=default)
     {

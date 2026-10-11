@@ -31,31 +31,48 @@ public sealed partial class SqliteZipExtractionJournal
     }
     public async Task<ZipParentRetentionRecord?> ReadParentRetentionAsync(string operation,CancellationToken ct=default)
     {await using var c=await OpenAsync(ct);return await ParentRetentionAsync(c,null,operation,ct);}
-    public async Task<ZipParentRetentionRecord> ReserveParentRetentionAsync(string operation,string parentArtifact,ZipRetainedBinding source,string profile,string namespaceId,CancellationToken ct=default)
+    public Task<ZipParentRetentionRecord> ReserveParentRetentionAsync(string operation,string parentArtifact,ZipRetainedBinding source,string profile,string namespaceId,CancellationToken ct=default) => ReserveParentRetentionCoreAsync(operation, parentArtifact, source, profile, namespaceId, null, ct);
+    public Task<ZipParentRetentionRecord> ReserveParentRetentionAsync(string operation,string parentArtifact,ZipRetainedBinding source,string profile,string namespaceId, IZipEffectBoundaryGuard guard, CancellationToken ct = default) => ReserveParentRetentionCoreAsync(operation, parentArtifact, source, profile, namespaceId, guard ?? throw new ArgumentNullException(nameof(guard)), ct);
+    private async Task<ZipParentRetentionRecord> ReserveParentRetentionCoreAsync(string operation,string parentArtifact,ZipRetainedBinding source,string profile,string namespaceId, IZipEffectBoundaryGuard? guard, CancellationToken ct)
     {
+        using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        ct = effectCancellation?.Token ?? ct;
+        await ValidateEffectAsync(guard, ct);
         Validate(new(operation,parentArtifact,source,profile));foreach(var id in new[]{operation,parentArtifact,source.ContentId,source.Revision})ArtifactContentIdentity.Validate(id);
         if(namespaceId.Length!=64)throw new InvalidDataException("Invalid parent private namespace.");_=Convert.FromHexString(namespaceId);
-        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);var old=await ParentRetentionAsync(c,tx,operation,ct);
+        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);await ValidateEffectAsync(guard, ct);
+        if (guard is not null) await ValidateInitialRetentionAdmissionAsync(c, tx, operation, parentArtifact, source, profile, namespaceId, ct);
+        var old=await ParentRetentionAsync(c,tx,operation,ct);
         if(old is not null){if(old.Identity.ParentArtifactId!=parentArtifact||old.Identity.Source!=source||old.Identity.ProfileHash!=profile||old.Identity.NamespaceId!=namespaceId)throw new InvalidDataException("Parent retention request changed.");return old;}
         using var q=c.CreateCommand();q.Transaction=tx;q.Parameters.AddWithValue("$op",operation);q.CommandText="SELECT COUNT(*) FROM ZipExtractionParents WHERE OperationId=$op";
         if(Convert.ToInt32(await q.ExecuteScalarAsync(ct))!=0)throw new InvalidDataException("Existing parent has no owned protected copy; replacement forbidden.");
         var r=new ZipParentRetentionRecord(new(operation,parentArtifact,source,profile,"zip-quarantine-"+Guid.NewGuid().ToString("N"),Guid.NewGuid().ToString("N"),Guid.NewGuid().ToString("N"),Guid.NewGuid().ToString("N"),namespaceId));
-        q.CommandText="INSERT INTO ZipExtractionRetentions VALUES($op,-1,$binding,$state)";q.Parameters.AddWithValue("$binding",Json(r.Identity));q.Parameters.AddWithValue("$state",Json(r));await q.ExecuteNonQueryAsync(ct);tx.Commit();return r;
+        q.CommandText="INSERT INTO ZipExtractionRetentions VALUES($op,-1,$binding,$state)";q.Parameters.AddWithValue("$binding",Json(r.Identity));q.Parameters.AddWithValue("$state",Json(r));await q.ExecuteNonQueryAsync(ct);await CommitEffectAsync(tx, guard, ct, admissionEligibility: guard is null ? null : () => ValidateInitialRetentionAdmissionAsync(c, tx, operation, parentArtifact, source, profile, namespaceId, ct));return r;
     }
     private static async Task SaveParentRetentionAsync(SqliteConnection c,SqliteTransaction tx,ZipParentRetentionRecord r,CancellationToken ct)
     {using var q=c.CreateCommand();q.Transaction=tx;q.CommandText="UPDATE ZipExtractionRetentions SET StateJson=$state WHERE ParentOperationId=$op AND FileOrdinal=-1";q.Parameters.AddWithValue("$op",r.Identity.ParentOperationId);q.Parameters.AddWithValue("$state",Json(r));await q.ExecuteNonQueryAsync(ct);}
-    private async Task<ZipParentRetentionRecord> ChangeParentCreationAsync(ZipParentRetentionRecord expected,Func<Task<ZipParentRetentionRecord>> change,CancellationToken ct)
+    private async Task<ZipParentRetentionRecord> ChangeParentCreationAsync(ZipParentRetentionRecord expected,Func<Task<ZipParentRetentionRecord>> change,CancellationToken ct, IZipEffectBoundaryGuard? guard = null)
     {
-        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);var old=await ParentRetentionAsync(c,tx,expected.Identity.ParentOperationId,ct);
+        using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        ct = effectCancellation?.Token ?? ct;
+        await ValidateEffectAsync(guard, ct);
+        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);await ValidateEffectAsync(guard, ct);
+        if (guard is not null) await ValidateInitialRetentionAdmissionAsync(c, tx, expected.Identity, ct);
+        var old=await ParentRetentionAsync(c,tx,expected.Identity.ParentOperationId,ct);
         if(old!=expected)throw new ZipFenceException();using var q=c.CreateCommand();q.Transaction=tx;q.CommandText="SELECT COUNT(*) FROM ZipExtractionParents WHERE OperationId=$op";q.Parameters.AddWithValue("$op",expected.Identity.ParentOperationId);
         if(Convert.ToInt32(await q.ExecuteScalarAsync(ct))!=0)throw new ZipFenceException();
-        var next=(await change()) with{Revision=checked(expected.Revision+1)};if(next.Identity!=expected.Identity)throw new InvalidDataException();await SaveParentRetentionAsync(c,tx,next,ct);ct.ThrowIfCancellationRequested();tx.Commit();return next;
+        var next=(await change()) with{Revision=checked(expected.Revision+1)};if(next.Identity!=expected.Identity)throw new InvalidDataException();await SaveParentRetentionAsync(c,tx,next,ct);ct.ThrowIfCancellationRequested();await CommitEffectAsync(tx, guard, ct, admissionEligibility: guard is null ? null : () => ValidateInitialRetentionAdmissionAsync(c, tx, expected.Identity, ct));return next;
     }
     public Task<ZipParentRetentionRecord> BeginParentPreparationAsync(ZipParentRetentionRecord e,CancellationToken ct=default)=>ChangeParentCreationAsync(e,()=>Task.FromResult(e.State==ZipRetentionState.Reserved?e with{State=ZipRetentionState.Preparing}:throw new InvalidOperationException("Parent preparation already started.")),ct);
+    public Task<ZipParentRetentionRecord> BeginParentPreparationAsync(ZipParentRetentionRecord e,IZipEffectBoundaryGuard guard,CancellationToken ct=default)=>ChangeParentCreationAsync(e,()=>Task.FromResult(e.State==ZipRetentionState.Reserved?e with{State=ZipRetentionState.Preparing}:throw new InvalidOperationException("Parent preparation already started.")),ct,guard ?? throw new ArgumentNullException(nameof(guard)));
     public Task<ZipParentRetentionRecord> BindParentCandidateAsync(ZipParentRetentionRecord e,string hash,CancellationToken ct=default)
     {if(hash.Length!=64)throw new InvalidDataException();_=Convert.FromHexString(hash);return ChangeParentCreationAsync(e,()=>Task.FromResult(e.State==ZipRetentionState.Preparing?e with{State=ZipRetentionState.CandidateBound,CandidateHash=hash}:throw new InvalidOperationException("Parent candidate cannot be rebound.")),ct);}
+    public Task<ZipParentRetentionRecord> BindParentCandidateAsync(ZipParentRetentionRecord e,string hash,IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+    {if(hash.Length!=64)throw new InvalidDataException();_=Convert.FromHexString(hash);return ChangeParentCreationAsync(e,()=>Task.FromResult(e.State==ZipRetentionState.Preparing?e with{State=ZipRetentionState.CandidateBound,CandidateHash=hash}:throw new InvalidOperationException("Parent candidate cannot be rebound.")),ct,guard ?? throw new ArgumentNullException(nameof(guard)));}
     public Task<ZipParentRetentionRecord> PromoteParentRetentionAsync(ZipParentRetentionRecord e,IPreparedArtifactContentMutation? prepared,ArtifactContentMutationReceipt? known,CancellationToken ct=default)=>ChangeParentCreationAsync(e,async()=>
     {if(e.State!=ZipRetentionState.CandidateBound)throw new InvalidOperationException();var receipt=known??(await (prepared??throw new InvalidDataException()).ExecuteAsync(ct)).Receipt;ParentReceipt(e,receipt,false);return e with{State=ZipRetentionState.Created,CreateReceipt=receipt};},ct);
+    public Task<ZipParentRetentionRecord> PromoteParentRetentionAsync(ZipParentRetentionRecord e,IPreparedArtifactContentMutation? prepared,ArtifactContentMutationReceipt? known,IZipEffectBoundaryGuard guard,CancellationToken ct=default)=>ChangeParentCreationAsync(e,async()=>
+    {GuardedPrepared(prepared, known, guard);if(e.State!=ZipRetentionState.CandidateBound)throw new InvalidOperationException();var receipt=known??(await (prepared??throw new InvalidDataException()).ExecuteAsync(ct)).Receipt;ParentReceipt(e,receipt,false);return e with{State=ZipRetentionState.Created,CreateReceipt=receipt};},ct,guard ?? throw new ArgumentNullException(nameof(guard)));
     public Task<ZipParentRetentionRecord> ReviewParentCreationAsync(ZipParentRetentionRecord e,string reason,CancellationToken ct=default)=>ChangeParentCreationAsync(e,()=>Task.FromResult(e with{State=ZipRetentionState.RequiresReview,SafeReason=reason}),ct);
     private static void ParentBinding(ZipParentSnapshot p,ZipParentRetentionRecord r)
     {if(r.Identity.ParentOperationId!=p.Binding.OperationId||r.Identity.ParentArtifactId!=p.Binding.ParentArtifactId||r.Identity.ProfileHash!=p.Binding.ProfileHash||r.CreateReceipt?.CurrentRevision is null||p.Binding.Input!=new ZipRetainedBinding(r.Identity.ObjectId,r.CreateReceipt.CurrentRevision.Value.Value,r.Identity.Source.Sha256,r.Identity.Source.Length))throw new InvalidDataException("Parent journal contradicts protected copy.");}
@@ -99,9 +116,15 @@ public sealed partial class SqliteZipExtractionJournal
         p=p with{State=ZipParentState.RequiresReview,OwnerUntil=_time.GetUtcNow()+duration,Fence=p.Fence with{Owner=owner,Epoch=checked(p.Fence.Epoch+1),Revision=checked(p.Fence.Revision+1)}};await SaveAsync(c,tx,p,ct);
         using var q=c.CreateCommand();q.Transaction=tx;q.CommandText="UPDATE ZipExtractionParents SET SafeReason='ParentRecoveryEvidenceFailure' WHERE OperationId=$op";q.Parameters.AddWithValue("$op",operation);await q.ExecuteNonQueryAsync(ct);ct.ThrowIfCancellationRequested();tx.Commit();return p;
     }
-    public async Task<ZipParentSnapshot> ChargeParentReadAsync(ZipFence f,CancellationToken ct=default)
+    public Task<ZipParentSnapshot> ChargeParentReadAsync(ZipFence f,CancellationToken ct=default) => ChargeParentReadCoreAsync(f, null, ct);
+    public Task<ZipParentSnapshot> ChargeParentReadAsync(ZipFence f, IZipEffectBoundaryGuard guard, CancellationToken ct = default) => ChargeParentReadCoreAsync(f, guard ?? throw new ArgumentNullException(nameof(guard)), ct);
+    private async Task<ZipParentSnapshot> ChargeParentReadCoreAsync(ZipFence f, IZipEffectBoundaryGuard? guard, CancellationToken ct)
     {
-        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);var p=await FencedAsync(c,tx,f,ct);
+        using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        ct = effectCancellation?.Token ?? ct;
+        await ValidateEffectAsync(guard, ct);
+        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);await ValidateEffectAsync(guard, ct);var p=await FencedAsync(c,tx,f,ct);
+        if (guard is not null) await ValidateExecutionAdmissionAsync(c, tx, p, ct);
         if(p.State is not (ZipParentState.AdmissionPending or ZipParentState.Planned or ZipParentState.Processing))throw new InvalidOperationException("Parent payload work is not authorized.");
         var r=await ParentRetentionAsync(c,tx,f.OperationId,ct)??throw new InvalidDataException("Missing parent retention.");ParentBinding(p,r);
         if(r.State!=ZipRetentionState.Created)throw new InvalidDataException("Parent is not readable.");
@@ -110,7 +133,7 @@ public sealed partial class SqliteZipExtractionJournal
         using var q=c.CreateCommand();q.Transaction=tx;q.CommandText="INSERT INTO ZipExtractionCharges VALUES($op,$id,$reservation,-1,$json)";
         q.Parameters.AddWithValue("$op",f.OperationId);q.Parameters.AddWithValue("$id",charge.Id);q.Parameters.AddWithValue("$reservation",charge.ReservationId);q.Parameters.AddWithValue("$json",Json(charge));await q.ExecuteNonQueryAsync(ct);
         p=p with{Budget=budget,Fence=f with{Revision=checked(f.Revision+1)}};await SaveAsync(c,tx,p,ct);
-        ct.ThrowIfCancellationRequested();if(p.OwnerUntil<=_time.GetUtcNow())throw new ZipFenceException();tx.Commit();return p;
+        ct.ThrowIfCancellationRequested();if(p.OwnerUntil<=_time.GetUtcNow())throw new ZipFenceException();await CommitEffectAsync(tx, guard, ct, p.OwnerUntil, admissionEligibility: guard is null ? null : () => ValidateExecutionAdmissionAsync(c, tx, p, ct));return p;
     }
     public async Task<ZipParentSnapshot> CompleteParentAsync(ZipFence f,CancellationToken ct=default)
     {

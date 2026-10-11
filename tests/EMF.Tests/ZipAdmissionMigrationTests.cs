@@ -101,7 +101,7 @@ public sealed class ZipAdmissionMigrationTests
     public async Task V4_upgrade_preserves_completed_extraction_retention_scans_charges_and_acknowledgements_byte_for_byte()
     {
         await using var evidence = await ArtifactIngestionFixture.CreateAsync(); var runtime = new ZipDurableRuntimeFixture(evidence);
-        var parent = await runtime.CreateParent(two: true); var completed = await runtime.Driver.RunAsync(parent);
+        var parent = await runtime.CreateParent(two: true); var completed = await runtime.Driver.RunLegacyTestHarnessAsync(parent);
         Assert.Equal(ZipParentState.Released, completed.State);
         await evidence.SqlAsync("DROP TABLE ZipParentAdmissionEvents; DROP TABLE ZipParentAdmissions; DELETE FROM ZipExtractionSchema WHERE Version=5;");
         var before = await SnapshotAsync(evidence.DatabasePath, false);

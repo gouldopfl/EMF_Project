@@ -3,12 +3,13 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EMF.Core.Contracts.Storage;
+using EMF.Core.Contracts.Zip;
 using EMF.Core.Models.Identities;
 using Microsoft.Data.Sqlite;
 
 namespace EMF.Persistence.Storage;
 
-public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactContentStore, IBoundedVersionedArtifactContentStore
+public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactContentStore, IBoundedVersionedArtifactContentStore, IZipGuardedBoundedArtifactContentStore
 {
     public const long DefaultMaxStoredBytes = 150L * 1024 * 1024;
     private const string Gate = ".content-coordination";
@@ -91,13 +92,25 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
         catch { CryptographicOperations.ZeroMemory(bytes); throw; }
     }
     public long MaximumStoredRepresentationBytes => _maxStoredBytes;
-    public async Task<IArtifactContentReadLease?> ReadBoundedVersionedAsync(ArtifactId id,
+    public Task<IArtifactContentReadLease?> ReadBoundedVersionedAsync(ArtifactId id,
         BoundedArtifactContentReadRequest request, CancellationToken cancellationToken = default)
+        => ReadBoundedCoreAsync(id, request, null, cancellationToken);
+    public async Task<IArtifactContentReadLease?> ReadBoundedVersionedGuardedAsync(ArtifactId id,
+        BoundedArtifactContentReadRequest request, IZipEffectBoundaryGuard guard, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(guard);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, guard.Invalidated);
+        return await ReadBoundedCoreAsync(id, request, guard, linked.Token);
+    }
+    private async Task<IArtifactContentReadLease?> ReadBoundedCoreAsync(ArtifactId id,
+        BoundedArtifactContentReadRequest request, IZipEffectBoundaryGuard? guard, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        await ValidateGuardAsync(guard, cancellationToken);
         using var inspection = Inspection(cancellationToken);
         ValidateId(id);
         await AdmitAsync(cancellationToken, inspection);
+        await ValidateGuardAsync(guard, cancellationToken);
         using var connection = OpenCatalog(inspection: inspection);
         using var transaction = connection.BeginTransaction(deferred: true);
         var state = ReadState(connection, transaction, id);
@@ -109,20 +122,31 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
         await At("ReaderSelected");
         var path = GenerationPath(state.Generation);
         RejectSymbolicLinks(path);
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
-            81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await ValidateGuardAsync(guard, cancellationToken);
+        var opened = OpenAccepted(() => new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+            81920, FileOptions.Asynchronous | FileOptions.SequentialScan), guard, cancellationToken);
+        await using var stream = opened;
         var length = stream.Length;
         if (length != state.Length || length > _maxStoredBytes || length > Array.MaxLength ||
             length > request.MaximumStoredRepresentationBytes || length > request.MaximumReturnedContentBytes)
             throw new InvalidDataException("Committed content generation exceeds bounded read limits or has invalid size.");
         await At("BeforeReadAllocation");
         cancellationToken.ThrowIfCancellationRequested();
-        var bytes = new byte[checked((int)length)];
+        await ValidateGuardAsync(guard, cancellationToken);
+        byte[] bytes = [];
         try
         {
-            BoundedReadAllocated?.Invoke(bytes);
-            await stream.ReadExactlyAsync(bytes, cancellationToken);
+            using (AcceptGuard(guard, cancellationToken))
+            {
+                bytes = new byte[checked((int)length)];
+                BoundedReadAllocated?.Invoke(bytes);
+            }
+            await ValidateGuardAsync(guard, cancellationToken);
+            await CompleteAcceptedAsync(() => stream.ReadExactlyAsync(bytes, cancellationToken), guard, cancellationToken);
+            await ValidateGuardAsync(guard, cancellationToken);
             if (stream.Position != length || stream.Length != length) throw new IOException("Immutable content generation changed.");
+            await stream.DisposeAsync();
+            await ValidateGuardAsync(guard, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             transaction.Commit();
             return new ArtifactContentReadLease(id, revision, length, bytes);
@@ -186,6 +210,22 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
         try { return await PrepareMutationAsync(id, ArtifactContentMutationKind.Create, null, stable, context, cancellationToken); }
         finally { CryptographicOperations.ZeroMemory(stable); }
     }
+    public async Task<IPreparedArtifactContentMutation> PreparePhysicalCreateGuardedAsync(ArtifactId id,
+        ReadOnlyMemory<byte> content, ArtifactContentMutationContext context, IZipEffectBoundaryGuard guard, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(guard);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        await guard.RevalidateAsync(linked.Token);
+        if (content.Length > _maxStoredBytes) throw new InvalidDataException("Artifact content exceeds the maximum stored size.");
+        byte[] stable = [];
+        try
+        {
+            using (AcceptGuard(guard, linked.Token)) stable = content.ToArray();
+            var prepared = await PrepareMutationAsync(id, ArtifactContentMutationKind.Create, null, stable, context, linked.Token, guard);
+            return new GuardedPreparedMutation(prepared, guard);
+        }
+        finally { CryptographicOperations.ZeroMemory(stable); }
+    }
     public Task<IPreparedArtifactContentMutation> PreparePhysicalDeleteAsync(ArtifactId id, ArtifactContentRevision expected,
         ArtifactContentMutationContext context, CancellationToken cancellationToken = default)
         => PrepareMutationAsync(id, ArtifactContentMutationKind.Delete, expected, default, context, cancellationToken);
@@ -220,8 +260,9 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
         public ValueTask DisposeAsync() { if (!_disposed) { _disposed = true; connection.Dispose(); } return ValueTask.CompletedTask; }
     }
     private async Task<IPreparedArtifactContentMutation> PrepareMutationAsync(ArtifactId id, ArtifactContentMutationKind kind,
-        ArtifactContentRevision? expected, ReadOnlyMemory<byte> content, ArtifactContentMutationContext context, CancellationToken ct)
+        ArtifactContentRevision? expected, ReadOnlyMemory<byte> content, ArtifactContentMutationContext context, CancellationToken ct, IZipEffectBoundaryGuard? guard = null)
     {
+        await ValidateGuardAsync(guard, ct);
         ct.ThrowIfCancellationRequested();
         ValidateId(id);
         ArgumentNullException.ThrowIfNull(context);
@@ -239,8 +280,10 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
         var gate = await _platform.AcquireAsync(PathFor(Gate), false, ct);
         try
         {
+            await ValidateGuardAsync(guard, ct);
             // Private canonical identity never becomes the public revision or log data.
-            var request = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+            string request;
+            using (AcceptGuard(guard, ct)) request = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
             {
                 Artifact = id.Value, Kind = kind, Expected = expected?.Value,
                 Owner = context.OwnershipToken?.Value, Audit = context.AuditEventId?.Value, RequiredAudit = context.RequiresAuditObligation,
@@ -251,17 +294,25 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
             {
                 candidate = Guid.NewGuid().ToString("N");
                 var temp = GenerationPath(candidate + ".tmp");
-                await using (var stream = _platform.CreatePrivateFile(temp, asynchronous: true))
+                await At("BeforeGenerationCreate");
+                await ValidateGuardAsync(guard, ct);
+                var created = OpenAccepted(() => _platform.CreatePrivateFile(temp, asynchronous: true), guard, ct);
+                await using (var stream = created)
                 {
-                    await stream.WriteAsync(content, ct);
-                    await stream.FlushAsync(ct);
-                    stream.Flush(flushToDisk: true);
+                    await ValidateGuardAsync(guard, ct);
+                    await CompleteAcceptedAsync(() => stream.WriteAsync(content, ct), guard, ct);
+                    await ValidateGuardAsync(guard, ct);
+                    await CompleteAcceptedAsync(() => new ValueTask(stream.FlushAsync(ct)), guard, ct);
+                    await ValidateGuardAsync(guard, ct);
+                    using (AcceptGuard(guard, ct)) stream.Flush(flushToDisk: true);
                 }
                 ct.ThrowIfCancellationRequested();
                 await At("BeforeGenerationRename");
-                File.Move(temp, GenerationPath(candidate));
+                await ValidateGuardAsync(guard, ct);
+                using (AcceptGuard(guard, ct)) File.Move(temp, GenerationPath(candidate));
                 await At("GenerationPublished");
-                _platform.FlushDirectory(PathFor(Generations));
+                await ValidateGuardAsync(guard, ct);
+                using (AcceptGuard(guard, ct)) _platform.FlushDirectory(PathFor(Generations));
                 await At("CandidateDurable");
             }
             using var inspection = Inspection(ct); // Fresh bounded revalidation after physical I/O, before the authority fence.
@@ -270,15 +321,23 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
             {
                 await At("CatalogIntegrityPrepared");
                 inspection.Check();
-                return new PreparedPhysicalMutation(this, id, kind, expected, context, request, candidate, content.Length, gate, connection, ReadState(connection, null, id));
+                await ValidateGuardAsync(guard, ct);
+                return new PreparedPhysicalMutation(this, id, kind, expected, context, request, candidate, content.Length, gate, connection, ReadState(connection, null, id), guard);
             }
             catch { connection.Dispose(); throw; }
         }
         catch { gate.Dispose(); throw; }
     }
+    private sealed class GuardedPreparedMutation(IPreparedArtifactContentMutation prepared, IZipEffectBoundaryGuard guard)
+        : IZipGuardedPreparedContentMutation
+    {
+        public IZipEffectBoundaryGuard BoundaryGuard => guard;
+        public Task<ArtifactContentMutationResult> ExecuteAsync(CancellationToken ct = default) => prepared.ExecuteAsync(ct);
+        public ValueTask DisposeAsync() => prepared.DisposeAsync();
+    }
     private sealed class PreparedPhysicalMutation(FileSystemArtifactContentStore store, ArtifactId id,
         ArtifactContentMutationKind kind, ArtifactContentRevision? expected, ArtifactContentMutationContext context,
-        string request, string? candidate, int length, IDisposable gate, SqliteConnection connection, State? admitted) : IPreparedArtifactContentMutation
+        string request, string? candidate, int length, IDisposable gate, SqliteConnection connection, State? admitted, IZipEffectBoundaryGuard? guard) : IPreparedArtifactContentMutation
     {
         internal string Request => request;
         private int _executed;
@@ -287,16 +346,23 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (Interlocked.Exchange(ref _executed, 1) != 0) throw new InvalidOperationException("Prepared mutation is single-use; reconcile by OperationId.");
-            return store.PromotePreparedAsync(connection, id, kind, expected, context, request, candidate, length, admitted, cancellationToken);
+            return ExecuteGuardedAsync(cancellationToken);
+        }
+        private async Task<ArtifactContentMutationResult> ExecuteGuardedAsync(CancellationToken ct)
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, guard?.Invalidated ?? default);
+            return await store.PromotePreparedAsync(connection, id, kind, expected, context, request, candidate, length, admitted, linked.Token, guard);
         }
         public ValueTask DisposeAsync() { if (!_disposed) { _disposed = true; connection.Dispose(); gate.Dispose(); } return ValueTask.CompletedTask; }
     }
     private async Task<ArtifactContentMutationResult> PromotePreparedAsync(SqliteConnection connection, ArtifactId id, ArtifactContentMutationKind kind,
-        ArtifactContentRevision? expected, ArtifactContentMutationContext context, string request, string? candidate, int length, State? admitted, CancellationToken ct)
+        ArtifactContentRevision? expected, ArtifactContentMutationContext context, string request, string? candidate, int length, State? admitted, CancellationToken ct, IZipEffectBoundaryGuard? guard)
     {
+        await ValidateGuardAsync(guard, ct);
         ValidateAdmittedStructure();
         ct.ThrowIfCancellationRequested();
         using var transaction = connection.BeginTransaction(deferred: false);
+        await ValidateGuardAsync(guard, ct);
         var prior = FindReceipt(connection, transaction, context.OperationId);
         if (prior is not null)
         {
@@ -350,7 +416,8 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
         }
         await At("BeforeCommit");
         ct.ThrowIfCancellationRequested();
-        try { transaction.Commit(); }
+        await ValidateGuardAsync(guard, ct);
+        try { using (AcceptGuard(guard, ct)) transaction.Commit(); }
         catch (Exception error)
         {
             // Never infer rollback. Prepared callers release their authority session
@@ -361,6 +428,29 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
         await At("Committed");
         return new(receipt);
     }
+
+    // Started I/O owns its buffers until completion, even if acceptance release fails.
+    internal static async ValueTask CompleteAcceptedAsync(Func<ValueTask> start, IZipEffectBoundaryGuard? guard, CancellationToken ct)
+    {
+        ValueTask pending = default;
+        Exception? releaseFailure = null;
+        var started = false;
+        try { using (AcceptGuard(guard, ct)) { pending = start(); started = true; } }
+        catch (Exception error) { if (!started) throw; releaseFailure = error; }
+        try { await pending; }
+        catch when (releaseFailure is not null) { /* Preserve the acceptance failure after quiescence. */ }
+        if (releaseFailure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(releaseFailure).Throw();
+    }
+    private static FileStream OpenAccepted(Func<FileStream> open, IZipEffectBoundaryGuard? guard, CancellationToken ct)
+    {
+        FileStream? stream = null;
+        try { using (AcceptGuard(guard, ct)) stream = open(); return stream; }
+        catch { stream?.Dispose(); throw; }
+    }
+    private static async ValueTask ValidateGuardAsync(IZipEffectBoundaryGuard? guard, CancellationToken ct)
+    { ct.ThrowIfCancellationRequested(); if (guard is not null) await guard.RevalidateAsync(ct); }
+    private static IDisposable? AcceptGuard(IZipEffectBoundaryGuard? guard, CancellationToken ct)
+    { ct.ThrowIfCancellationRequested(); return guard is null ? null : guard.Accept(ct) ?? throw new UnauthorizedAccessException("ZIP effect acceptance is missing."); }
 
     private sealed class ContentCommitAcknowledgementException(Exception error)
         : IOException("Physical commit acknowledgement is unknown; reconcile the original OperationId.", error);

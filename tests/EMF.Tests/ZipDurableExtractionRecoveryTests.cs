@@ -15,11 +15,11 @@ public sealed class ZipDurableExtractionRecoveryTests
     {
         await using var evidence=await ArtifactIngestionFixture.CreateAsync();var f=new ZipDurableRuntimeFixture(evidence);var parent=await f.CreateParent();
         var copy=(await f.Journal.ReadParentRetentionAsync("zip"))!;Assert.NotEqual(copy.Identity.Source.ContentId,copy.Identity.ObjectId);
-        var result=await f.Driver.RunAsync(parent);Assert.Equal(ZipParentState.Released,result.State);Assert.Equal(0,result.Fence.ConfirmedOrdinal);
+        var result=await f.Driver.RunLegacyTestHarnessAsync(parent);Assert.Equal(ZipParentState.Released,result.State);Assert.Equal(0,result.Fence.ConfirmedOrdinal);
         Assert.Equal(1,f.Count("parent-encrypt"));Assert.Equal(1,f.Count("child-encrypt"));Assert.Equal(1,f.Count("scan"));Assert.Equal(1,f.Count("extraction-start"));Assert.Equal(1,f.Count("Ingesting"));
         var released=(await f.Journal.ReadParentRetentionAsync("zip"))!;Assert.Equal(ZipRetentionState.Released,released.State);Assert.Equal(copy.CreateReceipt!.CurrentRevision,released.ReleaseReceipt!.PriorRevision);
         Assert.Null(await f.ParentStorage.ReadProtectedAsync(new(copy.Identity.ObjectId),copy.CreateReceipt.CurrentRevision!.Value));
-        var before=result.Fence;var decrypt=f.Count("parent-decrypt");Assert.Equal(before,(await f.Driver.RunAsync(result)).Fence);Assert.Equal(decrypt,f.Count("parent-decrypt"));
+        var before=result.Fence;var decrypt=f.Count("parent-decrypt");Assert.Equal(before,(await f.Driver.RunLegacyTestHarnessAsync(result)).Fence);Assert.Equal(decrypt,f.Count("parent-decrypt"));
         Assert.Equal(before,(await f.Journal.CompleteParentAsync(before)).Fence);Assert.Equal(1,f.Count("scan"));
     }
     [Theory]
@@ -57,7 +57,7 @@ public sealed class ZipDurableExtractionRecoveryTests
     public async Task Parent_release_loss_recovers_from_exact_receipts_without_reopening_payload(string point)
     {
         await using var evidence=await ArtifactIngestionFixture.CreateAsync();var f=new ZipDurableRuntimeFixture(evidence);var p=await f.CreateParent();f.ParentRetention.Checkpoint=n=>n==point?throw new Crash():Task.CompletedTask;
-        await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunAsync(p));var before=await f.Read();var decrypt=f.Count("parent-decrypt");var fresh=new ZipDurableRuntimeFixture(evidence);var result=await fresh.Driver.RunAsync(before);
+        await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunLegacyTestHarnessAsync(p));var before=await f.Read();var decrypt=f.Count("parent-decrypt");var fresh=new ZipDurableRuntimeFixture(evidence);var result=await fresh.Driver.RunLegacyTestHarnessAsync(before);
         Assert.Equal(ZipParentState.Released,result.State);Assert.Equal(decrypt,f.Count("parent-decrypt"));Assert.Equal(1,f.Count("parent-encrypt"));Assert.Equal(1,f.Count("scan"));Assert.Equal(1,f.Count("Ingesting"));
     }
     private static async Task CorruptParentRecord(ArtifactIngestionFixture evidence,string mutation)
@@ -75,9 +75,9 @@ public sealed class ZipDurableExtractionRecoveryTests
         await using var evidence=await ArtifactIngestionFixture.CreateAsync();var f=new ZipDurableRuntimeFixture(evidence);var p=await f.CreateParent();var encrypt=f.Count("parent-encrypt");var decrypt=f.Count("parent-decrypt");
         await CorruptParentRecord(evidence,part switch{"missing"=>"DELETE FROM ZipExtractionRetentions WHERE FileOrdinal=-1","source"=>"UPDATE ZipExtractionRetentions SET StateJson=json_set(StateJson,'$.Identity.Source.Revision','foreign') WHERE FileOrdinal=-1","receipt"=>"UPDATE ZipExtractionRetentions SET StateJson=json_set(StateJson,'$.CreateReceipt.ArtifactId.Value','foreign') WHERE FileOrdinal=-1","null-identity"=>"UPDATE ZipExtractionRetentions SET StateJson=json_set(StateJson,'$.Identity',NULL) WHERE FileOrdinal=-1","null-source"=>"UPDATE ZipExtractionRetentions SET StateJson=json_set(StateJson,'$.Identity.Source',NULL) WHERE FileOrdinal=-1","null-hash"=>"UPDATE ZipExtractionRetentions SET StateJson=json_set(StateJson,'$.Identity.Source.Sha256',NULL) WHERE FileOrdinal=-1",_=>"UPDATE ZipExtractionRetentions SET StateJson='{' WHERE FileOrdinal=-1"});
         var fresh=new ZipDurableRuntimeFixture(evidence);
-        if(part=="missing")await Assert.ThrowsAsync<InvalidDataException>(()=>fresh.Driver.ResumeAsync("zip","worker",TimeSpan.FromMinutes(30)));
-        else Assert.Equal(ZipParentState.RequiresReview,(await fresh.Driver.ResumeAsync("zip","worker",TimeSpan.FromMinutes(30))).State);
-        Assert.Equal(ZipParentState.RequiresReview,(await f.Read()).State);Assert.Equal(encrypt,f.Count("parent-encrypt"));Assert.Equal(decrypt,f.Count("parent-decrypt"));Assert.Equal(0,f.Count("extraction-start"));var reviewed=await f.Read();Assert.Equal(reviewed.Fence,(await fresh.Driver.RunAsync(reviewed)).Fence);Assert.Equal(decrypt,f.Count("parent-decrypt"));
+        if(part=="missing")await Assert.ThrowsAsync<InvalidDataException>(()=>fresh.Driver.ResumeLegacyTestHarnessAsync("zip","worker",TimeSpan.FromMinutes(30)));
+        else Assert.Equal(ZipParentState.RequiresReview,(await fresh.Driver.ResumeLegacyTestHarnessAsync("zip","worker",TimeSpan.FromMinutes(30))).State);
+        Assert.Equal(ZipParentState.RequiresReview,(await f.Read()).State);Assert.Equal(encrypt,f.Count("parent-encrypt"));Assert.Equal(decrypt,f.Count("parent-decrypt"));Assert.Equal(0,f.Count("extraction-start"));var reviewed=await f.Read();Assert.Equal(reviewed.Fence,(await fresh.Driver.RunLegacyTestHarnessAsync(reviewed)).Fence);Assert.Equal(decrypt,f.Count("parent-decrypt"));
     }
     [Theory]
     [InlineData("owner")] [InlineData("epoch")] [InlineData("revision")] [InlineData("plan")] [InlineData("frontier")]
@@ -91,7 +91,7 @@ public sealed class ZipDurableExtractionRecoveryTests
     public async Task Review_only_reader_still_requires_unrelated_scan_and_ingestion_proof()
     {
         await using var evidence=await ArtifactIngestionFixture.CreateAsync();var f=new ZipDurableRuntimeFixture(evidence);var p=await f.CreateParent();f.Driver.Checkpoint=n=>n=="C"?throw new Crash():Task.CompletedTask;
-        await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunAsync(p));p=await f.Read();await evidence.SqlAsync("UPDATE ZipExtractionEntries SET ProgressJson=json_set(ProgressJson,'$.EvidenceJson','{}')");
+        await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunLegacyTestHarnessAsync(p));p=await f.Read();await evidence.SqlAsync("UPDATE ZipExtractionEntries SET ProgressJson=json_set(ProgressJson,'$.EvidenceJson','{}')");
         await Assert.ThrowsAsync<InvalidDataException>(()=>f.Journal.ReviewParentEvidenceAsync(p.Fence,"ParentEvidenceFailure"));
         await using var c=new Microsoft.Data.Sqlite.SqliteConnection("Data Source="+evidence.DatabasePath);await c.OpenAsync();using var q=c.CreateCommand();q.CommandText="SELECT State FROM ZipExtractionParents WHERE OperationId='zip'";Assert.Equal((long)ZipParentState.Processing,Convert.ToInt64(await q.ExecuteScalarAsync()));
     }
@@ -99,10 +99,10 @@ public sealed class ZipDurableExtractionRecoveryTests
     public async Task Changed_parent_revision_after_completion_is_reviewed_without_deleting_replacement()
     {
         await using var evidence=await ArtifactIngestionFixture.CreateAsync();var f=new ZipDurableRuntimeFixture(evidence);var p=await f.CreateParent();f.Driver.Checkpoint=n=>n=="Completed"?throw new Crash():Task.CompletedTask;
-        await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunAsync(p));p=await f.Read();var r=(await f.Journal.ReadParentRetentionAsync("zip"))!;
+        await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunLegacyTestHarnessAsync(p));p=await f.Read();var r=(await f.Journal.ReadParentRetentionAsync("zip"))!;
         var physical=new FileSystemArtifactContentStore(Path.Combine(evidence.Root,"zip-parent-private","zip-quarantine"),BoundedEncryptedEnvelopeCodec.MaximumProtectedBytes(ZipNumericLimits.Parent));
         var changed=await physical.ReplaceIfRevisionMatchesAsync(new(r.Identity.ObjectId),r.CreateReceipt!.CurrentRevision!.Value,"replacement"u8.ToArray(),new(new("replacement-operation"),new ArtifactContentOwnershipToken(r.Identity.OwnerToken)));Assert.Equal(ArtifactContentMutationOutcome.Replaced,changed.Outcome);
-        var fresh=new ZipDurableRuntimeFixture(evidence);await Assert.ThrowsAsync<InvalidDataException>(()=>fresh.Driver.RunAsync(p));Assert.Equal(ZipParentState.RequiresReview,(await f.Read()).State);
+        var fresh=new ZipDurableRuntimeFixture(evidence);await Assert.ThrowsAsync<InvalidDataException>(()=>fresh.Driver.RunLegacyTestHarnessAsync(p));Assert.Equal(ZipParentState.RequiresReview,(await f.Read()).State);
         Assert.Equal(changed.CurrentRevision,await physical.ReadCurrentRevisionAsync(new(r.Identity.ObjectId)));Assert.Null((await f.Journal.ReadParentRetentionAsync("zip"))!.ReleaseReceipt);
     }
     private sealed class ObservedStorage(IZipPrivateContentStorage inner):IZipPrivateContentStorage
@@ -125,7 +125,7 @@ public sealed class ZipDurableExtractionRecoveryTests
         var observed=new ObservedStorage(f.ParentStorage){BeforeRead=async ct=>{reads++;var durable=await f.Read();Assert.Equal(p.Binding.Input.Length,durable.Budget.ParentReadBytes);Assert.Equal(decrypt,f.Count("parent-decrypt"));}};
         f.ParentRetention=new(f.Journal,f.Journal,observed,f.ParentCrypto);f.ComposeDriver();byte[]? first=null;
         f.Driver.Checkpoint=n=>{if(n=="B"){first??=f.ParentCrypto.LastPlaintext;Assert.Same(first,f.ParentCrypto.LastPlaintext);}return Task.CompletedTask;};
-        var final=await f.Driver.RunAsync(p);Assert.Equal(ZipParentState.Released,final.State);Assert.Equal(1,reads);Assert.Equal(decrypt+1,f.Count("parent-decrypt"));Assert.NotNull(first);Assert.All(first,b=>Assert.Equal((byte)0,b));
+        var final=await f.Driver.RunLegacyTestHarnessAsync(p);Assert.Equal(ZipParentState.Released,final.State);Assert.Equal(1,reads);Assert.Equal(decrypt+1,f.Count("parent-decrypt"));Assert.NotNull(first);Assert.All(first,b=>Assert.Equal((byte)0,b));
     }
     [Fact]
     public async Task Repeated_runtime_reopens_accumulate_nonrefundable_durable_parent_work()
@@ -162,16 +162,16 @@ public sealed class ZipDurableExtractionRecoveryTests
     {
         await using var evidence=await ArtifactIngestionFixture.CreateAsync();var f=new ZipDurableRuntimeFixture(evidence);var p=await f.CreateParent();Task<IDisposable>? next=null;ReadOnlyMemory<byte> memory=default;using var cancel=new CancellationTokenSource();
         f.Driver.Checkpoint=n=>{if(n=="B"){memory=f.ParentCrypto.LastPlaintext!;Assert.Contains(memory.ToArray(),b=>b!=0);next=ZipParentReadAdmission.ProcessWide.AcquireAsync();Assert.False(next.IsCompleted);if(mode=="exception")throw new Crash();if(mode=="cancel")cancel.Cancel();}return Task.CompletedTask;};
-        if(mode=="exception")await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunAsync(p,cancel.Token));else if(mode=="cancel")await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>f.Driver.RunAsync(p,cancel.Token));else await f.Driver.RunAsync(p,cancel.Token);
+        if(mode=="exception")await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunLegacyTestHarnessAsync(p,cancel.Token));else if(mode=="cancel")await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>f.Driver.RunLegacyTestHarnessAsync(p,cancel.Token));else await f.Driver.RunLegacyTestHarnessAsync(p,cancel.Token);
         Assert.NotNull(next);using var acquired=await next.WaitAsync(TimeSpan.FromSeconds(5));Assert.All(memory.ToArray(),b=>Assert.Equal((byte)0,b));
     }
     [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task Missing_or_contradictory_release_receipt_cannot_authorize_recovery_deletion(bool contradiction)
     {
-        await using var evidence=await ArtifactIngestionFixture.CreateAsync();var f=new ZipDurableRuntimeFixture(evidence);var p=await f.CreateParent();f.ParentRetention.Checkpoint=n=>n=="CandidateDeleted"?throw new Crash():Task.CompletedTask;await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunAsync(p));p=await f.Read();var r=(await f.Journal.ReadParentRetentionAsync("zip"))!;Assert.NotNull(r.ReleaseReceipt);var budget=p.Budget;var before=f.Count("parent-decrypt");
+        await using var evidence=await ArtifactIngestionFixture.CreateAsync();var f=new ZipDurableRuntimeFixture(evidence);var p=await f.CreateParent();f.ParentRetention.Checkpoint=n=>n=="CandidateDeleted"?throw new Crash():Task.CompletedTask;await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunLegacyTestHarnessAsync(p));p=await f.Read();var r=(await f.Journal.ReadParentRetentionAsync("zip"))!;Assert.NotNull(r.ReleaseReceipt);var budget=p.Budget;var before=f.Count("parent-decrypt");
         var fresh=new ZipDurableRuntimeFixture(evidence);var observed=new ObservedStorage(fresh.ParentStorage){Receipt=(op,receipt)=>op.Value==r.Identity.ReleaseOperationId?(contradiction?receipt! with{PriorRevision=new("different-revision")}:null):receipt};
-        fresh.ParentRetention=new(fresh.Journal,fresh.Journal,observed,fresh.ParentCrypto);fresh.ComposeDriver();await Assert.ThrowsAsync<InvalidDataException>(()=>fresh.Driver.RunAsync(p));
+        fresh.ParentRetention=new(fresh.Journal,fresh.Journal,observed,fresh.ParentCrypto);fresh.ComposeDriver();await Assert.ThrowsAsync<InvalidDataException>(()=>fresh.Driver.RunLegacyTestHarnessAsync(p));
         var reviewed=await fresh.Read();Assert.Equal(ZipParentState.RequiresReview,reviewed.State);Assert.Equal(budget,reviewed.Budget);Assert.Equal(before,f.Count("parent-decrypt"));Assert.Equal(r,(await fresh.Journal.ReadParentRetentionAsync("zip"))!);
     }
     [Fact]
@@ -190,7 +190,7 @@ public sealed class ZipDurableExtractionRecoveryTests
     [InlineData("owner")] [InlineData("epoch")] [InlineData("revision")]
     public async Task Stale_parent_release_cannot_delete_completed_parent_copy(string part)
     {
-        await using var evidence=await ArtifactIngestionFixture.CreateAsync();var f=new ZipDurableRuntimeFixture(evidence);var p=await f.CreateParent();f.Driver.Checkpoint=n=>n=="Completed"?throw new Crash():Task.CompletedTask;await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunAsync(p));p=await f.Read();var r=(await f.Journal.ReadParentRetentionAsync("zip"))!;
+        await using var evidence=await ArtifactIngestionFixture.CreateAsync();var f=new ZipDurableRuntimeFixture(evidence);var p=await f.CreateParent();f.Driver.Checkpoint=n=>n=="Completed"?throw new Crash():Task.CompletedTask;await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunLegacyTestHarnessAsync(p));p=await f.Read();var r=(await f.Journal.ReadParentRetentionAsync("zip"))!;
         var fence=part switch{"owner"=>p.Fence with{Owner="stale"},"epoch"=>p.Fence with{Epoch=p.Fence.Epoch-1},_=>p.Fence with{Revision=p.Fence.Revision-1}};
         await Assert.ThrowsAsync<ZipFenceException>(()=>f.ParentRetention.ReleaseAsync(p with{Fence=fence}));Assert.Equal(r,(await f.Journal.ReadParentRetentionAsync("zip"))!);await using var raw=await f.ParentStorage.ReadProtectedAsync(new(r.Identity.ObjectId),r.CreateReceipt!.CurrentRevision!.Value);Assert.NotNull(raw);
     }
