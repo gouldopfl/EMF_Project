@@ -42,5 +42,17 @@ public interface IZipAuthorizedExecution : IAsyncDisposable
         => Task.FromException<IZipAuthorizedEffectScope<ZipChildExtractionRequest>>(new NotSupportedException("Extraction authority is unavailable."));
     Task<IZipAuthorizedEffectScope<ZipChildRetentionRequest>> AuthorizeChildRetentionAsync(ZipChildRetentionRequest request, CancellationToken ct = default)
         => Task.FromException<IZipAuthorizedEffectScope<ZipChildRetentionRequest>>(new NotSupportedException("Retention authority is unavailable."));
+    Task<IZipAuthorizedEffectScope<ZipScanReservationRequest>> AuthorizeScanReservationAsync(ZipScanReservationRequest request, CancellationToken ct = default)
+        => Task.FromException<IZipAuthorizedEffectScope<ZipScanReservationRequest>>(new NotSupportedException("Scanner reservation authority is unavailable."));
+    Task<IZipAuthorizedEffectScope<ZipScanChildReadRequest>> AuthorizeScanChildReadAsync(ZipScanChildReadRequest request, CancellationToken ct = default)
+        => Task.FromException<IZipAuthorizedEffectScope<ZipScanChildReadRequest>>(new NotSupportedException("Scanner child-read authority is unavailable."));
+    Task<IZipAuthorizedEffectScope<ZipScanProgressionRequest>> AuthorizeScanProgressionAsync(ZipScanProgressionRequest request, CancellationToken ct = default)
+        => Task.FromException<IZipAuthorizedEffectScope<ZipScanProgressionRequest>>(new NotSupportedException("Scanner progression authority is unavailable."));
+    Task<IZipAuthorizedScannerCallScope> AuthorizeScannerCallAsync(ZipScanCallRequest request, CancellationToken ct = default)
+        => Task.FromException<IZipAuthorizedScannerCallScope>(new NotSupportedException("Scanner transport authority is unavailable."));
+    // Independent recording-only permit, issued while root is live. It is not
+    // one of the execution scopes canceled by root disposal/revocation.
+    Task<IZipScanObservationRecorder> AuthorizeScanObservationRecordingAsync(ZipScanRecordingRequest request, CancellationToken ct = default)
+        => Task.FromException<IZipScanObservationRecorder>(new NotSupportedException("Scanner observation authority is unavailable."));
     Task<ZipChildIngestionRuntime> OpenChildAsync(ZipParentSnapshot parent, ZipEntryProgress entry, CancellationToken ct = default);
 }

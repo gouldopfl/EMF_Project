@@ -5,7 +5,7 @@ namespace EMF.Orchestration.Services;
 
 // Constructed only from a successful same-root authorized ownership handoff.
 // The host retains ownership of the root and must dispose it after this attempt.
-public sealed class ZipExecutionAttempt : IAsyncDisposable
+public sealed partial class ZipExecutionAttempt : IAsyncDisposable
 {
     private sealed class Consumption { internal int Used; }
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IZipAuthorizedExecution,Consumption> consumed = new();

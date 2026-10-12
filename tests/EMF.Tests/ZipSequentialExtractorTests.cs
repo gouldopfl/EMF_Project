@@ -11,6 +11,7 @@ using EMF.Security.Encryption.Envelope.Services;
 using EMF.Tests.TestInfrastructure;
 using Microsoft.Data.Sqlite;
 namespace EMF.Tests;
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipSequentialExtractorTests
 {
     private sealed class Crash:Exception;

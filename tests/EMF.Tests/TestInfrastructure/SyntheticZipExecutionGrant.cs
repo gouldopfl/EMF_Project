@@ -5,7 +5,7 @@ namespace EMF.Tests.TestInfrastructure;
 
 // Synthetic contract mechanics only; no authenticated issuer or external
 // revocation/commit ordering guarantee is simulated here.
-internal sealed class SyntheticZipExecutionGrant(ZipParentAdmission admission,
+internal sealed partial class SyntheticZipExecutionGrant(ZipParentAdmission admission,
     ZipOwnershipPurpose purpose, TimeProvider clock, TimeSpan? grantLifetime = null) : IZipAuthorizedExecution
 {
     private readonly CancellationTokenSource lifetime = new();
@@ -23,6 +23,7 @@ internal sealed class SyntheticZipExecutionGrant(ZipParentAdmission admission,
     public Func<Task>? BeforeScopeDisposal;
     public Func<Scope, IZipAuthorizedOwnershipScope>? ChangeScope;
     public Action<object>? OnEffectRequest;
+    internal Action<object>? AfterEffectAcceptance {get;set;}
     public Func<Task>? BeforeEffectDisposal;
     public Action? RevokeCurrentEffect;
     public TimeSpan? EffectLifetime;
@@ -103,7 +104,7 @@ internal sealed class SyntheticZipExecutionGrant(ZipParentAdmission admission,
         public IDisposable Accept(CancellationToken ct=default)
         {
             Monitor.Enter(root.authorityGate);
-            try { Check(ct);return new Accepted(root.authorityGate); }
+            try { Check(ct);root.AfterEffectAcceptance?.Invoke(Request);return new Accepted(root.authorityGate); }
             catch { Monitor.Exit(root.authorityGate);throw; }
         }
         public async ValueTask DisposeAsync()

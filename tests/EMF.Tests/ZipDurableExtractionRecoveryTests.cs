@@ -7,6 +7,7 @@ using EMF.Persistence.Storage;
 using EMF.Security.Encryption.Envelope;
 using EMF.Tests.TestInfrastructure;
 namespace EMF.Tests;
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipDurableExtractionRecoveryTests
 {
     private sealed class Crash:Exception;
@@ -160,10 +161,22 @@ public sealed class ZipDurableExtractionRecoveryTests
     [InlineData("success")] [InlineData("exception")] [InlineData("cancel")]
     public async Task Parent_plaintext_is_cleared_before_process_gate_is_released(string mode)
     {
-        await using var evidence=await ArtifactIngestionFixture.CreateAsync();var f=new ZipDurableRuntimeFixture(evidence);var p=await f.CreateParent();Task<IDisposable>? next=null;ReadOnlyMemory<byte> memory=default;using var cancel=new CancellationTokenSource();
-        f.Driver.Checkpoint=n=>{if(n=="B"){memory=f.ParentCrypto.LastPlaintext!;Assert.Contains(memory.ToArray(),b=>b!=0);next=ZipParentReadAdmission.ProcessWide.AcquireAsync();Assert.False(next.IsCompleted);if(mode=="exception")throw new Crash();if(mode=="cancel")cancel.Cancel();}return Task.CompletedTask;};
-        if(mode=="exception")await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunLegacyTestHarnessAsync(p,cancel.Token));else if(mode=="cancel")await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>f.Driver.RunLegacyTestHarnessAsync(p,cancel.Token));else await f.Driver.RunLegacyTestHarnessAsync(p,cancel.Token);
-        Assert.NotNull(next);using var acquired=await next.WaitAsync(TimeSpan.FromSeconds(5));Assert.All(memory.ToArray(),b=>Assert.Equal((byte)0,b));
+        await using var evidence=await ArtifactIngestionFixture.CreateAsync();var f=new ZipDurableRuntimeFixture(evidence);var p=await f.CreateParent();Task<IDisposable>? next=null;ReadOnlyMemory<byte> memory=default;using var cancel=new CancellationTokenSource();using var waiting=new CancellationTokenSource();
+        try
+        {
+            f.Driver.Checkpoint=n=>{if(n=="B"){memory=f.ParentCrypto.LastPlaintext!;Assert.Contains(memory.ToArray(),b=>b!=0);next=ZipParentReadAdmission.ProcessWide.AcquireAsync(waiting.Token);Assert.False(next.IsCompleted);if(mode=="exception")throw new Crash();if(mode=="cancel")cancel.Cancel();}return Task.CompletedTask;};
+            if(mode=="exception")await Assert.ThrowsAsync<Crash>(()=>f.Driver.RunLegacyTestHarnessAsync(p,cancel.Token));else if(mode=="cancel")await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>f.Driver.RunLegacyTestHarnessAsync(p,cancel.Token));else await f.Driver.RunLegacyTestHarnessAsync(p,cancel.Token);
+            Assert.NotNull(next);using var acquired=await next.WaitAsync(TimeSpan.FromSeconds(5));Assert.All(memory.ToArray(),b=>Assert.Equal((byte)0,b));
+        }
+        finally
+        {
+            waiting.Cancel();
+            if(next is not null)
+            {
+                try { (await next).Dispose(); }
+                catch(OperationCanceledException) { }
+            }
+        }
     }
     [Theory]
     [InlineData(false)] [InlineData(true)]

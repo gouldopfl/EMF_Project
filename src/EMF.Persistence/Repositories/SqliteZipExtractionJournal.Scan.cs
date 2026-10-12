@@ -39,9 +39,16 @@ public sealed partial class SqliteZipExtractionJournal
         if(entries.Any(e=>e.State is ZipEntryState.Scanned or ZipEntryState.Ingested or ZipEntryState.Acknowledged or ZipEntryState.Released &&
             (e.Plan.FileOrdinal is not { } ordinal||!clean.Contains(ordinal))))throw new InvalidDataException("ZIP scanner state has no bound Clean evidence.");
     }
-    public async Task<ZipScanUpdate> BeginScanAsync(ZipFence f,int ordinal,MalwareScannerPolicy policy,CancellationToken ct=default)
+    public Task<ZipScanUpdate> BeginScanAsync(ZipFence f,int ordinal,MalwareScannerPolicy policy,CancellationToken ct=default)
+        => BeginScanCoreAsync(f,ordinal,policy,null,ct);
+    public Task<ZipScanUpdate> BeginScanAsync(ZipFence f,int ordinal,MalwareScannerPolicy policy,IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+    { ArgumentNullException.ThrowIfNull(guard);return BeginScanCoreAsync(f,ordinal,policy,guard,ct); }
+    private async Task<ZipScanUpdate> BeginScanCoreAsync(ZipFence f,int ordinal,MalwareScannerPolicy policy,IZipEffectBoundaryGuard? guard,CancellationToken ct)
     {
-        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);var p=await FencedAsync(c,tx,f,ct);
+        await ValidateEffectAsync(guard,ct);
+        await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);
+        await ValidateEffectAsync(guard,ct);var p=await FencedAsync(c,tx,f,ct);
+        if(guard is not null)await ValidateExecutionAdmissionAsync(c,tx,p,ct);
         if(ordinal!=f.ConfirmedOrdinal+1||p.State is not (ZipParentState.Planned or ZipParentState.Processing))throw new ZipFenceException();
         var entry=p.Entries.Single(e=>e.Plan.FileOrdinal==ordinal);
         if(entry.State!=ZipEntryState.Materialized||entry.Retained is null)throw new InvalidDataException("ZIP scan requires private materialization.");
@@ -49,17 +56,27 @@ public sealed partial class SqliteZipExtractionJournal
         var retention=await RetentionAsync(c,tx,f.OperationId,ordinal,ct);
         if(retention?.State!=ZipRetentionState.Created||retention.Identity.ObjectId!=entry.Retained.ContentId||retention.CreateReceipt!.CurrentRevision!.Value.Value!=entry.Retained.Revision||
             retention.Identity.PlaintextSha256!=entry.Retained.Sha256||retention.Identity.Length!=entry.Retained.Length)throw new InvalidDataException("ZIP scanner retention binding changed.");
+        if(guard is not null)await ValidateScannerNamespaceAsync(c,tx,p,ordinal,ct);
         using var q=c.CreateCommand();q.Transaction=tx;q.Parameters.AddWithValue("$op",f.OperationId);q.Parameters.AddWithValue("$file",ordinal);
         q.CommandText="SELECT BindingJson FROM ZipExtractionScans WHERE ParentOperationId=$op AND FileOrdinal=$file";
         using(var rows=await q.ExecuteReaderAsync(ct))while(await rows.ReadAsync(ct))if(Decode<ZipScanAttempt>(rows.GetString(0)).Request.Policy!=policy)throw new InvalidDataException("ZIP scanner policy cannot change on replay.");
         q.CommandText="SELECT COUNT(*) FROM ZipExtractionReservations WHERE ParentOperationId=$op AND FileOrdinal=$file AND Kind=2";
         var attempts=Convert.ToInt32(await q.ExecuteScalarAsync(ct));if(attempts>=ZipNumericLimits.Attempts)throw new InvalidDataException("ZIP scanner attempts exhausted.");
+        if(guard is not null)
+        {
+            var latest=await LatestScanCoreAsync(c,tx,f.OperationId,ordinal,ct);
+            if(latest.Evidence is { } prior && (prior.IsClean || ZipScanOutcome.IsTerminal(prior,attempts)))
+                throw new InvalidDataException("Recorded scanner outcome vetoes another reservation.");
+        }
         var budget=p.Budget with{ScannerAttempts=checked(p.Budget.ScannerAttempts+1),ScannerReserved=checked(p.Budget.ScannerReserved+entry.Plan.ExpandedLength),
             ReplayScanner=checked(p.Budget.ReplayScanner+(attempts>0?entry.Plan.ExpandedLength:0))};ValidateBudget(budget);
         var reservation=new ZipWorkReservation(Guid.NewGuid().ToString("N"),ZipWorkKind.Scanner,ordinal,entry.Plan.ExpandedLength);
         var attempt=new ZipScanAttempt(reservation.Id,ordinal,f.PlanHash!,request);q.Parameters.AddWithValue("$id",reservation.Id);q.Parameters.AddWithValue("$reservation",Json(reservation));q.Parameters.AddWithValue("$binding",Json(attempt));
         q.CommandText="INSERT INTO ZipExtractionReservations VALUES($op,$id,$file,2,$reservation); INSERT INTO ZipExtractionScans VALUES($op,$id,$file,$binding,NULL)";await q.ExecuteNonQueryAsync(ct);
-        p=p with{Budget=budget,Fence=f with{Revision=checked(f.Revision+1)}};await SaveAsync(c,tx,p,ct);tx.Commit();return new(p,attempt);
+        p=p with{Budget=budget,Fence=f with{Revision=checked(f.Revision+1)}};await SaveAsync(c,tx,p,ct);
+        if(guard is not null)await ScanAt("BeforeReservationCommit");
+        await CommitEffectAsync(tx,guard,ct,p.OwnerUntil,admissionEligibility:guard is null?null:()=>ValidateExecutionAdmissionAsync(c,tx,p,ct));
+        return new(p,attempt);
     }
     public async Task<ZipParentSnapshot> CompleteScanAsync(ZipFence f,ZipScanAttempt attempt,MalwareScanEvidence evidence,CancellationToken ct=default)
     {

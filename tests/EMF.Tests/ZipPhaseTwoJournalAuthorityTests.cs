@@ -5,6 +5,7 @@ using EMF.Persistence.Repositories;
 
 namespace EMF.Tests;
 
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipPhaseTwoJournalAuthorityTests
 {
     private sealed class Guard : IZipEffectBoundaryGuard, IDisposable

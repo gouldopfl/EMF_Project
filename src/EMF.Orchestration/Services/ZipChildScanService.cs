@@ -1,12 +1,12 @@
 using EMF.Core.Contracts.Malware;
 using EMF.Core.Contracts.Zip;
 namespace EMF.Orchestration.Services;
-public sealed class ZipChildScanService(IZipExtractionJournal parents,IZipScanJournal scans,
+public sealed partial class ZipChildScanService(IZipExtractionJournal parents,IZipScanJournal scans,
     IZipExtractionExecutionJournal failures,ZipProtectedRetentionService retention,IMalwareScanner scanner)
 {
     internal Func<string,Task>? Checkpoint { get; set; }
     private Task At(string name)=>Checkpoint?.Invoke(name)??Task.CompletedTask;
-    public async Task<ZipParentSnapshot> ScanNextAsync(ZipParentSnapshot parent,CancellationToken ct=default)
+    internal async Task<ZipParentSnapshot> ScanNextAsync(ZipParentSnapshot parent,CancellationToken ct=default)
     {
         await ZipChildWorkGate.Gate.WaitAsync(ct);
         try

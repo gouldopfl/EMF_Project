@@ -4,6 +4,7 @@ using EMF.Orchestration.Services;
 using EMF.Tests.TestInfrastructure;
 namespace EMF.Tests;
 
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipPhaseIIStopBoundaryTests
 {
     private static async Task<ZipExecutionAttempt> Claim(ZipOwnershipFixture f, SyntheticZipExecutionGrant grant)

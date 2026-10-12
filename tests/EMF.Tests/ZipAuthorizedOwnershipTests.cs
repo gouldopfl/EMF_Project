@@ -4,6 +4,7 @@ using EMF.Tests.TestInfrastructure;
 
 namespace EMF.Tests;
 
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipAuthorizedOwnershipTests
 {
     private static ZipAuthorizedOwnershipService Service(ZipOwnershipFixture f) => new(f.Journal, f.Journal, f.Profile, f.Clock);

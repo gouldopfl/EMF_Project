@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using EMF.Core.Contracts.Storage;
+using EMF.Core.Contracts.Malware;
 using EMF.Core.Contracts.Zip;
 using EMF.Orchestration.Models;
 using EMF.Persistence.Repositories;
@@ -15,14 +16,14 @@ internal sealed class ZipOwnershipFixture : IAsyncDisposable
     internal ZipDurableProfile Profile = null!;
     internal SqliteZipExtractionJournal Journal => Runtime.Journal;
     internal static async Task<ZipOwnershipFixture> CreateAsync(
-        ZipAuthorityCapabilities capabilities = ZipAuthorityCapabilities.Admit | ZipAuthorityCapabilities.Recover, bool two = false, byte[]? sourceBytes = null)
+        ZipAuthorityCapabilities capabilities = ZipAuthorityCapabilities.Admit | ZipAuthorityCapabilities.Recover, bool two = false, byte[]? sourceBytes = null, MalwareScannerPolicy? scannerPolicy = null)
     {
         var f = new ZipOwnershipFixture { Evidence = await ArtifactIngestionFixture.CreateAsync() };
         try
         {
             f.Runtime = new(f.Evidence, f.Clock); await f.Journal.InitializeAsync();
             f.Profile = ZipDurableProfile.Create(f.Runtime.ParentStorage.NamespaceId, f.Runtime.ChildStorage.NamespaceId,
-                new("clamd", "test-policy", new string('C', 64)), "synthetic-test-protection");
+                scannerPolicy ?? new("clamd", "test-policy", new string('C', 64)), "synthetic-test-protection");
             var binding = new ZipAdmissionBinding("workflow", "workflow-operation", "zip-archives", "parent",
                 "source-parent", "source-revision", "synthetic-original-actor", "synthetic-authorized-operation",
                 f.Profile.CanonicalJson, f.Profile.Fingerprint, f.Profile.ParentNamespaceId, f.Profile.ChildNamespaceId);

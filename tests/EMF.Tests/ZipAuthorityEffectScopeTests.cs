@@ -5,6 +5,7 @@ using EMF.Tests.TestInfrastructure;
 namespace EMF.Tests;
 
 // Tests synthetic lifecycle mechanics, not production issuer authenticity.
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipAuthorityEffectScopeTests
 {
     [Theory]

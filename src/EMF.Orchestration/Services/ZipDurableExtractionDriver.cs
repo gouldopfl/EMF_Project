@@ -77,6 +77,15 @@ public sealed class ZipDurableExtractionDriver(IZipExtractionJournal parents,IZi
         await attempt.RevalidateAsync(ct);ct.ThrowIfCancellationRequested();attempt.Validate(p);
         return result;
     }
+    public async Task<ZipScannerResult> RunScannerAsync(ZipExecutionAttempt attempt,CancellationToken ct=default,CancellationToken hardAbort=default)
+    {
+        ArgumentNullException.ThrowIfNull(attempt);await attempt.RevalidateAsync(ct);
+        var p=await parents.ReadAsync(attempt.Claimed.Binding.OperationId,ct)??throw new InvalidDataException("Missing ZIP parent.");
+        attempt.Validate(p);
+        // Legitimate Phase II progress may have advanced revision under this
+        // same owner/epoch. The scanner service/journal use the exact reread.
+        return await scanner.ScanNextAsync(p,attempt,ct,hardAbort);
+    }
     internal Func<string,Task>? Checkpoint{get;set;}
     private Task At(string name)=>Checkpoint?.Invoke(name)??Task.CompletedTask;
     internal async Task<ZipParentSnapshot> ResumeLegacyTestHarnessAsync(string operation,string owner,TimeSpan lease,CancellationToken ct=default)

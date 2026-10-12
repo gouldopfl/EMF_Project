@@ -14,6 +14,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EMF.Tests;
 
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipProtectedRetentionTests
 {
     private sealed class Crash : Exception;

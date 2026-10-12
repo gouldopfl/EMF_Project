@@ -8,6 +8,7 @@ using EMF.Persistence.Repositories;
 using EMF.Tests.TestInfrastructure;
 using Microsoft.Data.Sqlite;
 namespace EMF.Tests;
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipExtractionExecutionJournalTests
 {
     private sealed class Fixture:IAsyncDisposable

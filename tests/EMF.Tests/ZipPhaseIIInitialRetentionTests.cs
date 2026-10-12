@@ -8,6 +8,7 @@ using EMF.Tests.TestInfrastructure;
 
 namespace EMF.Tests;
 
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipPhaseIIInitialRetentionTests
 {
     private sealed class Fixture : IAsyncDisposable

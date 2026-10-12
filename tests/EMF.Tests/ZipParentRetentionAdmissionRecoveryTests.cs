@@ -4,6 +4,7 @@ using EMF.Tests.TestInfrastructure;
 
 namespace EMF.Tests;
 
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipParentRetentionAdmissionRecoveryTests
 {
     private sealed class Crash : Exception;

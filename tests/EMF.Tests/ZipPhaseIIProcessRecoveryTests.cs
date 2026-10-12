@@ -13,6 +13,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EMF.Tests;
 
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipPhaseIIProcessRecoveryTests
 {
     // Persisted worker setup contains evidence/configuration only, never a ZIP live grant.

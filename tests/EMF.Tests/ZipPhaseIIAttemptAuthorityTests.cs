@@ -3,6 +3,7 @@ using EMF.Orchestration.Services;
 using EMF.Tests.TestInfrastructure;
 namespace EMF.Tests;
 
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipPhaseIIAttemptAuthorityTests
 {
     private static ZipAuthorizedOwnershipService Ownership(ZipOwnershipFixture f) => new(f.Journal, f.Journal, f.Profile, f.Clock);

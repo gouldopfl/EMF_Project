@@ -8,6 +8,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EMF.Tests;
 
+[Collection(TimingSensitiveFixtureCollection.Name)]
 public sealed class ReviewerCaptureLifetimeRegressionTests
 {
     private sealed class Fixture : IAsyncDisposable

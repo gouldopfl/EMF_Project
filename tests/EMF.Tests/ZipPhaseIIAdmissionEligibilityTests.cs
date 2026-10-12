@@ -1,6 +1,7 @@
 using EMF.Core.Contracts.Zip;
 using EMF.Tests.TestInfrastructure;
 namespace EMF.Tests;
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipPhaseIIAdmissionEligibilityTests
 {
     private sealed class ValidGuard : IZipEffectBoundaryGuard

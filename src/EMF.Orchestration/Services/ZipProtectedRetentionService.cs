@@ -164,6 +164,15 @@ public sealed class ZipProtectedRetentionService
         }
         finally{if(candidate is not null)CryptographicOperations.ZeroMemory(candidate);if(envelope is not null)BoundedEncryptedEnvelopeCodec.Clear(envelope);}
     }
+    internal void ValidateScanDependencies()
+    {
+        _=ZipPhaseIIWork.Guarded(_storage);
+        if(_decryption is not IZipGuardedEnvelopeEncryptionService)throw new NotSupportedException("Guarded scanner decryption required.");
+    }
+    internal Task<ZipRetentionRecord?> ReadForScanAsync(ZipParentSnapshot parent,int fileOrdinal,CancellationToken ct)
+        => ReadRetentionAsync(parent,fileOrdinal,true,ct,true);
+    internal Task<IArtifactContentReadLease> OpenForScanAsync(ZipParentSnapshot parent,int fileOrdinal,IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+    {ArgumentNullException.ThrowIfNull(guard);return OpenCoreAsync(parent,fileOrdinal,guard,ct);}
     public Task<IArtifactContentReadLease> OpenAsync(ZipParentSnapshot parent,int fileOrdinal,CancellationToken ct=default)
         => OpenCoreAsync(parent,fileOrdinal,null,ct);
     private async Task<IArtifactContentReadLease> OpenCoreAsync(ZipParentSnapshot parent,int fileOrdinal,IZipEffectBoundaryGuard? guard,CancellationToken ct)

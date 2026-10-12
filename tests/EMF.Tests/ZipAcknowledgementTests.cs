@@ -8,6 +8,7 @@ using EMF.Persistence.Repositories;
 using EMF.Tests.TestInfrastructure;
 using Microsoft.Data.Sqlite;
 namespace EMF.Tests;
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipAcknowledgementTests
 {
     private sealed class Crash:Exception;

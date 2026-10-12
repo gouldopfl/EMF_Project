@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EMF.Tests;
 
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipAdmissionMigrationTests
 {
     private static string VersionFourSql()

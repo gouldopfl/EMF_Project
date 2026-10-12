@@ -8,6 +8,7 @@ using EMF.Persistence.Repositories;
 using EMF.Security.Ingestion;
 using EMF.Tests.TestInfrastructure;
 namespace EMF.Tests;
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipDurableExtractionProcessRecoveryTests
 {
     private sealed record Request(ArtifactId ControlArtifact,AuthenticatedIngestionOperation Authority,string Boundary,bool Recover,DateTimeOffset Now);

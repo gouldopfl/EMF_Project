@@ -9,6 +9,7 @@ using EMF.Orchestration.Services;
 using EMF.Tests.TestInfrastructure;
 namespace EMF.Tests;
 
+[Collection(ZipProcessWideGateCollection.Name)]
 public sealed class ZipParentReadAdmissionTests
 {
     [Fact]
