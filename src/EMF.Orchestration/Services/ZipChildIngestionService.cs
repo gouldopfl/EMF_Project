@@ -7,7 +7,7 @@ using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Orchestration.Contracts;
 namespace EMF.Orchestration.Services;
-public sealed class ZipChildIngestionService(IZipExtractionJournal parents,IZipChildIngestionJournal ingestions,
+public sealed partial class ZipChildIngestionService(IZipExtractionJournal parents,IZipChildIngestionJournal ingestions,
     IZipExtractionExecutionJournal failures,ZipProtectedRetentionService retention,IZipChildIngestionHost? host)
 {
     internal Func<string,Task>? Checkpoint { get; set; }

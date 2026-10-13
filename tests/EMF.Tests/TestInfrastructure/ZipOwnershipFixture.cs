@@ -37,6 +37,7 @@ internal sealed class ZipOwnershipFixture : IAsyncDisposable
             using var lease = new ArtifactContentReadLease(new(source.ContentId), new(source.Revision), source.Length, bytes);
             var parent = await f.Runtime.ParentRetention.RetainAsync(p.OperationId, binding.ParentArtifactId, f.Profile.Fingerprint, lease);
             f.Admission = await f.Journal.AppendAdmissionEventAsync(p, new("parent", ZipAdmissionEventKind.ParentBound, binding.OriginalActorId, f.Clock.Now, Parent: parent));
+            f.Runtime.ChildParentOperationId = f.Admission.OperationId;
             return f;
         }
         catch { await f.DisposeAsync(); throw; }

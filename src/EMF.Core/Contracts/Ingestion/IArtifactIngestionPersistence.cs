@@ -64,3 +64,19 @@ public interface IArtifactIngestionCoordinator
         => throw new NotSupportedException("Retained-input ingestion resume is unsupported.");
     Task<ArtifactIngestionOutcome?> RecoverInterruptedAsync(CancellationToken cancellationToken = default);
 }
+
+// Optional transaction-bound capabilities used by delegated ZIP ingestion.
+// The generic coordinator continues using its existing persistence contract.
+public interface IZipGuardedArtifactIngestionSession
+{
+    Task CommitGuardedAsync(EMF.Core.Contracts.Zip.IZipEffectBoundaryGuard guard,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IZipGuardedArtifactIngestionPersistence
+{
+    Task AcknowledgeAuditGuardedAsync(IngestionAuditObligation expected,
+        EMF.Core.Contracts.Zip.IZipEffectBoundaryGuard guard, CancellationToken ct = default);
+    Task MarkAuditPendingGuardedAsync(IngestionAuditObligation expected,
+        EMF.Core.Contracts.Zip.IZipEffectBoundaryGuard guard, CancellationToken ct = default);
+}

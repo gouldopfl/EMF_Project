@@ -55,4 +55,11 @@ public interface IZipAuthorizedExecution : IAsyncDisposable
     Task<IZipScanObservationRecorder> AuthorizeScanObservationRecordingAsync(ZipScanRecordingRequest request, CancellationToken ct = default)
         => Task.FromException<IZipScanObservationRecorder>(new NotSupportedException("Scanner observation authority is unavailable."));
     Task<ZipChildIngestionRuntime> OpenChildAsync(ZipParentSnapshot parent, ZipEntryProgress entry, CancellationToken ct = default);
+    Task<IZipAuthorizedEffectScope<ZipChildIngestionEffectRequest>> AuthorizeChildIngestionEffectAsync(
+        ZipChildIngestionEffectRequest request, CancellationToken ct = default)
+        => Task.FromException<IZipAuthorizedEffectScope<ZipChildIngestionEffectRequest>>(
+            new NotSupportedException("Child ingestion authority is unavailable."));
+    Task<ZipChildIngestionRuntime> OpenChildAsync(ZipParentSnapshot parent, ZipEntryProgress entry,
+        IZipChildIngestionEffectGate gate, CancellationToken ct = default)
+        => Task.FromException<ZipChildIngestionRuntime>(new NotSupportedException("Guarded child delegation is unavailable."));
 }

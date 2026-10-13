@@ -86,6 +86,17 @@ public sealed class ZipDurableExtractionDriver(IZipExtractionJournal parents,IZi
         // same owner/epoch. The scanner service/journal use the exact reread.
         return await scanner.ScanNextAsync(p,attempt,ct,hardAbort);
     }
+    public async Task<ZipChildIngestionResult> RunChildIngestionAsync(ZipExecutionAttempt attempt,CancellationToken ct=default)
+    {
+        ArgumentNullException.ThrowIfNull(attempt);
+        await attempt.RevalidateAsync(ct);
+        var p=await parents.ReadAsync(attempt.Claimed.Binding.OperationId,ct)
+            ??throw new InvalidDataException("Missing ZIP parent.");
+        attempt.Validate(p);
+        // The child service re-reads and owns every effect. This entry cannot
+        // acknowledge, release, classify or advance the ZIP frontier.
+        return await ingestion.IngestNextAsync(p,attempt,ct);
+    }
     internal Func<string,Task>? Checkpoint{get;set;}
     private Task At(string name)=>Checkpoint?.Invoke(name)??Task.CompletedTask;
     internal async Task<ZipParentSnapshot> ResumeLegacyTestHarnessAsync(string operation,string owner,TimeSpan lease,CancellationToken ct=default)

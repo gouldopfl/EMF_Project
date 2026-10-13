@@ -2,6 +2,7 @@ using EMF.Integrity;
 using System.Security.Cryptography;
 using EMF.Core.Contracts.Ingestion;
 using EMF.Core.Contracts.Storage;
+using EMF.Core.Contracts.Zip;
 using EMF.Core.Models;
 using EMF.Core.Models.Identities;
 using EMF.Core.Models.Integrity;
@@ -160,7 +161,7 @@ internal sealed class ArtifactIngestionFixture : IAsyncDisposable
                 ? AuthorizationDecision.Allow : AuthorizationDecision.Deny;
         }
     }
-    internal sealed class CountingEncryption(IEnvelopeEncryptionService inner) : IEnvelopeEncryptionService
+    internal sealed class CountingEncryption(IEnvelopeEncryptionService inner) : IEnvelopeEncryptionService, IZipGuardedEnvelopeEncryptionService
     {
         public int Encryptions { get; private set; }
         public Func<Task>? EncryptHook { get; set; }
@@ -171,6 +172,23 @@ internal sealed class ArtifactIngestionFixture : IAsyncDisposable
             { if (DecryptHook is not null) await DecryptHook(); return await inner.DecryptWithContextAsync(envelope, context, ct); }
         public Task<EncryptedEnvelope> EncryptAsync(ReadOnlyMemory<byte> content, CancellationToken ct = default) => inner.EncryptAsync(content, ct);
         public Task<byte[]> DecryptAsync(EncryptedEnvelope envelope, CancellationToken ct = default) => inner.DecryptAsync(envelope, ct);
+        public async Task<EncryptedEnvelope> EncryptWithContextGuardedAsync(ReadOnlyMemory<byte> content,
+            ReadOnlyMemory<byte> context, IZipEffectBoundaryGuard guard, CancellationToken ct = default)
+        {
+            var provider = inner as IZipGuardedEnvelopeEncryptionService
+                ?? throw new NotSupportedException("Synthetic guarded encryption provider is unavailable.");
+            Encryptions++; if (EncryptHook is not null) await EncryptHook();
+            return await provider.EncryptWithContextGuardedAsync(content, context, guard, ct);
+        }
+        public async Task<byte[]> DecryptWithContextBoundedGuardedAsync(EncryptedEnvelope envelope,
+            ReadOnlyMemory<byte> context, EnvelopeDecryptionLimits limits, IZipEffectBoundaryGuard guard,
+            CancellationToken ct = default)
+        {
+            var provider = inner as IZipGuardedEnvelopeEncryptionService
+                ?? throw new NotSupportedException("Synthetic guarded decryption provider is unavailable.");
+            if (DecryptHook is not null) await DecryptHook();
+            return await provider.DecryptWithContextBoundedGuardedAsync(envelope, context, limits, guard, ct);
+        }
     }
     internal sealed class AuditOutage : IAcknowledgedSecurityAuditSink
     {

@@ -53,7 +53,7 @@ internal static class CanonicalSecurityAuditWriter
         return new(record, new(id, reader.GetInt64(0), reader.GetString(12)));
     }
     internal static async Task<SecurityAuditAcknowledgement> AppendAsync(SqliteConnection connection,
-        SecurityAuditRecord record, CancellationToken ct)
+        SecurityAuditRecord record, CancellationToken ct, EMF.Core.Contracts.Zip.IZipEffectBoundaryGuard? guard = null)
     {
         var canonical = SecurityAuditCanonicalEvent.Encode(record);
         using var transaction = connection.BeginTransaction(deferred: false);
@@ -63,7 +63,9 @@ internal static class CanonicalSecurityAuditWriter
         if (existing is not null)
         {
             if (!canonical.AsSpan().SequenceEqual(SecurityAuditCanonicalEvent.Encode(existing.Record))) throw new SecurityAuditIdentityConflictException();
-            transaction.Commit(); return existing.Acknowledgement;
+            if (guard is not null) await guard.RevalidateAsync(ct);
+            using (guard?.Accept(ct)) transaction.Commit();
+            return existing.Acknowledgement;
         }
         var hash = SecurityAuditCanonicalEvent.Hash(integrity.ChainHeadHash, canonical);
         await using var command = connection.CreateCommand(); command.Transaction = transaction;
@@ -80,6 +82,8 @@ internal static class CanonicalSecurityAuditWriter
         Bind("$previous", integrity.ChainHeadHash); Bind("$hash", hash); Bind("$event", record.AuditEventId.Value.Value); Bind("$opid", record.OperationId?.Value);
         Bind("$original", record.OriginalActorId); Bind("$service", record.ServiceActorId); Bind("$recovery", record.RecoveryActorId);
         var row = (long)(await command.ExecuteScalarAsync(ct))!;
-        transaction.Commit(); return new(record.AuditEventId.Value, row, hash);
+        if (guard is not null) await guard.RevalidateAsync(ct);
+        using (guard?.Accept(ct)) transaction.Commit();
+        return new(record.AuditEventId.Value, row, hash);
     }
 }

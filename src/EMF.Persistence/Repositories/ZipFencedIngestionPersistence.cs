@@ -6,14 +6,15 @@ namespace EMF.Persistence.Repositories;
 
 // Both concrete providers use this same database. The generic BEGIN IMMEDIATE writer
 // excludes ownership/scan changes while the read-only ZIP check and session execute.
-public sealed class ZipFencedIngestionPersistence : IArtifactIngestionPersistence
+public sealed class ZipFencedIngestionPersistence : IArtifactIngestionPersistence, IZipGuardedArtifactIngestionPersistence
 {
     private readonly SqliteArtifactIngestionPersistence _inner;
     private readonly SqliteZipExtractionJournal _parents;
     private readonly ZipFence _fence;
     private readonly ZipEntryProgress _entry;
-    public ZipFencedIngestionPersistence(string evidenceDatabasePath,ZipFence fence,ZipEntryProgress entry)
-    {var path=Path.GetFullPath(evidenceDatabasePath);_inner=new(path);_parents=new(path);_fence=fence;_entry=entry;}
+    private readonly TimeProvider _time;
+    public ZipFencedIngestionPersistence(string evidenceDatabasePath,ZipFence fence,ZipEntryProgress entry,TimeProvider? time=null)
+    {var path=Path.GetFullPath(evidenceDatabasePath);_inner=new(path);_time=time??TimeProvider.System;_parents=new(path,_time);_fence=fence;_entry=entry;}
     private void Operation(ArtifactContentOperationId id)
     {if(id.Value!=_entry.Plan.ChildOperationId)throw new InvalidDataException("ZIP ingestion operation changed.");}
     public Task<IDisposable> AcquireExecutionAsync(ArtifactContentOperationId id,CancellationToken ct=default)
@@ -24,7 +25,7 @@ public sealed class ZipFencedIngestionPersistence : IArtifactIngestionPersistenc
         try
         {
             var parent=await _parents.ReadAsync(_fence.OperationId,ct);
-            if(parent?.Fence!=_fence||parent.OwnerUntil<=DateTimeOffset.UtcNow||parent.State is not (ZipParentState.Planned or ZipParentState.Processing))throw new ZipFenceException();
+            if(parent?.Fence!=_fence||parent.OwnerUntil<=_time.GetUtcNow()||parent.State is not (ZipParentState.Planned or ZipParentState.Processing))throw new ZipFenceException();
             if(_entry.Plan.FileOrdinal!=_fence.ConfirmedOrdinal+1)throw new ZipFenceException();
             var current=parent.Entries.Single(e=>e.Plan.FileOrdinal==_entry.Plan.FileOrdinal);
             if(current.Plan!=_entry.Plan||current.Retained!=_entry.Retained||current.EvidenceJson!=_entry.EvidenceJson||current.State is not (ZipEntryState.Scanned or ZipEntryState.Ingested))
@@ -37,11 +38,33 @@ public sealed class ZipFencedIngestionPersistence : IArtifactIngestionPersistenc
         catch{await session.DisposeAsync();throw;}
     }
     public Task<IReadOnlyList<IngestionRecoveryWork>> ReadRecoveryWorkAsync(long after,int limit,CancellationToken ct=default)=>_inner.ReadRecoveryWorkAsync(after,limit,ct);
-    public Task<IReadOnlyList<IngestionAuditObligation>> ReadAuditObligationsAsync(ArtifactContentOperationId id,CancellationToken ct=default)=>_inner.ReadAuditObligationsAsync(id,ct);
+    public Task<IReadOnlyList<IngestionAuditObligation>> ReadAuditObligationsAsync(ArtifactContentOperationId id,CancellationToken ct=default)
+    {Operation(id);return _inner.ReadAuditObligationsAsync(id,ct);}
     public Task<IngestionAuditObligation?> ReadReceiptAuditObligationAsync(ArtifactContentMutationReceipt r,CancellationToken ct=default)=>_inner.ReadReceiptAuditObligationAsync(r,ct);
-    public Task<IngestionAuditObligation?> ReadReviewAuditObligationAsync(ArtifactContentOperationId id,CancellationToken ct=default)=>_inner.ReadReviewAuditObligationAsync(id,ct);
+    public Task<IngestionAuditObligation?> ReadReviewAuditObligationAsync(ArtifactContentOperationId id,CancellationToken ct=default)
+    {Operation(id);return _inner.ReadReviewAuditObligationAsync(id,ct);}
     public Task AcknowledgeAuditAsync(IngestionAuditObligation o,CancellationToken ct=default)=>_inner.AcknowledgeAuditAsync(o,ct);
     public Task MarkAuditPendingAsync(IngestionAuditObligation o,CancellationToken ct=default)=>_inner.MarkAuditPendingAsync(o,ct);
+    public Task AcknowledgeAuditGuardedAsync(IngestionAuditObligation o, IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+    {Operation(o.OperationId);return _inner.AcknowledgeAuditGuardedAsync(o,guard,ct);}
+    public async Task MarkAuditPendingGuardedAsync(IngestionAuditObligation o, IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+    {
+        Operation(o.OperationId);
+        await guard.RevalidateAsync(ct);
+        var parent=await _parents.ReadAsync(_fence.OperationId,ct)??throw new ZipFenceException();
+        if(parent.Fence!=_fence)throw new ZipFenceException();
+        var entry=parent.Entries.Single(e=>e.Plan.FileOrdinal==_entry.Plan.FileOrdinal);
+        if(entry.State==ZipEntryState.Ingested&&await _inner.IsAuditDeliveredAsync(o,ct))
+        {
+            // A recorded proof already binds delivered audit facts. Reopening their
+            // local flag would invalidate that proof before the canonical sink can
+            // be verified on Recovery. The coordinator still performs that fresh
+            // verification and acknowledges each obligation again.
+            await guard.RevalidateAsync(ct);
+            return;
+        }
+        await _inner.MarkAuditPendingGuardedAsync(o,guard,ct);
+    }
     public Task RecordOrphanReceiptAsync(ArtifactContentMutationReceipt r,CancellationToken ct=default)=>_inner.RecordOrphanReceiptAsync(r,ct);
     public Task<ArtifactContentOperationId?> FindReceiptOperationAsync(ArtifactContentMutationReceipt r,CancellationToken ct=default)=>_inner.FindReceiptOperationAsync(r,ct);
     public Task<IngestionRecoveryHealth> ReadRecoveryHealthAsync(CancellationToken ct=default)=>_inner.ReadRecoveryHealthAsync(ct);

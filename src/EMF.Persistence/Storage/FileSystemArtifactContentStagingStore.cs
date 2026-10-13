@@ -3,7 +3,7 @@ using EMF.Core.Contracts.Storage;
 using EMF.Core.Contracts.Zip;
 namespace EMF.Persistence.Storage;
 
-public sealed class FileSystemArtifactContentStagingStore : IArtifactContentStagingStore
+public sealed class FileSystemArtifactContentStagingStore : IArtifactContentStagingStore, IZipGuardedArtifactContentStagingStore
 {
     private readonly string _root;
     private readonly IContentStoragePlatform _platform;

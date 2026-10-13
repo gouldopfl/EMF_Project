@@ -11,7 +11,7 @@ namespace EMF.Persistence.Repositories;
 
 // This database MUST be the evidence metadata database, also used by the governed
 // classification adapter. No cross-database classification promotion is supported.
-public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersistence
+public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersistence, IZipGuardedArtifactIngestionPersistence
 {
     private readonly string _databasePath;
     private readonly IContentStoragePlatform _platform;
@@ -330,8 +330,24 @@ public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersi
         => await SetAuditDeliveryAsync(expected, true, cancellationToken);
     public async Task MarkAuditPendingAsync(IngestionAuditObligation expected, CancellationToken cancellationToken = default)
         => await SetAuditDeliveryAsync(expected, false, cancellationToken);
-    private async Task SetAuditDeliveryAsync(IngestionAuditObligation expected, bool delivered, CancellationToken cancellationToken)
+    public async Task<bool> IsAuditDeliveredAsync(IngestionAuditObligation expected, CancellationToken ct = default)
     {
+        await using var connection = await OpenAsync(ct);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT Delivered FROM ArtifactIngestionAudit WHERE EventId=$id AND OperationId=$op AND ObligationJson=$json";
+        command.Parameters.AddWithValue("$id", expected.EventId.Value);
+        command.Parameters.AddWithValue("$op", expected.OperationId.Value);
+        command.Parameters.AddWithValue("$json", JsonSerializer.Serialize(expected));
+        return await command.ExecuteScalarAsync(ct) is long delivered && delivered == 1;
+    }
+    public Task AcknowledgeAuditGuardedAsync(IngestionAuditObligation expected, EMF.Core.Contracts.Zip.IZipEffectBoundaryGuard guard,
+        CancellationToken ct = default) => SetAuditDeliveryAsync(expected, true, ct, guard ?? throw new ArgumentNullException(nameof(guard)));
+    public Task MarkAuditPendingGuardedAsync(IngestionAuditObligation expected, EMF.Core.Contracts.Zip.IZipEffectBoundaryGuard guard,
+        CancellationToken ct = default) => SetAuditDeliveryAsync(expected, false, ct, guard ?? throw new ArgumentNullException(nameof(guard)));
+    private async Task SetAuditDeliveryAsync(IngestionAuditObligation expected, bool delivered, CancellationToken cancellationToken,
+        EMF.Core.Contracts.Zip.IZipEffectBoundaryGuard? guard = null)
+    {
+        if (guard is not null) await guard.RevalidateAsync(cancellationToken);
         await using var connection = await OpenAsync(cancellationToken); using var transaction = connection.BeginTransaction(deferred: false);
         using var command = connection.CreateCommand(); command.Transaction = transaction;
         command.CommandText = "UPDATE ArtifactIngestionAudit SET Delivered=$delivered WHERE EventId=$id AND OperationId=$op AND ObligationJson=$json";
@@ -339,7 +355,8 @@ public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersi
         command.Parameters.AddWithValue("$id", expected.EventId.Value); command.Parameters.AddWithValue("$op", expected.OperationId.Value);
         command.Parameters.AddWithValue("$json", JsonSerializer.Serialize(expected));
         if (await command.ExecuteNonQueryAsync(cancellationToken) != 1) throw new InvalidDataException("Ingestion audit obligation conflict.");
-        transaction.Commit();
+        if (guard is not null) await guard.RevalidateAsync(cancellationToken);
+        using (guard?.Accept(cancellationToken)) transaction.Commit();
     }
     public async Task RecordOrphanReceiptAsync(ArtifactContentMutationReceipt receipt, CancellationToken cancellationToken = default)
     {
@@ -375,7 +392,7 @@ public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersi
         catch (Exception e) when (e is JsonException or ArgumentException) { throw new InvalidDataException("Damaged ingestion data.", e); }
     }
 
-    private sealed class Session(SqliteConnection connection, SqliteTransaction transaction, ArtifactContentOperationId operationId) : IArtifactIngestionSession
+    private sealed class Session(SqliteConnection connection, SqliteTransaction transaction, ArtifactContentOperationId operationId) : IArtifactIngestionSession, IZipGuardedArtifactIngestionSession
     {
         public ArtifactIngestionIntent? Intent { get; private set; }
         public IngestionOperationBinding? OperationBinding { get; private set; }
@@ -929,6 +946,17 @@ public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersi
         public Task CommitAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested(); transaction.Commit(); _committed = true; return Task.CompletedTask;
+        }
+        public async Task CommitGuardedAsync(EMF.Core.Contracts.Zip.IZipEffectBoundaryGuard guard,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(guard);
+            await guard.RevalidateAsync(cancellationToken);
+            using (guard.Accept(cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                transaction.Commit(); _committed = true;
+            }
         }
         public ValueTask DisposeAsync()
         {

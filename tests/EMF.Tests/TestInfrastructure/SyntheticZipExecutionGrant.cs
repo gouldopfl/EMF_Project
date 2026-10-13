@@ -27,6 +27,7 @@ internal sealed partial class SyntheticZipExecutionGrant(ZipParentAdmission admi
     public Func<Task>? BeforeEffectDisposal;
     public Action? RevokeCurrentEffect;
     public TimeSpan? EffectLifetime;
+    public Func<ZipParentSnapshot,ZipEntryProgress,IZipChildIngestionEffectGate,CancellationToken,Task<ZipChildIngestionRuntime>>? GuardedChildOpener;
     public int EffectRequests, EffectDisposals;
     public void Revoke() { lock(authorityGate) lifetime.Cancel(); }
     public async Task RevalidateAsync(CancellationToken ct = default)
@@ -125,6 +126,16 @@ internal sealed partial class SyntheticZipExecutionGrant(ZipParentAdmission admi
         }
     }
     public Task<ZipChildIngestionRuntime> OpenChildAsync(ZipParentSnapshot p, ZipEntryProgress e, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<IZipAuthorizedEffectScope<ZipChildIngestionEffectRequest>> AuthorizeChildIngestionEffectAsync(
+        ZipChildIngestionEffectRequest request, CancellationToken ct = default)
+        => IssueEffectAsync(request,request.Admission,ct);
+    public async Task<ZipChildIngestionRuntime> OpenChildAsync(ZipParentSnapshot p, ZipEntryProgress e,
+        IZipChildIngestionEffectGate gate, CancellationToken ct = default)
+    {
+        await RevalidateAsync(ct);
+        return await (GuardedChildOpener?.Invoke(p,e,gate,ct)
+            ?? Task.FromException<ZipChildIngestionRuntime>(new NotSupportedException("Guarded synthetic child host is unavailable.")));
+    }
     public ValueTask DisposeAsync() { lifetime.Cancel(); return ValueTask.CompletedTask; }
 
     internal sealed class Scope(SyntheticZipExecutionGrant root, ZipOwnershipClaimRequest request, TimeProvider clock) : IZipAuthorizedOwnershipScope

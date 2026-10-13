@@ -16,9 +16,10 @@ namespace EMF.Tests.TestInfrastructure;
 internal sealed class ZipDurableRuntimeFixture
 {
     internal ArtifactIngestionFixture Evidence;internal string Root=>Evidence.Root;internal SqliteZipExtractionJournal Journal;
+    internal string ChildParentOperationId = "zip";
     internal ZipPrivateContentStorage ParentStorage,ChildStorage;internal Crypto ParentCrypto,ChildCrypto;
     internal ZipParentRetentionService ParentRetention;internal ZipProtectedRetentionService ChildRetention;
-    internal ZipSequentialExtractor Extractor;internal ZipChildScanService Scan;internal ZipChildIngestionService Ingest;internal ZipDurableExtractionDriver Driver=null!;
+    internal ZipSequentialExtractor Extractor;internal ZipChildScanService Scan;internal ZipChildIngestionService Ingest;internal ZipChildIngestionHost Host;internal ZipDurableExtractionDriver Driver=null!;
     internal string Events=>Path.Combine(Root,"zip-events.jsonl");
     internal ZipDurableRuntimeFixture(ArtifactIngestionFixture evidence,TimeProvider? time=null)
     {
@@ -30,10 +31,10 @@ internal sealed class ZipDurableRuntimeFixture
         Extractor=new(Journal,Journal,Journal,ChildRetention);Extractor.Checkpoint=n=>{if(n=="Reserved")Log("extraction-start");return Task.CompletedTask;};
         Scan=new(Journal,Journal,Journal,ChildRetention,new Scanner(this));
         evidence.Encryption.EncryptHook=()=>{Log("ingestion-encrypt");return Task.CompletedTask;};
-        var host=new ZipChildIngestionHost(evidence.DatabasePath,evidence.Physical,evidence.Staging,evidence.Encryption,
-            (operation,ct)=>{evidence.SecurityContext.Operation=new(new(operation),evidence.SecurityContext.Operation.AuthorizedOperationId,"synthetic-zip-child",new("zip"));return Task.FromResult<IArtifactIngestionSecurityContext>(evidence.SecurityContext);},
+        Host=new ZipChildIngestionHost(evidence.DatabasePath,evidence.Physical,evidence.Staging,evidence.Encryption,
+            (operation,ct)=>{evidence.SecurityContext.Operation=new(new(operation),evidence.SecurityContext.Operation.AuthorizedOperationId,"synthetic-zip-child",new(ChildParentOperationId));return Task.FromResult<IArtifactIngestionSecurityContext>(evidence.SecurityContext);},
             evidence.Classification,evidence.Authorization,evidence.Audit,evidence.Fingerprints);
-        Ingest=new(Journal,Journal,Journal,ChildRetention,host);Ingest.Checkpoint=n=>{if(n is "Ingesting" or "Resuming")Log(n);return Task.CompletedTask;};
+        Ingest=new(Journal,Journal,Journal,ChildRetention,Host);Ingest.Checkpoint=n=>{if(n is "Ingesting" or "Resuming")Log(n);return Task.CompletedTask;};
         ComposeDriver();
     }
     internal void ComposeDriver()=>Driver=new(Journal,Journal,Journal,Journal,Journal,ParentRetention,ChildRetention,new(),Extractor,Scan,Ingest);

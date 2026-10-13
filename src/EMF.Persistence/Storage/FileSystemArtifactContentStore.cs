@@ -9,7 +9,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EMF.Persistence.Storage;
 
-public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactContentStore, IBoundedVersionedArtifactContentStore, IZipGuardedBoundedArtifactContentStore
+public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactContentStore, IBoundedVersionedArtifactContentStore, IZipGuardedPreparedArtifactContentStore
 {
     public const long DefaultMaxStoredBytes = 150L * 1024 * 1024;
     private const string Gate = ".content-coordination";

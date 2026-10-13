@@ -125,18 +125,44 @@ public sealed class ZipPhaseTwoJournalAuthorityTests
         Assert.Null((await f.Journal.ReadAsync(parent.Binding.OperationId))!.Plan);
     }
 
-    [Theory]
-    [InlineData(ZipWorkKind.Scanner)]
-    [InlineData(ZipWorkKind.Ingestion)]
-    public async Task Guarded_reservation_rejects_downstream_work(ZipWorkKind kind)
+    [Fact]
+    public async Task Guarded_scanner_reservation_requires_atomic_policy_binding()
     {
         await using var f = await ZipOwnershipFixture.CreateAsync();
         var parent = await f.Journal.ClaimOwnershipAsync(await f.RequestAsync(ZipOwnershipPurpose.InitialExecution));
         using var guard = new Guard();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => f.Journal.ReserveAsync(parent.Fence,
-            new("downstream", kind, 0, 0), guard));
+            new("downstream", ZipWorkKind.Scanner, 0, 0), guard));
         Assert.Equal(0, guard.Acceptances);
-        Assert.Equal(parent.Budget, (await f.Journal.ReadAsync(parent.Binding.OperationId))!.Budget);
+        var actual = (await f.Journal.ReadAsync(parent.Binding.OperationId))!;
+        Assert.Equal(parent.Fence, actual.Fence);
+        Assert.Equal(parent.Budget, actual.Budget);
+        await AssertNoReservationsAsync(f, parent.Fence.OperationId);
+    }
+
+    [Fact]
+    public async Task Guarded_ingestion_reservation_requires_current_admitted_occurrence()
+    {
+        await using var f = await ZipOwnershipFixture.CreateAsync();
+        var parent = await f.Journal.ClaimOwnershipAsync(await f.RequestAsync(ZipOwnershipPurpose.InitialExecution));
+        using var guard = new Guard();
+        await Assert.ThrowsAsync<ZipFenceException>(() => f.Journal.ReserveAsync(parent.Fence,
+            new("downstream", ZipWorkKind.Ingestion, 0, 0), guard));
+        Assert.Equal(0, guard.Acceptances);
+        var actual = (await f.Journal.ReadAsync(parent.Binding.OperationId))!;
+        Assert.Equal(parent.Fence, actual.Fence);
+        Assert.Equal(parent.Budget, actual.Budget);
+        await AssertNoReservationsAsync(f, parent.Fence.OperationId);
+    }
+
+    private static async Task AssertNoReservationsAsync(ZipOwnershipFixture f, string parentOperationId)
+    {
+        await using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={f.Evidence.DatabasePath}");
+        await connection.OpenAsync();
+        using var query = connection.CreateCommand();
+        query.CommandText = "SELECT COUNT(*) FROM ZipExtractionReservations WHERE ParentOperationId=$op";
+        query.Parameters.AddWithValue("$op", parentOperationId);
+        Assert.Equal(0L, (long)(await query.ExecuteScalarAsync())!);
     }
 
     [Fact]

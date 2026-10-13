@@ -326,7 +326,7 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
         ct = effectCancellation?.Token ?? ct;
         await ValidateEffectAsync(guard, ct);
         ArgumentException.ThrowIfNullOrWhiteSpace(r.Id);
-        if (guard is not null && r.Kind is not (ZipWorkKind.Preflight or ZipWorkKind.Extraction)) throw new UnauthorizedAccessException("Phase II excludes downstream reservations.");
+        if (guard is not null && r.Kind is not (ZipWorkKind.Preflight or ZipWorkKind.Extraction or ZipWorkKind.Ingestion)) throw new UnauthorizedAccessException("Unsupported governed ZIP reservation.");
         if(r.Kind==ZipWorkKind.Scanner)throw new InvalidDataException("ZIP scanner reservations require atomic policy binding via BeginScanAsync.");
         if(r.ExpandedBytes<0 || r.CompressedBytes<0) throw new InvalidDataException("Negative ZIP reservation.");
         await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);await ValidateEffectAsync(guard, ct);var p=await FencedAsync(c,tx,fence,ct);

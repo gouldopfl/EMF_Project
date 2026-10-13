@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 namespace EMF.Security.Persistence.Sqlite.Auditing;
 
 public sealed class SqliteSecurityAuditSink :
-    IAcknowledgedSecurityAuditSink
+    IZipGuardedAcknowledgedSecurityAuditSink
 {
     private readonly string _databasePath;
 
@@ -74,6 +74,17 @@ public sealed class SqliteSecurityAuditSink :
         record = SecurityAuditCanonicalEvent.Freeze(record);
         await using var connection = CreateConnection(); await connection.OpenAsync(cancellationToken);
         return await CanonicalSecurityAuditWriter.AppendAsync(connection, record, cancellationToken);
+    }
+    public async Task<SecurityAuditAcknowledgement> AppendGuardedAsync(SecurityAuditRecord record,
+        EMF.Core.Contracts.Zip.IZipEffectBoundaryGuard guard, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(guard);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        await guard.RevalidateAsync(linked.Token);
+        record = SecurityAuditCanonicalEvent.Freeze(record);
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(linked.Token);
+        return await CanonicalSecurityAuditWriter.AppendAsync(connection, record, linked.Token, guard);
     }
     public async Task<VerifiedSecurityAuditEvent?> FindVerifiedAsync(SecurityAuditEventId eventId, CancellationToken cancellationToken = default)
     {

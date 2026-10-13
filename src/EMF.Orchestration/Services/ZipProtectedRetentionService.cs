@@ -173,6 +173,8 @@ public sealed class ZipProtectedRetentionService
         => ReadRetentionAsync(parent,fileOrdinal,true,ct,true);
     internal Task<IArtifactContentReadLease> OpenForScanAsync(ZipParentSnapshot parent,int fileOrdinal,IZipEffectBoundaryGuard guard,CancellationToken ct=default)
     {ArgumentNullException.ThrowIfNull(guard);return OpenCoreAsync(parent,fileOrdinal,guard,ct);}
+    internal Task<IArtifactContentReadLease> OpenForIngestionAsync(ZipParentSnapshot parent,int fileOrdinal,IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+    {ArgumentNullException.ThrowIfNull(guard);return OpenCoreAsync(parent,fileOrdinal,guard,ct);}
     public Task<IArtifactContentReadLease> OpenAsync(ZipParentSnapshot parent,int fileOrdinal,CancellationToken ct=default)
         => OpenCoreAsync(parent,fileOrdinal,null,ct);
     private async Task<IArtifactContentReadLease> OpenCoreAsync(ZipParentSnapshot parent,int fileOrdinal,IZipEffectBoundaryGuard? guard,CancellationToken ct)

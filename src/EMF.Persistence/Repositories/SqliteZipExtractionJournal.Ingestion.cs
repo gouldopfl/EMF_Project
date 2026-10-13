@@ -5,6 +5,20 @@ using Microsoft.Data.Sqlite;
 namespace EMF.Persistence.Repositories;
 public sealed partial class SqliteZipExtractionJournal
 {
+    public async Task<bool> HasIngestionReservationAsync(ZipFence fence,int ordinal,CancellationToken ct=default)
+    {
+        await using var c=await OpenAsync(ct);
+        using var tx=c.BeginTransaction(deferred:true);
+        var parent=await FencedAsync(c,tx,fence,ct);
+        if(ordinal!=fence.ConfirmedOrdinal+1 || parent.Entries.All(e=>e.Plan.FileOrdinal!=ordinal))
+            throw new ZipFenceException();
+        using var q=c.CreateCommand();q.Transaction=tx;
+        q.CommandText="SELECT COUNT(*) FROM ZipExtractionReservations WHERE ParentOperationId=$op AND FileOrdinal=$file AND Kind=$kind";
+        q.Parameters.AddWithValue("$op",fence.OperationId);
+        q.Parameters.AddWithValue("$file",ordinal);
+        q.Parameters.AddWithValue("$kind",(int)ZipWorkKind.Ingestion);
+        return Convert.ToInt32(await q.ExecuteScalarAsync(ct))>0;
+    }
     private static async Task ValidateIngestionProofAsync(SqliteConnection c,SqliteTransaction? tx,ZipParentSnapshot p,ZipEntryProgress e,ZipChildIngestionProof proof,CancellationToken ct)
     {
         if(proof.ChildOperationId!=e.Plan.ChildOperationId||proof.ProvisionalArtifactId!=e.Plan.ProvisionalArtifactId||proof.Sha256!=e.Retained?.Sha256||
@@ -58,18 +72,34 @@ public sealed partial class SqliteZipExtractionJournal
         // Delivered is only a local hint. Canonical sink acknowledgements are checked
         // by coordinator IngestAsync/ResumeAsync before the host submits this proof.
     }
-    public async Task<ZipParentSnapshot> RecordIngestionAsync(ZipFence f,int ordinal,ZipChildIngestionProof proof,CancellationToken ct=default)
+    public Task<ZipParentSnapshot> RecordIngestionAsync(ZipFence f,int ordinal,ZipChildIngestionProof proof,CancellationToken ct=default)
+        => RecordIngestionCoreAsync(f,ordinal,proof,null,ct);
+    public Task<ZipParentSnapshot> RecordIngestionAsync(ZipFence f,int ordinal,ZipChildIngestionProof proof,IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+        => RecordIngestionCoreAsync(f,ordinal,proof,guard??throw new ArgumentNullException(nameof(guard)),ct);
+    private async Task<ZipParentSnapshot> RecordIngestionCoreAsync(ZipFence f,int ordinal,ZipChildIngestionProof proof,IZipEffectBoundaryGuard? guard,CancellationToken ct)
     {
+        using var effectCancellation=guard is null?null:CancellationTokenSource.CreateLinkedTokenSource(ct,guard.Invalidated);
+        ct=effectCancellation?.Token??ct;
+        await ValidateEffectAsync(guard,ct);
         await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);var p=await FencedAsync(c,tx,f,ct);
+        if(guard is not null)await ValidateExecutionAdmissionAsync(c,tx,p,ct);
         if(ordinal!=f.ConfirmedOrdinal+1||p.State is not (ZipParentState.Planned or ZipParentState.Processing))throw new ZipFenceException();
         var e=p.Entries.Single(e=>e.Plan.FileOrdinal==ordinal);
-        if(e.State==ZipEntryState.Ingested&&e.Ingestion==proof)return p;
+        if(e.State==ZipEntryState.Ingested&&e.Ingestion==proof){await ValidateEffectAsync(guard,ct);return p;}
         if(e.State!=ZipEntryState.Scanned||e.Ingestion is not null)throw new InvalidDataException("ZIP ingestion acknowledgement is not eligible.");
+        var scan=System.Text.Json.JsonSerializer.Deserialize<EMF.Core.Contracts.Malware.MalwareScanEvidence>(e.EvidenceJson??"")
+            ??throw new InvalidDataException("Missing exact Clean scan evidence.");
+        EMF.Core.Contracts.Malware.MalwareScanValidation.Evidence(scan);
+        if(!scan.IsClean||e.Retained is null||scan.Request.Content!=new EMF.Core.Contracts.Malware.MalwareScanContent(
+            e.Retained.ContentId,e.Retained.Revision,e.Retained.Sha256,e.Retained.Length))
+            throw new InvalidDataException("Ingestion progression requires exact retained Clean evidence.");
         using var q=c.CreateCommand();q.Transaction=tx;q.Parameters.AddWithValue("$op",f.OperationId);q.Parameters.AddWithValue("$file",ordinal);
         q.CommandText="SELECT COUNT(*) FROM ZipExtractionReservations WHERE ParentOperationId=$op AND FileOrdinal=$file AND Kind=3";
         if(Convert.ToInt32(await q.ExecuteScalarAsync(ct))==0)throw new InvalidDataException("ZIP ingestion has no durable attempt.");
         await ValidateIngestionProofAsync(c,tx,p,e,proof,ct);
         q.Parameters.AddWithValue("$progress",Json(e with{State=ZipEntryState.Ingested,Ingestion=proof}));q.CommandText="UPDATE ZipExtractionEntries SET ProgressJson=$progress WHERE ParentOperationId=$op AND FileOrdinal=$file";await q.ExecuteNonQueryAsync(ct);
-        p=p with{Fence=f with{Revision=checked(f.Revision+1)}};await SaveAsync(c,tx,p,ct);tx.Commit();return (await ReadAsync(f.OperationId,ct))!;
+        p=p with{Fence=f with{Revision=checked(f.Revision+1)}};await SaveAsync(c,tx,p,ct);
+        await CommitEffectAsync(tx,guard,ct,p.OwnerUntil,admissionEligibility:guard is null?null:()=>ValidateExecutionAdmissionAsync(c,tx,p,ct));
+        return (await ReadAsync(f.OperationId,ct))!;
     }
 }

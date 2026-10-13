@@ -16,7 +16,7 @@ public sealed class ZipChildIngestionHost(string evidenceDatabasePath,IVersioned
     IArtifactContentStagingStore staging,IEnvelopeEncryptionService encryption,
     Func<string,CancellationToken,Task<IArtifactIngestionSecurityContext>> authenticatedContexts,
     IArtifactIngestionClassificationPolicy classification,IAuthorizationPolicy authorization,
-    IAcknowledgedSecurityAuditSink audit,IContentFingerprintService fingerprints):IZipChildIngestionHost
+    IAcknowledgedSecurityAuditSink audit,IContentFingerprintService fingerprints):IZipGuardedChildIngestionHost
 {
     public async Task<ZipChildIngestionRuntime> OpenAsync(ZipParentSnapshot parent,ZipEntryProgress entry,CancellationToken ct=default)
     {
@@ -27,6 +27,37 @@ public sealed class ZipChildIngestionHost(string evidenceDatabasePath,IVersioned
         var context=new FrozenContext(source,operation);
         var persistence=new ZipFencedIngestionPersistence(evidenceDatabasePath,parent.Fence,entry);
         return new(new(persistence,physical,staging,encryption,context,classification,authorization,audit,fingerprints),persistence);
+    }
+    public async Task<ZipChildIngestionRuntime> OpenGuardedAsync(ZipParentSnapshot parent, ZipEntryProgress entry,
+        IZipChildIngestionEffectGate gate, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(gate);
+        ValidateGuardedDependencies();
+        var prepared = (IPreparedArtifactContentStore)physical;
+        var source = await authenticatedContexts(entry.Plan.ChildOperationId!, ct)
+            ?? throw new UnauthorizedAccessException("Missing authenticated ZIP child context.");
+        var operation = await source.GetIngestionOperationAsync(ct);
+        if (operation.OperationId.Value != entry.Plan.ChildOperationId ||
+            operation.ParentOperationId?.Value != parent.Binding.OperationId)
+            throw new UnauthorizedAccessException("Authenticated ZIP child operation binding changed.");
+        var persistence = new ZipGuardedIngestionPersistence(
+            new ZipFencedIngestionPersistence(evidenceDatabasePath, parent.Fence, entry, gate.Clock), gate);
+        var coordinator = new ArtifactIngestionCoordinator(persistence,
+            new ZipGuardedIngestionPhysical(prepared, gate), new ZipGuardedIngestionStaging(staging, gate),
+            new ZipGuardedIngestionEncryption(encryption, gate), new FrozenContext(source, operation),
+            classification, authorization, new ZipGuardedIngestionAudit(audit, gate), fingerprints);
+        return new(coordinator, persistence, gate);
+    }
+    public void ValidateGuardedDependencies()
+    {
+        // Call before the first durable reservation. The legacy host never
+        // silently substitutes for a guarded provider.
+        if (physical is not IPreparedArtifactContentStore prepared ||
+            prepared is not IZipGuardedPreparedArtifactContentStore ||
+            staging is not IZipGuardedArtifactContentStagingStore ||
+            encryption is not IZipGuardedEnvelopeEncryptionService ||
+            audit is not IZipGuardedAcknowledgedSecurityAuditSink)
+            throw new NotSupportedException("Guarded ZIP child ingestion dependencies are unavailable.");
     }
     private sealed class FrozenContext(IArtifactIngestionSecurityContext source,AuthenticatedIngestionOperation operation):IArtifactIngestionSecurityContext
     {

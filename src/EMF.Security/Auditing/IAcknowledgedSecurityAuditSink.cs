@@ -9,6 +9,11 @@ public interface IAcknowledgedSecurityAuditSink : ISecurityAuditSink
     // Missing returns null; unavailable or damaged chain throws, never masquerades as acknowledgement.
     Task<VerifiedSecurityAuditEvent?> FindVerifiedAsync(SecurityAuditEventId eventId, CancellationToken cancellationToken = default);
 }
+public interface IZipGuardedAcknowledgedSecurityAuditSink : IAcknowledgedSecurityAuditSink
+{
+    Task<SecurityAuditAcknowledgement> AppendGuardedAsync(SecurityAuditRecord record,
+        EMF.Core.Contracts.Zip.IZipEffectBoundaryGuard guard, CancellationToken ct = default);
+}
 public sealed class SecurityAuditIdentityConflictException : InvalidOperationException
 {
     public SecurityAuditIdentityConflictException() : base("Canonical audit event identity conflicts with existing data.") { }
