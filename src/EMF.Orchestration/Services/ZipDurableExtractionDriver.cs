@@ -139,6 +139,29 @@ public sealed class ZipDurableExtractionDriver(IZipExtractionJournal parents,IZi
             return new(reason,parent,file,update?.AlreadyAcknowledged??false,update?.ContainsId,update?.DerivedFromId);
         }
     }
+    public async Task<ZipProtectedReleaseResult> RunProtectedReleaseAsync(ZipExecutionAttempt attempt,CancellationToken ct=default)
+    {
+        ArgumentNullException.ThrowIfNull(attempt);
+        attempt.EnterProtectedReleaseInvocation();
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(ct,attempt.Invalidated);ct=linked.Token;
+        await attempt.RevalidateAsync(ct);
+        var parent=await parents.ReadAsync(attempt.Claimed.Binding.OperationId,ct)??throw new ZipFenceException();
+        attempt.Validate(parent);
+        if(parent.State is not (ZipParentState.Planned or ZipParentState.Processing)||
+            parent.Fence.ConfirmedOrdinal<0)
+            return new(ZipProtectedReleaseStop.OutsideProtectedReleaseBoundary,parent,null);
+        var ordinal=parent.Fence.ConfirmedOrdinal;
+        var entry=parent.Entries.SingleOrDefault(e=>e.Plan.FileOrdinal==ordinal);
+        if(entry?.State!=ZipEntryState.Acknowledged)
+            return new(ZipProtectedReleaseStop.OutsideProtectedReleaseBoundary,parent,ordinal);
+        var released=await childRetention.ReleaseProtectedThroughReceiptAsync(parent,ordinal,attempt,ct);
+        if(released.Retention.State!=ZipRetentionState.ReleasePending||released.Retention.ReleaseReceipt is null||
+            released.Retention.CandidateCleanup is not null||
+            released.Parent.Entries.Single(e=>e.Plan.FileOrdinal==ordinal).State!=ZipEntryState.Acknowledged)
+            throw new InvalidDataException("ZIP protected release crossed its receipt stop.");
+        await attempt.RevalidateAsync(ct);attempt.Validate(released.Parent);
+        return new(ZipProtectedReleaseStop.ReleaseReceiptRecorded,released.Parent,ordinal);
+    }
     internal Func<string,Task>? Checkpoint{get;set;}
     private Task At(string name)=>Checkpoint?.Invoke(name)??Task.CompletedTask;
     internal async Task<ZipParentSnapshot> ResumeLegacyTestHarnessAsync(string operation,string owner,TimeSpan lease,CancellationToken ct=default)
@@ -204,3 +227,5 @@ public sealed record ZipPhaseIIResult(ZipPhaseIIStop Stop,ZipParentSnapshot Pare
 public enum ZipAcknowledgementStop { Acknowledged, OutsideAcknowledgementBoundary }
 public sealed record ZipAcknowledgementResult(ZipAcknowledgementStop Stop,ZipParentSnapshot Parent,
     int? FileOrdinal=null,bool AlreadyAcknowledged=false,long? ContainsId=null,long? DerivedFromId=null);
+public enum ZipProtectedReleaseStop { ReleaseReceiptRecorded, OutsideProtectedReleaseBoundary }
+public sealed record ZipProtectedReleaseResult(ZipProtectedReleaseStop Stop,ZipParentSnapshot Parent,int? FileOrdinal=null);

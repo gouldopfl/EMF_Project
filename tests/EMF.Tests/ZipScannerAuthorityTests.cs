@@ -16,9 +16,9 @@ public sealed class ZipScannerAuthorityTests
         internal SyntheticZipExecutionGrant Root=null!;
         internal ZipExecutionAttempt Attempt=null!;
         internal SyntheticGuardedZipScanner Provider=null!;
-        internal static async Task<Setup> Create(TimeSpan? rootLife=null)
+        internal static async Task<Setup> Create(TimeSpan? rootLife=null,bool two=false)
         {
-            var s=new Setup{Fixture=await ZipOwnershipFixture.CreateAsync()};var f=s.Fixture;
+            var s=new Setup{Fixture=await ZipOwnershipFixture.CreateAsync(two:two)};var f=s.Fixture;
             s.Provider=new(f.Profile.ScannerPolicy);
             s.Provider.Submitted=()=>f.Runtime.Log("scan");
             f.Runtime.Scan=new(f.Journal,f.Journal,f.Journal,f.Runtime.ChildRetention,s.Provider);f.Runtime.ComposeDriver();

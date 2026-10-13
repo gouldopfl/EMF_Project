@@ -229,6 +229,32 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
     public Task<IPreparedArtifactContentMutation> PreparePhysicalDeleteAsync(ArtifactId id, ArtifactContentRevision expected,
         ArtifactContentMutationContext context, CancellationToken cancellationToken = default)
         => PrepareMutationAsync(id, ArtifactContentMutationKind.Delete, expected, default, context, cancellationToken);
+    public async Task<IPreparedArtifactContentMutation> PreparePhysicalDeleteGuardedAsync(ArtifactId id,
+        ArtifactContentRevision expected, ArtifactContentMutationContext context, IZipEffectBoundaryGuard guard,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(guard);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
+        await guard.RevalidateAsync(linked.Token);
+        var prepared = await PrepareMutationAsync(id, ArtifactContentMutationKind.Delete, expected,
+            default, context, linked.Token, guard);
+        return new GuardedPreparedMutation(prepared, guard);
+    }
+    public async Task<ArtifactContentRevision?> ReadTombstoneRevisionGuardedAsync(ArtifactId id,
+        IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+    {
+        ArgumentNullException.ThrowIfNull(guard);
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(ct,guard.Invalidated);ct=linked.Token;
+        await ValidateGuardAsync(guard,ct);
+        using var inspection=Inspection(ct);
+        ValidateId(id);await AdmitAsync(ct,inspection);
+        using var connection=OpenCatalog(inspection:inspection);
+        using var tx=connection.BeginTransaction(deferred:true);
+        var state=ReadState(connection,tx,id);
+        await ValidateGuardAsync(guard,ct);
+        tx.Commit();
+        return state is {Generation:null}?new ArtifactContentRevision(state.Revision):null;
+    }
     public async Task<ArtifactContentRevision?> ReadCurrentRevisionAsync(ArtifactId id, CancellationToken cancellationToken = default)
     {
         await using var probe = await PrepareRevisionValidationAsync(id, cancellationToken);

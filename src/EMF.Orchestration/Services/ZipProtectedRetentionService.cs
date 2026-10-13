@@ -243,6 +243,80 @@ public sealed class ZipProtectedRetentionService
         }
     }
 
+    // The live release slice ends with the exact protected-delete receipt.
+    // Candidate cleanup and the Released transition belong to a later authority.
+    public async Task<ZipRetentionUpdate> ReleaseProtectedThroughReceiptAsync(ZipParentSnapshot parent,
+        int fileOrdinal,ZipExecutionAttempt attempt,CancellationToken ct=default)
+    {
+        ArgumentNullException.ThrowIfNull(attempt);
+        attempt.Validate(parent);
+        using var budget=CancellationTokenSource.CreateLinkedTokenSource(ct,attempt.Invalidated);
+        budget.CancelAfter(ZipNumericLimits.AttemptTimeout);ct=budget.Token;
+        var evidence=await _journal.ReadProtectedReleaseEvidenceAsync(parent.Binding.OperationId,fileOrdinal,ct);
+        if(evidence.Parent.Fence!=parent.Fence)throw new ZipFenceException();
+        if(evidence.Retention.State is not (ZipRetentionState.Created or ZipRetentionState.ReleasePending)||
+            evidence.Retention.CandidateCleanup is not null)
+            throw new InvalidOperationException("ZIP protected release is outside its bounded state.");
+        Namespace(evidence.Retention);
+        await using var guard=attempt.ProtectedReleaseBoundary(()=>evidence);
+        await guard.RevalidateAsync(ct);
+        if(evidence.Retention.State==ZipRetentionState.Created)
+        {
+            if(await _storage.GetReceiptGuardedAsync(new(evidence.Retention.Identity.ReleaseOperationId),guard,ct) is not null)
+                throw new InvalidDataException("Unclaimed ZIP release has a protected delete receipt.");
+            await using var current=await _storage.ReadProtectedGuardedAsync(Id(evidence.Retention),
+                evidence.Retention.CreateReceipt!.CurrentRevision!.Value,guard,ct)
+                ??throw new InvalidDataException("ZIP protected child is missing before release claim.");
+            if(ZipPhaseIIWork.Hash(current.Content.Span,guard,ct)!=evidence.Retention.CandidateHash)
+                throw new InvalidDataException("ZIP protected child changed before release claim.");
+            await guard.RevalidateAsync(ct);
+        }
+        if(evidence.Retention.ReleaseReceipt is not null)
+        {
+            var observed=await _journal.ObserveProtectedReleaseReceiptAsync(
+                attempt.ProtectedReleaseRequest(evidence),_storage,guard,ct);
+            await guard.FinishAsync(ct);
+            return observed;
+        }
+        if(evidence.Retention.State==ZipRetentionState.Created)
+        {
+            var claimed=await _journal.ClaimRetentionReleaseAsync(attempt.ProtectedReleaseRequest(evidence),guard,ct);
+            await At("ReleasePending");
+            evidence=await _journal.ReadProtectedReleaseEvidenceAsync(parent.Binding.OperationId,fileOrdinal,ct);
+            if(evidence.Parent.Fence!=claimed.Parent.Fence||evidence.Retention!=claimed.Retention)
+                throw new ZipFenceException();
+            await guard.RevalidateAsync(ct);
+        }
+        var retained=evidence.Retention;
+        if(retained.State!=ZipRetentionState.ReleasePending||retained.ReleaseReceipt is not null)
+            throw new InvalidOperationException("ZIP protected delete requires pending retention.");
+        var known=await _storage.GetReceiptGuardedAsync(new(retained.Identity.ReleaseOperationId),guard,ct);
+        await guard.RevalidateAsync(ct);
+        if(known is null)
+        {
+            await using var current=await _storage.ReadProtectedGuardedAsync(Id(retained),
+                retained.CreateReceipt!.CurrentRevision!.Value,guard,ct)
+                ??throw new InvalidDataException("ZIP protected child is missing without its exact delete receipt.");
+            if(ZipPhaseIIWork.Hash(current.Content.Span,guard,ct)!=retained.CandidateHash)
+                throw new InvalidDataException("ZIP protected child changed before deletion.");
+            await guard.RevalidateAsync(ct);
+        }
+        await using var physical=known is null?await _storage.PrepareDeleteGuardedAsync(Id(retained),
+            retained.CreateReceipt!.CurrentRevision!.Value,Context(retained,true),guard,ct):null;
+        await using IPreparedArtifactContentMutation? prepared=physical is null?null:
+            new GuardedCheckpointMutation(physical,guard,()=>At("PhysicalReleased"));
+        var promoted=await _journal.PromoteRetentionReleaseAsync(attempt.ProtectedReleaseRequest(evidence),
+            prepared,known,_storage,guard,ct);
+        await At("ReleaseReceiptRecorded");
+        evidence=await _journal.ReadProtectedReleaseEvidenceAsync(parent.Binding.OperationId,fileOrdinal,ct);
+        if(evidence.Parent.Fence!=promoted.Parent.Fence||evidence.Retention!=promoted.Retention||
+            evidence.Retention.State!=ZipRetentionState.ReleasePending||evidence.Retention.ReleaseReceipt is null||
+            evidence.Retention.CandidateCleanup is not null)
+            throw new InvalidDataException("ZIP protected release crossed its hard stop.");
+        await guard.FinishAsync(ct);
+        return promoted;
+    }
+
     private sealed class CheckpointCleanup(IZipPreparedCandidateCleanup inner,Func<Task> checkpoint) : IZipPreparedCandidateCleanup
     {
         public async Task<ZipCandidateCleanupReceipt> ExecuteAsync(CancellationToken ct=default)

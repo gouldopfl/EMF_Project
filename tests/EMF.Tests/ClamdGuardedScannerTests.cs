@@ -175,11 +175,37 @@ public sealed class ClamdGuardedScannerTests
             var guard=new Guard();guard.AfterInitiation=call=>{if(call.Kind=="FinalFlush")guard.Revoke();};
             var provider=new ClamdMalwareScanner(new ClamdTcpConnectionFactory("127.0.0.1",port),ClamdMalwareScannerTests.Profile());byte[]? buffer=null;provider.BufferAllocated=b=>buffer=b;
             var source=new MemoryStream(bytes);var submitted=await provider.SubmitGuardedAsync(Invocation(provider,bytes,TimeProvider.System),source,guard,timeout.Token);
-            source.Dispose();var response=submitted.Response!;var observed=await response.ReceiveObservationAsync(timeout.Token);
-            Assert.Equal(MalwareScanFailure.CoverageUnproven,observed.Evidence.Failure);Assert.False(observed.Evidence.IsClean);
-            await response.DisposeAsync();await server;Assert.All(buffer!,b=>Assert.Equal(0,b));
+            source.Dispose();
+
+            var response=submitted.Response;
+            Assert.True(response is not null,
+                $"Expected receive-only response after successful submission; " +
+                $"Origin={submitted.Observation?.Origin.ToString()??"<none>"}, " +
+                $"Failure={submitted.Observation?.Evidence.Failure.ToString()??"<none>"}, " +
+                $"Detection={submitted.Observation?.Evidence.Detection.ToString()??"<none>"}, " +
+                $"Coverage={submitted.Observation?.Evidence.Coverage.ToString()??"<none>"}.");
+
+            {
+                await using var receiveOnly=response!;
+                var observed=await receiveOnly.ReceiveObservationAsync(timeout.Token);
+                Assert.Equal(MalwareScanFailure.CoverageUnproven,observed.Evidence.Failure);
+                Assert.False(observed.Evidence.IsClean);
+            }
+
+            await server;
+            Assert.All(buffer!,b=>Assert.Equal(0,b));
         }
-        finally{listener.Stop();}
+        finally
+        {
+            timeout.Cancel();
+            listener.Stop();
+            try { await server; }
+            catch
+            {
+                // Success path already observes server failures;
+                // cleanup must not hide the original test failure.
+            }
+        }
     }
 
     [Fact]

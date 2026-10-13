@@ -13,6 +13,7 @@ public sealed class ZipPrivateContentStorage : IZipGuardedPrivateContentStorage
     private readonly FileSystemArtifactContentStagingStore _staging;
     private readonly IContentStoragePlatform _platform=ContentStoragePlatform.Select();
     private readonly string _stagingRoot;
+    internal Func<string,Task>? PhysicalCheckpoint { get=>_physical.Checkpoint;set=>_physical.Checkpoint=value; }
     public string NamespaceId { get; }
     public long MaximumProtectedBytes { get; }
     public ZipPrivateContentStorage(string privateRoot,long maximumProtectedBytes)
@@ -49,6 +50,12 @@ public sealed class ZipPrivateContentStorage : IZipGuardedPrivateContentStorage
     { Id(id);return _physical.PreparePhysicalCreateAsync(id,candidate,context,ct); }
     public Task<IPreparedArtifactContentMutation> PrepareDeleteAsync(ArtifactId id,ArtifactContentRevision revision,ArtifactContentMutationContext context,CancellationToken ct=default)
     { Id(id);return _physical.PreparePhysicalDeleteAsync(id,revision,context,ct); }
+    public Task<IPreparedArtifactContentMutation> PrepareDeleteGuardedAsync(ArtifactId id,ArtifactContentRevision revision,
+        ArtifactContentMutationContext context,IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+    { Id(id);return _physical.PreparePhysicalDeleteGuardedAsync(id,revision,context,guard,ct); }
+    public Task<ArtifactContentRevision?> ReadTombstoneRevisionGuardedAsync(ArtifactId id,
+        IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+    { Id(id);return _physical.ReadTombstoneRevisionGuardedAsync(id,guard,ct); }
     public async Task<IArtifactContentReadLease?> ReadProtectedAsync(ArtifactId id,ArtifactContentRevision expected,CancellationToken ct=default)
     {
         Id(id);

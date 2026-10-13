@@ -7,7 +7,5 @@ public interface IZipGuardedPrivateContentStorage : IZipPrivateContentStorage
 {
     Task StageGuardedAsync(ArtifactContentOperationId operation, ReadOnlyMemory<byte> candidate, IZipEffectBoundaryGuard guard, CancellationToken ct = default);
     Task<byte[]?> ReadCandidateGuardedAsync(ArtifactContentOperationId operation, IZipEffectBoundaryGuard guard, CancellationToken ct = default);
-    Task<ArtifactContentMutationReceipt?> GetReceiptGuardedAsync(ArtifactContentOperationId operation, IZipEffectBoundaryGuard guard, CancellationToken ct = default);
     Task<IPreparedArtifactContentMutation> PrepareCreateGuardedAsync(ArtifactId id, ReadOnlyMemory<byte> candidate, ArtifactContentMutationContext context, IZipEffectBoundaryGuard guard, CancellationToken ct = default);
-    Task<IArtifactContentReadLease?> ReadProtectedGuardedAsync(ArtifactId id, ArtifactContentRevision expected, IZipEffectBoundaryGuard guard, CancellationToken ct = default);
 }

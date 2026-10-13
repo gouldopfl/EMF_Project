@@ -29,6 +29,27 @@ public sealed partial class SqliteZipExtractionJournal
     }
     public async Task<ZipRetentionRecord?> ReadRetentionAsync(string parentOperation,int fileOrdinal,CancellationToken ct=default)
     { await using var c=await OpenAsync(ct);return await RetentionAsync(c,null,parentOperation,fileOrdinal,ct); }
+    public async Task<ZipProtectedReleaseEvidence> ReadProtectedReleaseEvidenceAsync(string parentOperation,int fileOrdinal,CancellationToken ct=default)
+    {
+        await using var c=await OpenAsync(ct);
+        var parent=await ReadAsync(c,null,parentOperation,ct)??throw new InvalidDataException("Missing ZIP parent.");
+        var entry=parent.Entries.SingleOrDefault(e=>e.Plan.FileOrdinal==fileOrdinal)
+            ??throw new InvalidDataException("Missing ZIP child occurrence.");
+        var retention=await RetentionAsync(c,null,parentOperation,fileOrdinal,ct)
+            ??throw new InvalidDataException("Missing ZIP retained child.");
+        var (ack,contains,derived)=await ReleaseAcknowledgementAsync(c,null,parentOperation,fileOrdinal,ct);
+        return new(parent,entry,retention,ack,contains,derived);
+    }
+    private static async Task<(ZipAcknowledgementBinding Ack,long Contains,long Derived)> ReleaseAcknowledgementAsync(
+        SqliteConnection c,SqliteTransaction? tx,string operation,int ordinal,CancellationToken ct)
+    {
+        using var q=c.CreateCommand();q.Transaction=tx;
+        q.CommandText="SELECT ReceiptJson,ContainsId,DerivedFromId FROM ZipExtractionAcknowledgements WHERE ParentOperationId=$op AND FileOrdinal=$file";
+        q.Parameters.AddWithValue("$op",operation);q.Parameters.AddWithValue("$file",ordinal);
+        using var row=await q.ExecuteReaderAsync(ct);
+        if(!await row.ReadAsync(ct))throw new InvalidDataException("Missing durable ZIP acknowledgement.");
+        return (Decode<ZipAcknowledgementBinding>(row.GetString(0)),row.GetInt64(1),row.GetInt64(2));
+    }
     public Task<ZipRetentionUpdate> ReserveRetentionAsync(ZipFence fence,int ordinal,string namespaceId,string hash,CancellationToken ct=default) => ReserveRetentionCoreAsync(fence, ordinal, namespaceId, hash, null, ct);
     public Task<ZipRetentionUpdate> ReserveRetentionAsync(ZipFence fence,int ordinal,string namespaceId,string hash, IZipEffectBoundaryGuard guard, CancellationToken ct = default) => ReserveRetentionCoreAsync(fence, ordinal, namespaceId, hash, guard ?? throw new ArgumentNullException(nameof(guard)), ct);
     private async Task<ZipRetentionUpdate> ReserveRetentionCoreAsync(ZipFence fence,int ordinal,string namespaceId,string hash, IZipEffectBoundaryGuard? guard, CancellationToken ct)
@@ -57,7 +78,8 @@ public sealed partial class SqliteZipExtractionJournal
         await SaveAsync(c,tx,p,ct);await CommitEffectAsync(tx, guard, ct, p.OwnerUntil, admissionEligibility: guard is null ? null : () => ValidateExecutionAdmissionAsync(c, tx, p, ct));return new(p,retention);
     }
     private async Task<ZipRetentionUpdate> ChangeRetentionAsync(ZipFence fence,ZipRetentionRecord expected,
-        Func<SqliteConnection,SqliteTransaction,ZipParentSnapshot,Task<ZipRetentionRecord>> change,CancellationToken ct, IZipEffectBoundaryGuard? guard = null)
+        Func<SqliteConnection,SqliteTransaction,ZipParentSnapshot,Task<ZipRetentionRecord>> change,CancellationToken ct,
+        IZipEffectBoundaryGuard? guard = null,ZipProtectedReleaseAuthorityRequest? release = null,string? releasePoint = null)
     {
         using var effectCancellation = guard is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, guard.Invalidated);
         ct = effectCancellation?.Token ?? ct;
@@ -66,6 +88,7 @@ public sealed partial class SqliteZipExtractionJournal
         if (guard is not null) await ValidateExecutionAdmissionAsync(c, tx, p, ct);
         var old=await RetentionAsync(c,tx,fence.OperationId,expected.Identity.FileOrdinal,ct);
         if(old is null||Json(old)!=Json(expected)||old.Identity.ParentOperationId!=fence.OperationId)throw new ZipFenceException();
+        if(release is not null)await ValidateProtectedReleaseAsync(c,tx,p,old,release,ct);
         await ValidateEffectAsync(guard, ct);
         if (guard is not null && p.OwnerUntil <= _time.GetUtcNow()) throw new ZipFenceException();
         var next=await change(c,tx,p);
@@ -74,7 +97,12 @@ public sealed partial class SqliteZipExtractionJournal
         using var q=c.CreateCommand();q.Transaction=tx;q.CommandText="UPDATE ZipExtractionRetentions SET StateJson=$json WHERE ParentOperationId=$op AND FileOrdinal=$file";
         q.Parameters.AddWithValue("$json",Json(next));q.Parameters.AddWithValue("$op",fence.OperationId);q.Parameters.AddWithValue("$file",expected.Identity.FileOrdinal);await q.ExecuteNonQueryAsync(ct);
         p=p with{State=next.State==ZipRetentionState.RequiresReview?ZipParentState.RequiresReview:p.State,Fence=p.Fence with{Revision=checked(p.Fence.Revision+1)}};
-        await SaveAsync(c,tx,p,ct);await CommitEffectAsync(tx, guard, ct, p.OwnerUntil, admissionEligibility: guard is null ? null : () => ValidateExecutionAdmissionAsync(c, tx, p, ct));return new(p,next);
+        await SaveAsync(c,tx,p,ct);
+        await CommitEffectAsync(tx,guard,ct,p.OwnerUntil,
+            admissionEligibility:release is not null?()=>ValidateProtectedReleaseAdmissionAsync(c,tx,p,release,ct):
+                guard is null?null:()=>ValidateExecutionAdmissionAsync(c,tx,p,ct),
+            beforeCommit:releasePoint is null||ProtectedReleaseCheckpoint is null?null:()=>ProtectedReleaseCheckpoint(releasePoint));
+        return new(p,next);
     }
     public Task<ZipRetentionUpdate> BeginRetentionPreparationAsync(ZipFence f,ZipRetentionRecord e,CancellationToken ct=default)=>
         ChangeRetentionAsync(f,e,(_,_,p)=>Task.FromResult(p.State is (ZipParentState.Planned or ZipParentState.Processing)&&e.State==ZipRetentionState.Reserved?e with{State=ZipRetentionState.Preparing}:throw new InvalidOperationException("Encryption preparation already started.")),ct);
