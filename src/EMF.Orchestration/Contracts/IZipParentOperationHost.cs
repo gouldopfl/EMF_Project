@@ -59,6 +59,10 @@ public interface IZipAuthorizedExecution : IAsyncDisposable
         ZipChildIngestionEffectRequest request, CancellationToken ct = default)
         => Task.FromException<IZipAuthorizedEffectScope<ZipChildIngestionEffectRequest>>(
             new NotSupportedException("Child ingestion authority is unavailable."));
+    Task<IZipAuthorizedEffectScope<ZipAcknowledgementAuthorityRequest>> AuthorizeAcknowledgementAsync(
+        ZipAcknowledgementAuthorityRequest request, CancellationToken ct = default)
+        => Task.FromException<IZipAuthorizedEffectScope<ZipAcknowledgementAuthorityRequest>>(
+            new NotSupportedException("ZIP acknowledgement authority is unavailable."));
     Task<ZipChildIngestionRuntime> OpenChildAsync(ZipParentSnapshot parent, ZipEntryProgress entry,
         IZipChildIngestionEffectGate gate, CancellationToken ct = default)
         => Task.FromException<ZipChildIngestionRuntime>(new NotSupportedException("Guarded child delegation is unavailable."));

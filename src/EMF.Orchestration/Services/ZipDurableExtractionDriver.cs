@@ -97,6 +97,48 @@ public sealed class ZipDurableExtractionDriver(IZipExtractionJournal parents,IZi
         // acknowledge, release, classify or advance the ZIP frontier.
         return await ingestion.IngestNextAsync(p,attempt,ct);
     }
+    public async Task<ZipAcknowledgementResult> RunAcknowledgementAsync(ZipExecutionAttempt attempt,CancellationToken ct=default)
+    {
+        ArgumentNullException.ThrowIfNull(attempt);
+        attempt.EnterAcknowledgementInvocation();
+        using var linked=CancellationTokenSource.CreateLinkedTokenSource(ct,attempt.Invalidated);ct=linked.Token;
+        await attempt.RevalidateAsync(ct);
+        var parent=await parents.ReadAsync(attempt.Claimed.Binding.OperationId,ct)??throw new ZipFenceException();
+        attempt.Validate(parent);
+        if(parent.State is not (ZipParentState.Planned or ZipParentState.Processing))
+            return await Stop(ZipAcknowledgementStop.OutsideAcknowledgementBoundary,null,null);
+        var next=checked(parent.Fence.ConfirmedOrdinal+1);
+        var entry=parent.Entries.SingleOrDefault(e=>e.Plan.FileOrdinal==next);
+        var already=false;
+        int ordinal;
+        if(entry?.State==ZipEntryState.Ingested&&entry.Ingestion is not null)
+            ordinal=next;
+        else if(attempt.Purpose==ZipOwnershipPurpose.Recovery&&parent.Fence.ConfirmedOrdinal>=0&&
+            parent.Entries.SingleOrDefault(e=>e.Plan.FileOrdinal==parent.Fence.ConfirmedOrdinal) is {State:ZipEntryState.Acknowledged,Ingestion:not null})
+        {
+            ordinal=parent.Fence.ConfirmedOrdinal;already=true;
+            entry=parent.Entries.Single(e=>e.Plan.FileOrdinal==ordinal);
+        }
+        else return await Stop(ZipAcknowledgementStop.OutsideAcknowledgementBoundary,next,null);
+        // Keep this precommit projection stable until the scope is finished.
+        // The guarded transaction itself rereads all durable eligibility.
+        await using var guard=attempt.AcknowledgementBoundary(()=>parent,ordinal);
+        await guard.RevalidateAsync(ct);
+        var request=new ZipAcknowledgementAuthorityRequest(attempt.Admission,parent.Binding,parent.Fence,
+            entry!.Plan,entry.Retained!,entry.Ingestion!,attempt.ExecutingActorId,attempt.Purpose,attempt.ValidUntilUtc);
+        var result=await acknowledgements.AcknowledgeEntryAsync(request,guard,ct);
+        await guard.FinishAsync(ct);
+        parent=result.Parent;
+        if(result.AlreadyAcknowledged!=already||parent.Entries.Single(e=>e.Plan.FileOrdinal==ordinal).State!=ZipEntryState.Acknowledged)
+            throw new InvalidDataException("ZIP acknowledgement result differs from the admitted occurrence.");
+        return await Stop(ZipAcknowledgementStop.Acknowledged,ordinal,result);
+
+        async Task<ZipAcknowledgementResult> Stop(ZipAcknowledgementStop reason,int? file,ZipAcknowledgementUpdate? update)
+        {
+            await attempt.RevalidateAsync(ct);ct.ThrowIfCancellationRequested();attempt.Validate(parent);
+            return new(reason,parent,file,update?.AlreadyAcknowledged??false,update?.ContainsId,update?.DerivedFromId);
+        }
+    }
     internal Func<string,Task>? Checkpoint{get;set;}
     private Task At(string name)=>Checkpoint?.Invoke(name)??Task.CompletedTask;
     internal async Task<ZipParentSnapshot> ResumeLegacyTestHarnessAsync(string operation,string owner,TimeSpan lease,CancellationToken ct=default)
@@ -159,3 +201,6 @@ public sealed class ZipDurableExtractionDriver(IZipExtractionJournal parents,IZi
 // Transient stop results, never new durable states or grants.
 public enum ZipPhaseIIStop { AwaitingScanner, AwaitingLaterCompletion, OutsidePhaseIIBoundary, EvidenceFailure }
 public sealed record ZipPhaseIIResult(ZipPhaseIIStop Stop,ZipParentSnapshot Parent,int? FileOrdinal=null,string? SafeReason=null);
+public enum ZipAcknowledgementStop { Acknowledged, OutsideAcknowledgementBoundary }
+public sealed record ZipAcknowledgementResult(ZipAcknowledgementStop Stop,ZipParentSnapshot Parent,
+    int? FileOrdinal=null,bool AlreadyAcknowledged=false,long? ContainsId=null,long? DerivedFromId=null);

@@ -8,4 +8,7 @@ public sealed record ZipAcknowledgementUpdate(ZipParentSnapshot Parent,ZipAcknow
 public interface IZipAcknowledgementJournal
 {
     Task<ZipAcknowledgementUpdate> AcknowledgeEntryAsync(ZipFence currentFence,int fileOrdinal,ZipChildIngestionProof expectedIngestion,CancellationToken ct=default);
+    Task<ZipAcknowledgementUpdate> AcknowledgeEntryAsync(ZipAcknowledgementAuthorityRequest request,
+        IZipEffectBoundaryGuard guard,CancellationToken ct=default)
+        => throw new NotSupportedException("Guarded ZIP acknowledgement is required.");
 }

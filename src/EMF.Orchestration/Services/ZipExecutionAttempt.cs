@@ -21,6 +21,7 @@ public sealed partial class ZipExecutionAttempt : IAsyncDisposable
     public CancellationToken Invalidated => lifetime.Token;
     public ZipParentAdmission Admission => admission;
     internal ZipOwnershipPurpose Purpose => purpose;
+    internal string ExecutingActorId => actor;
     private ZipExecutionAttempt(IZipAuthorizedExecution root, ZipParentSnapshot claimed, TimeProvider clock, CancellationToken ct)
     {
         this.root = root; Claimed = claimed; Clock = clock; admission = root.Admission;

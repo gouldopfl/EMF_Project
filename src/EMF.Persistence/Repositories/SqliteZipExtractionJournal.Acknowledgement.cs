@@ -44,19 +44,72 @@ public sealed partial class SqliteZipExtractionJournal
         }
     }
     public async Task<ZipAcknowledgementUpdate> AcknowledgeEntryAsync(ZipFence f,int ordinal,ZipChildIngestionProof expected,CancellationToken ct=default)
+        => await AcknowledgeEntryCoreAsync(f,ordinal,expected,null,null,ct);
+
+    public Task<ZipAcknowledgementUpdate> AcknowledgeEntryAsync(ZipAcknowledgementAuthorityRequest request,
+        IZipEffectBoundaryGuard guard,CancellationToken ct=default)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(guard);
+        if(request.Parent!=request.Admission.Parent||request.Fence.OperationId!=request.Parent.OperationId||
+            request.Occurrence.FileOrdinal is not { } ordinal||string.IsNullOrWhiteSpace(request.ExecutingActorId)||
+            request.Purpose is not (ZipOwnershipPurpose.InitialExecution or ZipOwnershipPurpose.Recovery)||
+            request.GrantValidUntilUtc<=_time.GetUtcNow())
+            throw new UnauthorizedAccessException("ZIP acknowledgement request is not bound to a live parent attempt.");
+        return AcknowledgeEntryCoreAsync(request.Fence,ordinal,request.Ingestion,request,guard,ct);
+    }
+
+    private async Task<DateTimeOffset> ValidateAcknowledgementAdmissionAsync(SqliteConnection c,SqliteTransaction tx,
+        ZipParentSnapshot parent,ZipAcknowledgementAuthorityRequest request,CancellationToken ct)
+    {
+        var current=await ReadAdmissionCoreAsync(c,tx,parent.Binding.OperationId,ct)
+            ??throw new UnauthorizedAccessException("Missing current ZIP acknowledgement admission.");
+        var capability=request.Purpose==ZipOwnershipPurpose.InitialExecution
+            ?ZipAuthorityCapabilities.Admit:ZipAuthorityCapabilities.Recover;
+        if(current!=request.Admission||current.State!=ZipAdmissionState.ParentBound||current.Parent!=parent.Binding||
+            current.Approval is null||current.LatestAuthorityEvidence is null||
+            (current.Approval.Capabilities&capability)==0||
+            (current.LatestAuthorityEvidence.Capabilities&capability)==0)
+            throw new UnauthorizedAccessException("ZIP acknowledgement admission or purpose changed.");
+        await ValidateExecutionAdmissionAsync(c,tx,parent,ct);
+        return CurrentEvidenceExpiry(current);
+    }
+
+    private async Task<ZipAcknowledgementUpdate> AcknowledgeEntryCoreAsync(ZipFence f,int ordinal,
+        ZipChildIngestionProof expected,ZipAcknowledgementAuthorityRequest? request,IZipEffectBoundaryGuard? guard,CancellationToken ct)
+    {
+        using var effectCancellation=guard is null?null:CancellationTokenSource.CreateLinkedTokenSource(ct,guard.Invalidated);
+        ct=effectCancellation?.Token??ct;
+        await ValidateEffectAsync(guard,ct);
         await using var c=await OpenAsync(ct);using var tx=c.BeginTransaction(deferred:false);var p=await FencedAsync(c,tx,f,ct);
+        if(request is not null)
+        {
+            if(request.Parent!=p.Binding||request.Fence!=p.Fence||request.Occurrence.FileOrdinal!=ordinal||
+                request.Ingestion!=expected||request.GrantValidUntilUtc<=_time.GetUtcNow())
+                throw new UnauthorizedAccessException("ZIP acknowledgement request differs from the current parent.");
+            await ValidateAcknowledgementAdmissionAsync(c,tx,p,request,ct);
+        }
         if(p.State is not (ZipParentState.Planned or ZipParentState.Processing or ZipParentState.Completed))throw new ZipFenceException();
         var e=p.Entries.SingleOrDefault(e=>e.Plan.FileOrdinal==ordinal)??throw new InvalidDataException("Missing ZIP occurrence.");
+        if(request is not null&&(e.Plan!=request.Occurrence||e.Retained!=request.ChildInput||e.Ingestion!=request.Ingestion))
+            throw new InvalidDataException("ZIP acknowledgement occurrence evidence changed.");
         if(e.Ingestion is null||e.Ingestion!=expected)throw new InvalidDataException("ZIP acknowledgement requires exact durable ingestion proof.");
         await ValidateIngestionProofAsync(c,tx,p,e,expected,ct);AcknowledgementCheckpoint?.Invoke("Validated");
         using var q=c.CreateCommand();q.Transaction=tx;q.Parameters.AddWithValue("$op",f.OperationId);q.Parameters.AddWithValue("$file",ordinal);
         if(ordinal<=f.ConfirmedOrdinal)
         {
-            q.CommandText="SELECT ReceiptJson,ContainsId,DerivedFromId FROM ZipExtractionAcknowledgements WHERE ParentOperationId=$op AND FileOrdinal=$file";using var row=await q.ExecuteReaderAsync(ct);
-            if(!await row.ReadAsync(ct))throw new InvalidDataException("Missing replay acknowledgement.");
+            if(request is not null&&(request.Purpose!=ZipOwnershipPurpose.Recovery||e.State!=ZipEntryState.Acknowledged||
+                ordinal!=f.ConfirmedOrdinal||p.State==ZipParentState.Completed))throw new ZipFenceException();
+            q.CommandText="SELECT ReceiptJson,ContainsId,DerivedFromId FROM ZipExtractionAcknowledgements WHERE ParentOperationId=$op AND FileOrdinal=$file";
+            ZipAcknowledgementBinding prior;long priorContains,priorDerived;
+            using(var row=await q.ExecuteReaderAsync(ct))
+            {
+                if(!await row.ReadAsync(ct))throw new InvalidDataException("Missing replay acknowledgement.");
+                prior=Decode<ZipAcknowledgementBinding>(row.GetString(0));priorContains=row.GetInt64(1);priorDerived=row.GetInt64(2);
+            }
             ct.ThrowIfCancellationRequested();if(p.OwnerUntil<=_time.GetUtcNow())throw new ZipFenceException();
-            return new(p,Decode<ZipAcknowledgementBinding>(row.GetString(0)),row.GetInt64(1),row.GetInt64(2),true);
+            await CommitEffectAsync(tx,guard,ct,p.OwnerUntil,admissionEligibility:request is null?null:()=>ValidateAcknowledgementAdmissionAsync(c,tx,p,request,ct));
+            return new(p,prior,priorContains,priorDerived,true);
         }
         if(ordinal!=checked(f.ConfirmedOrdinal+1)||e.State!=ZipEntryState.Ingested||p.State==ZipParentState.Completed)throw new ZipFenceException();
         var occurrence=Occurrence(p,e);var created=_time.GetUtcNow();
@@ -75,7 +128,9 @@ public sealed partial class SqliteZipExtractionJournal
             new(e.Plan.CentralOrdinal,e.Plan.ProvisionalArtifactId!,p.Binding.Input,e.Retained!,expected,f,committed,created));
         q.CommandText="INSERT INTO ZipExtractionAcknowledgements VALUES($op,$file,$receipt,$contains,$derived)";q.Parameters.AddWithValue("$receipt",Json(ack));q.Parameters.AddWithValue("$contains",contains);q.Parameters.AddWithValue("$derived",derived);await q.ExecuteNonQueryAsync(ct);AcknowledgementCheckpoint?.Invoke("Acknowledgement");
         q.CommandText="UPDATE ZipExtractionEntries SET ProgressJson=$progress WHERE ParentOperationId=$op AND FileOrdinal=$file";q.Parameters.AddWithValue("$progress",Json(e with{State=ZipEntryState.Acknowledged}));await q.ExecuteNonQueryAsync(ct);AcknowledgementCheckpoint?.Invoke("Progress");
-        p=p with{State=ZipParentState.Processing,Fence=committed};await SaveAsync(c,tx,p,ct);AcknowledgementCheckpoint?.Invoke("Frontier");ct.ThrowIfCancellationRequested();if(p.OwnerUntil<=_time.GetUtcNow())throw new ZipFenceException();tx.Commit();AcknowledgementCheckpoint?.Invoke("Committed");
+        p=p with{State=ZipParentState.Processing,Fence=committed};await SaveAsync(c,tx,p,ct);AcknowledgementCheckpoint?.Invoke("Frontier");ct.ThrowIfCancellationRequested();if(p.OwnerUntil<=_time.GetUtcNow())throw new ZipFenceException();
+        await CommitEffectAsync(tx,guard,ct,p.OwnerUntil,admissionEligibility:request is null?null:()=>ValidateAcknowledgementAdmissionAsync(c,tx,p,request,ct),
+            beforeCommit:request is null||AcknowledgementCheckpoint is null?null:()=>AcknowledgementCheckpoint("CommitWindow"));AcknowledgementCheckpoint?.Invoke("Committed");
         return new((await ReadAsync(f.OperationId,ct))!,ack,contains,derived,false);
     }
 }

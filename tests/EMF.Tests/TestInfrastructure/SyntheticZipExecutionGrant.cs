@@ -129,6 +129,9 @@ internal sealed partial class SyntheticZipExecutionGrant(ZipParentAdmission admi
     public Task<IZipAuthorizedEffectScope<ZipChildIngestionEffectRequest>> AuthorizeChildIngestionEffectAsync(
         ZipChildIngestionEffectRequest request, CancellationToken ct = default)
         => IssueEffectAsync(request,request.Admission,ct);
+    public Task<IZipAuthorizedEffectScope<ZipAcknowledgementAuthorityRequest>> AuthorizeAcknowledgementAsync(
+        ZipAcknowledgementAuthorityRequest request, CancellationToken ct = default)
+        => IssueEffectAsync(request,request.Admission,ct);
     public async Task<ZipChildIngestionRuntime> OpenChildAsync(ZipParentSnapshot p, ZipEntryProgress e,
         IZipChildIngestionEffectGate gate, CancellationToken ct = default)
     {

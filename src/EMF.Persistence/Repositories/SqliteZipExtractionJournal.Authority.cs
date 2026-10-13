@@ -14,9 +14,10 @@ public sealed partial class SqliteZipExtractionJournal
     }
 
     private async Task CommitEffectAsync(SqliteTransaction tx, IZipEffectBoundaryGuard? guard,
-        CancellationToken ct, DateTimeOffset? ownerUntil = null, DateTimeOffset? evidenceUntil = null, Func<Task<DateTimeOffset>>? admissionEligibility = null)
+        CancellationToken ct, DateTimeOffset? ownerUntil = null, DateTimeOffset? evidenceUntil = null,
+        Func<Task<DateTimeOffset>>? admissionEligibility = null, Action? beforeCommit = null)
     {
-        if (guard is null) { tx.Commit(); return; }
+        if (guard is null) { beforeCommit?.Invoke(); tx.Commit(); return; }
         if (admissionEligibility is not null) evidenceUntil = await admissionEligibility();
         await guard.RevalidateAsync(ct);
         ct.ThrowIfCancellationRequested();
@@ -27,6 +28,15 @@ public sealed partial class SqliteZipExtractionJournal
         if (ownerUntil is { } until && until <= _time.GetUtcNow()) throw new ZipFenceException();
         if (evidenceUntil is { } evidenceExpiry && evidenceExpiry <= _time.GetUtcNow())
             throw new UnauthorizedAccessException("Recorded ZIP approval expired; issuer revalidation is required.");
+        beforeCommit?.Invoke();
+        // A test checkpoint can advance the synthetic clock while acceptance is
+        // held. Recheck that same scope before committing after the checkpoint.
+        if (beforeCommit is not null) using (guard.Accept(ct)) { }
+        ct.ThrowIfCancellationRequested();
+        guard.Invalidated.ThrowIfCancellationRequested();
+        if (ownerUntil is { } finalOwnerUntil && finalOwnerUntil <= _time.GetUtcNow()) throw new ZipFenceException();
+        if (evidenceUntil is { } finalEvidenceUntil && finalEvidenceUntil <= _time.GetUtcNow())
+            throw new UnauthorizedAccessException("Recorded ZIP approval expired before commit.");
         tx.Commit();
     }
 
