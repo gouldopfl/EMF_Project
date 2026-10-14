@@ -16,6 +16,7 @@ public sealed class SqliteWorkflowDefinitionRepository :
         ArgumentException.ThrowIfNullOrWhiteSpace(
             databasePath);
 
+        EMF.Infrastructure.CandidateCustodyPathExclusion.RejectSqlite(databasePath);
         _databasePath = databasePath;
     }
 

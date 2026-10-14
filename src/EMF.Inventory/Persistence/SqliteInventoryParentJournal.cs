@@ -15,6 +15,7 @@ public sealed class SqliteInventoryParentJournal : IInventoryParentJournal
     public SqliteInventoryParentJournal(string path, InventoryProcessingLimits? limits = null)
     {
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
+        LinuxInventorySnapshotWorkspace.RejectCustodyPath(path, false);
         _limits = limits ?? new(); _limits.Validate(); _path = Path.GetFullPath(path);
         _ = new LinuxInventorySnapshotWorkspace(Path.GetDirectoryName(_path)!);
         if (!File.Exists(_path)) { using var f = new FileStream(_path, new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite }); f.Flush(true); LinuxInventorySnapshotWorkspace.FlushDirectory(Path.GetDirectoryName(_path)!); }

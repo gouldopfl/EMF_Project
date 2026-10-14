@@ -17,6 +17,7 @@ internal sealed class SecurityAuditSqliteMigrator
             databasePath);
         ArgumentNullException.ThrowIfNull(migrations);
 
+        EMF.Infrastructure.CandidateCustodyPathExclusion.RejectSqlite(databasePath);
         _databasePath = databasePath;
         _migrations =
             migrations

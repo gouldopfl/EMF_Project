@@ -112,10 +112,12 @@ public sealed class InventoryProtectedSnapshotStorageAdapter : IInventoryProtect
     public async Task MaterializeAsync(InventoryRetainedBinding binding, string destination, CancellationToken ct = default)
     {
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
+        LinuxInventorySnapshotWorkspace.RejectCustodyPath(destination, false);
         await _buffers.WaitAsync(ct).ConfigureAwait(false); byte[]? plain = null;
         try
         {
             plain = await ReadPlainAsync(binding, ct).ConfigureAwait(false);
+            LinuxInventorySnapshotWorkspace.RejectCustodyPath(destination, false);
             await using (var file = new FileStream(destination, new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None, Options = FileOptions.Asynchronous, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite }))
             { await file.WriteAsync(plain, ct); file.Flush(true); }
             LinuxInventorySnapshotWorkspace.FlushDirectory(Path.GetDirectoryName(destination)!);

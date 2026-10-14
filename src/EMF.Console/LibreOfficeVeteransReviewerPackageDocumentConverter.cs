@@ -160,6 +160,7 @@ internal sealed class LibreOfficeVeteransReviewerPackageDocumentConverter :
                 Path.GetTempPath(),
                 $"emf-reviewer-pdf-{Guid.NewGuid():N}");
 
+        EMF.Infrastructure.CandidateCustodyPathExclusion.Reject(workingDirectory);
         if (OperatingSystem.IsWindows())
             Directory.CreateDirectory(workingDirectory);
         else

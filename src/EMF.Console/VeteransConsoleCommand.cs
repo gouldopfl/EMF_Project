@@ -2899,6 +2899,7 @@ public static class VeteransConsoleCommand
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
         ArgumentNullException.ThrowIfNull(qualifiedWindows);
+        EMF.Infrastructure.CandidateCustodyPathExclusion.Reject(outputPath);
 
         var directory = Path.GetDirectoryName(outputPath);
 
@@ -6597,6 +6598,7 @@ public static class VeteransConsoleCommand
                 throw new InvalidOperationException(
                     "Generated document output directory could not be resolved.");
 
+            EMF.Infrastructure.CandidateCustodyPathExclusion.Reject(absolutePath);
             Directory.CreateDirectory(absoluteDirectory);
             return absolutePath;
         }
@@ -6647,6 +6649,7 @@ public static class VeteransConsoleCommand
             throw new InvalidOperationException(
                 "Generated document output directory could not be resolved.");
 
+        EMF.Infrastructure.CandidateCustodyPathExclusion.Reject(fullOutputPath);
         Directory.CreateDirectory(directory);
         return fullOutputPath;
     }
@@ -6993,6 +6996,7 @@ public static class VeteransConsoleCommand
         string outputPath,
         byte[] content)
     {
+        EMF.Infrastructure.CandidateCustodyPathExclusion.Reject(outputPath);
         var directory =
             Path.GetDirectoryName(outputPath) ??
             throw new InvalidOperationException(

@@ -12,6 +12,7 @@ public sealed class FileSystemArtifactContentStagingStore : IArtifactContentStag
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
         if (maximumBytes <= 0) throw new ArgumentOutOfRangeException(nameof(maximumBytes));
+        CandidateCustodyRootPolicy.RejectGenericRoot(root);
         _root = Path.GetFullPath(root); _maximumBytes = maximumBytes; _platform = ContentStoragePlatform.Select();
         _platform.RequirePlatform();
         // Reject symlink ancestors; the private root must belong to the service principal.

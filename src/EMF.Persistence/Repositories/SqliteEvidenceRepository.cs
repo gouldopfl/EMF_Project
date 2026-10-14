@@ -15,6 +15,7 @@ public sealed class SqliteEvidenceRepository : IEvidenceRepository
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
 
+        EMF.Infrastructure.CandidateCustodyPathExclusion.RejectSqlite(databasePath);
         _databasePath = databasePath;
     }
 

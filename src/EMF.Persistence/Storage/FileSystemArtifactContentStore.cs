@@ -41,6 +41,7 @@ public sealed partial class FileSystemArtifactContentStore : IPreparedArtifactCo
         _inspectionLimits = inspectionLimits ?? new(); _inspectionLimits.Validate();
         if (string.IsNullOrWhiteSpace(rootPath)) throw new ArgumentException("Root path is required.", nameof(rootPath));
         if (maxStoredBytes <= 0 || maxStoredBytes > Array.MaxLength) throw new ArgumentOutOfRangeException(nameof(maxStoredBytes));
+        CandidateCustodyRootPolicy.RejectGenericRoot(rootPath);
         _rootPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootPath));
         _maxStoredBytes = maxStoredBytes;
     }

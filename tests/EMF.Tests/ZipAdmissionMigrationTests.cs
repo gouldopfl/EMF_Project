@@ -42,7 +42,7 @@ public sealed class ZipAdmissionMigrationTests
             while (await rows.ReadAsync())
             {
                 var name = rows.GetString(0); var table = rows.GetString(2);
-                if (!includeNew && (table is "ZipParentAdmissions" or "ZipParentAdmissionEvents")) continue;
+                if (!includeNew && (table is "ZipParentAdmissions" or "ZipParentAdmissionEvents" or "ZipCandidateCleanupIntents" or "ZipCandidateCustodyCompletions" || name.StartsWith("ZipCandidateCustody",StringComparison.Ordinal))) continue;
                 var values = new object[4]; rows.GetValues(values); output.Add(JsonSerializer.Serialize(values));
                 if (rows.GetString(1) == "table") tables.Add(name);
             }
@@ -63,7 +63,7 @@ public sealed class ZipAdmissionMigrationTests
         var binding = await SeedVersionFourAsync(f); var before = await SnapshotAsync(f, false);
         Assert.Equal(4, await f.ScalarAsync("SELECT MAX(Version) FROM ZipExtractionSchema"));
         await f.Journal.InitializeAsync(); await f.Journal.InitializeAsync();
-        Assert.Equal(5, await f.ScalarAsync("SELECT MAX(Version) FROM ZipExtractionSchema"));
+        Assert.Equal(6, await f.ScalarAsync("SELECT MAX(Version) FROM ZipExtractionSchema"));
         Assert.Equal(before, await SnapshotAsync(f, false));
         Assert.Equal(binding, (await f.Journal.ReadAsync(binding.OperationId))!.Binding);
         Assert.Empty(await f.Journal.ReadRecoveryAdmissionsAsync(null, 100));
@@ -84,7 +84,7 @@ public sealed class ZipAdmissionMigrationTests
         Assert.Equal(4, await f.ScalarAsync("SELECT MAX(Version) FROM ZipExtractionSchema"));
         await f.SqlAsync(late ? "DROP TRIGGER ZipAdmissionEventNoReplace" : "DROP TABLE ZipParentAdmissions");
         await f.Journal.InitializeAsync();
-        Assert.Equal(5, await f.ScalarAsync("SELECT MAX(Version) FROM ZipExtractionSchema"));
+        Assert.Equal(6, await f.ScalarAsync("SELECT MAX(Version) FROM ZipExtractionSchema"));
         Assert.Empty(await f.Journal.ReadRecoveryAdmissionsAsync(null, 100));
     }
 
@@ -104,7 +104,7 @@ public sealed class ZipAdmissionMigrationTests
         await using var evidence = await ArtifactIngestionFixture.CreateAsync(); var runtime = new ZipDurableRuntimeFixture(evidence);
         var parent = await runtime.CreateParent(two: true); var completed = await runtime.Driver.RunLegacyTestHarnessAsync(parent);
         Assert.Equal(ZipParentState.Released, completed.State);
-        await evidence.SqlAsync("DROP TABLE ZipParentAdmissionEvents; DROP TABLE ZipParentAdmissions; DELETE FROM ZipExtractionSchema WHERE Version=5;");
+        await evidence.SqlAsync("DROP TRIGGER ZipCandidateCustodyNoReopen; DROP TRIGGER ZipCandidateCustodyReleasedProof; DROP TABLE ZipCandidateCustodyCompletions; DROP TABLE ZipCandidateCleanupIntents; DROP TABLE ZipParentAdmissionEvents; DROP TABLE ZipParentAdmissions; DELETE FROM ZipExtractionSchema WHERE Version>=5;");
         var before = await SnapshotAsync(evidence.DatabasePath, false);
         await runtime.Journal.InitializeAsync(); await runtime.Journal.InitializeAsync();
         Assert.Equal(before, await SnapshotAsync(evidence.DatabasePath, false));

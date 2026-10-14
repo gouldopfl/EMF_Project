@@ -17,6 +17,7 @@ public sealed class LinuxInventorySnapshotWorkspace
     public LinuxInventorySnapshotWorkspace(string root, Func<string, Task>? beforeRemove = null)
     {
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException("Inventory workspaces require Linux.");
+        RejectCustodyPath(root,true);
         Root = System.IO.Path.GetFullPath(root);
         _beforeRemove = beforeRemove;
         // This slice admits only dedicated VM-local state under these host-controlled bases.
@@ -50,7 +51,36 @@ public sealed class LinuxInventorySnapshotWorkspace
     public FileStream CreateFile(string path)
     {
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
-        return new(path, new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None, Options = FileOptions.Asynchronous, UnixCreateMode = FileModeBits });
+        RejectCustodyPath(path,false);
+        return new(System.IO.Path.GetFullPath(path), new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None, Options = FileOptions.Asynchronous, UnixCreateMode = FileModeBits });
+    }
+
+    // Constructor/target isolation only; ordinary workspace paths remain unchanged.
+    // No generic file API may address D1 custody, including aliased ancestry.
+    public static void RejectCustodyPath(string path, bool directory)
+    {
+        EMF.Infrastructure.CandidateCustodyPathExclusion.Reject(path);
+        var full=System.IO.Path.GetFullPath(path);
+        if(full.Split(System.IO.Path.DirectorySeparatorChar,System.IO.Path.AltDirectorySeparatorChar)
+            .Contains("zip-candidate-custody",StringComparer.Ordinal))
+            throw new IOException("D1 custody is reserved for its dedicated native namespace.");
+        var ancestor=directory?full:System.IO.Path.GetDirectoryName(full)!;
+        using var start=new Microsoft.Win32.SafeHandles.SafeFileHandle((IntPtr)open("/",0x10000|0x20000|0x80000),true);
+        if(start.IsInvalid)throw new IOException("Cannot pin Inventory ancestry.");
+        Microsoft.Win32.SafeHandles.SafeFileHandle? current=null;
+        try
+        {
+            foreach(var part in ancestor.Split('/',StringSplitOptions.RemoveEmptyEntries))
+            {
+                var fd=openat((current??start).DangerousGetHandle().ToInt32(),part,0x10000|0x20000|0x80000,0);
+                if(fd<0&&Marshal.GetLastPInvokeError()==2)break;
+                if(fd<0)throw new IOException("Inventory ancestry is not a safe no-follow directory.");
+                var next=new Microsoft.Win32.SafeHandles.SafeFileHandle((IntPtr)fd,true);current?.Dispose();current=next;
+            }
+        }
+        finally{current?.Dispose();}
+        if(!directory&&(new FileInfo(full).LinkTarget is not null||new DirectoryInfo(full).LinkTarget is not null))
+            throw new IOException("Inventory file target is a symbolic link.");
     }
 
     private string WorkDirectory(string path)
@@ -264,6 +294,7 @@ public sealed class LinuxInventorySnapshotWorkspace
     private sealed record Cleanup(string WorkDirectory, Marker Owner);
     private sealed class Gate(FileStream stream) : IAsyncDisposable
     { public ValueTask DisposeAsync() { stream.Dispose(); return ValueTask.CompletedTask; } }
+    [DllImport("libc",SetLastError=true)]private static extern int openat(int dir,string path,int flags,int mode);
     [DllImport("libc", SetLastError = true)] private static extern int statx(int fd, string path, int flags, uint mask, IntPtr buffer);
     [DllImport("libc")] private static extern uint geteuid();
     [DllImport("libc", SetLastError = true)] private static extern int open(string path, int flags);

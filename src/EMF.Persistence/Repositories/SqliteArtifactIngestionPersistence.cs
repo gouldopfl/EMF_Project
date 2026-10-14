@@ -18,6 +18,7 @@ public sealed class SqliteArtifactIngestionPersistence : IArtifactIngestionPersi
     public SqliteArtifactIngestionPersistence(string databasePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        EMF.Infrastructure.CandidateCustodyPathExclusion.RejectSqlite(databasePath);
         _databasePath = Path.GetFullPath(databasePath);
         _platform = ContentStoragePlatform.Select();
         _platform.RequirePlatform();

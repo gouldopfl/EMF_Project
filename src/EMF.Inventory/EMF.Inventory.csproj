@@ -14,4 +14,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Include="../EMF.Common/CandidateCustodyPathExclusion.cs" Link="Infrastructure/CandidateCustodyPathExclusion.cs" />
+  </ItemGroup>
 </Project>

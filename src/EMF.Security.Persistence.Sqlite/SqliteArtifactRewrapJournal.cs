@@ -11,7 +11,7 @@ public sealed class SqliteArtifactRewrapJournal : IArtifactRewrapJournal
     private readonly string _path;
     public SqliteArtifactRewrapJournal(string databasePath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath); _path = Path.GetFullPath(databasePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath); EMF.Infrastructure.CandidateCustodyPathExclusion.RejectSqlite(databasePath); _path = Path.GetFullPath(databasePath);
     }
     public async Task InitializeAsync(CancellationToken ct = default)
     {

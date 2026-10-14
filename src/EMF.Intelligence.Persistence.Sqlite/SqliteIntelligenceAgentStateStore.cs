@@ -12,6 +12,7 @@ public sealed class SqliteIntelligenceAgentStateStore :
     public SqliteIntelligenceAgentStateStore(string databasePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        EMF.Infrastructure.CandidateCustodyPathExclusion.RejectSqlite(databasePath);
         _databasePath = databasePath;
     }
 

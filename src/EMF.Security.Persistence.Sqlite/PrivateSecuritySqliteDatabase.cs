@@ -7,6 +7,7 @@ internal static class PrivateSecuritySqliteDatabase
     internal static void Prepare(string path)
     {
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException("Private security persistence requires Linux.");
+        EMF.Infrastructure.CandidateCustodyPathExclusion.Reject(path);
         var parent = Path.GetDirectoryName(path)!;
         for (var ancestor = parent; ancestor is not null; ancestor = Path.GetDirectoryName(ancestor))
             if (new DirectoryInfo(ancestor).LinkTarget is not null) throw new IOException("Security persistence path contains a symbolic link.");

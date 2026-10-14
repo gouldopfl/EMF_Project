@@ -43,6 +43,7 @@ public sealed class SqliteArtifactDiscoveryProvider :
         var directory = Path.Combine(
             Path.GetTempPath(),
             $"emf-discovery-{Guid.NewGuid():N}");
+        EMF.Infrastructure.CandidateCustodyPathExclusion.Reject(directory);
         if (OperatingSystem.IsWindows())
             Directory.CreateDirectory(directory);
         else

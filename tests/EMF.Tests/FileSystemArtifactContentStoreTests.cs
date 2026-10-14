@@ -50,7 +50,7 @@ public sealed class FileSystemArtifactContentStoreTests
     }
 
     [Fact]
-    public async Task Operations_RejectContentRootRedirectedBySymbolicLink()
+    public void Constructor_RejectsContentRootRedirectedBySymbolicLink()
     {
         if (OperatingSystem.IsWindows()) return;
         var parent = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
@@ -60,8 +60,7 @@ public sealed class FileSystemArtifactContentStoreTests
             var actual = Directory.CreateDirectory(Path.Combine(parent, "actual")).FullName;
             var link = Path.Combine(parent, "link");
             Directory.CreateSymbolicLink(link, actual);
-            var store = new FileSystemArtifactContentStore(Path.Combine(link, "content"));
-            await Assert.ThrowsAsync<IOException>(() => store.WriteAsync(new ArtifactId("artifact"), new byte[] { 1 }));
+            Assert.ThrowsAny<IOException>(() => new FileSystemArtifactContentStore(Path.Combine(link, "content")));
             Assert.False(Directory.Exists(Path.Combine(actual, "content")));
         }
         finally { Directory.Delete(parent, true); }

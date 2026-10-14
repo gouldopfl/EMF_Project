@@ -10,6 +10,7 @@ internal static class VeteransClaimsSqliteConnectionFactory
         ArgumentException.ThrowIfNullOrWhiteSpace(
             databasePath);
 
+        EMF.Infrastructure.CandidateCustodyPathExclusion.RejectSqlite(databasePath);
         var builder = new SqliteConnectionStringBuilder
         {
             DataSource = databasePath,

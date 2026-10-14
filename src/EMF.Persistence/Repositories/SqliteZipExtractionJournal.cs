@@ -13,6 +13,7 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
     private readonly TimeProvider _time;
     public SqliteZipExtractionJournal(string evidenceDatabasePath, TimeProvider? time = null)
     {
+        EMF.Infrastructure.CandidateCustodyPathExclusion.RejectSqlite(evidenceDatabasePath);
         _path = Path.GetFullPath(evidenceDatabasePath);
         _time = time ?? TimeProvider.System;
         _platform.RequirePlatform();
@@ -76,8 +77,9 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
     private static readonly Lazy<Dictionary<string,string>> ExpectedSchemaV2=new(()=>BuildExpected(SchemaSql+"\n"+ZipRetentionSchema.Sql));
     private static readonly Lazy<Dictionary<string,string>> ExpectedSchemaV3=new(()=>BuildExpected(SchemaSql+"\n"+ZipRetentionSchema.Sql+"\n"+ZipExtractionWorkSchema.Sql));
     private static readonly Lazy<Dictionary<string,string>> ExpectedSchemaV4=new(()=>BuildExpected(SchemaSql+"\n"+ZipRetentionSchema.Sql+"\n"+ZipExtractionWorkSchema.Sql+"\n"+ZipScanSchema.Sql));
-    private static readonly Lazy<Dictionary<string,string>> ExpectedSchema=new(()=>BuildExpected(SchemaSql+"\n"+ZipRetentionSchema.Sql+"\n"+ZipExtractionWorkSchema.Sql+"\n"+ZipScanSchema.Sql+"\n"+ZipParentAdmissionSchema.Sql));
-    private static async Task VerifyAsync(SqliteConnection c, SqliteTransaction? tx, CancellationToken ct,int version=5)
+    private static readonly Lazy<Dictionary<string,string>> ExpectedSchemaV5=new(()=>BuildExpected(SchemaSql+"\n"+ZipRetentionSchema.Sql+"\n"+ZipExtractionWorkSchema.Sql+"\n"+ZipScanSchema.Sql+"\n"+ZipParentAdmissionSchema.Sql));
+    private static readonly Lazy<Dictionary<string,string>> ExpectedSchema=new(()=>BuildExpected(SchemaSql+"\n"+ZipRetentionSchema.Sql+"\n"+ZipExtractionWorkSchema.Sql+"\n"+ZipScanSchema.Sql+"\n"+ZipParentAdmissionSchema.Sql+"\n"+ZipCandidateCustodySchema.Sql));
+    private static async Task VerifyAsync(SqliteConnection c, SqliteTransaction? tx, CancellationToken ct,int version=6)
     {
         using var q = c.CreateCommand(); q.Transaction = tx;
         q.CommandText = "SELECT COALESCE(MAX(Version),0) FROM ZipExtractionSchema";
@@ -85,7 +87,7 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
         q.CommandText = "SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL";
         using var r = await q.ExecuteReaderAsync(ct); var observed = new Dictionary<string, string>();
         while (await r.ReadAsync(ct)) observed[r.GetString(0)] = r.GetString(1);
-        foreach (var pair in (version==1?ExpectedSchemaV1.Value:version==2?ExpectedSchemaV2.Value:version==3?ExpectedSchemaV3.Value:version==4?ExpectedSchemaV4.Value:ExpectedSchema.Value))
+        foreach (var pair in (version==1?ExpectedSchemaV1.Value:version==2?ExpectedSchemaV2.Value:version==3?ExpectedSchemaV3.Value:version==4?ExpectedSchemaV4.Value:version==5?ExpectedSchemaV5.Value:ExpectedSchema.Value))
             if (!observed.TryGetValue(pair.Key, out var sql) || sql != pair.Value)
                 throw new InvalidDataException("ZIP schema or invariant trigger changed.");
     }
@@ -111,7 +113,9 @@ public sealed partial class SqliteZipExtractionJournal : IZipExtractionJournal, 
         if(version==3)
         { await VerifyAsync(c,tx,ct,3);q.CommandText=ZipScanSchema.Sql;await q.ExecuteNonQueryAsync(ct);version=4; }
         if(version==4)
-        { await VerifyAsync(c,tx,ct,4);q.CommandText=ZipParentAdmissionSchema.Sql;await q.ExecuteNonQueryAsync(ct); }
+        { await VerifyAsync(c,tx,ct,4);q.CommandText=ZipParentAdmissionSchema.Sql;await q.ExecuteNonQueryAsync(ct);version=5; }
+        if(version==5)
+        { await VerifyAsync(c,tx,ct,5);q.CommandText=ZipCandidateCustodySchema.Sql;await q.ExecuteNonQueryAsync(ct); }
         await VerifyAsync(c, tx, ct); tx.Commit();
     }
     private static async Task<ZipParentSnapshot?> ReadAsync(SqliteConnection c, SqliteTransaction? tx, string op, CancellationToken ct, bool parentEvidenceReviewOnly=false)

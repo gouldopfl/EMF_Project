@@ -23,6 +23,7 @@ public sealed class FileSystemArtifactContentMigration
 
     internal static string WorkspaceFor(string root)
     {
+        CandidateCustodyRootPolicy.RejectGenericRoot(root);
         root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         return Path.Combine(Path.GetDirectoryName(root)!, ".emf-content-migration-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(root))));
     }
@@ -73,6 +74,7 @@ public sealed class FileSystemArtifactContentMigration
             throw new ArgumentOutOfRangeException(nameof(options));
         if (string.IsNullOrWhiteSpace(rootPath)) throw new ArgumentException("Content root is required.", nameof(rootPath));
         cancellationToken.ThrowIfCancellationRequested(); _platform.RequirePlatform();
+        CandidateCustodyRootPolicy.RejectGenericRoot(rootPath);
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootPath));
         RejectLinks(root);
         if (!Directory.Exists(root)) throw new InvalidDataException("Legacy root must already exist.");
@@ -198,6 +200,8 @@ public sealed class FileSystemArtifactContentMigration
 
     internal static void ValidateLegacyName(string name)
     {
+        if (name == CandidateCustodyRootPolicy.Component)
+            throw new InvalidDataException("D1 custody is not a legacy migration source.");
         _ = new ArtifactId(name);
         if (name is "." or ".." || name.Contains('/') || name.Contains('\\') || Path.IsPathRooted(name))
             throw new InvalidDataException("Legacy Artifact identity is not a pre-protocol flat filename.");

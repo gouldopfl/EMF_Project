@@ -13,6 +13,7 @@ public static class EmfBuildManifestFile
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         EmfBuildManifestIdentity.Validate(manifest);
 
+        EMF.Infrastructure.CandidateCustodyPathExclusion.Reject(path);
         File.WriteAllText(
             path,
             JsonSerializer.Serialize(manifest, Options),

@@ -11,7 +11,7 @@ public sealed class SqliteArtifactMutationAuthority : IArtifactMutationAuthority
 {
     private readonly string _databasePath;
     public SqliteArtifactMutationAuthority(string databasePath)
-    { ArgumentException.ThrowIfNullOrWhiteSpace(databasePath); _databasePath = Path.GetFullPath(databasePath); }
+    { ArgumentException.ThrowIfNullOrWhiteSpace(databasePath); EMF.Infrastructure.CandidateCustodyPathExclusion.RejectSqlite(databasePath); _databasePath = Path.GetFullPath(databasePath); }
     private SqliteConnection Open()
     {
         var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = _databasePath, Mode = SqliteOpenMode.ReadWrite, Pooling = false }.ToString());

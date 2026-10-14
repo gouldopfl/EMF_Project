@@ -13,6 +13,7 @@ public sealed partial class SqliteWorkflowRepository : IWorkflowRepository
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
 
+        EMF.Infrastructure.CandidateCustodyPathExclusion.RejectSqlite(databasePath);
         _databasePath = databasePath;
     }
 
